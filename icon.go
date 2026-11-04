@@ -17,6 +17,7 @@ var iconPaths = map[string]string{
 	"rows-2":        `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/>`,
 	"x":             `<path d="M18 6 6 18"/><path d="m6 6 12 12"/>`,
 	"folder":        `<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>`,
+	"server":        `<rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/>`,
 	"chevron-right": `<path d="m9 18 6-6-6-6"/>`,
 	"chevron-down":  `<path d="m6 9 6 6 6-6"/>`,
 	"terminal":      `<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>`,
@@ -111,6 +112,24 @@ func iconButton(c *ui.Context, tk tokens, name string, action func()) {
 // iconButtonSmall is the list-row size: it sits quieter beside 12pt text.
 func iconButtonSmall(c *ui.Context, tk tokens, name string, action func()) {
 	iconButtonSized(c, tk, name, 20, 12, action)
+}
+
+// iconMenuButton is iconButton that opens a menu. The menu is built when it
+// opens, so the host list is read fresh instead of at startup.
+func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu)) {
+	size := iconSize
+	el := ui.Row(c).Width(size).Height(size).Radius(size / 2).
+		Center().Cursor(ui.CursorPointer)
+	if el.Hovered() {
+		el = el.Background(tk.Control)
+	}
+	el.Menu(build).Children(func() {
+		if src := iconSource(name, colorHex(tk.MutedForeground)); src != nil {
+			// The glyph sits inside the button: the press has to reach the
+			// button so its menu opens.
+			ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
+		}
+	})
 }
 
 func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32, action func()) {

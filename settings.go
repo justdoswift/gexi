@@ -15,6 +15,7 @@ type appSettings struct {
 	RestoreScreen    bool   `json:"restoreScreen"`
 	SidebarCollapsed bool   `json:"sidebarCollapsed"`
 	PaneStyle        string `json:"paneStyle"`
+	RemoteTmux       bool   `json:"remoteTmux"`
 }
 
 const (
@@ -23,7 +24,7 @@ const (
 )
 
 func defaultSettings() appSettings {
-	return appSettings{RestoreScreen: true, PaneStyle: paneComfortable}
+	return appSettings{RestoreScreen: true, PaneStyle: paneComfortable, RemoteTmux: true}
 }
 
 func settingsPath() string { return filepath.Join(supportDir(), "settings.json") }
@@ -58,7 +59,7 @@ func (w *workspace) openSettings() {
 	w.settingsWin = mygo.NewWindow(mygo.WindowOptions{
 		Title:           "Settings",
 		Width:           480,
-		Height:          400,
+		Height:          440,
 		MinWidth:        400,
 		MinHeight:       300,
 		TitleBarStyle:   mygo.TitleBarHidden,
@@ -100,6 +101,15 @@ func (w *workspace) settingsView(c *ui.Context) {
 					detail:   "Paint the previous screen above the new shell.",
 					value:    &w.settings.RestoreScreen,
 					onChange: func() { w.settings.save(); w.scheduleSave() },
+				})
+			})
+			sectionLabel(c, tk, "Remote")
+			ui.Column(c).FillWidth().Radius(8).Border(1, tk.Border).Children(func() {
+				w.settingRowView(c, tk, settingRow{
+					title:    "Keep remote sessions",
+					detail:   "Run tmux on the host so a dropped link can reconnect.",
+					value:    &w.settings.RemoteTmux,
+					onChange: func() { w.settings.save() },
 				})
 			})
 			sectionLabel(c, tk, "Notifications")

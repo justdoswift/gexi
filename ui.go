@@ -100,6 +100,7 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 							}
 							w.invalidate()
 						})
+						iconMenuButton(c, tk, "server", w.hostMenu)
 						iconButton(c, tk, "plus", func() { w.pickProject() })
 					})
 				})
@@ -127,12 +128,40 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 		})
 }
 
+// hostMenu lists the concrete hosts in ~/.ssh/config. The list is read as the
+// menu opens, so a host added to the file shows up without a restart.
+func (w *workspace) hostMenu(m *ui.Menu) {
+	hosts := loadSSHHosts()
+	if len(hosts) == 0 {
+		m.Item("No hosts in ~/.ssh/config").Disabled(true)
+		return
+	}
+	for _, h := range hosts {
+		label := h.Alias
+		if target := h.target(); target != label {
+			label += "  " + target
+		}
+		if m.Item(label).Chosen() {
+			w.connectHost(h)
+		}
+	}
+}
+
 func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
 	iconButton(c, tk, "panel-left", func() {
 		w.settings.SidebarCollapsed = !w.settings.SidebarCollapsed
 		w.settings.save()
 		w.invalidate()
 	})
+}
+
+// projectIcon marks where a project runs: a folder on this machine, or a
+// server when it is a remote host.
+func projectIcon(pr *project) string {
+	if pr.RemoteHost != "" {
+		return "server"
+	}
+	return "folder"
 }
 
 // projectRow is a folder header: it folds its sessions in and out, and offers
@@ -157,7 +186,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 		if src := iconSource(chevron, colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(12).Height(12).OnClick(toggle)
 		}
-		if src := iconSource("folder", colorHex(tk.MutedForeground)); src != nil {
+		if src := iconSource(projectIcon(pr), colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(13).Height(13).OnClick(toggle)
 		}
 		ui.Text(c, pr.name()).FontSize(12).FontWeight(500).SingleLine().TextColor(color).OnClick(toggle)

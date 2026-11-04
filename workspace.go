@@ -14,11 +14,15 @@ import (
 // opened in it are the shells and agents working in that folder. Each session
 // holds its own split tree of panes.
 
-// project is a folder the user works in.
+// project is a folder the user works in, or a remote host. A remote project
+// keeps the local home as its working directory, because that is where the
+// ssh process starts; Label names it and RemoteHost marks it.
 type project struct {
-	ID       string
-	Dir      string
-	Sessions []*session
+	ID         string
+	Dir        string
+	Label      string
+	RemoteHost string
+	Sessions   []*session
 }
 
 // session is one split tree of panes inside a project.
@@ -61,8 +65,12 @@ func (s *session) agent() *agentDetection {
 	return nil
 }
 
-// name is the folder's own name, which is what the sidebar calls a project.
+// name is what the sidebar calls a project: a remote host's alias, or the
+// folder's own name.
 func (p *project) name() string {
+	if p.Label != "" {
+		return p.Label
+	}
 	if base := filepath.Base(p.Dir); base != "" && base != "." && base != "/" {
 		return base
 	}
@@ -206,11 +214,12 @@ func (w *workspace) pickProject() {
 	}()
 }
 
-// projectFor returns the project for dir, adding one when there is none.
-// Main thread.
+// projectFor returns the local project for dir, adding one when there is
+// none. Remote projects keep the home directory as their working directory,
+// so they are not candidates here. Main thread.
 func (w *workspace) projectFor(dir string) *project {
 	for _, pr := range w.Projects {
-		if pr.Dir == dir {
+		if pr.RemoteHost == "" && pr.Dir == dir {
 			return pr
 		}
 	}
@@ -220,12 +229,52 @@ func (w *workspace) projectFor(dir string) *project {
 	return pr
 }
 
+// remoteProject returns the project for a host alias, or nil.
+func (w *workspace) remoteProject(host string) *project {
+	for _, pr := range w.Projects {
+		if pr.RemoteHost == host {
+			return pr
+		}
+	}
+	return nil
+}
+
+// connectHost opens a session on host, reusing the project that already
+// groups sessions for it. The pane runs ssh with the user's own config, so
+// ProxyJump, identities, and anything else in ~/.ssh/config apply unchanged.
+// Main thread.
+func (w *workspace) connectHost(h sshHost) {
+	pr := w.remoteProject(h.Alias)
+	if pr == nil {
+		home, _ := os.UserHomeDir()
+		pr = &project{
+			ID:         newID(),
+			Dir:        home,
+			Label:      h.Alias,
+			RemoteHost: h.Alias,
+		}
+		w.Projects = append(w.Projects, pr)
+		delete(w.collapsed, pr.ID)
+	}
+	_, _ = w.newSession(pr, h.command(w.settings.RemoteTmux), pr.Dir)
+}
+
+// projectCommand fills in a remote project's default command: another ssh
+// session to its host. A local project keeps the login shell.
+func (w *workspace) projectCommand(pr *project, command []string) []string {
+	if pr == nil || command != nil || pr.RemoteHost == "" {
+		return command
+	}
+	return sshHost{Alias: pr.RemoteHost}.command(w.settings.RemoteTmux)
+}
+
 // newSession runs command (or a login shell) in the project and selects it.
 // Main thread.
 func (w *workspace) newSession(pr *project, command []string, dir string) (*session, error) {
 	if pr == nil {
 		return nil, fmt.Errorf("No project is open")
 	}
+	command = w.projectCommand(pr, command)
 	if dir == "" {
 		dir = pr.Dir
 	}
@@ -244,11 +293,13 @@ func (w *workspace) newSession(pr *project, command []string, dir string) (*sess
 	return s, nil
 }
 
-// splitPane puts a new pane beside p. Main thread.
+// splitPane puts a new pane beside p. On a remote project the new pane opens
+// another session to the same host. Main thread.
 func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*pane, error) {
 	if dir == "" {
 		dir = p.dir()
 	}
+	command = w.projectCommand(w.projectOf(w.sessionOf(p)), command)
 	np, err := newPane(w, "", command, dir, "")
 	if err != nil {
 		return nil, err
