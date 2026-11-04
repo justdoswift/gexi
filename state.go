@@ -9,15 +9,33 @@ import (
 	"time"
 )
 
-// The layout is what comes back on launch: tabs, split ratios, and each
-// pane's restore command. The screen comes back as plain text, never as raw
-// PTY bytes, which reflow into garbage at a different width.
+// The layout is what comes back on launch: projects and their sessions, split
+// ratios, and each pane's restore command. The screen comes back as plain
+// text, never as raw PTY bytes, which reflow into garbage at a different
+// width.
 
 type workspaceState struct {
-	Version     int        `json:"version"`
+	Version         int            `json:"version"`
+	SelectedSession string         `json:"selectedSession,omitempty"`
+	FocusedPane     string         `json:"focusedPane,omitempty"`
+	Projects        []savedProject `json:"projects,omitempty"`
+
+	// Version 1 had no projects: its tabs were sessions without a folder of
+	// their own, so they are grouped by directory on the way in.
 	SelectedTab string     `json:"selectedTabID,omitempty"`
-	FocusedPane string     `json:"focusedPane,omitempty"`
-	Tabs        []savedTab `json:"tabs"`
+	Tabs        []savedTab `json:"tabs,omitempty"`
+}
+
+type savedProject struct {
+	ID        string         `json:"id"`
+	Dir       string         `json:"dir"`
+	Collapsed bool           `json:"collapsed,omitempty"`
+	Sessions  []savedSession `json:"sessions"`
+}
+
+type savedSession struct {
+	ID   string    `json:"id"`
+	Root savedNode `json:"root"`
 }
 
 type savedTab struct {
@@ -77,16 +95,29 @@ func ptr(n savedNode) *savedNode { return &n }
 
 func (w *workspace) savedState() workspaceState {
 	state := workspaceState{
-		Version:     1,
-		SelectedTab: w.SelectedTab,
-		FocusedPane: w.FocusedPane,
+		Version:         2,
+		SelectedSession: w.SelectedSession,
+		FocusedPane:     w.FocusedPane,
 	}
-	for _, t := range w.Tabs {
-		state.Tabs = append(state.Tabs, savedTab{
-			ID:    t.ID,
-			Title: t.title(),
-			Root:  t.Root.saved(),
-		})
+	for _, pr := range w.Projects {
+		saved := savedProject{
+			ID:        pr.ID,
+			Dir:       pr.Dir,
+			Collapsed: w.collapsed[pr.ID],
+		}
+		for _, s := range pr.Sessions {
+			if s.Root == nil {
+				continue
+			}
+			saved.Sessions = append(saved.Sessions, savedSession{
+				ID:   s.ID,
+				Root: s.Root.saved(),
+			})
+		}
+		if len(saved.Sessions) == 0 {
+			continue
+		}
+		state.Projects = append(state.Projects, saved)
 	}
 	return state
 }
@@ -137,7 +168,7 @@ func loadState() (workspaceState, bool) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return state, false
 	}
-	return state, len(state.Tabs) > 0
+	return state, len(state.Projects) > 0 || len(state.Tabs) > 0
 }
 
 func (n *savedNode) restore(w *workspace) (*splitNode, error) {
@@ -181,36 +212,69 @@ func (n *savedNode) restore(w *workspace) (*splitNode, error) {
 	}
 }
 
-// restoreOrCreate rebuilds the saved workspace, or starts one tab.
+// restoreOrCreate rebuilds the saved workspace, or starts one project with a
+// session in it.
 func (w *workspace) restoreOrCreate() {
 	state, ok := loadState()
 	if !ok {
-		if _, err := w.newTab(nil, ""); err != nil {
-			return
-		}
+		_, _, _ = w.openProject("")
 		return
 	}
 
-	for _, st := range state.Tabs {
-		root, err := st.Root.restore(w)
-		if err != nil {
+	for _, sp := range state.Projects {
+		pr := &project{ID: sp.ID, Dir: sp.Dir}
+		for _, ss := range sp.Sessions {
+			root, err := ss.Root.restore(w)
+			if err != nil {
+				continue
+			}
+			pr.Sessions = append(pr.Sessions, &session{ID: ss.ID, Root: root})
+		}
+		if len(pr.Sessions) == 0 {
 			continue
 		}
-		w.Tabs = append(w.Tabs, &tab{ID: st.ID, Root: root})
+		if sp.Collapsed {
+			w.collapsed[pr.ID] = true
+		}
+		w.Projects = append(w.Projects, pr)
 	}
-	if len(w.Tabs) == 0 {
-		_, _ = w.newTab(nil, "")
+
+	// Version 1: tabs group into projects by the folder they ran in.
+	if len(w.Projects) == 0 {
+		for _, st := range state.Tabs {
+			root, err := st.Root.restore(w)
+			if err != nil {
+				continue
+			}
+			ps := root.panes()
+			if len(ps) == 0 {
+				continue
+			}
+			pr := w.projectFor(ps[0].dir())
+			pr.Sessions = append(pr.Sessions, &session{ID: st.ID, Root: root})
+		}
+	}
+
+	if len(w.Projects) == 0 {
+		_, _, _ = w.openProject("")
 		return
 	}
 
-	w.SelectedTab = state.SelectedTab
-	if w.selected() == nil || w.SelectedTab == "" {
-		w.SelectedTab = w.Tabs[0].ID
+	w.SelectedSession = state.SelectedSession
+	if w.SelectedSession == "" {
+		w.SelectedSession = state.SelectedTab
+	}
+	if w.sessionByID(w.SelectedSession) == nil {
+		if first := w.firstSession(); first != nil {
+			w.SelectedSession = first.ID
+		}
 	}
 	w.FocusedPane = state.FocusedPane
 	if w.paneByID(w.FocusedPane) == nil {
-		if ps := w.selected().Root.panes(); len(ps) > 0 {
-			w.FocusedPane = ps[0].ID
+		if s := w.selected(); s != nil && s.Root != nil {
+			if ps := s.Root.panes(); len(ps) > 0 {
+				w.FocusedPane = ps[0].ID
+			}
 		}
 	}
 	w.focusReq = w.FocusedPane

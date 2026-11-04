@@ -58,50 +58,65 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 
 	case "workspace.info":
 		return map[string]any{
-			"session":     w.SessionID,
-			"socket":      socketPath(),
-			"version":     Version,
-			"selectedTab": nullable(w.SelectedTab),
-			"focusedPane": nullable(w.FocusedPane),
-			"tabs":        w.tabsJSON(),
-			"paneStyle":   w.settings.PaneStyle,
-			"searchOpen":  w.searchOpen,
+			"instance":        w.InstanceID,
+			"socket":          socketPath(),
+			"version":         Version,
+			"selectedSession": nullable(w.SelectedSession),
+			"focusedPane":     nullable(w.FocusedPane),
+			"projects":        w.projectsJSON(),
+			"paneStyle":       w.settings.PaneStyle,
+			"searchOpen":      w.searchOpen,
 		}, nil
 
-	case "tab.list":
-		return w.tabsJSON(), nil
+	case "project.list":
+		return w.projectsJSON(), nil
 
-	case "tab.select":
-		raw := str(p, "tab")
-		if raw == "" {
-			return nil, fmt.Errorf("tab.select needs a tab id")
-		}
-		raw = strings.ToLower(raw)
-		var matches []*tab
-		for _, t := range w.Tabs {
-			if strings.ToLower(t.ID) == raw {
-				w.selectTab(t.ID)
-				return map[string]any{"tab": t.ID}, nil
-			}
-			if strings.HasPrefix(strings.ToLower(t.ID), raw) {
-				matches = append(matches, t)
-			}
-		}
-		if len(matches) != 1 {
-			if len(matches) == 0 {
-				return nil, fmt.Errorf("No such tab: %s", raw)
-			}
-			return nil, fmt.Errorf("Ambiguous tab id: %s", raw)
-		}
-		w.selectTab(matches[0].ID)
-		return map[string]any{"tab": matches[0].ID}, nil
-
-	case "tab.new":
-		t, err := w.newTab(w.commandParam(p), str(p, "cwd"))
+	case "project.new":
+		pr, s, err := w.openProject(str(p, "cwd"))
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"tab": t.ID, "pane": w.FocusedPane}, nil
+		return map[string]any{"project": pr.ID, "session": s.ID, "pane": w.FocusedPane}, nil
+
+	case "session.list":
+		out := []any{}
+		for _, pr := range w.Projects {
+			for _, s := range pr.Sessions {
+				out = append(out, w.sessionJSON(pr, s))
+			}
+		}
+		return out, nil
+
+	case "session.select":
+		s, err := w.resolveSession(str(p, "session"))
+		if err != nil {
+			return nil, err
+		}
+		w.selectSession(s.ID)
+		return map[string]any{"session": s.ID}, nil
+
+	case "session.new":
+		var err error
+		var pr *project
+		if raw := str(p, "project"); raw != "" {
+			found, err := w.resolveProject(raw)
+			if err != nil {
+				return nil, err
+			}
+			pr = found
+		} else if cur := w.selected(); cur != nil {
+			pr = w.projectOf(cur)
+		} else {
+			pr, _, err = w.openProject(str(p, "cwd"))
+			if err != nil {
+				return nil, err
+			}
+		}
+		s, err := w.newSession(pr, w.commandParam(p), str(p, "cwd"))
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"session": s.ID, "pane": w.FocusedPane}, nil
 
 	case "pane.list":
 		out := []any{}
@@ -216,9 +231,12 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 }
 
 func (w *workspace) paneJSON(p *pane) map[string]any {
-	tabID := ""
-	if t := w.tabOf(p); t != nil {
-		tabID = t.ID
+	sessionID, projectID := "", ""
+	if s := w.sessionOf(p); s != nil {
+		sessionID = s.ID
+		if pr := w.projectOf(s); pr != nil {
+			projectID = pr.ID
+		}
 	}
 	return map[string]any{
 		"id":             p.ID,
@@ -227,7 +245,8 @@ func (w *workspace) paneJSON(p *pane) map[string]any {
 		"focused":        p.ID == w.FocusedPane,
 		"hasFocus":       p.ID == w.FocusedPane,
 		"hasSurface":     true,
-		"tab":            tabID,
+		"session":        sessionID,
+		"project":        projectID,
 		"command":        p.command,
 		"restoreCommand": p.restoreCommand,
 		"agent":          agentJSON(p.agent),
@@ -242,21 +261,76 @@ func agentJSON(a *agentDetection) any {
 	return map[string]any{"kind": string(a.Kind), "session": nullable(a.SessionID)}
 }
 
-func (w *workspace) tabsJSON() []any {
-	out := []any{}
-	for _, t := range w.Tabs {
-		ids := []string{}
-		for _, pane := range t.Root.panes() {
+func (w *workspace) sessionJSON(pr *project, s *session) map[string]any {
+	ids := []string{}
+	if s.Root != nil {
+		for _, pane := range s.Root.panes() {
 			ids = append(ids, pane.ID)
 		}
+	}
+	projectID := ""
+	if pr != nil {
+		projectID = pr.ID
+	}
+	return map[string]any{
+		"id":       s.ID,
+		"title":    s.title(),
+		"project":  projectID,
+		"selected": s.ID == w.SelectedSession,
+		"panes":    ids,
+	}
+}
+
+func (w *workspace) projectsJSON() []any {
+	out := []any{}
+	for _, pr := range w.Projects {
+		sessions := []any{}
+		for _, s := range pr.Sessions {
+			sessions = append(sessions, w.sessionJSON(pr, s))
+		}
 		out = append(out, map[string]any{
-			"id":       t.ID,
-			"title":    t.title(),
-			"selected": t.ID == w.SelectedTab,
-			"panes":    ids,
+			"id":        pr.ID,
+			"dir":       pr.Dir,
+			"name":      pr.name(),
+			"collapsed": w.collapsed[pr.ID],
+			"sessions":  sessions,
 		})
 	}
 	return out
+}
+
+// resolveProject accepts a full project id, a unique prefix, or its folder.
+func (w *workspace) resolveProject(raw string) (*project, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		if s := w.selected(); s != nil {
+			if pr := w.projectOf(s); pr != nil {
+				return pr, nil
+			}
+		}
+		if len(w.Projects) > 0 {
+			return w.Projects[0], nil
+		}
+		return nil, fmt.Errorf("No project is open")
+	}
+	lower := strings.ToLower(raw)
+	var matches []*project
+	for _, pr := range w.Projects {
+		if pr.ID == raw || pr.Dir == raw || strings.ToLower(pr.name()) == lower {
+			return pr, nil
+		}
+		if strings.HasPrefix(strings.ToLower(pr.ID), lower) {
+			matches = append(matches, pr)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return nil, fmt.Errorf("No such project: %s", raw)
+	case 1:
+		return matches[0], nil
+	default:
+		return nil, fmt.Errorf("Ambiguous project id: %s", raw)
+	}
 }
 
 // commandParam turns "command" into the login-shell invocation Gexi uses,

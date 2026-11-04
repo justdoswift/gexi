@@ -109,8 +109,9 @@ Usage:
   gexi run    [-p PANE] [--vertical|--horizontal] [--cwd DIR] COMMAND...
   gexi focus  [-p PANE]
   gexi close  [-p PANE]
-  gexi new-tab [--cwd DIR] [-- COMMAND...]
-  gexi tab-select TAB
+  gexi new-session [--cwd DIR] [-- COMMAND...]
+  gexi session-select SESSION
+  gexi new-project [--cwd DIR]
   gexi settings
   gexi event  KIND [--agent NAME] [--json]
   gexi quit
@@ -315,7 +316,7 @@ func main() {
 			return
 		}
 		m := obj(result)
-		fmt.Printf("session  %s\n", str(m, "session"))
+		fmt.Printf("instance %s\n", str(m, "instance"))
 		fmt.Printf("version  %s\n", str(m, "version"))
 		fmt.Printf("socket   %s\n", str(m, "socket"))
 		focused := str(m, "focusedPane")
@@ -323,21 +324,25 @@ func main() {
 			focused = "-"
 		}
 		fmt.Printf("focused  %s\n", focused)
-		tabs, _ := m["tabs"].([]any)
-		fmt.Printf("tabs     %d\n", len(tabs))
-		for _, raw := range tabs {
-			tab, _ := raw.(map[string]any)
-			sel, _ := tab["selected"].(bool)
-			panes, _ := tab["panes"].([]any)
-			mark := " "
-			if sel {
-				mark = "*"
+		projects, _ := m["projects"].([]any)
+		fmt.Printf("projects %d\n", len(projects))
+		for _, raw := range projects {
+			pr, _ := raw.(map[string]any)
+			sessions, _ := pr["sessions"].([]any)
+			fmt.Printf("  %s  %s  sessions=%d\n", str(pr, "name"), str(pr, "dir"), len(sessions))
+			for _, rawSession := range sessions {
+				s, _ := rawSession.(map[string]any)
+				mark := " "
+				if sel, _ := s["selected"].(bool); sel {
+					mark = "*"
+				}
+				panes, _ := s["panes"].([]any)
+				id := str(s, "id")
+				if len(id) > 8 {
+					id = id[:8]
+				}
+				fmt.Printf("    %s %s %s panes=%d\n", mark, str(s, "title"), id, len(panes))
 			}
-			id := str(tab, "id")
-			if len(id) > 8 {
-				id = id[:8]
-			}
-			fmt.Printf("  %s %s %s panes=%d\n", mark, str(tab, "title"), id, len(panes))
 		}
 
 	case "list":
@@ -426,7 +431,7 @@ func main() {
 		result := call("pane.close", nil)
 		emit(result)
 
-	case "new-tab":
+	case "new-session":
 		params := map[string]any{}
 		if command := strings.Join(rest, " "); command != "" {
 			params["command"] = command
@@ -434,23 +439,35 @@ func main() {
 		if opt.cwd != "" {
 			params["cwd"] = opt.cwd
 		}
-		result := call("tab.new", params)
+		result := call("session.new", params)
 		if opt.json {
 			emit(result)
 			return
 		}
 		fmt.Println(str(obj(result), "pane"))
 
-	case "tab-select":
+	case "session-select":
 		if len(rest) == 0 {
-			fail("tab-select needs a tab id")
+			fail("session-select needs a session id")
 		}
-		result := call("tab.select", map[string]any{"tab": rest[0]})
+		result := call("session.select", map[string]any{"session": rest[0]})
 		if opt.json {
 			emit(result)
 			return
 		}
-		fmt.Println(str(obj(result), "tab"))
+		fmt.Println(str(obj(result), "session"))
+
+	case "new-project":
+		params := map[string]any{}
+		if opt.cwd != "" {
+			params["cwd"] = opt.cwd
+		}
+		result := call("project.new", params)
+		if opt.json {
+			emit(result)
+			return
+		}
+		fmt.Println(str(obj(result), "session"))
 
 	case "settings":
 		call("app.settings", nil)

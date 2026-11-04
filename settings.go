@@ -62,7 +62,7 @@ func (w *workspace) openSettings() {
 		MinWidth:        400,
 		MinHeight:       300,
 		TitleBarStyle:   mygo.TitleBarHidden,
-		BackgroundColor: "light-dark(#ffffff, #0a0a0a)",
+		BackgroundColor: "light-dark(#ffffff, #0e0e10)",
 		Content:         ui.View(w.settingsView),
 	})
 	w.settingsWin.OnShow(func() { w.settingsWin.Invalidate() })
@@ -93,7 +93,7 @@ func (w *workspace) settingsView(c *ui.Context) {
 					w.paneStyleControl(c, tk)
 				})
 			})
-			sectionLabel(c, tk, "Sessions")
+			sectionLabel(c, tk, "Workspace")
 			ui.Column(c).FillWidth().Radius(8).Border(1, tk.Border).Children(func() {
 				w.settingRowView(c, tk, settingRow{
 					title:    "Restore last screen",
@@ -153,7 +153,7 @@ func outlineButton(c *ui.Context, tk tokens, label string, action func()) {
 		Border(1, tk.Border).Cursor(ui.CursorPointer)
 	bg := tk.Background
 	if el.Hovered() {
-		bg = tk.Muted
+		bg = tk.Accent
 	}
 	el.Background(bg).OnClick(action).Children(func() {
 		ui.Text(c, label).FontSize(12).FontWeight(500).

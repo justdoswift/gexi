@@ -26,12 +26,16 @@ type tokens struct {
 func themeTokens(t *ui.Theme) tokens {
 	if t.Dark {
 		return tokens{
-			Background:      ui.RGB(0x0a, 0x0a, 0x0a),
+			// The card background is the terminal's own background
+			// (ui.DarkTheme), so a pane header and its body read as one
+			// surface; the canvas around it sits a step darker, which is
+			// what makes a comfortable pane look wrapped.
+			Background:      ui.RGB(0x18, 0x18, 0x1b),
 			Foreground:      ui.RGB(0xfa, 0xfa, 0xfa),
-			Muted:           ui.RGB(0x1f, 0x1f, 0x1f),
+			Muted:           ui.RGB(0x0e, 0x0e, 0x10),
 			MutedForeground: ui.RGB(0xa1, 0xa1, 0xa1),
-			Border:          ui.RGB(0x26, 0x26, 0x26),
-			Sidebar:         ui.RGB(0x11, 0x11, 0x11),
+			Border:          ui.RGB(0x2a, 0x2a, 0x2e),
+			Sidebar:         ui.RGB(0x0e, 0x0e, 0x10),
 			Accent:          ui.RGB(0x1f, 0x1f, 0x1f),
 			Active:          ui.RGB(0x26, 0x26, 0x26),
 			Control:         ui.RGB(0x3a, 0x3a, 0x3a),

@@ -120,7 +120,7 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 		Conn: connOf(p),
 		Env: []string{
 			"GEXI_PANE=" + id,
-			"GEXI_SESSION=" + ws.SessionID,
+			"GEXI_INSTANCE=" + ws.InstanceID,
 			"GEXI_SOCKET=" + socketPath(),
 			"GEXI_HOME=" + supportDir(),
 		},
@@ -168,7 +168,7 @@ func (p *pane) start(argv []string, dir string) error {
 		"COLORTERM=truecolor",
 		"TERM_PROGRAM=Gexi",
 		"GEXI_PANE="+p.ID,
-		"GEXI_SESSION="+p.ws.SessionID,
+		"GEXI_INSTANCE="+p.ws.InstanceID,
 		"GEXI_SOCKET="+socketPath(),
 		"GEXI_HOME="+supportDir(),
 	)

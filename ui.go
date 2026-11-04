@@ -21,7 +21,9 @@ import (
 func (w *workspace) view(c *ui.Context) {
 	tk := themeTokens(c.Theme())
 	bar := c.TitleBar()
-	root := ui.Row(c).Fill().Background(tk.Background)
+	// The window's own surface is the canvas the panes sit on, so a pane
+	// that fades back fades toward that canvas, not toward its own colour.
+	root := ui.Row(c).Fill().Background(w.backdrop(tk))
 
 	target := float32(0)
 	if !w.settings.SidebarCollapsed {
@@ -72,10 +74,13 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 		return
 	}
 	ui.Column(c).Fill().Center().Children(func() {
-		ui.Text(c, "No tabs").FontSize(13).TextColor(tk.MutedForeground)
+		ui.Text(c, "No project").FontSize(13).TextColor(tk.MutedForeground)
 	})
 }
 
+// sidebar lists projects, and under each one the sessions opened in that
+// folder. A project is a place; a session is one piece of work there, with its
+// own split tree of panes.
 func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 	if width < 0.5 {
 		return
@@ -95,18 +100,27 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 							}
 							w.invalidate()
 						})
-						iconButton(c, tk, "plus", func() { _, _ = w.newTab(nil, "") })
+						iconButton(c, tk, "plus", func() { w.pickProject() })
 					})
 				})
 			if w.searchOpen {
 				ui.Row(c).Padding(0, 8, 6, 8).Children(func() {
-					ui.TextInput(c, &w.searchQuery).Placeholder("Search sessions").
+					ui.TextInput(c, &w.searchQuery).Placeholder("Search projects").
 						FontSize(12).Height(26).FillWidth().AutoFocus()
 				})
 			}
 			ui.Column(c).Fill().Padding(8).Gap(1).Children(func() {
-				for _, tb := range w.Tabs {
-					w.tabRow(c, tk, tb)
+				shown := false
+				for _, pr := range w.Projects {
+					if !w.projectVisible(pr) {
+						continue
+					}
+					shown = true
+					w.projectRow(c, tk, pr)
+				}
+				if !shown {
+					ui.Text(c, "No projects").FontSize(12).
+						TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
 				}
 				ui.Spacer(c)
 			})
@@ -121,24 +135,61 @@ func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
 	})
 }
 
-func (w *workspace) tabRow(c *ui.Context, tk tokens, tb *tab) {
-	sel := tb.ID == w.SelectedTab
-	color := tk.MutedForeground
-	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(8).Radius(chromeRadius)
+// projectRow is a folder header: it folds its sessions in and out, and offers
+// another session or closing the project on hover.
+func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
+	open := !w.collapsed[pr.ID] || strings.TrimSpace(w.searchQuery) != ""
+	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(6).Radius(chromeRadius)
 	hovered := row.Hovered()
-	switch {
-	case sel:
-		color = tk.Foreground
-	case hovered:
+	color := tk.MutedForeground
+	if pr.sessionsSelected(w) || hovered {
 		color = tk.Foreground
 	}
-	bg := fade(c, tk, row, sel, hovered)
-	row = row.Background(bg)
-	pick := func() { w.selectTab(tb.ID) }
+	if hovered {
+		row = row.Background(tk.Active)
+	}
+	toggle := func() { w.toggleProject(pr) }
+	row.OnClick(toggle).Children(func() {
+		chevron := "chevron-right"
+		if open {
+			chevron = "chevron-down"
+		}
+		if src := iconSource(chevron, colorHex(tk.MutedForeground)); src != nil {
+			ui.Image(c, src).Width(12).Height(12).OnClick(toggle)
+		}
+		if src := iconSource("folder", colorHex(tk.MutedForeground)); src != nil {
+			ui.Image(c, src).Width(13).Height(13).OnClick(toggle)
+		}
+		ui.Text(c, pr.name()).FontSize(12).FontWeight(500).SingleLine().TextColor(color).OnClick(toggle)
+		ui.Spacer(c).OnClick(toggle)
+		if hovered {
+			iconButtonSmall(c, tk, "plus", func() { _, _ = w.newSession(pr, nil, pr.Dir) })
+			iconButtonSmall(c, tk, "x", func() { w.closeProject(pr) })
+		}
+	})
+	if !open {
+		return
+	}
+	for _, s := range pr.Sessions {
+		w.sessionRow(c, tk, pr, s)
+	}
+}
+
+// sessionRow is one piece of work in a project: an agent's mark or a terminal
+// glyph, its name, the activity loader, and a close button on hover.
+func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session) {
+	sel := s.ID == w.SelectedSession
+	color := tk.MutedForeground
+	// Indented past the project's chevron and folder.
+	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 26).Gap(8).Radius(chromeRadius)
+	hovered := row.Hovered()
+	if sel || hovered {
+		color = tk.Foreground
+	}
+	row = row.Background(fade(c, tk, row, sel, hovered))
+	pick := func() { w.selectSession(s.ID) }
 	row.OnClick(pick).Children(func() {
-		// Agent tabs take the agent's mark and name, same as their pane
-		// header, so neither shows the spinner glyph from the terminal title.
-		agent := tb.agent()
+		agent := s.agent()
 		if agent != nil {
 			if src := agentLogoSource(agent.Kind, tk); src != nil {
 				ui.Image(c, src).Width(13).Height(13).OnClick(pick)
@@ -146,19 +197,52 @@ func (w *workspace) tabRow(c *ui.Context, tk tokens, tb *tab) {
 		} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(13).Height(13).OnClick(pick)
 		}
-		title := tb.title()
-		if agent != nil {
-			title = agent.Kind.name()
-		}
-		ui.Text(c, title).FontSize(12).FontWeight(500).TextColor(color).OnClick(pick)
+		ui.Text(c, sessionLabel(s)).FontSize(12).FontWeight(500).SingleLine().TextColor(color).OnClick(pick)
 		ui.Spacer(c).OnClick(pick)
 		// Loader first, close last: the × owns the row's right edge whenever
 		// the pointer is over it, and the loader sits beside it.
-		w.activityLoader(c, tk, tabActivityState(tb), pick)
+		w.activityLoader(c, tk, sessionActivityState(s), pick)
 		if hovered {
-			iconButton(c, tk, "x", func() { w.closeTab(tb) })
+			iconButtonSmall(c, tk, "x", func() { w.closeSession(s) })
 		}
 	})
+}
+
+// sessionLabel is what the sidebar calls a session: its agent when one runs
+// there, the terminal title otherwise.
+func sessionLabel(s *session) string {
+	if agent := s.agent(); agent != nil {
+		return agent.Kind.name()
+	}
+	return s.title()
+}
+
+// sessionsSelected reports whether the selection lives under the project.
+func (p *project) sessionsSelected(w *workspace) bool {
+	for _, s := range p.Sessions {
+		if s.ID == w.SelectedSession {
+			return true
+		}
+	}
+	return false
+}
+
+// projectVisible matches the search box against the folder and its sessions.
+func (w *workspace) projectVisible(pr *project) bool {
+	q := strings.ToLower(strings.TrimSpace(w.searchQuery))
+	if q == "" {
+		return true
+	}
+	if strings.Contains(strings.ToLower(pr.name()), q) ||
+		strings.Contains(strings.ToLower(pr.Dir), q) {
+		return true
+	}
+	for _, s := range pr.Sessions {
+		if strings.Contains(strings.ToLower(sessionLabel(s)), q) {
+			return true
+		}
+	}
+	return false
 }
 
 // activityLoader is the sidebar's grid loader, after loaders.wtf: a short
@@ -209,10 +293,13 @@ func dotAlpha(phase float64, i int) float32 {
 // loaderWidth is three 5pt dots and the 3pt gaps between them.
 const loaderWidth float32 = 21
 
-// tabActivityState folds the panes' hook events into one sidebar indicator.
-func tabActivityState(tb *tab) string {
+// sessionActivityState folds the panes' hook events into one sidebar indicator.
+func sessionActivityState(s *session) string {
 	state := ""
-	for _, p := range tb.Root.panes() {
+	if s.Root == nil {
+		return state
+	}
+	for _, p := range s.Root.panes() {
 		if p.activity == nil {
 			continue
 		}

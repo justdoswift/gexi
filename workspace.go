@@ -10,17 +10,28 @@ import (
 	"github.com/egoist/mygo"
 )
 
-// tab is one workspace tab: a title and a split tree.
-type tab struct {
+// The workspace is two levels: a project is a folder on disk, and the sessions
+// opened in it are the shells and agents working in that folder. Each session
+// holds its own split tree of panes.
+
+// project is a folder the user works in.
+type project struct {
+	ID       string
+	Dir      string
+	Sessions []*session
+}
+
+// session is one split tree of panes inside a project.
+type session struct {
 	ID   string
 	Root *splitNode
 }
 
-func (t *tab) title() string {
-	if t.Root == nil {
+func (s *session) title() string {
+	if s.Root == nil {
 		return "Terminal"
 	}
-	ps := t.Root.panes()
+	ps := s.Root.panes()
 	if len(ps) == 0 {
 		return "Terminal"
 	}
@@ -38,26 +49,34 @@ func (t *tab) title() string {
 	return abbreviate(p.dir())
 }
 
-// agent returns the detection of the tab's first pane, which is the pane the
-// tab is named after.
-func (t *tab) agent() *agentDetection {
-	if t.Root == nil {
+// agent returns the detection of the session's first pane, which is the pane
+// the session is named after.
+func (s *session) agent() *agentDetection {
+	if s.Root == nil {
 		return nil
 	}
-	if ps := t.Root.panes(); len(ps) > 0 {
+	if ps := s.Root.panes(); len(ps) > 0 {
 		return ps[0].agent
 	}
 	return nil
 }
 
-// workspace mirrors Gexi's model: tabs, one selected tab, focus, and the
-// control server that drives it all from outside the process.
+// name is the folder's own name, which is what the sidebar calls a project.
+func (p *project) name() string {
+	if base := filepath.Base(p.Dir); base != "" && base != "." && base != "/" {
+		return base
+	}
+	return p.Dir
+}
+
+// workspace mirrors Gexi's model: projects, the session each holds, focus,
+// and the control server that drives it all from outside the process.
 type workspace struct {
-	SessionID   string
-	Tabs        []*tab
-	SelectedTab string
-	FocusedPane string
-	focusReq    string
+	InstanceID      string
+	Projects        []*project
+	SelectedSession string
+	FocusedPane     string
+	focusReq        string
 
 	win         *mygo.Window
 	settingsWin *mygo.Window
@@ -66,58 +85,163 @@ type workspace struct {
 	saveTimer   *time.Timer
 	lastNotify  map[string]time.Time
 
+	collapsed   map[string]bool
 	searchOpen  bool
 	searchQuery string
 }
 
 func newWorkspace() *workspace {
 	return &workspace{
-		SessionID: newID(),
-		settings:  loadSettings(),
+		InstanceID: newID(),
+		settings:   loadSettings(),
+		collapsed:  map[string]bool{},
 	}
 }
 
-func (w *workspace) selected() *tab {
-	for _, t := range w.Tabs {
-		if t.ID == w.SelectedTab {
-			return t
+func (w *workspace) selected() *session {
+	if s := w.sessionByID(w.SelectedSession); s != nil {
+		return s
+	}
+	for _, pr := range w.Projects {
+		if len(pr.Sessions) > 0 {
+			return pr.Sessions[0]
 		}
 	}
-	if len(w.Tabs) > 0 {
-		return w.Tabs[0]
+	return nil
+}
+
+func (w *workspace) sessionByID(id string) *session {
+	for _, pr := range w.Projects {
+		for _, s := range pr.Sessions {
+			if s.ID == id {
+				return s
+			}
+		}
+	}
+	return nil
+}
+
+func (w *workspace) projectByID(id string) *project {
+	for _, pr := range w.Projects {
+		if pr.ID == id {
+			return pr
+		}
+	}
+	return nil
+}
+
+func (w *workspace) projectOf(s *session) *project {
+	for _, pr := range w.Projects {
+		for _, have := range pr.Sessions {
+			if have == s {
+				return pr
+			}
+		}
+	}
+	return nil
+}
+
+func (w *workspace) sessionOf(p *pane) *session {
+	for _, pr := range w.Projects {
+		for _, s := range pr.Sessions {
+			if s.Root != nil && s.Root.paneByID(p.ID) != nil {
+				return s
+			}
+		}
 	}
 	return nil
 }
 
 func (w *workspace) visiblePanes() []*pane {
-	if t := w.selected(); t != nil {
-		return t.Root.panes()
+	if s := w.selected(); s != nil && s.Root != nil {
+		return s.Root.panes()
 	}
 	return nil
 }
 
 func (w *workspace) allPanes() []*pane {
 	var out []*pane
-	for _, t := range w.Tabs {
-		out = append(out, t.Root.panes()...)
+	for _, pr := range w.Projects {
+		for _, s := range pr.Sessions {
+			if s.Root != nil {
+				out = append(out, s.Root.panes()...)
+			}
+		}
 	}
 	return out
 }
 
-// newTab runs command (or a login shell) and selects it. Main thread.
-func (w *workspace) newTab(command []string, dir string) (*tab, error) {
+// openProject picks dir up as a project, reusing the one already there, and
+// starts a session in it. Main thread.
+func (w *workspace) openProject(dir string) (*project, *session, error) {
+	if dir == "" {
+		home, _ := os.UserHomeDir()
+		dir = home
+	}
+	dir = filepath.Clean(dir)
+	pr := w.projectFor(dir)
+	s, err := w.newSession(pr, nil, dir)
+	if err != nil {
+		return pr, nil, err
+	}
+	return pr, s, nil
+}
+
+// pickProject asks for a folder and opens it as a project. The native panel
+// blocks, so it runs off the UI thread and comes back to it.
+func (w *workspace) pickProject() {
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+			Parent:            w.win,
+			Title:             "New Project",
+			Message:           "Choose the folder this project works in.",
+			ButtonLabel:       "Open",
+			Directory:         true,
+			CreateDirectories: true,
+		})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		w.onMain(func() { _, _, _ = w.openProject(paths[0]) })
+	}()
+}
+
+// projectFor returns the project for dir, adding one when there is none.
+// Main thread.
+func (w *workspace) projectFor(dir string) *project {
+	for _, pr := range w.Projects {
+		if pr.Dir == dir {
+			return pr
+		}
+	}
+	pr := &project{ID: newID(), Dir: dir}
+	w.Projects = append(w.Projects, pr)
+	delete(w.collapsed, pr.ID)
+	return pr
+}
+
+// newSession runs command (or a login shell) in the project and selects it.
+// Main thread.
+func (w *workspace) newSession(pr *project, command []string, dir string) (*session, error) {
+	if pr == nil {
+		return nil, fmt.Errorf("No project is open")
+	}
+	if dir == "" {
+		dir = pr.Dir
+	}
 	p, err := newPane(w, "", command, dir, "")
 	if err != nil {
 		return nil, err
 	}
-	t := &tab{ID: newID(), Root: leaf(p)}
-	w.Tabs = append(w.Tabs, t)
-	w.SelectedTab = t.ID
+	s := &session{ID: newID(), Root: leaf(p)}
+	pr.Sessions = append(pr.Sessions, s)
+	w.SelectedSession = s.ID
+	delete(w.collapsed, pr.ID)
 	w.FocusedPane = p.ID
 	w.focusReq = p.ID
 	w.invalidate()
 	w.scheduleSave()
-	return t, nil
+	return s, nil
 }
 
 // splitPane puts a new pane beside p. Main thread.
@@ -129,13 +253,7 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 	if err != nil {
 		return nil, err
 	}
-	var host *tab
-	for _, t := range w.Tabs {
-		if t.Root.paneByID(p.ID) != nil {
-			host = t
-			break
-		}
-	}
+	host := w.sessionOf(p)
 	if host == nil {
 		return nil, fmt.Errorf("No such pane: %s", p.ID)
 	}
@@ -147,12 +265,14 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 	return np, nil
 }
 
-// requestClose fades a pane out before collapsing its slot, as clicking its
-// close button should. Main thread.
-// closeTab closes every pane under the tab; the last closePane removes the
-// tab itself. Panes fade out first, as closing one from its header does.
-func (w *workspace) closeTab(tb *tab) {
-	panes := tb.Root.panes()
+// closeSession closes every pane under the session; the last closePane
+// removes the session itself. Panes fade out first, as closing one from its
+// header does. Main thread.
+func (w *workspace) closeSession(s *session) {
+	if s == nil || s.Root == nil {
+		return
+	}
+	panes := s.Root.panes()
 	if len(panes) == 0 {
 		return
 	}
@@ -172,20 +292,22 @@ func (w *workspace) closeTab(tb *tab) {
 					w.closePane(p)
 				}
 			}
-			// closePane fixes focus, but a tab that was selected and is now
-			// gone still needs the selection moved.
-			if w.tabByID(tb.ID) == nil && len(w.Tabs) > 0 {
-				w.SelectedTab = w.Tabs[0].ID
+			// closePane fixes focus, but a session that was selected and is
+			// now gone still needs the selection moved.
+			if w.sessionByID(s.ID) == nil && len(w.Projects) > 0 {
+				if first := w.firstSession(); first != nil {
+					w.SelectedSession = first.ID
+				}
 			}
 			w.invalidate()
 		})
 	})
 }
 
-func (w *workspace) tabByID(id string) *tab {
-	for _, t := range w.Tabs {
-		if t.ID == id {
-			return t
+func (w *workspace) firstSession() *session {
+	for _, pr := range w.Projects {
+		if len(pr.Sessions) > 0 {
+			return pr.Sessions[0]
 		}
 	}
 	return nil
@@ -210,58 +332,163 @@ func (w *workspace) requestClose(p *pane) {
 // closePane hangs up the pane's program and collapses its slot. Main thread.
 func (w *workspace) closePane(p *pane) {
 	p.close()
-	for i, t := range w.Tabs {
-		if t.Root.paneByID(p.ID) == nil {
-			continue
+outer:
+	for pi, pr := range w.Projects {
+		for si, s := range pr.Sessions {
+			if s.Root == nil || s.Root.paneByID(p.ID) == nil {
+				continue
+			}
+			s.Root = s.Root.removing(p.ID)
+			if s.Root == nil {
+				pr.Sessions = append(pr.Sessions[:si], pr.Sessions[si+1:]...)
+			}
+			if len(pr.Sessions) == 0 {
+				w.Projects = append(w.Projects[:pi], w.Projects[pi+1:]...)
+			}
+			break outer
 		}
-		t.Root = t.Root.removing(p.ID)
-		if t.Root == nil {
-			w.Tabs = append(w.Tabs[:i], w.Tabs[i+1:]...)
-		}
-		break
 	}
 	if w.FocusedPane == p.ID {
 		w.FocusedPane = ""
-		if t := w.selected(); t != nil {
-			if ps := t.Root.panes(); len(ps) > 0 {
+		if s := w.selected(); s != nil {
+			if ps := s.Root.panes(); len(ps) > 0 {
 				w.FocusedPane = ps[0].ID
 				w.focusReq = ps[0].ID
 			}
 		}
 	}
-	if w.selected() == nil && len(w.Tabs) > 0 {
-		w.SelectedTab = w.Tabs[0].ID
+	if w.sessionByID(w.SelectedSession) == nil {
+		if first := w.firstSession(); first != nil {
+			w.SelectedSession = first.ID
+		} else {
+			w.SelectedSession = ""
+		}
 	}
 	w.invalidate()
 	w.scheduleSave()
 }
 
-func (w *workspace) selectTab(id string) {
-	for _, t := range w.Tabs {
-		if t.ID == id {
-			w.SelectedTab = t.ID
-			if ps := t.Root.panes(); len(ps) > 0 {
-				w.FocusedPane = ps[0].ID
-				w.focusReq = ps[0].ID
-			}
-			w.invalidate()
-			w.scheduleSave()
-			return
+func (w *workspace) closeProject(pr *project) {
+	if pr == nil {
+		return
+	}
+	panes := []*pane{}
+	for _, s := range pr.Sessions {
+		if s.Root != nil {
+			panes = append(panes, s.Root.panes()...)
 		}
 	}
+	if len(panes) == 0 {
+		w.removeProject(pr)
+		return
+	}
+	now := time.Now()
+	for _, p := range panes {
+		if p.closing {
+			continue
+		}
+		p.closing = true
+		p.closingAt = now
+	}
+	w.invalidate()
+	time.AfterFunc(140*time.Millisecond, func() {
+		w.onMain(func() {
+			for _, p := range panes {
+				if w.paneByID(p.ID) != nil {
+					w.closePane(p)
+				}
+			}
+			w.removeProject(pr)
+			w.invalidate()
+		})
+	})
+}
+
+func (w *workspace) removeProject(pr *project) {
+	for i, have := range w.Projects {
+		if have == pr {
+			w.Projects = append(w.Projects[:i], w.Projects[i+1:]...)
+			break
+		}
+	}
+	if w.sessionByID(w.SelectedSession) == nil {
+		if first := w.firstSession(); first != nil {
+			w.SelectedSession = first.ID
+		} else {
+			w.SelectedSession = ""
+		}
+	}
+	w.scheduleSave()
+}
+
+func (w *workspace) selectSession(id string) {
+	s := w.sessionByID(id)
+	if s == nil {
+		return
+	}
+	w.SelectedSession = s.ID
+	if pr := w.projectOf(s); pr != nil {
+		delete(w.collapsed, pr.ID)
+	}
+	if s.Root != nil {
+		if ps := s.Root.panes(); len(ps) > 0 {
+			w.FocusedPane = ps[0].ID
+			w.focusReq = ps[0].ID
+		}
+	}
+	w.invalidate()
+	w.scheduleSave()
+}
+
+func (w *workspace) toggleProject(pr *project) {
+	if w.collapsed[pr.ID] {
+		delete(w.collapsed, pr.ID)
+	} else {
+		w.collapsed[pr.ID] = true
+	}
+	w.invalidate()
+	w.scheduleSave()
 }
 
 func (w *workspace) focusPane(p *pane) {
 	w.FocusedPane = p.ID
 	w.focusReq = p.ID
-	for _, t := range w.Tabs {
-		if t.Root.paneByID(p.ID) != nil {
-			w.SelectedTab = t.ID
-			break
-		}
+	if s := w.sessionOf(p); s != nil {
+		w.SelectedSession = s.ID
 	}
 	w.invalidate()
 	w.scheduleSave()
+}
+
+// resolveSession accepts a full session id or any unique prefix.
+func (w *workspace) resolveSession(raw string) (*session, error) {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	var all []*session
+	for _, pr := range w.Projects {
+		all = append(all, pr.Sessions...)
+	}
+	var matches []*session
+	for _, s := range all {
+		id := strings.ToLower(s.ID)
+		if id == raw {
+			return s, nil
+		}
+		if raw != "" && strings.HasPrefix(id, raw) {
+			matches = append(matches, s)
+		}
+	}
+	switch {
+	case raw == "":
+		if s := w.selected(); s != nil {
+			return s, nil
+		}
+		return nil, fmt.Errorf("No session is available")
+	case len(matches) == 0:
+		return nil, fmt.Errorf("No such session: %s", raw)
+	case len(matches) > 1:
+		return nil, fmt.Errorf("Ambiguous session id: %s", raw)
+	}
+	return matches[0], nil
 }
 
 // resolvePane accepts a full pane id or any unique prefix, as gexi does.
@@ -311,15 +538,6 @@ func (w *workspace) paneByID(id string) *pane {
 	return nil
 }
 
-func (w *workspace) tabOf(p *pane) *tab {
-	for _, t := range w.Tabs {
-		if t.Root.paneByID(p.ID) != nil {
-			return t
-		}
-	}
-	return nil
-}
-
 // paneExited closes a pane whose program has ended.
 func (w *workspace) paneExited(p *pane) {
 	if w.quitting || w.win == nil {
@@ -333,7 +551,7 @@ func (w *workspace) paneExited(p *pane) {
 	})
 }
 
-// cyclePane moves focus through the selected tab's panes.
+// cyclePane moves focus through the selected session's panes.
 func (w *workspace) cyclePane(delta int) {
 	panes := w.visiblePanes()
 	if len(panes) < 2 {

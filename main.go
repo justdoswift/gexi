@@ -32,7 +32,7 @@ func main() {
 			// lights, which the layout leaves room for.
 			TitleBarStyle:        mygo.TitleBarHidden,
 			TrafficLightPosition: &mygo.Point{X: 20, Y: 17},
-			BackgroundColor:      "light-dark(#ffffff, #0a0a0a)",
+			BackgroundColor:      "light-dark(#ffffff, #0e0e10)",
 		})
 		w.win = win
 		win.OnShow(func() { win.Invalidate() })
@@ -70,8 +70,8 @@ func main() {
 	}
 }
 
-// mainMenu adds the app shortcuts: new tab, split, close pane, and moving
-// between panes.
+// mainMenu adds the app shortcuts: new project, new session, split, close
+// pane, and moving between panes.
 func mainMenu(w *workspace) *mygo.Menu {
 	split := func(ax axis) func(*mygo.MenuItem, *mygo.Window) {
 		return func(*mygo.MenuItem, *mygo.Window) {
@@ -82,10 +82,22 @@ func mainMenu(w *workspace) *mygo.Menu {
 			_, _ = w.splitPane(p, ax, nil, p.dir())
 		}
 	}
+	// A session needs a project: the one being worked in, or a folder the
+	// user picks when there is none.
+	newSession := func(*mygo.MenuItem, *mygo.Window) {
+		if s := w.selected(); s != nil {
+			if pr := w.projectOf(s); pr != nil {
+				_, _ = w.newSession(pr, nil, pr.Dir)
+				return
+			}
+		}
+		w.pickProject()
+	}
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu},
 		{Label: "File", Submenu: []*mygo.MenuItem{
-			{Label: "New Tab", Accelerator: "CmdOrCtrl+T", Click: func(*mygo.MenuItem, *mygo.Window) { _, _ = w.newTab(nil, "") }},
+			{Label: "New Session", Accelerator: "CmdOrCtrl+T", Click: newSession},
+			{Label: "New Project…", Accelerator: "CmdOrCtrl+Shift+N", Click: func(*mygo.MenuItem, *mygo.Window) { w.pickProject() }},
 			mygo.Separator(),
 			{Label: "Close Pane", Accelerator: "CmdOrCtrl+W", Click: func(*mygo.MenuItem, *mygo.Window) {
 				if p, err := w.resolvePane(""); err == nil {

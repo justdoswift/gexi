@@ -20,6 +20,10 @@ type agentKind string
 const (
 	agentClaude agentKind = "claude"
 	agentCodex  agentKind = "codex"
+	agentOmp    agentKind = "omp"
+	agentDevin  agentKind = "devin"
+	agentGrok   agentKind = "grok"
+	agentDroid  agentKind = "droid"
 )
 
 type agentDetection struct {
@@ -36,6 +40,14 @@ func (k agentKind) name() string {
 		return "Claude Code"
 	case agentCodex:
 		return "Codex"
+	case agentOmp:
+		return "omp"
+	case agentDevin:
+		return "Devin"
+	case agentGrok:
+		return "Grok"
+	case agentDroid:
+		return "Droid"
 	}
 	return string(k)
 }
@@ -57,6 +69,10 @@ func resolveAgentCommand(command []string) resolvedCommand {
 		return resolveClaude(raw, command)
 	case "codex":
 		return resolveCodex(raw, command)
+	case "omp", "devin", "grok":
+		return resolveContinuing(raw, command, "--continue", "--continue", "-c")
+	case "droid":
+		return resolveContinuing(raw, command, "--resume --last", "--resume", "-r", "resume")
 	}
 	return resolvedCommand{command, command}
 }
@@ -81,6 +97,21 @@ func resolveCodex(raw string, command []string) resolvedCommand {
 		return resolvedCommand{command, command}
 	}
 	return resolvedCommand{command, replaceRaw("codex resume --last", command)}
+}
+
+// resolveContinuing appends the flags that resume the newest session in the
+// pane's directory. Flags are added to the command rather than replacing it,
+// so model and permission flags survive the restore.
+func resolveContinuing(raw string, command []string, add string, already ...string) resolvedCommand {
+	for _, token := range strings.Fields(raw) {
+		for _, flag := range already {
+			if token == flag || strings.HasPrefix(token, flag+"=") {
+				return resolvedCommand{command, command}
+			}
+		}
+	}
+	restore := strings.TrimSpace(raw + " " + add)
+	return resolvedCommand{command, replaceRaw(restore, command)}
 }
 
 // rawCommand is the raw string of a `shell -lc "..."` wrapper.
@@ -226,27 +257,46 @@ func detectAgent(pgid int, fallbackCWD string) *agentDetection {
 			return &agentDetection{Kind: agentClaude, SessionID: id, Resume: shellCommand("claude --resume " + id)}
 		case agentCodex:
 			return &agentDetection{Kind: agentCodex, Resume: shellCommand("codex resume --last")}
+		case agentOmp:
+			return &agentDetection{Kind: agentOmp, Resume: shellCommand("omp --continue")}
+		case agentDevin:
+			return &agentDetection{Kind: agentDevin, Resume: shellCommand("devin --continue")}
+		case agentGrok:
+			return &agentDetection{Kind: agentGrok, Resume: shellCommand("grok --continue")}
+		case agentDroid:
+			return &agentDetection{Kind: agentDroid, Resume: shellCommand("droid --resume --last")}
 		}
 	}
 	return nil
 }
 
 func kindOf(proc processSnapshot) agentKind {
-	name := strings.ToLower(filepath.Base(proc.path))
-	if strings.HasPrefix(name, "claude") {
-		return agentClaude
+	if kind := agentNamed(filepath.Base(proc.path)); kind != "" {
+		return kind
 	}
-	if strings.HasPrefix(name, "codex") {
-		return agentCodex
-	}
+	// A launcher or symlink may sit in front of the real binary (omp, for
+	// one, runs from a versioned Tern executable), so check argv[0] too.
 	if len(proc.args) > 0 {
-		name = strings.ToLower(filepath.Base(proc.args[0]))
-		if strings.HasPrefix(name, "claude") {
-			return agentClaude
-		}
-		if strings.HasPrefix(name, "codex") {
-			return agentCodex
-		}
+		return agentNamed(filepath.Base(proc.args[0]))
+	}
+	return ""
+}
+
+func agentNamed(name string) agentKind {
+	name = strings.ToLower(name)
+	switch {
+	case strings.HasPrefix(name, "claude"):
+		return agentClaude
+	case strings.HasPrefix(name, "codex"):
+		return agentCodex
+	case name == "omp":
+		return agentOmp
+	case name == "devin":
+		return agentDevin
+	case name == "grok":
+		return agentGrok
+	case name == "droid":
+		return agentDroid
 	}
 	return ""
 }

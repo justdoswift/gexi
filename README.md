@@ -1,16 +1,17 @@
 # Gexi
 
-A macOS terminal workspace: split panes, a session sidebar, and a CLI that
+A macOS terminal workspace: projects, sessions, split panes, and a CLI that
 drives the whole thing from outside the app.
 
 Built on [mygo](https://mygo.egoist.dev) — native UI rendered by mygo,
 terminals by Ghostty's `libghostty-vt`, no cgo, no Xcode.
 The window and the CLI speak the same JSON-lines protocol over a Unix socket,
-so an agent running in a pane can create tabs and panes, type into them, and
-read their screens.
+so an agent running in a pane can create projects, sessions, and panes, type
+into them, and read their screens.
 
-> **Status: early.** Tabs, nested splits, focus, keyboard shortcuts, screen
-> capture, persistence, agent session resume, and the control CLI work today.
+> **Status: early.** Projects and sessions, nested splits, focus, keyboard
+> shortcuts, screen capture, persistence, agent session resume, and the control
+> CLI work today.
 > The settings window is minimal, and remote access is not there yet.
 
 ## Build
@@ -30,7 +31,8 @@ go build -o gexi ./cmd/gexi
 
 ## Use
 
-The window starts with one shell. Split it, or drive it from a terminal:
+A project is a folder; the sessions opened in it hold the panes. The window
+starts with one project and a shell in it. Split it, or drive it from a terminal:
 
 ```sh
 gexi ping
@@ -40,8 +42,9 @@ gexi split --vertical -- "npm run dev"
 gexi run -- "claude"
 gexi capture -p 3f2a --scrollback
 gexi send -e "ls -la"
-gexi new-tab --cwd ~/project
-gexi tab-select <tab id>
+gexi new-session --cwd ~/project
+gexi session-select <session id>
+gexi new-project --cwd ~/project
 gexi focus -p <pane id>
 gexi close -p <pane id>
 ```
@@ -53,7 +56,8 @@ Pane arguments accept a full id or any unique prefix, and default to
 
 | Action | Keys |
 |---|---|
-| New tab | ⌘T |
+| New session | ⌘T |
+| New project | ⌘⇧N |
 | Split right | ⌘D |
 | Split down | ⌘⇧D |
 | Focus previous / next pane | ⌘[ / ⌘] |
@@ -70,18 +74,18 @@ Closing the window hides it: shells and agents keep running, and clicking the
 Dock icon brings the workspace back. `⌘Q` is the real quit.
 
 On quit the layout is saved to `workspace.json` and each pane's last screen is
-snapshotted as plain text; the next launch rebuilds the tabs and splits and
+snapshotted as plain text; the next launch rebuilds the projects, sessions, and splits and
 paints the old screens above fresh shells. Agent panes resume their newest
 session in the pane's directory: Claude Code with `--resume <session>`,
 Codex with `codex resume --last`, and omp, Devin, and Grok with
 `--continue`; Droid with `droid --resume --last`. A detected agent also
-names its pane and sidebar tab with its own logo instead of the terminal
+names its pane and sidebar row with its own logo instead of the terminal
 title.
 
 ### Agent events and notifications
 
 A pane's screen says what the agent printed, not what it is doing. When a
-Claude Code pane is launched (`gexi run -- claude`, or a new tab), Gexi
+Claude Code pane is launched (`gexi run -- claude`, or a new session), Gexi
 passes an extra `--settings` file of hooks, so the agent reports its own
 lifecycle over the socket:
 
@@ -121,14 +125,15 @@ The control socket lives at `$GEXI_HOME/control.sock`, or
 │  ┌────────┐  ┌────────┐      │        gexi (Unix socket, JSON lines)
 │  │pane    │  │pane    │      │  ◀──────────────────────────────────────
 │  └───┬────┘  └───┬────┘      │        agents inside panes use
-│      │           │           │        GEXI_PANE / GEXI_SESSION / GEXI_SOCKET
+│      │           │           │        GEXI_PANE / GEXI_INSTANCE / GEXI_SOCKET
 │      └─────┬─────┘           │
 │      terminal plugin          │
 └──────────────────────────────┘
 ```
 
 - `main.go` — app bootstrap, window, close-to-background.
-- `workspace.go` — tabs, focus, pane resolution, main-thread marshaling.
+- `workspace.go` — projects, sessions, focus, pane resolution, main-thread
+  marshaling.
 - `split.go` — binary split tree (split / remove / collapse).
 - `pane.go` — one terminal per pane.
 - `ui.go` — sidebar, toolbar, recursive split rendering.
