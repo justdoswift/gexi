@@ -32,10 +32,16 @@ func (w *workspace) view(c *ui.Context) {
 		w.sidebar(c, tk, width)
 		// The sidebar and the space around the panes share one background,
 		// so in comfortable a pane reads as a panel wrapped around its
-		// content.
-		ui.Column(c).Fill().Background(w.backdrop(tk)).Children(func() {
-			w.canvas(c, tk)
-		})
+		// content. The canvas keeps an extra inset from the top, right, and
+		// bottom edges; the left one is the sidebar's own margin.
+		inset := float32(0)
+		if w.settings.PaneStyle == paneComfortable {
+			inset = canvasInset
+		}
+		ui.Column(c).Fill().Background(w.backdrop(tk)).Padding(inset, inset, inset, 0).
+			Children(func() {
+				w.canvas(c, tk)
+			})
 		// The toggle stays put whether the sidebar is shown or not, so it
 		// sits above the layout rather than inside either header.
 		top := (headerHeight - iconSize) / 2
@@ -212,7 +218,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	outer.Children(func() {
 		col := ui.Column(c).Fill().Opacity(fadeAlpha(c, p))
 		if card {
-			col = col.Radius(8).Border(1, tk.Border).Background(tk.Background).Clip()
+			col = col.Radius(windowRadius).Border(1, tk.Border).Background(tk.Background).Clip()
 		}
 		col.Children(func() {
 			left := float32(10)

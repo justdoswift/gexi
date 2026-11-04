@@ -53,6 +53,10 @@ func themeTokens(t *ui.Theme) tokens {
 
 const chromeRadius float32 = 6
 
+// windowRadius is the radius AppKit rounds the window to: a comfortable pane
+// card takes the same one, so the card's corners follow the window's.
+const windowRadius float32 = 16
+
 const sidebarWidth float32 = 240
 
 const (
@@ -60,6 +64,11 @@ const (
 	rowHeightPx  float32 = 30
 	iconSize     float32 = 26
 )
+
+// canvasInset is the canvas's extra margin to the top, right, and bottom
+// window edges in comfortable, on top of the pane cards' own padding, so a
+// card sits twice as far from the edge as it does from its neighbour.
+const canvasInset float32 = 3
 
 // Motion, as shadcn: short, ease-out, and only on what changes.
 const (
