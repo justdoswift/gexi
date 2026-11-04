@@ -13,7 +13,7 @@ import (
 	"github.com/egoist/mygo"
 )
 
-// The wire format is JustCli's: one JSON request line per connection, one
+// The wire format is Gexi's: one JSON request line per connection, one
 // JSON response line back, then the connection closes.
 
 type controlRequest struct {
@@ -65,6 +65,7 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 			"focusedPane": nullable(w.FocusedPane),
 			"tabs":        w.tabsJSON(),
 			"paneStyle":   w.settings.PaneStyle,
+			"searchOpen":  w.searchOpen,
 		}, nil
 
 	case "tab.list":
@@ -258,7 +259,7 @@ func (w *workspace) tabsJSON() []any {
 	return out
 }
 
-// commandParam turns "command" into the login-shell invocation JustCli uses,
+// commandParam turns "command" into the login-shell invocation Gexi uses,
 // so PATH, aliases, and shell init apply.
 func (w *workspace) commandParam(p map[string]json.RawMessage) []string {
 	if raw := str(p, "command"); raw != "" {

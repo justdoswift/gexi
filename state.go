@@ -224,8 +224,7 @@ func loadSnapshot(id string) string {
 	return string(data)
 }
 
-// normalizeSnapshot trims trailing blanks and keeps the last 200 lines, as
-// the Swift build does.
+// normalizeSnapshot trims trailing blanks and keeps the last 200 lines.
 func normalizeSnapshot(text string) string {
 	lines := strings.Split(text, "\n")
 	for i, line := range lines {

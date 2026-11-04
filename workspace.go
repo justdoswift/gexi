@@ -38,7 +38,19 @@ func (t *tab) title() string {
 	return abbreviate(p.dir())
 }
 
-// workspace mirrors JustCli's model: tabs, one selected tab, focus, and the
+// agent returns the detection of the tab's first pane, which is the pane the
+// tab is named after.
+func (t *tab) agent() *agentDetection {
+	if t.Root == nil {
+		return nil
+	}
+	if ps := t.Root.panes(); len(ps) > 0 {
+		return ps[0].agent
+	}
+	return nil
+}
+
+// workspace mirrors Gexi's model: tabs, one selected tab, focus, and the
 // control server that drives it all from outside the process.
 type workspace struct {
 	SessionID   string
@@ -53,6 +65,9 @@ type workspace struct {
 	quitting    bool
 	saveTimer   *time.Timer
 	lastNotify  map[string]time.Time
+
+	searchOpen  bool
+	searchQuery string
 }
 
 func newWorkspace() *workspace {
@@ -134,6 +149,48 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 
 // requestClose fades a pane out before collapsing its slot, as clicking its
 // close button should. Main thread.
+// closeTab closes every pane under the tab; the last closePane removes the
+// tab itself. Panes fade out first, as closing one from its header does.
+func (w *workspace) closeTab(tb *tab) {
+	panes := tb.Root.panes()
+	if len(panes) == 0 {
+		return
+	}
+	now := time.Now()
+	for _, p := range panes {
+		if p.closing {
+			continue
+		}
+		p.closing = true
+		p.closingAt = now
+	}
+	w.invalidate()
+	time.AfterFunc(140*time.Millisecond, func() {
+		w.onMain(func() {
+			for _, p := range panes {
+				if w.paneByID(p.ID) != nil {
+					w.closePane(p)
+				}
+			}
+			// closePane fixes focus, but a tab that was selected and is now
+			// gone still needs the selection moved.
+			if w.tabByID(tb.ID) == nil && len(w.Tabs) > 0 {
+				w.SelectedTab = w.Tabs[0].ID
+			}
+			w.invalidate()
+		})
+	})
+}
+
+func (w *workspace) tabByID(id string) *tab {
+	for _, t := range w.Tabs {
+		if t.ID == id {
+			return t
+		}
+	}
+	return nil
+}
+
 func (w *workspace) requestClose(p *pane) {
 	if p.closing {
 		return
@@ -207,7 +264,7 @@ func (w *workspace) focusPane(p *pane) {
 	w.scheduleSave()
 }
 
-// resolvePane accepts a full pane id or any unique prefix, as justcli does.
+// resolvePane accepts a full pane id or any unique prefix, as gexi does.
 func (w *workspace) resolvePane(raw string) (*pane, error) {
 	all := w.allPanes()
 	if raw == "" {
@@ -263,7 +320,7 @@ func (w *workspace) tabOf(p *pane) *tab {
 	return nil
 }
 
-// paneExited closes a pane whose program has ended, as the Swift build does.
+// paneExited closes a pane whose program has ended.
 func (w *workspace) paneExited(p *pane) {
 	if w.quitting || w.win == nil {
 		return
@@ -322,20 +379,20 @@ func shellCommand(raw string) []string {
 }
 
 func supportDir() string {
-	if v := os.Getenv("JUSTCLI_HOME"); v != "" {
+	if v := os.Getenv("GEXI_HOME"); v != "" {
 		return v
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "Library", "Application Support", "JustCliGo")
+	return filepath.Join(home, "Library", "Application Support", "Gexi")
 }
 
 func socketPath() string {
 	return filepath.Join(supportDir(), "control.sock")
 }
 
-// startAgentMonitor re-checks every pane's foreground group, as the Swift
-// build does every couple of seconds. Process inspection is slow, so it runs
-// off the UI thread; only the result is applied there.
+// startAgentMonitor re-checks every pane's foreground group every couple of
+// seconds. Process inspection is slow, so it runs off the UI thread; only the
+// result is applied there.
 func (w *workspace) startAgentMonitor() {
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)

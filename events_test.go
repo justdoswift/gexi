@@ -8,8 +8,8 @@ import (
 )
 
 func TestClaudeLaunchInjectsHooks(t *testing.T) {
-	t.Setenv("JUSTCLI_HOME", t.TempDir())
-	t.Setenv("JUSTCLI_BIN", "/opt/test/bin/justcli")
+	t.Setenv("GEXI_HOME", t.TempDir())
+	t.Setenv("GEXI_BIN", "/opt/test/bin/gexi")
 
 	resolved := resolveAgentCommand(shellCommand("claude"))
 	raw, ok := rawCommand(resolved.launch)
@@ -40,8 +40,8 @@ func TestClaudeLaunchInjectsHooks(t *testing.T) {
 		if len(entries) == 0 || len(entries[0].Hooks) == 0 {
 			t.Fatalf("hook %s missing", name)
 		}
-		if !strings.Contains(entries[0].Hooks[0].Command, "/opt/test/bin/justcli") {
-			t.Fatalf("hook %s does not call justcli: %s", name, entries[0].Hooks[0].Command)
+		if !strings.Contains(entries[0].Hooks[0].Command, "/opt/test/bin/gexi") {
+			t.Fatalf("hook %s does not call gexi: %s", name, entries[0].Hooks[0].Command)
 		}
 	}
 
@@ -53,8 +53,8 @@ func TestClaudeLaunchInjectsHooks(t *testing.T) {
 }
 
 func TestClaudeWithoutClientSkipsHooks(t *testing.T) {
-	t.Setenv("JUSTCLI_HOME", t.TempDir())
-	t.Setenv("JUSTCLI_BIN", "")
+	t.Setenv("GEXI_HOME", t.TempDir())
+	t.Setenv("GEXI_BIN", "")
 	t.Setenv("PATH", t.TempDir())
 
 	resolved := resolveAgentCommand(shellCommand("claude"))

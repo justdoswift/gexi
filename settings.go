@@ -10,8 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// appSettings mirrors the Swift build's interface settings, pared down to
-// what the Go UI actually honours today.
+// appSettings holds the interface settings the UI honours today.
 type appSettings struct {
 	RestoreScreen    bool   `json:"restoreScreen"`
 	SidebarCollapsed bool   `json:"sidebarCollapsed"`

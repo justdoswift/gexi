@@ -11,9 +11,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Agent tracking mirrors the Swift build: notice an agent running in the
-// pane's foreground process group, and turn it into a command that resumes
-// the same conversation next launch.
+// Agent tracking notices an agent running in the pane's foreground process
+// group and turns it into a command that resumes the same conversation next
+// launch.
 
 type agentKind string
 
@@ -26,6 +26,18 @@ type agentDetection struct {
 	Kind      agentKind
 	SessionID string
 	Resume    []string
+}
+
+// name is the agent's product name. Chrome shows it instead of the terminal
+// title, which carries the agent's spinner glyph.
+func (k agentKind) name() string {
+	switch k {
+	case agentClaude:
+		return "Claude Code"
+	case agentCodex:
+		return "Codex"
+	}
+	return string(k)
 }
 
 type resolvedCommand struct {

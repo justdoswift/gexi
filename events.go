@@ -11,8 +11,8 @@ import (
 )
 
 // Agent lifecycle events arrive from CLI hooks (Claude Code today), not from
-// scraping the PTY. A hook runs inside the pane, so it already has JUST_PANE
-// and JUSTCLI_HOME; all it does is hand one line of JSON to the socket.
+// scraping the PTY. A hook runs inside the pane, so it already has GEXI_PANE
+// and GEXI_HOME; all it does is hand one line of JSON to the socket.
 //
 // PTY output still says whether a pane is busy at the byte level. Events say
 // what the agent thinks it is doing, which raw output cannot: an idle Claude
@@ -141,7 +141,7 @@ func notifyUser(title, body string) {
 	script := fmt.Sprintf(
 		"display notification %s with title %s",
 		appleScriptString(body),
-		appleScriptString("JustCli · "+title),
+		appleScriptString("Gexi · "+title),
 	)
 	go func() { _ = exec.Command("osascript", "-e", script).Run() }()
 }
@@ -158,13 +158,13 @@ func hookSettingsPath() string {
 	return filepath.Join(supportDir(), "hooks", "claude-settings.json")
 }
 
-// installClaudeHooks writes the extra settings file JustCli passes to
+// installClaudeHooks writes the extra settings file Gexi passes to
 // `claude --settings`. It is layered on top of the user's own settings, so
 // hooks the user already has (vibe-island, orca, …) keep running.
 func installClaudeHooks() (string, error) {
-	bin := justcliBinary()
+	bin := gexiBinary()
 	if bin == "" {
-		return "", fmt.Errorf("justcli binary not found")
+		return "", fmt.Errorf("gexi binary not found")
 	}
 	path := hookSettingsPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -203,17 +203,17 @@ func hookEntry(command string) map[string]any {
 	}
 }
 
-// justcliBinary finds the client a hook will run. PATH first: that is where
-// `go build -o justcli` and a packaged copy land.
-func justcliBinary() string {
-	if v := os.Getenv("JUSTCLI_BIN"); v != "" {
+// gexiBinary finds the client a hook will run. PATH first: that is where
+// `go build -o gexi` and a packaged copy land.
+func gexiBinary() string {
+	if v := os.Getenv("GEXI_BIN"); v != "" {
 		return v
 	}
-	if p, err := exec.LookPath("justcli"); err == nil {
+	if p, err := exec.LookPath("gexi"); err == nil {
 		return p
 	}
 	if exe, err := os.Executable(); err == nil {
-		p := filepath.Join(filepath.Dir(exe), "justcli")
+		p := filepath.Join(filepath.Dir(exe), "gexi")
 		if st, err := os.Stat(p); err == nil && !st.IsDir() {
 			return p
 		}

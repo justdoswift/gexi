@@ -1,4 +1,4 @@
-// Command justcli drives a running JustCli window over its Unix socket:
+// Command gexi drives a running Gexi window over its Unix socket:
 // one JSON request per connection, one JSON response back.
 package main
 
@@ -92,32 +92,32 @@ var opt options
 var positional []string
 
 func fail(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, "justcli: "+format+"\n", args...)
+	fmt.Fprintf(os.Stderr, "gexi: "+format+"\n", args...)
 	os.Exit(1)
 }
 
 func usage() {
-	fmt.Print(`justcli — control a running JustCli workspace
+	fmt.Print(`gexi — control a running Gexi workspace
 
 Usage:
-  justcli ping
-  justcli info [--json]
-  justcli list [--json]
-  justcli capture [-p PANE] [--scrollback] [--lines N] [--json]
-  justcli send   [-p PANE] [-e|--enter] <text...>
-  justcli split  [-p PANE] [--vertical|--horizontal] [--cwd DIR] [-- COMMAND...]
-  justcli run    [-p PANE] [--vertical|--horizontal] [--cwd DIR] COMMAND...
-  justcli focus  [-p PANE]
-  justcli close  [-p PANE]
-  justcli new-tab [--cwd DIR] [-- COMMAND...]
-  justcli tab-select TAB
-  justcli settings
-  justcli event  KIND [--agent NAME] [--json]
-  justcli quit
+  gexi ping
+  gexi info [--json]
+  gexi list [--json]
+  gexi capture [-p PANE] [--scrollback] [--lines N] [--json]
+  gexi send   [-p PANE] [-e|--enter] <text...>
+  gexi split  [-p PANE] [--vertical|--horizontal] [--cwd DIR] [-- COMMAND...]
+  gexi run    [-p PANE] [--vertical|--horizontal] [--cwd DIR] COMMAND...
+  gexi focus  [-p PANE]
+  gexi close  [-p PANE]
+  gexi new-tab [--cwd DIR] [-- COMMAND...]
+  gexi tab-select TAB
+  gexi settings
+  gexi event  KIND [--agent NAME] [--json]
+  gexi quit
 
 Options:
-  -p, --pane PANE     Pane id or prefix (default: $JUST_PANE or the focused pane)
-  --socket PATH       Control socket (default: $JUSTCLI_HOME/control.sock)
+  -p, --pane PANE     Pane id or prefix (default: $GEXI_PANE or the focused pane)
+  --socket PATH       Control socket (default: $GEXI_HOME/control.sock)
   --json              Print the raw JSON result
   -e, --enter         Append a carriage return after send text
   --scrollback        Capture scrollback history as well
@@ -189,14 +189,24 @@ func parseArgs() {
 }
 
 // readStdinJSON reads the hook payload when a hook pipes one in. A person
-// running `justcli event` from a terminal has no pipe, and must not block.
+// running `gexi event` from a terminal has no pipe, and must not block.
 func readStdinJSON() map[string]any {
 	info, err := os.Stdin.Stat()
 	if err != nil || info.Mode()&os.ModeCharDevice != 0 {
 		return nil
 	}
-	raw, err := io.ReadAll(io.LimitReader(os.Stdin, 4<<20))
-	if err != nil || len(strings.TrimSpace(string(raw))) == 0 {
+	// A hook closes stdin right after its payload. A pipe that stays open
+	// (a shell pipeline, a wrapper script) must not hang the command, so
+	// wait only briefly for the payload to arrive.
+	ch := make(chan []byte, 1)
+	go func() {
+		raw, _ := io.ReadAll(io.LimitReader(os.Stdin, 4<<20))
+		ch <- raw
+	}()
+	var raw []byte
+	select {
+	case raw = <-ch:
+	case <-time.After(250 * time.Millisecond):
 		return nil
 	}
 	var detail map[string]any
@@ -207,14 +217,14 @@ func readStdinJSON() map[string]any {
 }
 
 func supportDir() string {
-	if v := os.Getenv("JUSTCLI_HOME"); v != "" {
+	if v := os.Getenv("GEXI_HOME"); v != "" {
 		return v
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "."
 	}
-	return filepath.Join(home, "Library", "Application Support", "JustCliGo")
+	return filepath.Join(home, "Library", "Application Support", "Gexi")
 }
 
 func main() {
@@ -228,7 +238,7 @@ func main() {
 
 	pane := opt.pane
 	if pane == "" {
-		pane = os.Getenv("JUST_PANE")
+		pane = os.Getenv("GEXI_PANE")
 	}
 	call := func(method string, params map[string]any) any {
 		if params == nil {
@@ -296,7 +306,7 @@ func main() {
 		if f, ok := m["pid"].(float64); ok {
 			pid = strconv.Itoa(int(f))
 		}
-		fmt.Printf("JustCli %s pid %s\n", str(m, "version"), pid)
+		fmt.Printf("Gexi %s pid %s\n", str(m, "version"), pid)
 
 	case "info":
 		result := call("workspace.info", nil)

@@ -21,22 +21,23 @@ func main() {
 
 	mygo.App.WhenReady(func() {
 		win = mygo.NewWindow(mygo.WindowOptions{
-			Title:     "JustCli · Go POC",
+			Title:     "Gexi",
 			Width:     1180,
 			Height:    760,
 			MinWidth:  760,
 			MinHeight: 440,
-			StateKey:  "poc",
+			StateKey:  "gexi",
 			Content:   ui.View(w.view),
 			// Rex chrome: no title bar; the view draws under the traffic
 			// lights, which the layout leaves room for.
-			TitleBarStyle:   mygo.TitleBarHidden,
-			BackgroundColor: "light-dark(#ffffff, #0a0a0a)",
+			TitleBarStyle:        mygo.TitleBarHidden,
+			TrafficLightPosition: &mygo.Point{X: 20, Y: 17},
+			BackgroundColor:      "light-dark(#ffffff, #0a0a0a)",
 		})
 		w.win = win
 		win.OnShow(func() { win.Invalidate() })
 
-		// JustCli: closing the window hides it; shells keep running.
+		// Gexi: closing the window hides it; shells keep running.
 		win.OnClose(func(e *mygo.CloseEvent) {
 			if w.quitting {
 				return
@@ -69,8 +70,8 @@ func main() {
 	}
 }
 
-// mainMenu adds the shortcuts the Swift build binds: new tab, split, close
-// pane, and moving between panes.
+// mainMenu adds the app shortcuts: new tab, split, close pane, and moving
+// between panes.
 func mainMenu(w *workspace) *mygo.Menu {
 	split := func(ax axis) func(*mygo.MenuItem, *mygo.Window) {
 		return func(*mygo.MenuItem, *mygo.Window) {

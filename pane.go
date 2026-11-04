@@ -13,7 +13,7 @@ import (
 	"github.com/egoist/mygo/plugins/terminal"
 )
 
-// ptyConn is the in-memory backend: JustCli owns the PTY, so the terminal
+// ptyConn is the in-memory backend: Gexi owns the PTY, so the terminal
 // reads every byte the shell writes. That is also where agent detection gets
 // its master fd.
 type ptyConn struct {
@@ -119,10 +119,10 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 	term, err := terminal.New(terminal.Options{
 		Conn: connOf(p),
 		Env: []string{
-			"JUST_PANE=" + id,
-			"JUST_SESSION=" + ws.SessionID,
-			"JUST_SOCKET=" + socketPath(),
-			"JUSTCLI_HOME=" + supportDir(),
+			"GEXI_PANE=" + id,
+			"GEXI_SESSION=" + ws.SessionID,
+			"GEXI_SOCKET=" + socketPath(),
+			"GEXI_HOME=" + supportDir(),
 		},
 		Scrollback: 10 << 20,
 		Padding:    terminal.Padding{X: 12, Y: 10},
@@ -166,11 +166,11 @@ func (p *pane) start(argv []string, dir string) error {
 	cmd.Env = append(cleanEnvironment(os.Environ()),
 		"TERM=xterm-256color",
 		"COLORTERM=truecolor",
-		"TERM_PROGRAM=JustCli",
-		"JUST_PANE="+p.ID,
-		"JUST_SESSION="+p.ws.SessionID,
-		"JUST_SOCKET="+socketPath(),
-		"JUSTCLI_HOME="+supportDir(),
+		"TERM_PROGRAM=Gexi",
+		"GEXI_PANE="+p.ID,
+		"GEXI_SESSION="+p.ws.SessionID,
+		"GEXI_SOCKET="+socketPath(),
+		"GEXI_HOME="+supportDir(),
 	)
 
 	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: 100, Rows: 30})
@@ -207,7 +207,7 @@ func (p *pane) title() string {
 	return "Terminal"
 }
 
-// dir prefers the directory the shell reported (OSC 7), as JustCli does.
+// dir prefers the directory the shell reported (OSC 7), as Gexi does.
 func (p *pane) dir() string {
 	if d := p.term.Dir(); d != "" {
 		return d

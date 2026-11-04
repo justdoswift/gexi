@@ -1,4 +1,4 @@
-module github.com/justdoswift/justcli
+module github.com/justdoswift/gexi
 
 go 1.27.3
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// newID returns a UUID-shaped id so the existing justcli's prefix matching
+// newID returns a UUID-shaped id so the existing gexi's prefix matching
 // and output formatting work unchanged.
 func newID() string {
 	var b [16]byte

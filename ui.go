@@ -45,18 +45,18 @@ func (w *workspace) view(c *ui.Context) {
 			})
 		// The toggle stays put whether the sidebar is shown or not, so it
 		// sits above the layout rather than inside either header.
-		top := (headerHeight - iconSize) / 2
-		if bar.Height > 0 {
-			top = (bar.Height - iconSize) / 2
-		}
-		if top < 0 {
-			top = 0
-		}
+		top := float32(11)
 		ui.Row(c).Width(iconSize).Height(iconSize).Absolute().
 			Left(bar.Left + 6).Top(top).Children(func() {
 			w.sidebarToggle(c, tk)
 		})
 	})
+}
+
+// dragArea is a draggable stretch of a header that also zooms the window on
+// a double click.
+func (w *workspace) dragArea(c *ui.Context, tk tokens) ui.Element {
+	return ui.Spacer(c).DragWindow()
 }
 
 func (w *workspace) backdrop(tk tokens) ui.Color {
@@ -81,15 +81,29 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 		return
 	}
 	bar := c.TitleBar()
-	ui.Column(c).Width(width).FillHeight().Clip().Background(w.backdrop(tk)).
+	side := ui.Column(c).Width(width).FillHeight().Clip().Background(w.backdrop(tk))
+	side.Opacity(side.Animate("focusDim", w.focusAmount(false), focusMotion)).
 		Children(func() {
-			ui.Row(c).Height(headerHeight).Padding(0, 8, headerHeight-chromeLine(bar), bar.Left+6+iconSize+8).
+			ui.Row(c).Height(headerHeight).Padding(11, 8, 0, bar.Left+6+iconSize+8).
 				Children(func() {
-					ui.Row(c).FillWidth().Height(chromeLine(bar)).AlignItems(ui.Center).Gap(2).Children(func() {
-						ui.Spacer(c).DragWindow()
+					ui.Row(c).FillWidth().Height(iconSize).AlignItems(ui.Center).Gap(2).Children(func() {
+						w.dragArea(c, tk)
+						iconButton(c, tk, "search", func() {
+							w.searchOpen = !w.searchOpen
+							if !w.searchOpen {
+								w.searchQuery = ""
+							}
+							w.invalidate()
+						})
 						iconButton(c, tk, "plus", func() { _, _ = w.newTab(nil, "") })
 					})
 				})
+			if w.searchOpen {
+				ui.Row(c).Padding(0, 8, 6, 8).Children(func() {
+					ui.TextInput(c, &w.searchQuery).Placeholder("Search sessions").
+						FontSize(12).Height(26).FillWidth().AutoFocus()
+				})
+			}
 			ui.Column(c).Fill().Padding(8).Gap(1).Children(func() {
 				for _, tb := range w.Tabs {
 					w.tabRow(c, tk, tb)
@@ -122,12 +136,28 @@ func (w *workspace) tabRow(c *ui.Context, tk tokens, tb *tab) {
 	row = row.Background(bg)
 	pick := func() { w.selectTab(tb.ID) }
 	row.OnClick(pick).Children(func() {
-		if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
+		// Agent tabs take the agent's mark and name, same as their pane
+		// header, so neither shows the spinner glyph from the terminal title.
+		agent := tb.agent()
+		if agent != nil {
+			if src := agentLogoSource(agent.Kind, tk); src != nil {
+				ui.Image(c, src).Width(13).Height(13).OnClick(pick)
+			}
+		} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(13).Height(13).OnClick(pick)
 		}
-		ui.Text(c, tb.title()).FontSize(12).FontWeight(500).TextColor(color).OnClick(pick)
+		title := tb.title()
+		if agent != nil {
+			title = agent.Kind.name()
+		}
+		ui.Text(c, title).FontSize(12).FontWeight(500).TextColor(color).OnClick(pick)
 		ui.Spacer(c).OnClick(pick)
+		// Loader first, close last: the × owns the row's right edge whenever
+		// the pointer is over it, and the loader sits beside it.
 		w.activityLoader(c, tk, tabActivityState(tb), pick)
+		if hovered {
+			iconButton(c, tk, "x", func() { w.closeTab(tb) })
+		}
 	})
 }
 
@@ -154,9 +184,9 @@ func (w *workspace) activityLoader(c *ui.Context, tk tokens, state string, pick 
 		for i := range 3 {
 			alpha := float32(1)
 			if state == activityWorking {
-				alpha = dotAlpha(phase, float64(i))
+				alpha = dotAlpha(phase, i)
 			}
-			ui.Column(c).Width(4).Height(4).Radius(2).Background(color).
+			ui.Column(c).Width(5).Height(5).Radius(1.5).Background(color).
 				Opacity(alpha).OnClick(pick)
 		}
 	})
@@ -169,14 +199,15 @@ func loaderPhase(c *ui.Context) float64 {
 	return float64(time.Now().UnixMilli()%period.Milliseconds()) / float64(period.Milliseconds())
 }
 
-// dotAlpha gives each dot the same wave, a third of a cycle apart.
-func dotAlpha(phase, i float64) float32 {
-	s := math.Sin(2 * math.Pi * (phase - i*0.18))
-	return float32(0.25 + 0.75*(0.5+0.5*s))
+// dotAlpha gives each dot the same wave a third of a cycle apart, so the row
+// reads as one pulse travelling right.
+func dotAlpha(phase float64, i int) float32 {
+	s := math.Sin(2 * math.Pi * (phase - float64(i)/3))
+	return float32(0.15 + 0.85*(0.5+0.5*s))
 }
 
-// loaderWidth is three 4pt dots and the 3pt gaps between them.
-const loaderWidth float32 = 18
+// loaderWidth is three 5pt dots and the 3pt gaps between them.
+const loaderWidth float32 = 21
 
 // tabActivityState folds the panes' hook events into one sidebar indicator.
 func tabActivityState(tb *tab) string {
@@ -195,7 +226,7 @@ func tabActivityState(tb *tab) string {
 	return state
 }
 
-// splitView mirrors JustCli's recursive split tree. leading marks the child
+// splitView mirrors Gexi's recursive split tree. leading marks the child
 // that touches the content's top-left corner: when the sidebar is collapsed,
 // that one pane header makes room for the traffic lights and the toggle.
 func (w *workspace) splitView(c *ui.Context, tk tokens, n *splitNode, leading bool) {
@@ -251,7 +282,8 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		outer = outer.Padding(3)
 	}
 	outer.Children(func() {
-		col := ui.Column(c).Fill().Opacity(fadeAlpha(c, p))
+		col := ui.Column(c).Fill()
+		col = col.Opacity(col.Animate("focusDim", w.focusAmount(focused), focusMotion) * fadeAlpha(c, p))
 		if card {
 			col = col.Radius(windowRadius).Border(1, tk.Border).Background(tk.Background).Clip()
 		}
@@ -269,10 +301,21 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			header.Children(func() {
 				line := ui.Row(c).FillWidth().Height(chromeLine(bar)).AlignItems(ui.Center).Gap(4)
 				line.Children(func() {
-					if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
+					// A detected agent wears its own mark and name. The
+					// terminal title carries the agent's spinner glyph, and
+					// the directory after it is noise beside the brand.
+					agent := p.agent
+					if agent != nil {
+						if src := agentLogoSource(agent.Kind, tk); src != nil {
+							ui.Image(c, src).Width(13).Height(13).DragWindow()
+						}
+					} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
 						ui.Image(c, src).Width(13).Height(13).DragWindow()
 					}
 					title := p.title()
+					if agent != nil {
+						title = agent.Kind.name()
+					}
 					if p.exited {
 						title += " · exited"
 					}
@@ -280,11 +323,13 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						ui.Text(c, title).FontSize(12).FontWeight(500).
 							TextColor(tk.Foreground).DragWindow()
 					} else {
-						ui.Text(c, title).FontSize(12).TextColor(tk.MutedForeground).DragWindow()
+						ui.Text(c, title).FontSize(12).TextColor(tk.MutedForeground)
 					}
-					ui.Text(c, abbreviate(p.dir())).FontSize(11).
-						TextColor(tk.MutedForeground).DragWindow()
-					ui.Spacer(c).DragWindow()
+					if agent == nil {
+						ui.Text(c, abbreviate(p.dir())).FontSize(11).
+							TextColor(tk.MutedForeground).DragWindow()
+					}
+					w.dragArea(c, tk)
 					iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
 					iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
 					iconButton(c, tk, "x", func() { w.requestClose(p) })
@@ -303,15 +348,17 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	})
 }
 
-// fade returns shadcn's 150ms ease-out transition for a row or button
-// background: active when selected, muted when hovered, transparent otherwise.
+// fade returns shadcn's 150ms ease-out transition for a row background:
+// filled when selected or hovered (the sidebar's own backdrop is Muted, so a
+// Muted hover would disappear), transparent otherwise.
 func fade(c *ui.Context, tk tokens, el ui.Element, active, hovered bool) ui.Color {
 	target := ui.RGBA(0, 0, 0, 0)
 	switch {
 	case active:
 		target = tk.Active
 	case hovered:
-		target = tk.Muted
+		// The sidebar sits on tk.Muted, so a Muted hover would be invisible.
+		target = tk.Active
 	}
 	return el.AnimateColor("bg", target, ui.Animation{Duration: 150 * time.Millisecond})
 }
@@ -339,6 +386,39 @@ func fadeAlpha(c *ui.Context, p *pane) float32 {
 	return 1
 }
 
+// focusDim is how far everything but the focused pane recedes once a tab is
+// split: other panes and the sidebar fall back so the pane being typed into
+// is the only thing that reads at full strength.
+const focusDim float32 = 0.55
+
+// dimming reports whether the selected tab holds focus in one of several
+// panes, which is when the rest of the window steps back.
+func (w *workspace) dimming() bool {
+	tb := w.selected()
+	if tb == nil {
+		return false
+	}
+	panes := tb.Root.panes()
+	if len(panes) < 2 {
+		return false
+	}
+	for _, p := range panes {
+		if p.ID == w.FocusedPane {
+			return true
+		}
+	}
+	return false
+}
+
+// focusAmount is a part of the window's opacity: full unless another pane
+// holds focus.
+func (w *workspace) focusAmount(focused bool) float32 {
+	if focused || !w.dimming() {
+		return 1
+	}
+	return focusDim
+}
+
 func abbreviate(path string) string {
 	home, err := os.UserHomeDir()
 	if err == nil && strings.HasPrefix(path, home) {
@@ -354,8 +434,5 @@ func abbreviate(path string) string {
 // chromeLine is the height of the window controls' row: titles and buttons
 // sit on that line, even though the header band is taller.
 func chromeLine(bar ui.TitleBar) float32 {
-	if bar.Height > 0 {
-		return bar.Height
-	}
-	return 28
+	return 32
 }

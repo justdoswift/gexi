@@ -18,6 +18,7 @@ type tokens struct {
 	Sidebar         ui.Color
 	Accent          ui.Color
 	Active          ui.Color
+	Control         ui.Color
 	Working         ui.Color
 	Waiting         ui.Color
 }
@@ -33,6 +34,7 @@ func themeTokens(t *ui.Theme) tokens {
 			Sidebar:         ui.RGB(0x11, 0x11, 0x11),
 			Accent:          ui.RGB(0x1f, 0x1f, 0x1f),
 			Active:          ui.RGB(0x26, 0x26, 0x26),
+			Control:         ui.RGB(0x3a, 0x3a, 0x3a),
 			Working:         ui.RGB(0x22, 0xc5, 0x5e),
 			Waiting:         ui.RGB(0xf5, 0x9e, 0x0b),
 		}
@@ -46,6 +48,7 @@ func themeTokens(t *ui.Theme) tokens {
 		Sidebar:         ui.RGB(0xfa, 0xfa, 0xfa),
 		Accent:          ui.RGB(0xf5, 0xf5, 0xf5),
 		Active:          ui.RGB(0xed, 0xed, 0xed),
+		Control:         ui.RGB(0xe0, 0xe0, 0xe0),
 		Working:         ui.RGB(0x16, 0xa3, 0x4a),
 		Waiting:         ui.RGB(0xd9, 0x77, 0x06),
 	}
@@ -74,4 +77,5 @@ const canvasInset float32 = 3
 const (
 	sidebarMotion = 200 * time.Millisecond
 	paneMotion    = 140 * time.Millisecond
+	focusMotion   = 150 * time.Millisecond
 )

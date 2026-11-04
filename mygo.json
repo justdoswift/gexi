@@ -1,6 +1,6 @@
 {
-  "name": "JustCli",
-  "identifier": "dev.justcli.app",
+  "name": "Gexi",
+  "identifier": "dev.gexi.app",
   "version": "0.1.0",
   "out": "build"
 }
