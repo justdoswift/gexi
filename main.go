@@ -9,7 +9,7 @@ import (
 )
 
 // Version is what ping and info report.
-const Version = "0.0.2"
+const Version = "0.0.3"
 
 func main() {
 	// Daily background checks in the manner of Sparkle; the menu item below
