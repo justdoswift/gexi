@@ -4,3 +4,4 @@ build/
 /gexi
 mygo-spike/
 *.log
+.claude/skills/

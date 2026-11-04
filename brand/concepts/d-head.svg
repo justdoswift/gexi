@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <g transform="translate(0 8)">
+  <title>Gexi — Snake head</title>
+  <path d="M36 180 C 36 140, 68 112, 104 106" fill="none" stroke="#000000" stroke-width="40" stroke-linecap="round"/>
+  <ellipse cx="140" cy="104" rx="56" ry="44" transform="rotate(-14 140 104)" fill="#000000"/>
+  <circle cx="156" cy="90" r="13" fill="#ffffff"/>
+  <circle cx="157" cy="90" r="5" fill="#000000"/>
+  <circle cx="159" cy="88" r="2" fill="#ffffff"/>
+  <path d="M196 92 L 214 84 M 214 84 L 224 74 M 214 84 L 226 94" fill="none" stroke="#000000" stroke-width="8" stroke-linecap="round"/>
+</g>
+</svg>
