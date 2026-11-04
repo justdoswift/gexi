@@ -64,6 +64,7 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 			"selectedTab": nullable(w.SelectedTab),
 			"focusedPane": nullable(w.FocusedPane),
 			"tabs":        w.tabsJSON(),
+			"paneStyle":   w.settings.PaneStyle,
 		}, nil
 
 	case "tab.list":

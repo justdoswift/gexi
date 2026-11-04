@@ -10,12 +10,14 @@ import (
 // Lucide icons (MIT), drawn from inline SVG so they match shadcn's stroke
 // weight instead of the nearest text glyph.
 var iconPaths = map[string]string{
-	"panel-left": `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>`,
-	"plus":       `<path d="M5 12h14"/><path d="M12 5v14"/>`,
-	"columns-2":  `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/>`,
-	"rows-2":     `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/>`,
-	"x":          `<path d="M18 6 6 18"/><path d="m6 6 12 12"/>`,
-	"terminal":   `<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>`,
+	"panel-left":  `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>`,
+	"plus":        `<path d="M5 12h14"/><path d="M12 5v14"/>`,
+	"columns-2":   `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/>`,
+	"rows-2":      `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/>`,
+	"x":           `<path d="M18 6 6 18"/><path d="m6 6 12 12"/>`,
+	"terminal":    `<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>`,
+	"layout-grid": `<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>`,
+	"grid-2x2":    `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/><path d="M12 3v18"/>`,
 }
 
 var iconCache sync.Map // "name|color" -> ui.ImageSource

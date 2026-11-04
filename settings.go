@@ -13,12 +13,18 @@ import (
 // appSettings mirrors the Swift build's interface settings, pared down to
 // what the Go UI actually honours today.
 type appSettings struct {
-	RestoreScreen    bool `json:"restoreScreen"`
-	SidebarCollapsed bool `json:"sidebarCollapsed"`
+	RestoreScreen    bool   `json:"restoreScreen"`
+	SidebarCollapsed bool   `json:"sidebarCollapsed"`
+	PaneStyle        string `json:"paneStyle"`
 }
 
+const (
+	paneComfortable = "comfortable"
+	paneCompact     = "compact"
+)
+
 func defaultSettings() appSettings {
-	return appSettings{RestoreScreen: true}
+	return appSettings{RestoreScreen: true, PaneStyle: paneComfortable}
 }
 
 func settingsPath() string { return filepath.Join(supportDir(), "settings.json") }
@@ -27,6 +33,9 @@ func loadSettings() appSettings {
 	s := defaultSettings()
 	if data, err := os.ReadFile(settingsPath()); err == nil {
 		_ = json.Unmarshal(data, &s)
+	}
+	if s.PaneStyle != paneCompact {
+		s.PaneStyle = paneComfortable
 	}
 	return s
 }
@@ -50,7 +59,7 @@ func (w *workspace) openSettings() {
 	w.settingsWin = mygo.NewWindow(mygo.WindowOptions{
 		Title:           "Settings",
 		Width:           480,
-		Height:          260,
+		Height:          330,
 		MinWidth:        400,
 		MinHeight:       300,
 		TitleBarStyle:   mygo.TitleBarHidden,
@@ -77,6 +86,14 @@ func (w *workspace) settingsView(c *ui.Context) {
 			ui.Text(c, "Settings").FontSize(12).FontWeight(500).TextColor(tk.Foreground)
 		})
 		ui.Column(c).Fill().Padding(20).Gap(8).Children(func() {
+			sectionLabel(c, tk, "Panes")
+			ui.Column(c).FillWidth().Radius(8).Border(1, tk.Border).Children(func() {
+				ui.Row(c).Padding(14, 16, 14, 16).Children(func() {
+					ui.Text(c, "Pane style").FontSize(13).TextColor(tk.Foreground)
+					ui.Spacer(c)
+					w.paneStyleControl(c, tk)
+				})
+			})
 			sectionLabel(c, tk, "Sessions")
 			ui.Column(c).FillWidth().Radius(8).Border(1, tk.Border).Children(func() {
 				w.settingRowView(c, tk, settingRow{
@@ -140,5 +157,39 @@ func (w *workspace) switchControl(c *ui.Context, tk tokens, value *bool, onChang
 			ui.Box(c).Width(pos * 16).Height(1).OnClick(toggle)
 		}
 		ui.Box(c).Width(16).Height(16).Radius(8).Background(tk.Background).OnClick(toggle)
+	})
+}
+
+// paneStyleControl is shadcn's segmented switch: a muted track, a raised
+// card on the chosen side.
+func (w *workspace) paneStyleControl(c *ui.Context, tk tokens) {
+	ui.Row(c).Height(32).Padding(2).Radius(8).Background(tk.Active).Gap(2).Children(func() {
+		w.paneStyleSegment(c, tk, paneComfortable, "layout-grid", "Comfortable")
+		w.paneStyleSegment(c, tk, paneCompact, "grid-2x2", "Compact")
+	})
+}
+
+func (w *workspace) paneStyleSegment(c *ui.Context, tk tokens, value, icon, label string) {
+	selected := w.settings.PaneStyle == value
+	color := tk.MutedForeground
+	el := ui.Row(c).Height(28).Padding(0, 10, 0, 10).Gap(6).Radius(6).
+		Cursor(ui.CursorPointer)
+	if selected {
+		color = tk.Foreground
+		el = el.Background(tk.Background).Border(1, tk.Border)
+	}
+	pick := func() {
+		if w.settings.PaneStyle == value {
+			return
+		}
+		w.settings.PaneStyle = value
+		w.settings.save()
+		w.invalidate()
+	}
+	el.OnClick(pick).Children(func() {
+		if src := iconSource(icon, colorHex(color)); src != nil {
+			ui.Image(c, src).Width(13).Height(13).OnClick(pick)
+		}
+		ui.Text(c, label).FontSize(12).TextColor(color).OnClick(pick)
 	})
 }
