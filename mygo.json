@@ -2,5 +2,8 @@
   "name": "Gexi",
   "identifier": "dev.gexi.app",
   "version": "0.01",
-  "out": "build"
+  "out": "build",
+  "macos": {
+    "icon": "AppIcon.icon"
+  }
 }
