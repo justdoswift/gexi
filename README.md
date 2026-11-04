@@ -61,6 +61,11 @@ Pane arguments accept a full id or any unique prefix, and default to
 | Settings | ⌘, |
 | Quit (kills processes) | ⌘Q |
 
+The window follows Rex's chrome: no title bar, the traffic lights over the
+top-left corner, and a sidebar toggle that never moves. With the sidebar
+hidden, the top-left pane's header makes room for them; the other panes keep
+their own alignment.
+
 Closing the window hides it: shells and agents keep running, and clicking the
 Dock icon brings the workspace back. `⌘Q` is the real quit.
 

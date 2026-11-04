@@ -28,14 +28,14 @@ func (t *tab) title() string {
 	if title := strings.TrimSpace(p.term.Title()); title != "" {
 		return title
 	}
-	dir := p.dir()
-	if home, err := os.UserHomeDir(); err == nil && dir == home {
-		return "~"
+	shell := ""
+	if len(p.command) > 0 {
+		shell = filepath.Base(p.command[0])
 	}
-	if base := filepath.Base(dir); base != "" && base != "/" {
-		return base
+	if shell != "" {
+		return shell + " " + abbreviate(p.dir())
 	}
-	return "Terminal"
+	return abbreviate(p.dir())
 }
 
 // workspace mirrors JustCli's model: tabs, one selected tab, focus, and the

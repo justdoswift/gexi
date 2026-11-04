@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,30 +9,19 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// view is the whole window: a sidebar of tabs and the selected tab's tree.
-// mygo calls it for every frame, so it only reads the model.
+// The layout follows Rex: the window has no title bar of its own, the traffic
+// lights sit over the top-left corner, and a session sidebar or the top-left
+// pane header takes that first row. The sidebar toggle never moves.
+
 func (w *workspace) view(c *ui.Context) {
 	t := c.Theme()
 	ui.Row(c).Fill().Children(func() {
-		ui.Column(c).Width(230).FillHeight().Padding(10).Gap(2).
-			BorderColor(t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			ui.Text(c, "JustCli · Go POC").FontSize(12).Bold().TextColor(t.TextMuted)
-			ui.Textf(c, "%s", socketPath()).FontSize(9).TextColor(t.TextMuted)
-			if ui.Button(c, "+ New Tab").Clicked() {
-				w.newTab(nil, "")
-			}
-			for _, tb := range w.Tabs {
-				w.tabRow(c, tb)
-			}
-			ui.Spacer(c)
-			ui.Textf(c, "%d tab(s) · %d panes", len(w.Tabs), len(w.allPanes())).
-				FontSize(10).TextColor(t.TextMuted)
-		})
-
+		if !w.settings.SidebarCollapsed {
+			w.sidebar(c)
+		}
 		ui.Column(c).Fill().Children(func() {
-			w.toolbar(c)
 			if tb := w.selected(); tb != nil {
-				w.splitView(c, tb.Root)
+				w.splitView(c, tb.Root, true)
 			} else {
 				ui.Column(c).Fill().Center().Children(func() {
 					ui.Text(c, "No tabs").FontSize(13).TextColor(t.TextMuted)
@@ -41,6 +29,36 @@ func (w *workspace) view(c *ui.Context) {
 			}
 		})
 	})
+}
+
+func (w *workspace) sidebar(c *ui.Context) {
+	t := c.Theme()
+	bar := c.TitleBar()
+	ui.Column(c).Width(250).FillHeight().Background(sidebarColor(t)).
+		BorderColor(t.Border).BorderWidth(0, 1, 0, 0).Children(func() {
+		ui.Row(c).Height(rowHeight(bar)).Padding(0, 10, 0, bar.Left).Gap(6).Children(func() {
+			w.sidebarToggle(c)
+			ui.Text(c, "Sessions").FontSize(11).TextColor(t.TextMuted).DragWindow()
+			ui.Spacer(c).DragWindow()
+			if ui.Button(c, "+").Width(26).Clicked() {
+				_, _ = w.newTab(nil, "")
+			}
+		})
+		ui.Column(c).Fill().Padding(8).Gap(2).Children(func() {
+			for _, tb := range w.Tabs {
+				w.tabRow(c, tb)
+			}
+			ui.Spacer(c)
+		})
+	})
+}
+
+func (w *workspace) sidebarToggle(c *ui.Context) {
+	if ui.Button(c, "◧").Width(26).Clicked() {
+		w.settings.SidebarCollapsed = !w.settings.SidebarCollapsed
+		w.settings.save()
+		w.invalidate()
+	}
 }
 
 func (w *workspace) tabRow(c *ui.Context, tb *tab) {
@@ -51,74 +69,72 @@ func (w *workspace) tabRow(c *ui.Context, tb *tab) {
 		row = row.Background(t.Selection)
 	}
 	row.OnClick(func() { w.selectTab(tb.ID) }).Children(func() {
+		ui.Text(c, "›_").FontSize(10).TextColor(t.TextMuted)
 		ui.Text(c, tb.title()).FontSize(12)
 		ui.Spacer(c)
 		ui.Textf(c, "%d", len(tb.Root.panes())).FontSize(10).TextColor(t.TextMuted)
 	})
 }
 
-func (w *workspace) toolbar(c *ui.Context) {
-	t := c.Theme()
-	ui.Row(c).Height(34).Padding(8).Gap(10).
-		BorderColor(t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-		if tb := w.selected(); tb != nil {
-			ui.Text(c, tb.title()).FontSize(11.5).Bold()
-		}
-		ui.Spacer(c)
-		if ui.Button(c, "New Tab").Clicked() {
-			w.newTab(nil, "")
-		}
-	})
-}
-
-// splitView mirrors JustCli's recursive split tree. mygo's SplitPercent
-// gives the same draggable divider.
-func (w *workspace) splitView(c *ui.Context, n *splitNode) {
+// splitView mirrors JustCli's recursive split tree. leading marks the child
+// that touches the content's top-left corner: when the sidebar is collapsed,
+// that one pane header makes room for the traffic lights and the toggle.
+func (w *workspace) splitView(c *ui.Context, n *splitNode, leading bool) {
 	if n == nil {
 		return
 	}
 	if n.isLeaf() {
-		w.paneView(c, n.pane)
+		w.paneView(c, n.pane, leading)
 		return
 	}
 	if n.axis == axisHorizontal {
 		ui.SplitPercent(c, &n.ratio,
-			func() { w.splitView(c, n.first) },
-			func() { w.splitView(c, n.second) },
+			func() { w.splitView(c, n.first, leading) },
+			func() { w.splitView(c, n.second, false) },
 		).Fill()
 	} else {
 		ui.SplitVerticalPercent(c, &n.ratio,
-			func() { w.splitView(c, n.first) },
-			func() { w.splitView(c, n.second) },
+			func() { w.splitView(c, n.first, leading) },
+			func() { w.splitView(c, n.second, false) },
 		).Fill()
 	}
 }
 
-func (w *workspace) paneView(c *ui.Context, p *pane) {
+func (w *workspace) paneView(c *ui.Context, p *pane, leading bool) {
 	t := c.Theme()
+	bar := c.TitleBar()
 	focused := p.ID == w.FocusedPane
+	underChrome := leading && w.settings.SidebarCollapsed
+
 	ui.Column(c).Fill().Children(func() {
-		title := p.title()
-		if p.exited {
-			title += " · exited"
-		}
 		if w.settings.ShowHeaders {
-			ui.Row(c).Height(28).Padding(8).Gap(8).
-				BorderColor(t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-				if focused {
-					ui.Text(c, title).FontSize(11).Bold()
-				} else {
-					ui.Text(c, title).FontSize(11).TextColor(t.TextMuted)
+			left := float32(8)
+			if underChrome {
+				left = bar.Left
+			}
+			ui.Row(c).Height(rowHeight(bar)).Padding(0, 8, 0, left).Gap(8).Children(func() {
+				if underChrome {
+					w.sidebarToggle(c)
 				}
-				ui.Text(c, abbreviate(p.dir())).FontSize(10).TextColor(t.TextMuted)
-				ui.Spacer(c)
-				if ui.Button(c, "◫").Width(26).Clicked() {
+				ui.Text(c, "›_").FontSize(10).TextColor(t.TextMuted).DragWindow()
+				title := p.title()
+				if p.exited {
+					title += " · exited"
+				}
+				if focused {
+					ui.Text(c, title).FontSize(11).Bold().DragWindow()
+				} else {
+					ui.Text(c, title).FontSize(11).TextColor(t.TextMuted).DragWindow()
+				}
+				ui.Text(c, abbreviate(p.dir())).FontSize(10).TextColor(t.TextMuted).DragWindow()
+				ui.Spacer(c).DragWindow()
+				if ui.Button(c, "◫").Width(24).Clicked() {
 					_, _ = w.splitPane(p, axisHorizontal, nil, p.dir())
 				}
-				if ui.Button(c, "⬒").Width(26).Clicked() {
+				if ui.Button(c, "⬒").Width(24).Clicked() {
 					_, _ = w.splitPane(p, axisVertical, nil, p.dir())
 				}
-				if ui.Button(c, "×").Width(26).Clicked() {
+				if ui.Button(c, "×").Width(24).Clicked() {
 					w.closePane(p)
 				}
 			})
@@ -135,6 +151,20 @@ func (w *workspace) paneView(c *ui.Context, p *pane) {
 	})
 }
 
+func sidebarColor(t *ui.Theme) ui.Color {
+	if t.Dark {
+		return ui.RGB(0x1e, 0x1e, 0x20)
+	}
+	return ui.RGB(0xf2, 0xf2, 0xf4)
+}
+
+func rowHeight(bar ui.TitleBar) float32 {
+	if bar.Height > 34 {
+		return bar.Height
+	}
+	return 34
+}
+
 func abbreviate(path string) string {
 	home, err := os.UserHomeDir()
 	if err == nil && strings.HasPrefix(path, home) {
@@ -146,5 +176,3 @@ func abbreviate(path string) string {
 	}
 	return path
 }
-
-var _ = fmt.Sprintf

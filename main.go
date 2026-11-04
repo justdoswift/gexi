@@ -23,6 +23,9 @@ func main() {
 			MinHeight: 440,
 			StateKey:  "poc",
 			Content:   ui.View(w.view),
+			// Rex chrome: no title bar; the view draws under the traffic
+			// lights, which the layout leaves room for.
+			TitleBarStyle: mygo.TitleBarHidden,
 		})
 		w.win = win
 
@@ -92,6 +95,11 @@ func mainMenu(w *workspace) *mygo.Menu {
 			{Label: "Previous Pane", Accelerator: "CmdOrCtrl+[", Click: func(*mygo.MenuItem, *mygo.Window) { w.cyclePane(-1) }},
 			{Label: "Next Pane", Accelerator: "CmdOrCtrl+]", Click: func(*mygo.MenuItem, *mygo.Window) { w.cyclePane(1) }},
 			mygo.Separator(),
+			{Label: "Toggle Sidebar", Accelerator: "CmdOrCtrl+B", Click: func(*mygo.MenuItem, *mygo.Window) {
+				w.settings.SidebarCollapsed = !w.settings.SidebarCollapsed
+				w.settings.save()
+				w.invalidate()
+			}},
 			{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { w.openSettings() }},
 		}},
 		{Role: mygo.RoleWindowMenu},

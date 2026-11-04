@@ -12,8 +12,9 @@ import (
 // appSettings mirrors the Swift build's interface settings, pared down to
 // what the Go UI actually honours today.
 type appSettings struct {
-	RestoreScreen bool `json:"restoreScreen"`
-	ShowHeaders   bool `json:"showHeaders"`
+	RestoreScreen    bool `json:"restoreScreen"`
+	ShowHeaders      bool `json:"showHeaders"`
+	SidebarCollapsed bool `json:"sidebarCollapsed"`
 }
 
 func defaultSettings() appSettings {
