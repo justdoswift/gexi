@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -53,6 +54,8 @@ func (w *workspace) view(c *ui.Context) {
 			w.sidebarToggle(c, tk)
 		})
 	})
+	ui.Modal(c, &w.relayOpen, func() { w.relayDialog(c, tk) })
+	ui.Modal(c, &w.importOpen, func() { w.importDialog(c, tk) })
 }
 
 // dragArea is a draggable stretch of a header that also zooms the window on
@@ -100,7 +103,6 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 							}
 							w.invalidate()
 						})
-						iconMenuButton(c, tk, "server", w.hostMenu)
 						iconButton(c, tk, "plus", func() { w.pickProject() })
 					})
 				})
@@ -125,18 +127,45 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 				}
 				ui.Spacer(c)
 			})
+			// Remote hosts are places too, but they come from ~/.ssh/config
+			// rather than the project list, so the menu sits under the list
+			// instead of in the chrome row.
+			ui.Row(c).Padding(2, 8, 8, 8).Children(func() {
+				w.remoteRow(c, tk)
+			})
 		})
 }
 
-// hostMenu lists the concrete hosts in ~/.ssh/config. The list is read as the
-// menu opens, so a host added to the file shows up without a restart.
-func (w *workspace) hostMenu(m *ui.Menu) {
-	hosts := loadSSHHosts()
-	if len(hosts) == 0 {
-		m.Item("No hosts in ~/.ssh/config").Disabled(true)
-		return
+// remoteMenu is the whole Remote row: whether this Mac can be reached, the
+// Macs it already reaches, and the one-line import. A host list is read as
+// the menu opens, so ~/.ssh/config edits show up without a restart.
+func (w *workspace) remoteMenu(m *ui.Menu) {
+	if w.settings.RemoteListen {
+		state := "tunnel reconnecting"
+		if w.tunnelUp {
+			state = "reachable"
+		}
+		m.Item(fmt.Sprintf("%s · %s", w.settings.RemoteName, state)).Disabled(true)
+		if m.Item("Copy connection code").Chosen() {
+			if code, err := w.remoteCodeValue(); err == nil {
+				writeClipboard(code)
+			}
+		}
+		if m.Item("Turn off remote access").Chosen() {
+			w.disableRemote()
+			w.invalidate()
+		}
+	} else if m.Item("Allow this Mac to be reached…").Chosen() {
+		w.openRelayDialog()
 	}
-	for _, h := range hosts {
+	m.Separator()
+
+	for _, h := range w.settings.ImportedHosts {
+		if m.Item(h.Name + "  " + h.Relay).Chosen() {
+			w.connectRemote(h)
+		}
+	}
+	for _, h := range loadSSHHosts() {
 		label := h.Alias
 		if target := h.target(); target != label {
 			label += "  " + target
@@ -145,6 +174,83 @@ func (w *workspace) hostMenu(m *ui.Menu) {
 			w.connectHost(h)
 		}
 	}
+	if len(w.settings.ImportedHosts) == 0 && len(loadSSHHosts()) == 0 {
+		m.Item("No other Mac yet").Disabled(true)
+	}
+	m.Separator()
+	if m.Item("Connect to another Mac…").Chosen() {
+		w.openImportDialog()
+	}
+}
+
+// remoteRow opens the remote menu from the bottom of the sidebar. It reads as
+// one more list row rather than a chrome button: a Mac is a place, not a
+// command.
+func (w *workspace) remoteRow(c *ui.Context, tk tokens) {
+	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(6).
+		Radius(chromeRadius).Cursor(ui.CursorPointer).Menu(w.remoteMenu)
+	color := tk.MutedForeground
+	if row.Hovered() {
+		row = row.Background(tk.Active)
+		color = tk.Foreground
+	}
+	row.Children(func() {
+		if src := iconSource("server", colorHex(color)); src != nil {
+			ui.Image(c, src).Width(13).Height(13).IgnoreInput(true)
+		}
+		ui.Text(c, "Remote").FontSize(12).FontWeight(500).TextColor(color).IgnoreInput(true)
+		ui.Spacer(c).IgnoreInput(true)
+	})
+}
+
+// relayDialog is the one-time setup for a Mac that should be reachable.
+func (w *workspace) relayDialog(c *ui.Context, tk tokens) {
+	ui.Column(c).Width(400).Padding(20).Gap(8).Children(func() {
+		ui.Text(c, "Allow this Mac to be reached").FontSize(14).FontWeight(600).TextColor(tk.Foreground)
+		ui.Text(c, "Gexi keeps a tunnel to your relay and gives you one code for the other Mac. The relay only forwards ssh.").
+			FontSize(11).TextColor(tk.MutedForeground)
+		ui.Text(c, "Relay (user@host)").FontSize(11).TextColor(tk.MutedForeground).Padding(6, 0, 0, 0)
+		ui.TextInput(c, &w.relayInput).Placeholder("you@relay.example.com").Height(28).FontSize(12)
+		ui.Text(c, "Name on the other Mac").FontSize(11).TextColor(tk.MutedForeground).Padding(6, 0, 0, 0)
+		ui.TextInput(c, &w.relayName).Placeholder("company").Height(28).FontSize(12)
+		if w.relayErr != "" {
+			ui.Text(c, w.relayErr).FontSize(11).TextColor(tk.Waiting)
+		}
+		ui.Row(c).Gap(8).Padding(8, 0, 0, 0).Children(func() {
+			ui.Spacer(c)
+			ui.Button(c, "Cancel").OnClick(func() {
+				w.relayOpen = false
+				w.invalidate()
+			})
+			label := "Turn on"
+			if w.relayBusy {
+				label = "Checking…"
+			}
+			ui.Button(c, label).OnClick(func() { w.submitRelay() })
+		})
+	})
+}
+
+// importDialog takes the code from the other Mac. It starts from the
+// clipboard, so the usual path is open, connect.
+func (w *workspace) importDialog(c *ui.Context, tk tokens) {
+	ui.Column(c).Width(440).Padding(20).Gap(8).Children(func() {
+		ui.Text(c, "Connect to another Mac").FontSize(14).FontWeight(600).TextColor(tk.Foreground)
+		ui.Text(c, "Paste the code the other Mac copied. It works once per Mac and can be revoked there.").
+			FontSize(11).TextColor(tk.MutedForeground)
+		ui.TextInput(c, &w.importText).Height(28).FontSize(12).Placeholder("gexi1.…")
+		if w.importErr != "" {
+			ui.Text(c, w.importErr).FontSize(11).TextColor(tk.Waiting)
+		}
+		ui.Row(c).Gap(8).Padding(8, 0, 0, 0).Children(func() {
+			ui.Spacer(c)
+			ui.Button(c, "Cancel").OnClick(func() {
+				w.importOpen = false
+				w.invalidate()
+			})
+			ui.Button(c, "Connect").OnClick(func() { w.submitImport() })
+		})
+	})
 }
 
 func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
