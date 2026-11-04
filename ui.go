@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,8 +86,6 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 			ui.Row(c).Height(headerHeight).Padding(0, 8, headerHeight-chromeLine(bar), bar.Left+6+iconSize+8).
 				Children(func() {
 					ui.Row(c).FillWidth().Height(chromeLine(bar)).AlignItems(ui.Center).Gap(2).Children(func() {
-						ui.Text(c, "Sessions").FontSize(11).FontWeight(500).
-							TextColor(tk.MutedForeground).DragWindow()
 						ui.Spacer(c).DragWindow()
 						iconButton(c, tk, "plus", func() { _, _ = w.newTab(nil, "") })
 					})
@@ -128,20 +127,56 @@ func (w *workspace) tabRow(c *ui.Context, tk tokens, tb *tab) {
 		}
 		ui.Text(c, tb.title()).FontSize(12).FontWeight(500).TextColor(color).OnClick(pick)
 		ui.Spacer(c).OnClick(pick)
-		// One dot for the tab: a pane waiting for input outranks one working,
-		// and a tab whose panes are all idle keeps the slot but draws nothing,
-		// so the pane count does not shift.
-		dot := ui.RGBA(0, 0, 0, 0)
-		switch tabActivityState(tb) {
-		case activityWorking:
-			dot = tk.Working
-		case activityWaiting:
-			dot = tk.Waiting
-		}
-		ui.Column(c).Width(6).Height(6).Radius(3).Background(dot).OnClick(pick)
-		ui.Textf(c, "%d", len(tb.Root.panes())).FontSize(10).TextColor(tk.MutedForeground).OnClick(pick)
+		w.activityLoader(c, tk, tabActivityState(tb), pick)
 	})
 }
+
+// activityLoader is the sidebar's grid loader, after loaders.wtf: a short
+// row of dots that lights up in sequence while an agent works. Waiting shows
+// the same dots holding still in amber, so the two states differ by motion
+// and colour, not shape.
+func (w *workspace) activityLoader(c *ui.Context, tk tokens, state string, pick func()) {
+	// The slot keeps its width when the loader is off, so nothing in the row
+	// shifts as agents start and stop.
+	box := ui.Row(c).Width(loaderWidth).Height(8).Gap(3).AlignItems(ui.Center)
+	box.OnClick(pick).Children(func() {
+		if state == "" {
+			return
+		}
+		color := tk.Working
+		if state == activityWaiting {
+			color = tk.Waiting
+		}
+		phase := 0.0
+		if state == activityWorking {
+			phase = loaderPhase(c)
+		}
+		for i := range 3 {
+			alpha := float32(1)
+			if state == activityWorking {
+				alpha = dotAlpha(phase, float64(i))
+			}
+			ui.Column(c).Width(4).Height(4).Radius(2).Background(color).
+				Opacity(alpha).OnClick(pick)
+		}
+	})
+}
+
+// loaderPhase advances the wave and keeps frames coming while it runs.
+func loaderPhase(c *ui.Context) float64 {
+	const period = 900 * time.Millisecond
+	c.After(33 * time.Millisecond)
+	return float64(time.Now().UnixMilli()%period.Milliseconds()) / float64(period.Milliseconds())
+}
+
+// dotAlpha gives each dot the same wave, a third of a cycle apart.
+func dotAlpha(phase, i float64) float32 {
+	s := math.Sin(2 * math.Pi * (phase - i*0.18))
+	return float32(0.25 + 0.75*(0.5+0.5*s))
+}
+
+// loaderWidth is three 4pt dots and the 3pt gaps between them.
+const loaderWidth float32 = 18
 
 // tabActivityState folds the panes' hook events into one sidebar indicator.
 func tabActivityState(tb *tab) string {

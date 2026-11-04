@@ -59,7 +59,7 @@ func (w *workspace) openSettings() {
 	w.settingsWin = mygo.NewWindow(mygo.WindowOptions{
 		Title:           "Settings",
 		Width:           480,
-		Height:          330,
+		Height:          400,
 		MinWidth:        400,
 		MinHeight:       300,
 		TitleBarStyle:   mygo.TitleBarHidden,
@@ -103,6 +103,17 @@ func (w *workspace) settingsView(c *ui.Context) {
 					onChange: func() { w.settings.save(); w.scheduleSave() },
 				})
 			})
+			sectionLabel(c, tk, "Notifications")
+			ui.Column(c).FillWidth().Radius(8).Border(1, tk.Border).Children(func() {
+				w.settingActionView(c, tk,
+					"Desktop notifications",
+					"Sent when an agent finishes a turn or waits for input.",
+					"Send test",
+					func() {
+						notifyUser("Test notification", "If this banner shows up, agent events can reach you.")
+					},
+				)
+			})
 			ui.Spacer(c)
 			ui.Textf(c, "Socket  %s", socketPath()).FontSize(10).TextColor(tk.MutedForeground)
 		})
@@ -121,6 +132,33 @@ func (w *workspace) settingRowView(c *ui.Context, tk tokens, row settingRow) {
 		})
 		ui.Spacer(c)
 		w.switchControl(c, tk, row.value, row.onChange)
+	})
+}
+
+// settingActionView is a setting row whose control is a button: same
+// title/detail pair, no switch to hold.
+func (w *workspace) settingActionView(c *ui.Context, tk tokens, title, detail, label string, action func()) {
+	ui.Row(c).Padding(14, 16, 14, 16).Gap(16).Children(func() {
+		ui.Column(c).Gap(2).Children(func() {
+			ui.Text(c, title).FontSize(13).TextColor(tk.Foreground)
+			ui.Text(c, detail).FontSize(11).TextColor(tk.MutedForeground)
+		})
+		ui.Spacer(c)
+		outlineButton(c, tk, label, action)
+	})
+}
+
+// outlineButton is shadcn's outline button, sized to sit beside a switch.
+func outlineButton(c *ui.Context, tk tokens, label string, action func()) {
+	el := ui.Row(c).Height(28).Padding(0, 10, 0, 10).Radius(6).
+		Border(1, tk.Border).Cursor(ui.CursorPointer)
+	bg := tk.Background
+	if el.Hovered() {
+		bg = tk.Muted
+	}
+	el.Background(bg).OnClick(action).Children(func() {
+		ui.Text(c, label).FontSize(12).FontWeight(500).
+			TextColor(tk.Foreground).OnClick(action)
 	})
 }
 

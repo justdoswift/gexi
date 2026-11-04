@@ -198,7 +198,8 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		return out, nil
 
 	case "app.settings":
-		return map[string]any{"opened": false}, nil
+		w.openSettings()
+		return map[string]any{"opened": true}, nil
 
 	case "app.quit":
 		w.quitting = true
