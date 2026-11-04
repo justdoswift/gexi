@@ -1,0 +1,266 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/egoist/mygo"
+)
+
+// tab is one workspace tab: a title and a split tree.
+type tab struct {
+	ID   string
+	Root *splitNode
+}
+
+func (t *tab) title() string {
+	if t.Root != nil && t.Root.isLeaf() {
+		return t.Root.pane.title()
+	}
+	if t.Root != nil {
+		if ps := t.Root.panes(); len(ps) > 0 {
+			return ps[0].title()
+		}
+	}
+	return "Terminal"
+}
+
+// workspace mirrors JustCli's model: tabs, one selected tab, focus, and the
+// control server that drives it all from outside the process.
+type workspace struct {
+	SessionID   string
+	Tabs        []*tab
+	SelectedTab string
+	FocusedPane string
+	focusReq    string
+
+	win      *mygo.Window
+	quitting bool
+}
+
+func newWorkspace() *workspace {
+	return &workspace{
+		SessionID: newID(),
+		focusReq:  "",
+	}
+}
+
+func (w *workspace) selected() *tab {
+	for _, t := range w.Tabs {
+		if t.ID == w.SelectedTab {
+			return t
+		}
+	}
+	if len(w.Tabs) > 0 {
+		return w.Tabs[0]
+	}
+	return nil
+}
+
+func (w *workspace) visiblePanes() []*pane {
+	if t := w.selected(); t != nil {
+		return t.Root.panes()
+	}
+	return nil
+}
+
+func (w *workspace) allPanes() []*pane {
+	var out []*pane
+	for _, t := range w.Tabs {
+		out = append(out, t.Root.panes()...)
+	}
+	return out
+}
+
+// newTab runs command (or a login shell) and selects it. Main thread.
+func (w *workspace) newTab(command []string, dir string) (*tab, error) {
+	p, err := newPane(w, command, dir)
+	if err != nil {
+		return nil, err
+	}
+	t := &tab{ID: newID(), Root: leaf(p)}
+	w.Tabs = append(w.Tabs, t)
+	w.SelectedTab = t.ID
+	w.FocusedPane = p.ID
+	w.focusReq = p.ID
+	w.invalidate()
+	return t, nil
+}
+
+// splitPane puts a new pane beside p. Main thread.
+func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*pane, error) {
+	if dir == "" {
+		dir = p.dir()
+	}
+	np, err := newPane(w, command, dir)
+	if err != nil {
+		return nil, err
+	}
+	var host *tab
+	for _, t := range w.Tabs {
+		if t.Root.paneByID(p.ID) != nil {
+			host = t
+			break
+		}
+	}
+	if host == nil {
+		return nil, fmt.Errorf("No such pane: %s", p.ID)
+	}
+	host.Root = host.Root.splitting(p.ID, ax, np)
+	w.FocusedPane = np.ID
+	w.focusReq = np.ID
+	w.invalidate()
+	return np, nil
+}
+
+// closePane hangs up the pane's program and collapses its slot. Main thread.
+func (w *workspace) closePane(p *pane) {
+	p.close()
+	for i, t := range w.Tabs {
+		if t.Root.paneByID(p.ID) == nil {
+			continue
+		}
+		t.Root = t.Root.removing(p.ID)
+		if t.Root == nil {
+			w.Tabs = append(w.Tabs[:i], w.Tabs[i+1:]...)
+		}
+		break
+	}
+	if w.FocusedPane == p.ID {
+		w.FocusedPane = ""
+		if t := w.selected(); t != nil {
+			if ps := t.Root.panes(); len(ps) > 0 {
+				w.FocusedPane = ps[0].ID
+				w.focusReq = ps[0].ID
+			}
+		}
+	}
+	if w.selected() == nil && len(w.Tabs) > 0 {
+		w.SelectedTab = w.Tabs[0].ID
+	}
+	w.invalidate()
+}
+
+func (w *workspace) selectTab(id string) {
+	for _, t := range w.Tabs {
+		if t.ID == id {
+			w.SelectedTab = t.ID
+			if ps := t.Root.panes(); len(ps) > 0 {
+				w.FocusedPane = ps[0].ID
+				w.focusReq = ps[0].ID
+			}
+			w.invalidate()
+			return
+		}
+	}
+}
+
+func (w *workspace) focusPane(p *pane) {
+	w.FocusedPane = p.ID
+	w.focusReq = p.ID
+	for _, t := range w.Tabs {
+		if t.Root.paneByID(p.ID) != nil {
+			w.SelectedTab = t.ID
+			break
+		}
+	}
+	w.invalidate()
+}
+
+// resolvePane accepts a full pane id or any unique prefix, as justcli does.
+func (w *workspace) resolvePane(raw string) (*pane, error) {
+	all := w.allPanes()
+	if raw == "" {
+		if p := w.paneByID(w.FocusedPane); p != nil {
+			return p, nil
+		}
+		if ps := w.visiblePanes(); len(ps) > 0 {
+			return ps[0], nil
+		}
+		if len(all) > 0 {
+			return all[0], nil
+		}
+		return nil, fmt.Errorf("No pane is available")
+	}
+	raw = strings.ToLower(raw)
+	var matches []*pane
+	for _, p := range all {
+		if strings.ToLower(p.ID) == raw {
+			return p, nil
+		}
+		if strings.HasPrefix(strings.ToLower(p.ID), raw) {
+			matches = append(matches, p)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return nil, fmt.Errorf("No such pane: %s", raw)
+	case 1:
+		return matches[0], nil
+	default:
+		return nil, fmt.Errorf("Ambiguous pane id: %s", raw)
+	}
+}
+
+func (w *workspace) paneByID(id string) *pane {
+	if id == "" {
+		return nil
+	}
+	for _, p := range w.allPanes() {
+		if p.ID == id {
+			return p
+		}
+	}
+	return nil
+}
+
+func (w *workspace) tabOf(p *pane) *tab {
+	for _, t := range w.Tabs {
+		if t.Root.paneByID(p.ID) != nil {
+			return t
+		}
+	}
+	return nil
+}
+
+func (w *workspace) invalidate() {
+	if w.win != nil {
+		w.win.Invalidate()
+	}
+}
+
+// onMain runs fn on the UI thread and waits, so the control server can read
+// and change the model without touching it off-thread.
+func (w *workspace) onMain(fn func()) {
+	done := make(chan struct{})
+	w.win.Update(func() {
+		fn()
+		close(done)
+	})
+	<-done
+}
+
+func loginShell() string {
+	if s := os.Getenv("SHELL"); s != "" {
+		return s
+	}
+	return "/bin/zsh"
+}
+
+func shellCommand(raw string) []string {
+	return []string{loginShell(), "-lc", raw}
+}
+
+func supportDir() string {
+	if v := os.Getenv("JUSTCLI_HOME"); v != "" {
+		return v
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, "Library", "Application Support", "JustCliGo")
+}
+
+func socketPath() string {
+	return filepath.Join(supportDir(), "control.sock")
+}

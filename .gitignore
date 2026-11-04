@@ -1,0 +1,5 @@
+.DS_Store
+.mygo/
+build/
+/justcli
+*.log
