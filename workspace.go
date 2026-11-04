@@ -52,6 +52,7 @@ type workspace struct {
 	settings    appSettings
 	quitting    bool
 	saveTimer   *time.Timer
+	lastNotify  map[string]time.Time
 }
 
 func newWorkspace() *workspace {

@@ -170,6 +170,16 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		w.focusPane(pane)
 		return map[string]any{"pane": pane.ID}, nil
 
+	case "event":
+		ev := agentEvent{
+			Kind:    str(p, "kind"),
+			Agent:   str(p, "agent"),
+			Pane:    str(p, "pane"),
+			Session: str(p, "session"),
+		}
+		ev.Detail = p["detail"]
+		return w.handleEvent(ev)
+
 	case "debug.proc":
 		pane, err := w.resolvePane(str(p, "pane"))
 		if err != nil {
@@ -219,6 +229,7 @@ func (w *workspace) paneJSON(p *pane) map[string]any {
 		"command":        p.command,
 		"restoreCommand": p.restoreCommand,
 		"agent":          agentJSON(p.agent),
+		"activity":       activityJSON(p.activity),
 	}
 }
 

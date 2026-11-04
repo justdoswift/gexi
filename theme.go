@@ -18,6 +18,8 @@ type tokens struct {
 	Sidebar         ui.Color
 	Accent          ui.Color
 	Active          ui.Color
+	Working         ui.Color
+	Waiting         ui.Color
 }
 
 func themeTokens(t *ui.Theme) tokens {
@@ -31,6 +33,8 @@ func themeTokens(t *ui.Theme) tokens {
 			Sidebar:         ui.RGB(0x11, 0x11, 0x11),
 			Accent:          ui.RGB(0x1f, 0x1f, 0x1f),
 			Active:          ui.RGB(0x26, 0x26, 0x26),
+			Working:         ui.RGB(0x22, 0xc5, 0x5e),
+			Waiting:         ui.RGB(0xf5, 0x9e, 0x0b),
 		}
 	}
 	return tokens{
@@ -42,6 +46,8 @@ func themeTokens(t *ui.Theme) tokens {
 		Sidebar:         ui.RGB(0xfa, 0xfa, 0xfa),
 		Accent:          ui.RGB(0xf5, 0xf5, 0xf5),
 		Active:          ui.RGB(0xed, 0xed, 0xed),
+		Working:         ui.RGB(0x16, 0xa3, 0x4a),
+		Waiting:         ui.RGB(0xd9, 0x77, 0x06),
 	}
 }
 

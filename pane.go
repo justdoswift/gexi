@@ -83,6 +83,7 @@ type pane struct {
 	restoreCommand []string // what the next launch should run
 	baseRestore    []string // restoreCommand with no agent running
 	agent          *agentDetection
+	activity       *agentActivity // last hook event from the agent
 	lastGroup      int
 	lastScan       time.Time
 	openedAt       time.Time

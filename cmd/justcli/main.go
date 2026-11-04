@@ -78,6 +78,7 @@ func newID() string {
 type options struct {
 	json       bool
 	pane       string
+	agent      string
 	socket     string
 	vertical   bool
 	horizontal bool
@@ -111,6 +112,7 @@ Usage:
   justcli new-tab [--cwd DIR] [-- COMMAND...]
   justcli tab-select TAB
   justcli settings
+  justcli event  KIND [--agent NAME] [--json]
   justcli quit
 
 Options:
@@ -121,6 +123,7 @@ Options:
   --scrollback        Capture scrollback history as well
   --lines N           With --scrollback, how many lines to read
   --cwd DIR           Working directory for a new tab, split, or run
+  --agent NAME        Agent name attached to an event (claude, codex, …)
   -h, --help          Show this help
 `)
 	os.Exit(0)
@@ -144,6 +147,12 @@ func parseArgs() {
 				fail("--socket needs a value")
 			}
 			opt.socket = args[i]
+		case "--agent":
+			i++
+			if i >= len(args) {
+				fail("--agent needs a name")
+			}
+			opt.agent = args[i]
 		case "--vertical":
 			opt.vertical = true
 		case "--horizontal":
@@ -177,6 +186,24 @@ func parseArgs() {
 			positional = append(positional, a)
 		}
 	}
+}
+
+// readStdinJSON reads the hook payload when a hook pipes one in. A person
+// running `justcli event` from a terminal has no pipe, and must not block.
+func readStdinJSON() map[string]any {
+	info, err := os.Stdin.Stat()
+	if err != nil || info.Mode()&os.ModeCharDevice != 0 {
+		return nil
+	}
+	raw, err := io.ReadAll(io.LimitReader(os.Stdin, 4<<20))
+	if err != nil || len(strings.TrimSpace(string(raw))) == 0 {
+		return nil
+	}
+	var detail map[string]any
+	if json.Unmarshal(raw, &detail) != nil {
+		return nil
+	}
+	return detail
 }
 
 func supportDir() string {
@@ -233,6 +260,29 @@ func main() {
 
 	command := positional[0]
 	rest := positional[1:]
+
+	if command == "event" {
+		if len(rest) == 0 {
+			fail("event needs a kind: session.start, turn.start, turn.end, needs-input, session.end")
+		}
+		params := map[string]any{"kind": rest[0]}
+		if opt.agent != "" {
+			params["agent"] = opt.agent
+		}
+		if detail := readStdinJSON(); detail != nil {
+			params["detail"] = detail
+			if sid, ok := detail["session_id"].(string); ok && sid != "" {
+				params["session"] = sid
+			}
+		}
+		result := call("event", params)
+		if opt.json {
+			emit(result)
+			return
+		}
+		fmt.Printf("event %s -> %s\n", rest[0], str(obj(result), "state"))
+		return
+	}
 
 	switch command {
 	case "ping":

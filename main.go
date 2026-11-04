@@ -12,6 +12,11 @@ const Version = "0.1.0-poc"
 
 func main() {
 	w := newWorkspace()
+
+	// Restored panes carry the --settings path saved last run; make sure the
+	// file is there before any of them try to launch.
+	_, _ = installClaudeHooks()
+
 	var win *mygo.Window
 
 	mygo.App.WhenReady(func() {

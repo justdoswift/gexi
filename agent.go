@@ -55,6 +55,11 @@ func resolveClaude(raw string, command []string) resolvedCommand {
 	}
 	id := newID()
 	launch := raw + " --session-id " + id
+	// Hooks ride along with the launch. --settings is additive, so the
+	// user's own hooks still fire; if we cannot find the CLI, launch plain.
+	if hooks, err := installClaudeHooks(); err == nil {
+		launch += " --settings " + shellQuote(hooks)
+	}
 	restore := strings.Replace(launch, "--session-id "+id, "--resume "+id, 1)
 	return resolvedCommand{replaceRaw(launch, command), replaceRaw(restore, command)}
 }

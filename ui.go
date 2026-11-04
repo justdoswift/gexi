@@ -122,8 +122,36 @@ func (w *workspace) tabRow(c *ui.Context, tk tokens, tb *tab) {
 		}
 		ui.Text(c, tb.title()).FontSize(12).FontWeight(500).TextColor(color).OnClick(pick)
 		ui.Spacer(c).OnClick(pick)
+		// One dot for the tab: a pane waiting for input outranks one working,
+		// and a tab whose panes are all idle keeps the slot but draws nothing,
+		// so the pane count does not shift.
+		dot := ui.RGBA(0, 0, 0, 0)
+		switch tabActivityState(tb) {
+		case activityWorking:
+			dot = tk.Working
+		case activityWaiting:
+			dot = tk.Waiting
+		}
+		ui.Column(c).Width(6).Height(6).Radius(3).Background(dot).OnClick(pick)
 		ui.Textf(c, "%d", len(tb.Root.panes())).FontSize(10).TextColor(tk.MutedForeground).OnClick(pick)
 	})
+}
+
+// tabActivityState folds the panes' hook events into one sidebar indicator.
+func tabActivityState(tb *tab) string {
+	state := ""
+	for _, p := range tb.Root.panes() {
+		if p.activity == nil {
+			continue
+		}
+		switch p.activity.State {
+		case activityWaiting:
+			return activityWaiting
+		case activityWorking:
+			state = activityWorking
+		}
+	}
+	return state
 }
 
 // splitView mirrors JustCli's recursive split tree. leading marks the child
@@ -179,7 +207,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	card := w.settings.PaneStyle == paneComfortable
 	outer := ui.Column(c).Fill()
 	if card {
-		outer = outer.Padding(6)
+		outer = outer.Padding(3)
 	}
 	outer.Children(func() {
 		col := ui.Column(c).Fill().Opacity(fadeAlpha(c, p))
