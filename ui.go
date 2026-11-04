@@ -30,15 +30,20 @@ func (w *workspace) view(c *ui.Context) {
 
 	root.Children(func() {
 		w.sidebar(c, tk, width)
-		ui.Column(c).Fill().Background(w.contentBackdrop(tk)).Children(func() {
-			if tb := w.selected(); tb != nil {
-				w.splitView(c, tk, tb.Root, true)
-			} else {
-				ui.Column(c).Fill().Center().Children(func() {
-					ui.Text(c, "No tabs").FontSize(13).TextColor(tk.MutedForeground)
+		if w.settings.PaneStyle == paneComfortable {
+			// The whole canvas is one framed panel; panes are white cards
+			// inside it, and the gaps carry the separation.
+			ui.Column(c).Fill().Background(tk.Muted).Padding(6).Children(func() {
+				ui.Column(c).Fill().Background(tk.Muted).Radius(8).
+					Border(1, tk.Border).Clip().Children(func() {
+					w.canvas(c, tk)
 				})
-			}
-		})
+			})
+		} else {
+			ui.Column(c).Fill().Background(tk.Background).Children(func() {
+				w.canvas(c, tk)
+			})
+		}
 		// The toggle stays put whether the sidebar is shown or not, so it
 		// sits above the layout rather than inside either header.
 		top := (headerHeight - iconSize) / 2
@@ -52,6 +57,16 @@ func (w *workspace) view(c *ui.Context) {
 			Left(bar.Left + 6).Top(top).Children(func() {
 			w.sidebarToggle(c, tk)
 		})
+	})
+}
+
+func (w *workspace) canvas(c *ui.Context, tk tokens) {
+	if tb := w.selected(); tb != nil {
+		w.splitView(c, tk, tb.Root, true)
+		return
+	}
+	ui.Column(c).Fill().Center().Children(func() {
+		ui.Text(c, "No tabs").FontSize(13).TextColor(tk.MutedForeground)
 	})
 }
 
@@ -220,13 +235,6 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			}
 		})
 	})
-}
-
-func (w *workspace) contentBackdrop(tk tokens) ui.Color {
-	if w.settings.PaneStyle == paneComfortable {
-		return tk.Muted
-	}
-	return tk.Background
 }
 
 // fade returns shadcn's 150ms ease-out transition for a row or button
