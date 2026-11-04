@@ -169,6 +169,23 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		w.focusPane(pane)
 		return map[string]any{"pane": pane.ID}, nil
 
+	case "debug.proc":
+		pane, err := w.resolvePane(str(p, "pane"))
+		if err != nil {
+			return nil, err
+		}
+		group := pane.foregroundGroup()
+		out := map[string]any{"group": group, "agent": agentJSON(pane.agent)}
+		if snap, ok := snapshotOf(group); ok {
+			out["leader"] = map[string]any{
+				"pid":  snap.pid,
+				"pgid": snap.pgid,
+				"path": snap.path,
+				"args": snap.args,
+			}
+		}
+		return out, nil
+
 	case "app.settings":
 		return map[string]any{"opened": false}, nil
 
@@ -199,9 +216,16 @@ func (w *workspace) paneJSON(p *pane) map[string]any {
 		"hasSurface":     true,
 		"tab":            tabID,
 		"command":        p.command,
-		"restoreCommand": p.command,
-		"agent":          nil,
+		"restoreCommand": p.restoreCommand,
+		"agent":          agentJSON(p.agent),
 	}
+}
+
+func agentJSON(a *agentDetection) any {
+	if a == nil {
+		return nil
+	}
+	return map[string]any{"kind": string(a.Kind), "session": nullable(a.SessionID)}
 }
 
 func (w *workspace) tabsJSON() []any {

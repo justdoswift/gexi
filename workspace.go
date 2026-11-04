@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo"
 )
@@ -36,8 +37,9 @@ type workspace struct {
 	FocusedPane string
 	focusReq    string
 
-	win      *mygo.Window
-	quitting bool
+	win       *mygo.Window
+	quitting  bool
+	saveTimer *time.Timer
 }
 
 func newWorkspace() *workspace {
@@ -76,7 +78,7 @@ func (w *workspace) allPanes() []*pane {
 
 // newTab runs command (or a login shell) and selects it. Main thread.
 func (w *workspace) newTab(command []string, dir string) (*tab, error) {
-	p, err := newPane(w, command, dir)
+	p, err := newPane(w, "", command, dir, "")
 	if err != nil {
 		return nil, err
 	}
@@ -86,6 +88,7 @@ func (w *workspace) newTab(command []string, dir string) (*tab, error) {
 	w.FocusedPane = p.ID
 	w.focusReq = p.ID
 	w.invalidate()
+	w.scheduleSave()
 	return t, nil
 }
 
@@ -94,7 +97,7 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 	if dir == "" {
 		dir = p.dir()
 	}
-	np, err := newPane(w, command, dir)
+	np, err := newPane(w, "", command, dir, "")
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +115,7 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 	w.FocusedPane = np.ID
 	w.focusReq = np.ID
 	w.invalidate()
+	w.scheduleSave()
 	return np, nil
 }
 
@@ -141,6 +145,7 @@ func (w *workspace) closePane(p *pane) {
 		w.SelectedTab = w.Tabs[0].ID
 	}
 	w.invalidate()
+	w.scheduleSave()
 }
 
 func (w *workspace) selectTab(id string) {
@@ -152,6 +157,7 @@ func (w *workspace) selectTab(id string) {
 				w.focusReq = ps[0].ID
 			}
 			w.invalidate()
+			w.scheduleSave()
 			return
 		}
 	}
@@ -167,6 +173,7 @@ func (w *workspace) focusPane(p *pane) {
 		}
 	}
 	w.invalidate()
+	w.scheduleSave()
 }
 
 // resolvePane accepts a full pane id or any unique prefix, as justcli does.
@@ -263,4 +270,53 @@ func supportDir() string {
 
 func socketPath() string {
 	return filepath.Join(supportDir(), "control.sock")
+}
+
+// startAgentMonitor re-checks every pane's foreground group, as the Swift
+// build does every couple of seconds. Process inspection is slow, so it runs
+// off the UI thread; only the result is applied there.
+func (w *workspace) startAgentMonitor() {
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			type job struct {
+				p     *pane
+				group int
+			}
+			var jobs []job
+			w.onMain(func() {
+				now := time.Now()
+				for _, p := range w.allPanes() {
+					group := p.foregroundGroup()
+					if group <= 0 {
+						continue
+					}
+					if group == p.lastGroup && now.Sub(p.lastScan) < 5*time.Second {
+						continue
+					}
+					p.lastGroup, p.lastScan = group, now
+					jobs = append(jobs, job{p, group})
+				}
+			})
+			if len(jobs) == 0 {
+				continue
+			}
+			detections := make([]*agentDetection, len(jobs))
+			for i, j := range jobs {
+				detections[i] = detectAgent(j.group, j.p.initialDir)
+			}
+			w.onMain(func() {
+				changed := false
+				for i, j := range jobs {
+					if j.p.applyAgent(detections[i]) {
+						changed = true
+					}
+				}
+				if changed {
+					w.scheduleSave()
+				}
+			})
+		}
+	}()
 }

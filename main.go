@@ -35,11 +35,13 @@ func main() {
 			win.Hide()
 		})
 
-		if _, err := w.newTab(nil, ""); err != nil {
-			log.Fatal(err)
-		}
+		w.restoreOrCreate()
+		w.startAgentMonitor()
 		stop := startControl(w)
-		mygo.App.OnWillQuit(func(*mygo.QuitEvent) { stop() })
+		mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
+			w.saveNow()
+			stop()
+		})
 	})
 
 	mygo.App.OnWindowAllClosed(func() {})

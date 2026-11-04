@@ -9,9 +9,9 @@ The window and the CLI speak the same JSON-lines protocol over a Unix socket,
 so an agent running in a pane can create tabs and panes, type into them, and
 read their screens.
 
-> **Status: early.** Tabs, nested splits, focus, screen capture, and the
-> control CLI work today. Persistence, agent session resume, settings, and
-> keyboard shortcuts are still in progress.
+> **Status: early.** Tabs, nested splits, focus, screen capture, persistence,
+> agent session resume, and the control CLI work today. Settings and keyboard
+> shortcuts are still in progress.
 
 ## Build
 
@@ -51,6 +51,11 @@ Pane arguments accept a full id or any unique prefix, and default to
 
 Closing the window hides it: shells and agents keep running, and clicking the
 Dock icon brings the workspace back. `⌘Q` is the real quit.
+
+On quit the layout is saved to `workspace.json` and each pane's last screen is
+snapshotted as plain text; the next launch rebuilds the tabs and splits and
+paints the old screens above fresh shells. A Claude Code pane comes back with
+`--resume <session>`, a Codex pane with `codex resume --last`.
 
 ### Socket and storage
 
