@@ -8,7 +8,7 @@ import (
 )
 
 // Version is what ping and info report.
-const Version = "0.1.0-poc"
+const Version = "0.01"
 
 func main() {
 	w := newWorkspace()
