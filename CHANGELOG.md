@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.3
+
+- Releases are signed with the Developer ID and notarized, so the disk image
+  opens without the Gatekeeper warning.
+
 ## 0.0.2
 
 - Remote Macs: one dialog turns this Mac reachable through an ssh relay and

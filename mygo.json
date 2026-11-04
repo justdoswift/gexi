@@ -1,10 +1,14 @@
 {
   "name": "Gexi",
   "identifier": "dev.gexi.app",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "out": "build",
   "macos": {
-    "icon": "AppIcon.icon"
+    "icon": "AppIcon.icon",
+    "signingIdentity": "Developer ID Application: Peng Ge (6SUWJ2JVNM)",
+    "notarize": {
+      "keychainProfile": "justwrite-notary"
+    }
   },
   "updates": {
     "publicKey": "n2m6KYnuZ5wMY6X1ADIx2KdSY0vVjE5+BvL78/5vZsw=",
