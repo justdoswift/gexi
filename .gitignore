@@ -2,4 +2,5 @@
 .mygo/
 build/
 /gexi
+mygo-spike/
 *.log
