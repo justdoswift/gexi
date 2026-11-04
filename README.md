@@ -29,6 +29,25 @@ Build the CLI:
 go build -o gexi ./cmd/gexi
 ```
 
+## Releases
+
+Installed copies update themselves from signed releases on GitHub
+(`justdoswift/gexi`), configured by `updates` in `mygo.json`. The app checks
+once a day in the background, and **Gexi → Check for Updates…** checks on
+demand.
+
+Build a release with the update signing key, which also writes the update
+archive and manifest next to the installer:
+
+```sh
+export MYGO_UPDATER_PRIVATE_KEY="$(cat ~/Library/Application\ Support/mygo/update-keys/mygo-update.key)"
+go tool mygo build -upload    # draft GitHub release tagged v<version>
+```
+
+The key stays out of the repository: installed apps accept only updates
+signed with it. Release notes come from the `## <version>` section of
+`CHANGELOG.md`.
+
 ## Use
 
 A project is a folder; the sessions opened in it hold the panes. The window

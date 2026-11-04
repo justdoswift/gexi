@@ -4,13 +4,18 @@ import (
 	"log"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/ui"
 )
 
 // Version is what ping and info report.
-const Version = "0.01"
+const Version = "0.0.2"
 
 func main() {
+	// Daily background checks in the manner of Sparkle; the menu item below
+	// opens the same window on demand.
+	mygo.Use(updater.Plugin)
+
 	w := newWorkspace()
 
 	// Restored panes carry the --settings path saved last run; make sure the
@@ -94,7 +99,16 @@ func mainMenu(w *workspace) *mygo.Menu {
 		w.pickProject()
 	}
 	return mygo.NewMenu([]*mygo.MenuItem{
-		{Role: mygo.RoleAppMenu},
+		{Label: "Gexi", Submenu: []*mygo.MenuItem{
+			{Role: mygo.RoleAbout},
+			updater.MenuItem(),
+			mygo.Separator(),
+			{Role: mygo.RoleHide},
+			{Role: mygo.RoleHideOthers},
+			{Role: mygo.RoleUnhide},
+			mygo.Separator(),
+			{Role: mygo.RoleQuit},
+		}},
 		{Label: "File", Submenu: []*mygo.MenuItem{
 			{Label: "New Session", Accelerator: "CmdOrCtrl+T", Click: newSession},
 			{Label: "New Project…", Accelerator: "CmdOrCtrl+Shift+N", Click: func(*mygo.MenuItem, *mygo.Window) { w.pickProject() }},
