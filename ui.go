@@ -31,13 +31,11 @@ func (w *workspace) view(c *ui.Context) {
 	root.Children(func() {
 		w.sidebar(c, tk, width)
 		if w.settings.PaneStyle == paneComfortable {
-			// The whole canvas is one framed panel; panes are white cards
-			// inside it, and the gaps carry the separation.
-			ui.Column(c).Fill().Background(tk.Muted).Padding(6).Children(func() {
-				ui.Column(c).Fill().Background(tk.Muted).Radius(8).
-					Border(1, tk.Border).Clip().Children(func() {
-					w.canvas(c, tk)
-				})
+			// The sidebar and the space around the panes share one
+			// background, so a pane reads as a panel wrapped around its
+			// content.
+			ui.Column(c).Fill().Background(tk.Muted).Children(func() {
+				w.canvas(c, tk)
 			})
 		} else {
 			ui.Column(c).Fill().Background(tk.Background).Children(func() {
@@ -75,24 +73,24 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 		return
 	}
 	bar := c.TitleBar()
-	ui.Column(c).Width(width).FillHeight().Clip().Background(tk.Sidebar).
-		BorderWidth(0, 1, 0, 0).BorderColor(tk.Border).Children(func() {
-		ui.Row(c).Height(headerHeight).Padding(0, 8, headerHeight-chromeLine(bar), bar.Left+6+iconSize+8).
-			Children(func() {
-				ui.Row(c).FillWidth().Height(chromeLine(bar)).AlignItems(ui.Center).Gap(2).Children(func() {
-					ui.Text(c, "Sessions").FontSize(11).FontWeight(500).
-						TextColor(tk.MutedForeground).DragWindow()
-					ui.Spacer(c).DragWindow()
-					iconButton(c, tk, "plus", func() { _, _ = w.newTab(nil, "") })
+	ui.Column(c).Width(width).FillHeight().Clip().Background(tk.Muted).
+		Children(func() {
+			ui.Row(c).Height(headerHeight).Padding(0, 8, headerHeight-chromeLine(bar), bar.Left+6+iconSize+8).
+				Children(func() {
+					ui.Row(c).FillWidth().Height(chromeLine(bar)).AlignItems(ui.Center).Gap(2).Children(func() {
+						ui.Text(c, "Sessions").FontSize(11).FontWeight(500).
+							TextColor(tk.MutedForeground).DragWindow()
+						ui.Spacer(c).DragWindow()
+						iconButton(c, tk, "plus", func() { _, _ = w.newTab(nil, "") })
+					})
 				})
+			ui.Column(c).Fill().Padding(8).Gap(1).Children(func() {
+				for _, tb := range w.Tabs {
+					w.tabRow(c, tk, tb)
+				}
+				ui.Spacer(c)
 			})
-		ui.Column(c).Fill().Padding(8).Gap(1).Children(func() {
-			for _, tb := range w.Tabs {
-				w.tabRow(c, tk, tb)
-			}
-			ui.Spacer(c)
 		})
-	})
 }
 
 func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
