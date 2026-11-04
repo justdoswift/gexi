@@ -29,6 +29,7 @@ func main() {
 			BackgroundColor: "light-dark(#ffffff, #0a0a0a)",
 		})
 		w.win = win
+		win.OnShow(func() { win.Invalidate() })
 
 		// JustCli: closing the window hides it; shells keep running.
 		win.OnClose(func(e *mygo.CloseEvent) {

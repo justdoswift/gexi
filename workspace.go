@@ -131,6 +131,24 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 	return np, nil
 }
 
+// requestClose fades a pane out before collapsing its slot, as clicking its
+// close button should. Main thread.
+func (w *workspace) requestClose(p *pane) {
+	if p.closing {
+		return
+	}
+	p.closing = true
+	p.closingAt = time.Now()
+	w.invalidate()
+	time.AfterFunc(140*time.Millisecond, func() {
+		w.onMain(func() {
+			if w.paneByID(p.ID) != nil {
+				w.closePane(p)
+			}
+		})
+	})
+}
+
 // closePane hangs up the pane's program and collapses its slot. Main thread.
 func (w *workspace) closePane(p *pane) {
 	p.close()

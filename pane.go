@@ -85,6 +85,9 @@ type pane struct {
 	agent          *agentDetection
 	lastGroup      int
 	lastScan       time.Time
+	openedAt       time.Time
+	closing        bool
+	closingAt      time.Time
 	exited         bool
 	ws             *workspace
 }
@@ -103,6 +106,7 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 
 	p := &pane{
 		ID:             id,
+		openedAt:       time.Now(),
 		initialDir:     dir,
 		command:        resolved.launch,
 		restoreCommand: resolved.restore,

@@ -1,6 +1,10 @@
 package main
 
-import "github.com/egoist/mygo/ui"
+import (
+	"time"
+
+	"github.com/egoist/mygo/ui"
+)
 
 // shadcn's neutral palette, translated to mygo colours. The chrome uses these
 // instead of the toolkit's defaults so every surface, border, and muted text
@@ -43,8 +47,16 @@ func themeTokens(t *ui.Theme) tokens {
 
 const chromeRadius float32 = 6
 
+const sidebarWidth float32 = 240
+
 const (
 	headerHeight float32 = 36
 	rowHeightPx  float32 = 30
 	iconSize     float32 = 26
+)
+
+// Motion, as shadcn: short, ease-out, and only on what changes.
+const (
+	sidebarMotion = 200 * time.Millisecond
+	paneMotion    = 140 * time.Millisecond
 )

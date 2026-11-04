@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
@@ -18,10 +19,17 @@ import (
 
 func (w *workspace) view(c *ui.Context) {
 	tk := themeTokens(c.Theme())
-	ui.Row(c).Fill().Background(tk.Background).Children(func() {
-		if !w.settings.SidebarCollapsed {
-			w.sidebar(c, tk)
-		}
+	bar := c.TitleBar()
+	root := ui.Row(c).Fill().Background(tk.Background)
+
+	target := float32(0)
+	if !w.settings.SidebarCollapsed {
+		target = sidebarWidth
+	}
+	width := root.Animate("sidebarWidth", target, sidebarMotion)
+
+	root.Children(func() {
+		w.sidebar(c, tk, width)
 		ui.Column(c).Fill().Children(func() {
 			if tb := w.selected(); tb != nil {
 				w.splitView(c, tk, tb.Root, true)
@@ -31,20 +39,38 @@ func (w *workspace) view(c *ui.Context) {
 				})
 			}
 		})
+		// The toggle stays put whether the sidebar is shown or not, so it
+		// sits above the layout rather than inside either header.
+		top := (headerHeight - iconSize) / 2
+		if bar.Height > 0 {
+			top = (bar.Height - iconSize) / 2
+		}
+		if top < 0 {
+			top = 0
+		}
+		ui.Row(c).Width(iconSize).Height(iconSize).Absolute().
+			Left(bar.Left + 6).Top(top).Children(func() {
+			w.sidebarToggle(c, tk)
+		})
 	})
 }
 
-func (w *workspace) sidebar(c *ui.Context, tk tokens) {
+func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
+	if width < 0.5 {
+		return
+	}
 	bar := c.TitleBar()
-	ui.Column(c).Width(240).FillHeight().Background(tk.Sidebar).
+	ui.Column(c).Width(width).FillHeight().Clip().Background(tk.Sidebar).
 		BorderWidth(0, 1, 0, 0).BorderColor(tk.Border).Children(func() {
-		ui.Row(c).Height(headerHeight).Padding(0, 8, 0, bar.Left).Gap(2).Children(func() {
-			w.sidebarToggle(c, tk)
-			ui.Text(c, "Sessions").FontSize(11).FontWeight(500).
-				TextColor(tk.MutedForeground).DragWindow()
-			ui.Spacer(c).DragWindow()
-			iconButton(c, tk, "plus", func() { _, _ = w.newTab(nil, "") })
-		})
+		ui.Row(c).Height(headerHeight).Padding(0, 8, headerHeight-chromeLine(bar), bar.Left+6+iconSize+8).
+			Children(func() {
+				ui.Row(c).FillWidth().Height(chromeLine(bar)).AlignItems(ui.Center).Gap(2).Children(func() {
+					ui.Text(c, "Sessions").FontSize(11).FontWeight(500).
+						TextColor(tk.MutedForeground).DragWindow()
+					ui.Spacer(c).DragWindow()
+					iconButton(c, tk, "plus", func() { _, _ = w.newTab(nil, "") })
+				})
+			})
 		ui.Column(c).Fill().Padding(8).Gap(1).Children(func() {
 			for _, tb := range w.Tabs {
 				w.tabRow(c, tk, tb)
@@ -66,12 +92,15 @@ func (w *workspace) tabRow(c *ui.Context, tk tokens, tb *tab) {
 	sel := tb.ID == w.SelectedTab
 	color := tk.MutedForeground
 	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(8).Radius(chromeRadius)
-	if sel {
-		row = row.Background(tk.Active)
+	hovered := row.Hovered()
+	switch {
+	case sel:
 		color = tk.Foreground
-	} else if row.Hovered() {
-		row = row.Background(tk.Muted)
+	case hovered:
+		color = tk.Foreground
 	}
+	bg := fade(c, tk, row, sel, hovered)
+	row = row.Background(bg)
 	row.OnClick(func() { w.selectTab(tb.ID) }).Children(func() {
 		if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(13).Height(13)
@@ -111,18 +140,22 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	focused := p.ID == w.FocusedPane
 	underChrome := leading && w.settings.SidebarCollapsed
 
-	ui.Column(c).Fill().Children(func() {
-		if w.settings.ShowHeaders {
-			left := float32(10)
-			if underChrome {
-				left = bar.Left
-			}
-			ui.Row(c).Height(headerHeight).Padding(0, 6, 0, left).Gap(4).
-				Background(tk.Background).BorderWidth(0, 0, 1, 0).
-				BorderColor(tk.Border).Children(func() {
-				if underChrome {
-					w.sidebarToggle(c, tk)
-				}
+	col := ui.Column(c).Fill()
+	col = col.Opacity(fadeAlpha(c, p))
+	col.Children(func() {
+		left := float32(10)
+		if underChrome {
+			left = bar.Left + 6 + iconSize + 8
+		}
+		// Headers are always there: hiding them would leave the collapsed
+		// sidebar toggle over bare terminal content.
+		header := ui.Row(c).Height(headerHeight).Padding(0, 6, 0, left).
+			Background(tk.Background).BorderWidth(0, 0, 1, 0).
+			BorderColor(tk.Border).ClipY()
+
+		header.Children(func() {
+			line := ui.Row(c).FillWidth().Height(chromeLine(bar)).AlignItems(ui.Center).Gap(4)
+			line.Children(func() {
 				if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
 					ui.Image(c, src).Width(13).Height(13).DragWindow()
 				}
@@ -141,9 +174,9 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				ui.Spacer(c).DragWindow()
 				iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
 				iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
-				iconButton(c, tk, "x", func() { w.closePane(p) })
+				iconButton(c, tk, "x", func() { w.requestClose(p) })
 			})
-		}
+		})
 
 		el := terminal.View(c, p.term).Fill()
 		if el.Focused() && w.FocusedPane != p.ID {
@@ -156,6 +189,42 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	})
 }
 
+// fade returns shadcn's 150ms ease-out transition for a row or button
+// background: active when selected, muted when hovered, transparent otherwise.
+func fade(c *ui.Context, tk tokens, el ui.Element, active, hovered bool) ui.Color {
+	target := ui.RGBA(0, 0, 0, 0)
+	switch {
+	case active:
+		target = tk.Active
+	case hovered:
+		target = tk.Muted
+	}
+	return el.AnimateColor("bg", target, ui.Animation{Duration: 150 * time.Millisecond})
+}
+
+// fadeAlpha fades a pane in when it opens and out before it closes, keeping
+// frames coming while it moves.
+func fadeAlpha(c *ui.Context, p *pane) float32 {
+	d := paneMotion
+	if p.closing {
+		t := float32(time.Since(p.closingAt)) / float32(d)
+		if t >= 1 {
+			return 0
+		}
+		c.After(16 * time.Millisecond)
+		return 1 - t
+	}
+	if !p.openedAt.IsZero() {
+		t := float32(time.Since(p.openedAt)) / float32(d)
+		if t < 1 {
+			c.After(16 * time.Millisecond)
+			return t
+		}
+		p.openedAt = time.Time{}
+	}
+	return 1
+}
+
 func abbreviate(path string) string {
 	home, err := os.UserHomeDir()
 	if err == nil && strings.HasPrefix(path, home) {
@@ -166,4 +235,13 @@ func abbreviate(path string) string {
 		return "…/" + strings.Join(parts[len(parts)-3:], "/")
 	}
 	return path
+}
+
+// chromeLine is the height of the window controls' row: titles and buttons
+// sit on that line, even though the header band is taller.
+func chromeLine(bar ui.TitleBar) float32 {
+	if bar.Height > 0 {
+		return bar.Height
+	}
+	return 28
 }
