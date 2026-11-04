@@ -59,19 +59,19 @@ func (w *workspace) openSettings() {
 }
 
 func (w *workspace) settingsView(c *ui.Context) {
-	t := c.Theme()
-	ui.Column(c).Fill().Padding(22).Gap(14).Children(func() {
-		ui.Text(c, "Interface").FontSize(12).Bold().TextColor(t.TextMuted)
+	tk := themeTokens(c.Theme())
+	ui.Column(c).Fill().Padding(22).Gap(14).Background(tk.Background).Children(func() {
+		ui.Text(c, "Interface").FontSize(11).FontWeight(500).TextColor(tk.MutedForeground)
 		if ui.Checkbox(c, &w.settings.ShowHeaders, "Show pane headers").Changed() {
 			w.settings.save()
 			w.invalidate()
 		}
-		ui.Text(c, "Sessions").FontSize(12).Bold().TextColor(t.TextMuted)
+		ui.Text(c, "Sessions").FontSize(11).FontWeight(500).TextColor(tk.MutedForeground)
 		if ui.Checkbox(c, &w.settings.RestoreScreen, "Restore last screen").Changed() {
 			w.settings.save()
 			w.scheduleSave()
 		}
 		ui.Spacer(c)
-		ui.Textf(c, "Socket  %s", socketPath()).FontSize(10).TextColor(t.TextMuted)
+		ui.Textf(c, "Socket  %s", socketPath()).FontSize(10).TextColor(tk.MutedForeground)
 	})
 }

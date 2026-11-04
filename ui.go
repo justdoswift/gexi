@@ -12,124 +12,136 @@ import (
 // The layout follows Rex: the window has no title bar of its own, the traffic
 // lights sit over the top-left corner, and a session sidebar or the top-left
 // pane header takes that first row. The sidebar toggle never moves.
+//
+// The chrome itself follows shadcn: one neutral palette, 1px borders, 6px
+// radius, quiet hover states.
 
 func (w *workspace) view(c *ui.Context) {
-	t := c.Theme()
-	ui.Row(c).Fill().Children(func() {
+	tk := themeTokens(c.Theme())
+	ui.Row(c).Fill().Background(tk.Background).Children(func() {
 		if !w.settings.SidebarCollapsed {
-			w.sidebar(c)
+			w.sidebar(c, tk)
 		}
 		ui.Column(c).Fill().Children(func() {
 			if tb := w.selected(); tb != nil {
-				w.splitView(c, tb.Root, true)
+				w.splitView(c, tk, tb.Root, true)
 			} else {
 				ui.Column(c).Fill().Center().Children(func() {
-					ui.Text(c, "No tabs").FontSize(13).TextColor(t.TextMuted)
+					ui.Text(c, "No tabs").FontSize(13).TextColor(tk.MutedForeground)
 				})
 			}
 		})
 	})
 }
 
-func (w *workspace) sidebar(c *ui.Context) {
-	t := c.Theme()
+func (w *workspace) sidebar(c *ui.Context, tk tokens) {
 	bar := c.TitleBar()
-	ui.Column(c).Width(250).FillHeight().Background(sidebarColor(t)).
-		BorderColor(t.Border).BorderWidth(0, 1, 0, 0).Children(func() {
-		ui.Row(c).Height(rowHeight(bar)).Padding(0, 8, 0, bar.Left).Gap(4).Children(func() {
-			w.sidebarToggle(c)
-			ui.Text(c, "Sessions").FontSize(11).TextColor(t.TextMuted).DragWindow()
+	ui.Column(c).Width(240).FillHeight().Background(tk.Sidebar).
+		BorderWidth(0, 1, 0, 0).BorderColor(tk.Border).Children(func() {
+		ui.Row(c).Height(headerHeight).Padding(0, 8, 0, bar.Left).Gap(2).Children(func() {
+			w.sidebarToggle(c, tk)
+			ui.Text(c, "Sessions").FontSize(11).FontWeight(500).
+				TextColor(tk.MutedForeground).DragWindow()
 			ui.Spacer(c).DragWindow()
-			iconButton(c, t, "+", func() { _, _ = w.newTab(nil, "") })
+			iconButton(c, tk, "plus", func() { _, _ = w.newTab(nil, "") })
 		})
-		ui.Column(c).Fill().Padding(8).Gap(2).Children(func() {
+		ui.Column(c).Fill().Padding(8).Gap(1).Children(func() {
 			for _, tb := range w.Tabs {
-				w.tabRow(c, tb)
+				w.tabRow(c, tk, tb)
 			}
 			ui.Spacer(c)
 		})
 	})
 }
 
-func (w *workspace) sidebarToggle(c *ui.Context) {
-	t := c.Theme()
-	iconButton(c, t, "◧", func() {
+func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
+	iconButton(c, tk, "panel-left", func() {
 		w.settings.SidebarCollapsed = !w.settings.SidebarCollapsed
 		w.settings.save()
 		w.invalidate()
 	})
 }
 
-func (w *workspace) tabRow(c *ui.Context, tb *tab) {
-	t := c.Theme()
+func (w *workspace) tabRow(c *ui.Context, tk tokens, tb *tab) {
 	sel := tb.ID == w.SelectedTab
-	row := ui.Row(c).Padding(6).Gap(8)
+	color := tk.MutedForeground
+	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(8).Radius(chromeRadius)
 	if sel {
-		row = row.Background(t.Selection)
+		row = row.Background(tk.Active)
+		color = tk.Foreground
+	} else if row.Hovered() {
+		row = row.Background(tk.Muted)
 	}
 	row.OnClick(func() { w.selectTab(tb.ID) }).Children(func() {
-		ui.Text(c, "›_").FontSize(10).TextColor(t.TextMuted)
-		ui.Text(c, tb.title()).FontSize(12)
+		if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
+			ui.Image(c, src).Width(13).Height(13)
+		}
+		ui.Text(c, tb.title()).FontSize(12).FontWeight(500).TextColor(color)
 		ui.Spacer(c)
-		ui.Textf(c, "%d", len(tb.Root.panes())).FontSize(10).TextColor(t.TextMuted)
+		ui.Textf(c, "%d", len(tb.Root.panes())).FontSize(10).TextColor(tk.MutedForeground)
 	})
 }
 
 // splitView mirrors JustCli's recursive split tree. leading marks the child
 // that touches the content's top-left corner: when the sidebar is collapsed,
 // that one pane header makes room for the traffic lights and the toggle.
-func (w *workspace) splitView(c *ui.Context, n *splitNode, leading bool) {
+func (w *workspace) splitView(c *ui.Context, tk tokens, n *splitNode, leading bool) {
 	if n == nil {
 		return
 	}
 	if n.isLeaf() {
-		w.paneView(c, n.pane, leading)
+		w.paneView(c, tk, n.pane, leading)
 		return
 	}
 	if n.axis == axisHorizontal {
 		ui.SplitPercent(c, &n.ratio,
-			func() { w.splitView(c, n.first, leading) },
-			func() { w.splitView(c, n.second, false) },
+			func() { w.splitView(c, tk, n.first, leading) },
+			func() { w.splitView(c, tk, n.second, false) },
 		).Fill()
 	} else {
 		ui.SplitVerticalPercent(c, &n.ratio,
-			func() { w.splitView(c, n.first, leading) },
-			func() { w.splitView(c, n.second, false) },
+			func() { w.splitView(c, tk, n.first, leading) },
+			func() { w.splitView(c, tk, n.second, false) },
 		).Fill()
 	}
 }
 
-func (w *workspace) paneView(c *ui.Context, p *pane, leading bool) {
-	t := c.Theme()
+func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	bar := c.TitleBar()
 	focused := p.ID == w.FocusedPane
 	underChrome := leading && w.settings.SidebarCollapsed
 
 	ui.Column(c).Fill().Children(func() {
 		if w.settings.ShowHeaders {
-			left := float32(8)
+			left := float32(10)
 			if underChrome {
 				left = bar.Left
 			}
-			ui.Row(c).Height(rowHeight(bar)).Padding(0, 6, 0, left).Gap(6).Children(func() {
+			ui.Row(c).Height(headerHeight).Padding(0, 6, 0, left).Gap(4).
+				Background(tk.Background).BorderWidth(0, 0, 1, 0).
+				BorderColor(tk.Border).Children(func() {
 				if underChrome {
-					w.sidebarToggle(c)
+					w.sidebarToggle(c, tk)
 				}
-				ui.Text(c, "›_").FontSize(10).TextColor(t.TextMuted).DragWindow()
+				if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
+					ui.Image(c, src).Width(13).Height(13).DragWindow()
+				}
 				title := p.title()
 				if p.exited {
 					title += " · exited"
 				}
 				if focused {
-					ui.Text(c, title).FontSize(11).Bold().DragWindow()
+					ui.Text(c, title).FontSize(12).FontWeight(500).
+						TextColor(tk.Foreground).DragWindow()
 				} else {
-					ui.Text(c, title).FontSize(11).TextColor(t.TextMuted).DragWindow()
+					ui.Text(c, title).FontSize(12).TextColor(tk.MutedForeground).DragWindow()
 				}
-				ui.Text(c, abbreviate(p.dir())).FontSize(10).TextColor(t.TextMuted).DragWindow()
+				ui.Text(c, abbreviate(p.dir())).FontSize(11).
+					TextColor(tk.MutedForeground).DragWindow()
 				ui.Spacer(c).DragWindow()
-				iconButton(c, t, "◫", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
-				iconButton(c, t, "⬒", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
-				iconButton(c, t, "×", func() { w.closePane(p) })
+				iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
+				iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
+				iconButton(c, tk, "x", func() { w.closePane(p) })
 			})
 		}
 
@@ -142,39 +154,6 @@ func (w *workspace) paneView(c *ui.Context, p *pane, leading bool) {
 			w.focusReq = ""
 		}
 	})
-}
-
-func sidebarColor(t *ui.Theme) ui.Color {
-	if t.Dark {
-		return ui.RGB(0x1e, 0x1e, 0x20)
-	}
-	return ui.RGB(0xf2, 0xf2, 0xf4)
-}
-
-// iconButton is a plain glyph that lights up on hover, instead of mygo's
-// default button chrome, which is too heavy for a 32pt header.
-func iconButton(c *ui.Context, t *ui.Theme, glyph string, action func()) {
-	el := ui.Row(c).Width(24).Height(22).Center().Cursor(ui.CursorPointer)
-	if el.Hovered() {
-		el = el.Background(hoverColor(t))
-	}
-	el.OnClick(action).Children(func() {
-		ui.Text(c, glyph).FontSize(11).TextColor(t.TextMuted)
-	})
-}
-
-func hoverColor(t *ui.Theme) ui.Color {
-	if t.Dark {
-		return ui.RGBA(0xff, 0xff, 0xff, 0.10)
-	}
-	return ui.RGBA(0, 0, 0, 0.06)
-}
-
-func rowHeight(bar ui.TitleBar) float32 {
-	if bar.Height > 32 {
-		return bar.Height
-	}
-	return 32
 }
 
 func abbreviate(path string) string {

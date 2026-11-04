@@ -120,6 +120,13 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 			"JUSTCLI_HOME=" + supportDir(),
 		},
 		Scrollback: 10 << 20,
+		Padding:    terminal.Padding{X: 12, Y: 10},
+		Font: terminal.Font{
+			Family:     "SF Mono, Menlo, monospace",
+			Size:       12,
+			Weight:     400,
+			LineHeight: 1.2,
+		},
 		OnTitle: func(string) {
 			ws.invalidate()
 		},

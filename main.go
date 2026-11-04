@@ -25,7 +25,8 @@ func main() {
 			Content:   ui.View(w.view),
 			// Rex chrome: no title bar; the view draws under the traffic
 			// lights, which the layout leaves room for.
-			TitleBarStyle: mygo.TitleBarHidden,
+			TitleBarStyle:   mygo.TitleBarHidden,
+			BackgroundColor: "light-dark(#ffffff, #0a0a0a)",
 		})
 		w.win = win
 
