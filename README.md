@@ -54,11 +54,21 @@ Pane arguments accept a full id or any unique prefix, and default to
 
 ### Remote hosts
 
-The server button in the sidebar header lists the concrete hosts in
-`~/.ssh/config` (wildcards and `!` patterns are skipped, `Include` is
-followed). Choosing one opens a session in a project named after the host.
-The pane runs ssh with your own config, so `ProxyJump`, identities, and the
-rest apply unchanged, plus:
+The **Remote** row at the bottom of the sidebar is the whole feature.
+
+**Reaching another Mac.** On that Mac, open Remote → *Allow this Mac to be
+reached…*, enter the relay (`user@host`, any ssh account you already have),
+and confirm. Gexi writes a key, keeps a reverse tunnel
+(`ssh -R 127.0.0.1:<port>:localhost:22`) to the relay, and copies a
+connection code. On this Mac, Remote → *Connect to another Mac…*, paste the
+code, and the Mac appears in the menu from then on. The code carries the
+key, so treat it like a password; turning remote access off revokes it.
+The tunnel restarts on launch and after a dropped link.
+
+**Hosts in `~/.ssh/config`** are listed in the same menu (wildcards and `!`
+patterns are skipped, `Include` is followed). Choosing one opens a session in
+a project named after the host. The pane runs ssh with your own config, so
+`ProxyJump`, identities, and the rest apply unchanged, plus:
 
 - `ControlMaster=auto` with `ControlPersist=10m`, so every pane to the same
   host shares one connection and the next session reuses it.

@@ -16,6 +16,14 @@ type appSettings struct {
 	SidebarCollapsed bool   `json:"sidebarCollapsed"`
 	PaneStyle        string `json:"paneStyle"`
 	RemoteTmux       bool   `json:"remoteTmux"`
+
+	// Remote access: either this Mac is reachable through a relay, or it
+	// keeps codes imported from other Macs.
+	RemoteListen  bool         `json:"remoteListen"`
+	RemoteRelay   string       `json:"remoteRelay"`
+	RemoteName    string       `json:"remoteName"`
+	RemotePort    int          `json:"remotePort"`
+	ImportedHosts []remoteHost `json:"importedHosts"`
 }
 
 const (

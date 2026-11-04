@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -96,14 +97,32 @@ type workspace struct {
 	collapsed   map[string]bool
 	searchOpen  bool
 	searchQuery string
+
+	// Remote access: the reverse tunnel this Mac keeps when it is reachable,
+	// and the small dialog that turns it on.
+	tunnel     *exec.Cmd
+	tunnelStop chan struct{}
+	tunnelUp   bool
+	tunnelNote string
+	relayOpen  bool
+	relayInput string
+	relayName  string
+	relayErr   string
+	relayBusy  bool
+	importOpen bool
+	importText string
+	importErr  string
 }
 
 func newWorkspace() *workspace {
-	return &workspace{
+	w := &workspace{
 		InstanceID: newID(),
 		settings:   loadSettings(),
 		collapsed:  map[string]bool{},
 	}
+	// A Mac that was left reachable comes back reachable without a click.
+	w.startRemoteTunnel()
+	return w
 }
 
 func (w *workspace) selected() *session {
