@@ -162,7 +162,7 @@ func connOf(p *pane) *ptyConn { return p.conn }
 func (p *pane) start(argv []string, dir string) error {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
+	cmd.Env = append(cleanEnvironment(os.Environ()),
 		"TERM=xterm-256color",
 		"COLORTERM=truecolor",
 		"TERM_PROGRAM=JustCli",
@@ -249,4 +249,34 @@ func (p *pane) close() {
 		_ = p.ptmx.Close()
 	}
 	_ = p.term.Close()
+}
+
+// cleanEnvironment drops the markers of a Claude Code host when the app was
+// started from inside one. Without this every pane inherits them, and a
+// `claude` started there believes it is a child session: it keeps the host's
+// provider variables instead of loading ~/.claude/settings.json.
+func cleanEnvironment(env []string) []string {
+	host := false
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "CLAUDECODE=") {
+			host = true
+			break
+		}
+	}
+	if !host {
+		return env
+	}
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		key, _, _ := strings.Cut(kv, "=")
+		switch {
+		case key == "CLAUDECODE", key == "CLAUDE_PID", key == "CLAUDE_EFFORT",
+			strings.HasPrefix(key, "CLAUDE_CODE_"),
+			strings.HasPrefix(key, "CLAUDE_AGENT_SDK_"),
+			strings.HasPrefix(key, "ANTHROPIC_"):
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
 }
