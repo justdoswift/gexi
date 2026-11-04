@@ -71,8 +71,12 @@ Dock icon brings the workspace back. `⌘Q` is the real quit.
 
 On quit the layout is saved to `workspace.json` and each pane's last screen is
 snapshotted as plain text; the next launch rebuilds the tabs and splits and
-paints the old screens above fresh shells. A Claude Code pane comes back with
-`--resume <session>`, a Codex pane with `codex resume --last`.
+paints the old screens above fresh shells. Agent panes resume their newest
+session in the pane's directory: Claude Code with `--resume <session>`,
+Codex with `codex resume --last`, and omp, Devin, and Grok with
+`--continue`; Droid with `droid --resume --last`. A detected agent also
+names its pane and sidebar tab with its own logo instead of the terminal
+title.
 
 ### Agent events and notifications
 
