@@ -30,18 +30,12 @@ func (w *workspace) view(c *ui.Context) {
 
 	root.Children(func() {
 		w.sidebar(c, tk, width)
-		if w.settings.PaneStyle == paneComfortable {
-			// The sidebar and the space around the panes share one
-			// background, so a pane reads as a panel wrapped around its
-			// content.
-			ui.Column(c).Fill().Background(tk.Muted).Children(func() {
-				w.canvas(c, tk)
-			})
-		} else {
-			ui.Column(c).Fill().Background(tk.Background).Children(func() {
-				w.canvas(c, tk)
-			})
-		}
+		// The sidebar and the space around the panes share one background,
+		// so in comfortable a pane reads as a panel wrapped around its
+		// content.
+		ui.Column(c).Fill().Background(w.backdrop(tk)).Children(func() {
+			w.canvas(c, tk)
+		})
 		// The toggle stays put whether the sidebar is shown or not, so it
 		// sits above the layout rather than inside either header.
 		top := (headerHeight - iconSize) / 2
@@ -56,6 +50,13 @@ func (w *workspace) view(c *ui.Context) {
 			w.sidebarToggle(c, tk)
 		})
 	})
+}
+
+func (w *workspace) backdrop(tk tokens) ui.Color {
+	if w.settings.PaneStyle == paneComfortable {
+		return tk.Muted
+	}
+	return tk.Background
 }
 
 func (w *workspace) canvas(c *ui.Context, tk tokens) {
@@ -73,7 +74,7 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 		return
 	}
 	bar := c.TitleBar()
-	ui.Column(c).Width(width).FillHeight().Clip().Background(tk.Muted).
+	ui.Column(c).Width(width).FillHeight().Clip().Background(w.backdrop(tk)).
 		Children(func() {
 			ui.Row(c).Height(headerHeight).Padding(0, 8, headerHeight-chromeLine(bar), bar.Left+6+iconSize+8).
 				Children(func() {
@@ -192,11 +193,9 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			}
 			// Headers are always there: hiding them would leave the collapsed
 			// sidebar toggle over bare terminal content.
+			// No rule under the header: the pane card itself is the frame.
 			header := ui.Row(c).Height(headerHeight).Padding(0, 6, 0, left).
 				Background(tk.Background).ClipY()
-			if !card {
-				header = header.BorderWidth(0, 0, 1, 0).BorderColor(tk.Border)
-			}
 
 			header.Children(func() {
 				line := ui.Row(c).FillWidth().Height(chromeLine(bar)).AlignItems(ui.Center).Gap(4)
