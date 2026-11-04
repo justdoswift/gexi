@@ -36,13 +36,11 @@ func (w *workspace) sidebar(c *ui.Context) {
 	bar := c.TitleBar()
 	ui.Column(c).Width(250).FillHeight().Background(sidebarColor(t)).
 		BorderColor(t.Border).BorderWidth(0, 1, 0, 0).Children(func() {
-		ui.Row(c).Height(rowHeight(bar)).Padding(0, 10, 0, bar.Left).Gap(6).Children(func() {
+		ui.Row(c).Height(rowHeight(bar)).Padding(0, 8, 0, bar.Left).Gap(4).Children(func() {
 			w.sidebarToggle(c)
 			ui.Text(c, "Sessions").FontSize(11).TextColor(t.TextMuted).DragWindow()
 			ui.Spacer(c).DragWindow()
-			if ui.Button(c, "+").Width(26).Clicked() {
-				_, _ = w.newTab(nil, "")
-			}
+			iconButton(c, t, "+", func() { _, _ = w.newTab(nil, "") })
 		})
 		ui.Column(c).Fill().Padding(8).Gap(2).Children(func() {
 			for _, tb := range w.Tabs {
@@ -54,17 +52,18 @@ func (w *workspace) sidebar(c *ui.Context) {
 }
 
 func (w *workspace) sidebarToggle(c *ui.Context) {
-	if ui.Button(c, "◧").Width(26).Clicked() {
+	t := c.Theme()
+	iconButton(c, t, "◧", func() {
 		w.settings.SidebarCollapsed = !w.settings.SidebarCollapsed
 		w.settings.save()
 		w.invalidate()
-	}
+	})
 }
 
 func (w *workspace) tabRow(c *ui.Context, tb *tab) {
 	t := c.Theme()
 	sel := tb.ID == w.SelectedTab
-	row := ui.Row(c).Padding(7).Gap(8)
+	row := ui.Row(c).Padding(6).Gap(8)
 	if sel {
 		row = row.Background(t.Selection)
 	}
@@ -112,7 +111,7 @@ func (w *workspace) paneView(c *ui.Context, p *pane, leading bool) {
 			if underChrome {
 				left = bar.Left
 			}
-			ui.Row(c).Height(rowHeight(bar)).Padding(0, 8, 0, left).Gap(8).Children(func() {
+			ui.Row(c).Height(rowHeight(bar)).Padding(0, 6, 0, left).Gap(6).Children(func() {
 				if underChrome {
 					w.sidebarToggle(c)
 				}
@@ -128,15 +127,9 @@ func (w *workspace) paneView(c *ui.Context, p *pane, leading bool) {
 				}
 				ui.Text(c, abbreviate(p.dir())).FontSize(10).TextColor(t.TextMuted).DragWindow()
 				ui.Spacer(c).DragWindow()
-				if ui.Button(c, "◫").Width(24).Clicked() {
-					_, _ = w.splitPane(p, axisHorizontal, nil, p.dir())
-				}
-				if ui.Button(c, "⬒").Width(24).Clicked() {
-					_, _ = w.splitPane(p, axisVertical, nil, p.dir())
-				}
-				if ui.Button(c, "×").Width(24).Clicked() {
-					w.closePane(p)
-				}
+				iconButton(c, t, "◫", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
+				iconButton(c, t, "⬒", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
+				iconButton(c, t, "×", func() { w.closePane(p) })
 			})
 		}
 
@@ -158,11 +151,30 @@ func sidebarColor(t *ui.Theme) ui.Color {
 	return ui.RGB(0xf2, 0xf2, 0xf4)
 }
 
+// iconButton is a plain glyph that lights up on hover, instead of mygo's
+// default button chrome, which is too heavy for a 32pt header.
+func iconButton(c *ui.Context, t *ui.Theme, glyph string, action func()) {
+	el := ui.Row(c).Width(24).Height(22).Center().Cursor(ui.CursorPointer)
+	if el.Hovered() {
+		el = el.Background(hoverColor(t))
+	}
+	el.OnClick(action).Children(func() {
+		ui.Text(c, glyph).FontSize(11).TextColor(t.TextMuted)
+	})
+}
+
+func hoverColor(t *ui.Theme) ui.Color {
+	if t.Dark {
+		return ui.RGBA(0xff, 0xff, 0xff, 0.10)
+	}
+	return ui.RGBA(0, 0, 0, 0.06)
+}
+
 func rowHeight(bar ui.TitleBar) float32 {
-	if bar.Height > 34 {
+	if bar.Height > 32 {
 		return bar.Height
 	}
-	return 34
+	return 32
 }
 
 func abbreviate(path string) string {
