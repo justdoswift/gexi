@@ -27,10 +27,12 @@ type workspaceState struct {
 }
 
 type savedProject struct {
-	ID        string         `json:"id"`
-	Dir       string         `json:"dir"`
-	Collapsed bool           `json:"collapsed,omitempty"`
-	Sessions  []savedSession `json:"sessions"`
+	ID         string         `json:"id"`
+	Dir        string         `json:"dir"`
+	Label      string         `json:"label,omitempty"`
+	RemoteHost string         `json:"remoteHost,omitempty"`
+	Collapsed  bool           `json:"collapsed,omitempty"`
+	Sessions   []savedSession `json:"sessions"`
 }
 
 type savedSession struct {
@@ -101,9 +103,11 @@ func (w *workspace) savedState() workspaceState {
 	}
 	for _, pr := range w.Projects {
 		saved := savedProject{
-			ID:        pr.ID,
-			Dir:       pr.Dir,
-			Collapsed: w.collapsed[pr.ID],
+			ID:         pr.ID,
+			Dir:        pr.Dir,
+			Label:      pr.Label,
+			RemoteHost: pr.RemoteHost,
+			Collapsed:  w.collapsed[pr.ID],
 		}
 		for _, s := range pr.Sessions {
 			if s.Root == nil {
@@ -222,7 +226,7 @@ func (w *workspace) restoreOrCreate() {
 	}
 
 	for _, sp := range state.Projects {
-		pr := &project{ID: sp.ID, Dir: sp.Dir}
+		pr := &project{ID: sp.ID, Dir: sp.Dir, Label: sp.Label, RemoteHost: sp.RemoteHost}
 		for _, ss := range sp.Sessions {
 			root, err := ss.Root.restore(w)
 			if err != nil {

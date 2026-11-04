@@ -11,8 +11,8 @@ into them, and read their screens.
 
 > **Status: early.** Projects and sessions, nested splits, focus, keyboard
 > shortcuts, screen capture, persistence, agent session resume, and the control
-> CLI work today.
-> The settings window is minimal, and remote access is not there yet.
+> CLI work today. Remote hosts work over ssh; there is no remote agent yet.
+> The settings window is minimal.
 
 ## Build
 
@@ -51,6 +51,27 @@ gexi close -p <pane id>
 
 Pane arguments accept a full id or any unique prefix, and default to
 `$GEXI_PANE` (set inside a pane) or the focused pane.
+
+### Remote hosts
+
+The server button in the sidebar header lists the concrete hosts in
+`~/.ssh/config` (wildcards and `!` patterns are skipped, `Include` is
+followed). Choosing one opens a session in a project named after the host.
+The pane runs ssh with your own config, so `ProxyJump`, identities, and the
+rest apply unchanged, plus:
+
+- `ControlMaster=auto` with `ControlPersist=10m`, so every pane to the same
+  host shares one connection and the next session reuses it.
+- `ServerAliveInterval=15`, so a dead link is noticed while you are away.
+
+With "Keep remote sessions" on (the default, in Settings → Remote), the
+remote command is `tmux new -A -s gexi-<id> || exec ${SHELL:-sh} -l`: each
+pane gets its own tmux session, a dropped link reconnects to the same shell,
+and a host without tmux still gets a login shell. Remote panes restore like
+local ones — the saved layout reruns the ssh command and reattaches.
+
+What stays local is agent detection: `gexi` sees the ssh process, not the
+agent on the far side, so a remote `claude` does not report activity.
 
 ### Shortcuts
 
