@@ -17,13 +17,23 @@ type tab struct {
 }
 
 func (t *tab) title() string {
-	if t.Root != nil && t.Root.isLeaf() {
-		return t.Root.pane.title()
+	if t.Root == nil {
+		return "Terminal"
 	}
-	if t.Root != nil {
-		if ps := t.Root.panes(); len(ps) > 0 {
-			return ps[0].title()
-		}
+	ps := t.Root.panes()
+	if len(ps) == 0 {
+		return "Terminal"
+	}
+	p := ps[0]
+	if title := strings.TrimSpace(p.term.Title()); title != "" {
+		return title
+	}
+	dir := p.dir()
+	if home, err := os.UserHomeDir(); err == nil && dir == home {
+		return "~"
+	}
+	if base := filepath.Base(dir); base != "" && base != "/" {
+		return base
 	}
 	return "Terminal"
 }
@@ -37,15 +47,17 @@ type workspace struct {
 	FocusedPane string
 	focusReq    string
 
-	win       *mygo.Window
-	quitting  bool
-	saveTimer *time.Timer
+	win         *mygo.Window
+	settingsWin *mygo.Window
+	settings    appSettings
+	quitting    bool
+	saveTimer   *time.Timer
 }
 
 func newWorkspace() *workspace {
 	return &workspace{
 		SessionID: newID(),
-		focusReq:  "",
+		settings:  loadSettings(),
 	}
 }
 
@@ -230,6 +242,36 @@ func (w *workspace) tabOf(p *pane) *tab {
 		}
 	}
 	return nil
+}
+
+// paneExited closes a pane whose program has ended, as the Swift build does.
+func (w *workspace) paneExited(p *pane) {
+	if w.quitting || w.win == nil {
+		return
+	}
+	w.onMain(func() {
+		if w.quitting || w.paneByID(p.ID) == nil {
+			return
+		}
+		w.closePane(p)
+	})
+}
+
+// cyclePane moves focus through the selected tab's panes.
+func (w *workspace) cyclePane(delta int) {
+	panes := w.visiblePanes()
+	if len(panes) < 2 {
+		return
+	}
+	index := 0
+	for i, p := range panes {
+		if p.ID == w.FocusedPane {
+			index = i
+			break
+		}
+	}
+	next := (index + delta + len(panes)) % len(panes)
+	w.focusPane(panes[next])
 }
 
 func (w *workspace) invalidate() {

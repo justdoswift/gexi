@@ -172,7 +172,7 @@ func (p *pane) start(argv []string, dir string) error {
 	go func() {
 		_ = cmd.Wait()
 		p.exited = true
-		p.ws.invalidate()
+		p.ws.paneExited(p)
 	}()
 	return nil
 }

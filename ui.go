@@ -102,25 +102,27 @@ func (w *workspace) paneView(c *ui.Context, p *pane) {
 		if p.exited {
 			title += " · exited"
 		}
-		ui.Row(c).Height(28).Padding(8).Gap(8).
-			BorderColor(t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
-			if focused {
-				ui.Text(c, title).FontSize(11).Bold()
-			} else {
-				ui.Text(c, title).FontSize(11).TextColor(t.TextMuted)
-			}
-			ui.Text(c, abbreviate(p.dir())).FontSize(10).TextColor(t.TextMuted)
-			ui.Spacer(c)
-			if ui.Button(c, "◫").Width(26).Clicked() {
-				_, _ = w.splitPane(p, axisHorizontal, nil, p.dir())
-			}
-			if ui.Button(c, "⬒").Width(26).Clicked() {
-				_, _ = w.splitPane(p, axisVertical, nil, p.dir())
-			}
-			if ui.Button(c, "×").Width(26).Clicked() {
-				w.closePane(p)
-			}
-		})
+		if w.settings.ShowHeaders {
+			ui.Row(c).Height(28).Padding(8).Gap(8).
+				BorderColor(t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
+				if focused {
+					ui.Text(c, title).FontSize(11).Bold()
+				} else {
+					ui.Text(c, title).FontSize(11).TextColor(t.TextMuted)
+				}
+				ui.Text(c, abbreviate(p.dir())).FontSize(10).TextColor(t.TextMuted)
+				ui.Spacer(c)
+				if ui.Button(c, "◫").Width(26).Clicked() {
+					_, _ = w.splitPane(p, axisHorizontal, nil, p.dir())
+				}
+				if ui.Button(c, "⬒").Width(26).Clicked() {
+					_, _ = w.splitPane(p, axisVertical, nil, p.dir())
+				}
+				if ui.Button(c, "×").Width(26).Clicked() {
+					w.closePane(p)
+				}
+			})
+		}
 
 		el := terminal.View(c, p.term).Fill()
 		if el.Focused() && w.FocusedPane != p.ID {

@@ -9,9 +9,9 @@ The window and the CLI speak the same JSON-lines protocol over a Unix socket,
 so an agent running in a pane can create tabs and panes, type into them, and
 read their screens.
 
-> **Status: early.** Tabs, nested splits, focus, screen capture, persistence,
-> agent session resume, and the control CLI work today. Settings and keyboard
-> shortcuts are still in progress.
+> **Status: early.** Tabs, nested splits, focus, keyboard shortcuts, screen
+> capture, persistence, agent session resume, and the control CLI work today.
+> The settings window is minimal, and remote access is not there yet.
 
 ## Build
 
@@ -48,6 +48,18 @@ justcli close -p <pane id>
 
 Pane arguments accept a full id or any unique prefix, and default to
 `$JUST_PANE` (set inside a pane) or the focused pane.
+
+### Shortcuts
+
+| Action | Keys |
+|---|---|
+| New tab | ⌘T |
+| Split right | ⌘D |
+| Split down | ⌘⇧D |
+| Focus previous / next pane | ⌘[ / ⌘] |
+| Close pane | ⌘W |
+| Settings | ⌘, |
+| Quit (kills processes) | ⌘Q |
 
 Closing the window hides it: shells and agents keep running, and clicking the
 Dock icon brings the workspace back. `⌘Q` is the real quit.

@@ -96,9 +96,11 @@ func (w *workspace) saveNow() {
 	if err := os.MkdirAll(snapshotsDir(), 0o755); err != nil {
 		return
 	}
-	for _, p := range w.allPanes() {
-		if text := normalizeSnapshot(p.text()); text != "" {
-			_ = os.WriteFile(filepath.Join(snapshotsDir(), p.ID+".txt"), []byte(text), 0o644)
+	if w.settings.RestoreScreen {
+		for _, p := range w.allPanes() {
+			if text := normalizeSnapshot(p.text()); text != "" {
+				_ = os.WriteFile(filepath.Join(snapshotsDir(), p.ID+".txt"), []byte(text), 0o644)
+			}
 		}
 	}
 
@@ -144,7 +146,11 @@ func (n *savedNode) restore(w *workspace) (*splitNode, error) {
 		if n.Pane == nil {
 			return nil, fmt.Errorf("saved leaf without a pane")
 		}
-		p, err := newPane(w, n.Pane.ID, n.Pane.Command, n.Pane.WorkingDirectory, loadSnapshot(n.Pane.ID))
+		snapshot := ""
+		if w.settings.RestoreScreen {
+			snapshot = loadSnapshot(n.Pane.ID)
+		}
+		p, err := newPane(w, n.Pane.ID, n.Pane.Command, n.Pane.WorkingDirectory, snapshot)
 		if err != nil {
 			return nil, err
 		}
