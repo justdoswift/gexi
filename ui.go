@@ -348,11 +348,8 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(16).Height(16).OnClick(pick)
 		}
-		ui.Text(c, sessionLabel(s)).FontSize(12).FontWeight(500).SingleLine().TextColor(color).OnClick(pick)
+		sessionLabelElement(c, tk, s, color, pick)
 		ui.Spacer(c).OnClick(pick)
-		// Loader first, close last: the × owns the row's right edge whenever
-		// the pointer is over it, and the loader sits beside it.
-		w.activityLoader(c, tk, sessionActivityState(s), pick)
 		if hovered {
 			iconButtonSmall(c, tk, "x", func() { w.closeSession(s) })
 		}
@@ -395,34 +392,6 @@ func (w *workspace) projectVisible(pr *project) bool {
 	}
 	return false
 }
-
-// activityLoader is the sidebar's activity line, after math-curve-loaders: a
-// particle trail running round a seven-petal rose while an agent works.
-// Waiting freezes the same trail on one frame, so the two states differ by
-// motion alone. The loader is monochrome — black on a light window, white on
-// a dark one.
-func (w *workspace) activityLoader(c *ui.Context, tk tokens, state string, pick func()) {
-	// The slot keeps its width when the loader is off, so nothing in the row
-	// shifts as agents start and stop.
-	box := ui.Row(c).Width(loaderWidth).Height(loaderSize).AlignItems(ui.Center)
-	box.OnClick(pick).Children(func() {
-		if state == "" {
-			return
-		}
-		t := float64(loaderStillMs)
-		if state == activityWorking {
-			t = loaderPhase(c)
-		}
-		dark := c.Theme().Dark
-		ui.Box(c).Size(loaderSize, loaderSize).OnClick(pick).
-			Draw(func(p *ui.Painter, r ui.Rect) {
-				drawCurveLoader(p, r, t, dark)
-			})
-	})
-}
-
-// loaderWidth is the loader's slot in the session row.
-const loaderWidth float32 = loaderSize
 
 // sessionActivityState folds the panes' hook events into one sidebar indicator.
 func sessionActivityState(s *session) string {
