@@ -514,6 +514,26 @@ func (msgs Messages) WorktreeAgentRunning() string {
 	return Catalog.Format(msgs.locale, "worktreeAgentRunning", nil)
 }
 
+// WorktreeGhMissing says "GitHub CLI (gh) is not installed."
+// in the language the app shows.
+func WorktreeGhMissing() string { return In(i18n.Locale()).WorktreeGhMissing() }
+
+// WorktreeGhMissing says "GitHub CLI (gh) is not installed."
+// in the language of msgs.
+func (msgs Messages) WorktreeGhMissing() string {
+	return Catalog.Format(msgs.locale, "worktreeGhMissing", nil)
+}
+
+// WorktreeGhInstall says "Install"
+// in the language the app shows.
+func WorktreeGhInstall() string { return In(i18n.Locale()).WorktreeGhInstall() }
+
+// WorktreeGhInstall says "Install"
+// in the language of msgs.
+func (msgs Messages) WorktreeGhInstall() string {
+	return Catalog.Format(msgs.locale, "worktreeGhInstall", nil)
+}
+
 // WorktreeCreated says "Worktree created"
 // in the language the app shows.
 func WorktreeCreated() string { return In(i18n.Locale()).WorktreeCreated() }
@@ -522,6 +542,16 @@ func WorktreeCreated() string { return In(i18n.Locale()).WorktreeCreated() }
 // in the language of msgs.
 func (msgs Messages) WorktreeCreated() string {
 	return Catalog.Format(msgs.locale, "worktreeCreated", nil)
+}
+
+// WorktreeCreating says "Creating worktree"
+// in the language the app shows.
+func WorktreeCreating() string { return In(i18n.Locale()).WorktreeCreating() }
+
+// WorktreeCreating says "Creating worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeCreating() string {
+	return Catalog.Format(msgs.locale, "worktreeCreating", nil)
 }
 
 // WorktreePR says "PR"
@@ -534,11 +564,11 @@ func (msgs Messages) WorktreePR() string {
 	return Catalog.Format(msgs.locale, "worktreePR", nil)
 }
 
-// WorktreePROpening says "PR…"
+// WorktreePROpening says "Opening pull request"
 // in the language the app shows.
 func WorktreePROpening() string { return In(i18n.Locale()).WorktreePROpening() }
 
-// WorktreePROpening says "PR…"
+// WorktreePROpening says "Opening pull request"
 // in the language of msgs.
 func (msgs Messages) WorktreePROpening() string {
 	return Catalog.Format(msgs.locale, "worktreePROpening", nil)
@@ -554,11 +584,11 @@ func (msgs Messages) WorktreeMerge() string {
 	return Catalog.Format(msgs.locale, "worktreeMerge", nil)
 }
 
-// WorktreeMerging says "Merging…"
+// WorktreeMerging says "Merging pull request"
 // in the language the app shows.
 func WorktreeMerging() string { return In(i18n.Locale()).WorktreeMerging() }
 
-// WorktreeMerging says "Merging…"
+// WorktreeMerging says "Merging pull request"
 // in the language of msgs.
 func (msgs Messages) WorktreeMerging() string {
 	return Catalog.Format(msgs.locale, "worktreeMerging", nil)

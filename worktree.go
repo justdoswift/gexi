@@ -246,10 +246,58 @@ func worktreeGit(dir string, args ...string) (string, error) {
 	return string(out), err
 }
 
+// errGhMissing says the GitHub CLI, which the PR and Merge buttons drive, is
+// not installed. It has its own toast, since it is the one failure the user
+// can fix from here.
+var errGhMissing = errors.New("gh is not installed")
+
+// ghInstallURL is where GitHub CLI is downloaded, with the command for every
+// package manager that installs it.
+const ghInstallURL = "https://cli.github.com/"
+
+// worktreeFailed reports a worktree operation's error. A missing gh gets a
+// toast with a button to its install page, since gh's own absence says
+// nothing about what to do.
+func (w *workspace) worktreeFailed(err error) {
+	if errors.Is(err, errGhMissing) {
+		w.flashAction(locales.WorktreeGhMissing(), locales.WorktreeGhInstall(), func() {
+			openPath(ghInstallURL)
+		})
+		return
+	}
+	w.flash(locales.WorktreeError(err.Error()))
+}
+
+// ghBinary is gh's path. An app opened from Finder inherits launchd's short
+// PATH, which misses a gh installed beside the user's other tools, though the
+// panes' login shell finds it; the usual install folders are asked as well.
+var ghBinary = sync.OnceValue(func() string {
+	if path, err := exec.LookPath("gh"); err == nil {
+		return path
+	}
+	home, _ := os.UserHomeDir()
+	for _, dir := range []string{
+		"/opt/homebrew/bin",
+		"/usr/local/bin",
+		filepath.Join(home, ".local/bin"),
+		filepath.Join(home, "bin"),
+	} {
+		path := filepath.Join(dir, "gh")
+		if info, err := os.Stat(path); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			return path
+		}
+	}
+	return ""
+})
+
 func ghOutput(dir string, args ...string) (string, error) {
+	gh := ghBinary()
+	if gh == "" {
+		return "", errGhMissing
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "gh", args...)
+	cmd := exec.CommandContext(ctx, gh, args...)
 	cmd.Dir = dir
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
@@ -325,8 +373,8 @@ func createPR(wt *paneWorktree) (int, string, string, string, error) {
 	if branch == "" {
 		branch = wt.Branch
 	}
-	if _, err := exec.LookPath("gh"); err != nil {
-		return 0, "", "", branch, errors.New("gh is not installed")
+	if ghBinary() == "" {
+		return 0, "", "", branch, errGhMissing
 	}
 	// Local checks come before gh: a repository without a GitHub remote can
 	// leave gh waiting on the network, and a missing commit is a fact git
@@ -361,8 +409,8 @@ func createPR(wt *paneWorktree) (int, string, string, string, error) {
 }
 
 func mergePR(wt *paneWorktree) error {
-	if _, err := exec.LookPath("gh"); err != nil {
-		return errors.New("gh is not installed")
+	if ghBinary() == "" {
+		return errGhMissing
 	}
 	clean, err := worktreeIsClean(wt)
 	if err != nil {
@@ -417,7 +465,7 @@ func (w *workspace) createPullRequest(p *pane) {
 		w.onMain(func() {
 			wt.busy = ""
 			if err != nil {
-				w.flash(locales.WorktreeError(err.Error()))
+				w.worktreeFailed(err)
 			} else {
 				wt.PR, wt.URL, wt.State, wt.Branch = n, url, state, branch
 				w.flash(locales.WorktreePROpened())
@@ -443,7 +491,7 @@ func (w *workspace) mergePullRequest(p *pane) {
 		if err := mergePR(&snapshot); err != nil {
 			w.onMain(func() {
 				wt.busy = ""
-				w.flash(locales.WorktreeError(err.Error()))
+				w.worktreeFailed(err)
 				w.invalidate()
 			})
 			return
@@ -645,12 +693,11 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 			}
 		}
 		label := "W"
-		color := tk.Foreground
 		action := func() { w.createPaneWorktree(p) }
 		hint := locales.WorktreeCreateHint()
+		busy := ""
 		if p.worktreeBusy != "" {
-			label = "W…"
-			color = tk.MutedForeground
+			busy = locales.WorktreeCreating()
 			action = func() {}
 		}
 		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
@@ -659,8 +706,12 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 			el = el.Background(tk.Control)
 		}
 		el.OnClick(action).Children(func() {
+			if busy != "" {
+				worktreeSpinner(c, tk, busy)
+				return
+			}
 			ui.Text(c, label).FontSize(11).FontWeight(600).
-				TextColor(color).OnClick(action)
+				TextColor(tk.Foreground).OnClick(action)
 		})
 		return
 	}
@@ -674,6 +725,7 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	label := locales.WorktreePR()
 	action := func() { w.createPullRequest(p) }
 	color := tk.Foreground
+	busy := ""
 	switch {
 	case wt.State == worktreeMerged:
 		label = locales.WorktreeMerged()
@@ -684,12 +736,10 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 			}
 		}
 	case wt.busy == worktreeBusyPR:
-		label = locales.WorktreePROpening()
-		color = tk.MutedForeground
+		busy = locales.WorktreePROpening()
 		action = func() {}
 	case wt.busy == worktreeBusyMerge:
-		label = locales.WorktreeMerging()
-		color = tk.MutedForeground
+		busy = locales.WorktreeMerging()
 		action = func() {}
 	case wt.PR != 0:
 		label = locales.WorktreeMerge()
@@ -705,7 +755,18 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 		el = el.Background(tk.Control)
 	}
 	el.OnClick(action).Children(func() {
+		if busy != "" {
+			worktreeSpinner(c, tk, busy)
+			return
+		}
 		ui.Text(c, label).FontSize(11).FontWeight(600).
 			TextColor(color).OnClick(action)
 	})
+}
+
+// worktreeSpinner is a header button at work: the theme's spinner where the
+// label was, so the wait reads as work rather than a truncated word. label
+// names the operation for assistive technology.
+func worktreeSpinner(c *ui.Context, tk tokens, label string) {
+	ui.Spinner(c).Size(12, 12).TextColor(tk.MutedForeground).Label(label)
 }
