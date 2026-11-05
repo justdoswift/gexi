@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.14
 
 - Merging a pull request no longer clears the worktree away on its own: the
   pane stays open, and the PR button becomes Archive, which closes the pane
