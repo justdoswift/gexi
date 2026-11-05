@@ -96,6 +96,18 @@ the window has nowhere to go, so its title keeps moving the window.
 pane; the inward arrow it turns into, or the same shortcut, brings every pane
 back.
 
+### Worktrees and pull requests
+
+Open a pane and press **W** in its header to give that pane its own git
+worktree, branched from the latest `origin` base branch and kept under the
+app's data folder. The pane moves into the worktree with a fresh shell. The
+branch starts with a placeholder city name, as Conductor does; the first prompt
+asks Claude Code to rename it to the task. The header then shows **PR**, which
+pushes the branch and opens a pull request with `gh`, and turns into **Merge**,
+which merges the PR, fast-forwards your local base branch, and removes the
+worktree. Panes that never press W work exactly as before. Opening and merging
+pull requests needs the GitHub CLI, authenticated.
+
 ### Remote hosts
 
 The **Remote** row at the bottom of the sidebar is the whole feature.

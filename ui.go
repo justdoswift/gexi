@@ -21,6 +21,10 @@ import (
 // radius, quiet hover states.
 
 func (w *workspace) view(c *ui.Context) {
+	if w.pendingToast != "" {
+		c.Toast(w.pendingToast)
+		w.pendingToast = ""
+	}
 	tk := themeTokens(c.Theme())
 	bar := c.TitleBar()
 	// The window's own surface is the canvas the panes sit on, so a pane
@@ -383,6 +387,13 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 // sessionLabel is what the sidebar calls a session: its agent when one runs
 // there, the terminal title otherwise.
 func sessionLabel(s *session) string {
+	if s.Root != nil {
+		for _, p := range s.Root.panes() {
+			if p.Worktree != nil && p.Worktree.Branch != "" {
+				return p.Worktree.Branch
+			}
+		}
+	}
 	if agent := s.agent(); agent != nil {
 		return agent.Kind.name()
 	}
@@ -644,6 +655,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					actions = actions.IgnoreInput(!showActions).
 						Opacity(actions.AnimateTo("actions", alpha, ui.Animation{Duration: 150 * time.Millisecond, Ease: ui.EaseOut}))
 					actions.Children(func() {
+						w.paneWorktreeButton(c, tk, p)
 						// A pane too narrow for all three keeps only the way
 						// out: splitting and zooming are in the View menu, and
 						// a clipped button is worse than an absent one.

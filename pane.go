@@ -84,14 +84,18 @@ type pane struct {
 	baseRestore    []string // restoreCommand with no agent running
 	agent          *agentDetection
 	activity       *agentActivity // last hook event from the agent
-	lastGroup      int
-	lastScan       time.Time
-	openedAt       time.Time
-	shown          bool // the first frame has laid the pane out
-	closing        bool
-	closingAt      time.Time
-	exited         bool
-	ws             *workspace
+	// Worktree is the checkout this pane was moved into by its W button.
+	// worktreeBusy is the operation it waits on: "create".
+	Worktree     *paneWorktree
+	worktreeBusy string
+	lastGroup    int
+	lastScan     time.Time
+	openedAt     time.Time
+	shown        bool // the first frame has laid the pane out
+	closing      bool
+	closingAt    time.Time
+	exited       bool
+	ws           *workspace
 }
 
 func newPane(ws *workspace, id string, command []string, dir string, snapshot string) (*pane, error) {

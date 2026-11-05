@@ -484,6 +484,138 @@ func (msgs Messages) SettingsRestoreScreenDetail() string {
 	return Catalog.Format(msgs.locale, "settingsRestoreScreenDetail", nil)
 }
 
+// WorktreeCreateHint says "Create a worktree for this pane"
+// in the language the app shows.
+func WorktreeCreateHint() string { return In(i18n.Locale()).WorktreeCreateHint() }
+
+// WorktreeCreateHint says "Create a worktree for this pane"
+// in the language of msgs.
+func (msgs Messages) WorktreeCreateHint() string {
+	return Catalog.Format(msgs.locale, "worktreeCreateHint", nil)
+}
+
+// WorktreeNotRepo says "This project is not a git repository."
+// in the language the app shows.
+func WorktreeNotRepo() string { return In(i18n.Locale()).WorktreeNotRepo() }
+
+// WorktreeNotRepo says "This project is not a git repository."
+// in the language of msgs.
+func (msgs Messages) WorktreeNotRepo() string {
+	return Catalog.Format(msgs.locale, "worktreeNotRepo", nil)
+}
+
+// WorktreeAgentRunning says "Stop the agent in this pane first."
+// in the language the app shows.
+func WorktreeAgentRunning() string { return In(i18n.Locale()).WorktreeAgentRunning() }
+
+// WorktreeAgentRunning says "Stop the agent in this pane first."
+// in the language of msgs.
+func (msgs Messages) WorktreeAgentRunning() string {
+	return Catalog.Format(msgs.locale, "worktreeAgentRunning", nil)
+}
+
+// WorktreeCreated says "Worktree created"
+// in the language the app shows.
+func WorktreeCreated() string { return In(i18n.Locale()).WorktreeCreated() }
+
+// WorktreeCreated says "Worktree created"
+// in the language of msgs.
+func (msgs Messages) WorktreeCreated() string {
+	return Catalog.Format(msgs.locale, "worktreeCreated", nil)
+}
+
+// WorktreePR says "PR"
+// in the language the app shows.
+func WorktreePR() string { return In(i18n.Locale()).WorktreePR() }
+
+// WorktreePR says "PR"
+// in the language of msgs.
+func (msgs Messages) WorktreePR() string {
+	return Catalog.Format(msgs.locale, "worktreePR", nil)
+}
+
+// WorktreePROpening says "PR…"
+// in the language the app shows.
+func WorktreePROpening() string { return In(i18n.Locale()).WorktreePROpening() }
+
+// WorktreePROpening says "PR…"
+// in the language of msgs.
+func (msgs Messages) WorktreePROpening() string {
+	return Catalog.Format(msgs.locale, "worktreePROpening", nil)
+}
+
+// WorktreeMerge says "Merge"
+// in the language the app shows.
+func WorktreeMerge() string { return In(i18n.Locale()).WorktreeMerge() }
+
+// WorktreeMerge says "Merge"
+// in the language of msgs.
+func (msgs Messages) WorktreeMerge() string {
+	return Catalog.Format(msgs.locale, "worktreeMerge", nil)
+}
+
+// WorktreeMerging says "Merging…"
+// in the language the app shows.
+func WorktreeMerging() string { return In(i18n.Locale()).WorktreeMerging() }
+
+// WorktreeMerging says "Merging…"
+// in the language of msgs.
+func (msgs Messages) WorktreeMerging() string {
+	return Catalog.Format(msgs.locale, "worktreeMerging", nil)
+}
+
+// WorktreeMerged says "Merged"
+// in the language the app shows.
+func WorktreeMerged() string { return In(i18n.Locale()).WorktreeMerged() }
+
+// WorktreeMerged says "Merged"
+// in the language of msgs.
+func (msgs Messages) WorktreeMerged() string {
+	return Catalog.Format(msgs.locale, "worktreeMerged", nil)
+}
+
+// WorktreePROpened says "Pull request created"
+// in the language the app shows.
+func WorktreePROpened() string { return In(i18n.Locale()).WorktreePROpened() }
+
+// WorktreePROpened says "Pull request created"
+// in the language of msgs.
+func (msgs Messages) WorktreePROpened() string {
+	return Catalog.Format(msgs.locale, "worktreePROpened", nil)
+}
+
+// WorktreeMergedInto says "Merged into {base}"
+// in the language the app shows.
+func WorktreeMergedInto(base string) string { return In(i18n.Locale()).WorktreeMergedInto(base) }
+
+// WorktreeMergedInto says "Merged into {base}"
+// in the language of msgs.
+func (msgs Messages) WorktreeMergedInto(base string) string {
+	return Catalog.Format(msgs.locale, "worktreeMergedInto", map[string]any{"base": base})
+}
+
+// WorktreeMergedLocalFailed says "Merged on GitHub, but local {base} could not be updated: {error}"
+// in the language the app shows.
+func WorktreeMergedLocalFailed(base string, error string) string {
+	return In(i18n.Locale()).WorktreeMergedLocalFailed(base, error)
+}
+
+// WorktreeMergedLocalFailed says "Merged on GitHub, but local {base} could not be updated: {error}"
+// in the language of msgs.
+func (msgs Messages) WorktreeMergedLocalFailed(base string, error string) string {
+	return Catalog.Format(msgs.locale, "worktreeMergedLocalFailed", map[string]any{"base": base, "error": error})
+}
+
+// WorktreeError says "Git: {error}"
+// in the language the app shows.
+func WorktreeError(error string) string { return In(i18n.Locale()).WorktreeError(error) }
+
+// WorktreeError says "Git: {error}"
+// in the language of msgs.
+func (msgs Messages) WorktreeError(error string) string {
+	return Catalog.Format(msgs.locale, "worktreeError", map[string]any{"error": error})
+}
+
 // SettingsRemote says "Remote"
 // in the language the app shows.
 func SettingsRemote() string { return In(i18n.Locale()).SettingsRemote() }

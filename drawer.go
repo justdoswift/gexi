@@ -114,11 +114,19 @@ func (w *workspace) drawerProject() *project {
 	return w.projectOf(s)
 }
 
-// drawerDir is what to read, and "" when there is nothing to read here.
+// drawerDir is what to read, and "" when there is nothing to read here. A
+// focused pane that was moved into a worktree reads that checkout.
 func (w *workspace) drawerDir() string {
 	pr := w.drawerProject()
 	if pr == nil || pr.RemoteHost != "" {
 		return ""
+	}
+	if s := w.selected(); s != nil && s.Root != nil {
+		for _, p := range s.Root.panes() {
+			if p.ID == w.FocusedPane && p.Worktree != nil {
+				return p.Worktree.Path
+			}
+		}
 	}
 	return pr.Dir
 }
@@ -131,12 +139,20 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 	if pr == nil || pr.RemoteHost != "" {
 		return
 	}
-	s, ok := w.gitInfo[pr.Dir]
-	if !ok || !s.OK || s.Branch == "" {
+	dir := pr.Dir
+	if p.Worktree != nil {
+		dir = p.Worktree.Path
+	}
+	s, ok := w.gitInfo[dir]
+	if !ok {
+		w.refreshGitDir(dir)
+		return
+	}
+	if !s.OK || s.Branch == "" {
 		return
 	}
 	d := &w.drawer
-	showing := d.open && d.tab == drawerTabChanges && d.dir == pr.Dir
+	showing := d.open && d.tab == drawerTabChanges && d.dir == dir
 	bg := tk.Active
 	color := tk.MutedForeground
 	if showing {
@@ -147,7 +163,7 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 	if el.Hovered() {
 		bg, color = tk.Control, tk.Foreground
 	}
-	pick := func() { w.toggleChangesDrawer(pr.Dir) }
+	pick := func() { w.toggleChangesDrawer(dir) }
 	el.Background(bg).Tooltip(locales.DrawerOpenChanges()).OnClick(pick).Children(func() {
 		if src := iconSource("branch", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(12).Height(12).IgnoreInput(true)
@@ -276,7 +292,12 @@ func (w *workspace) setDrawerTab(tab int) {
 // it shows the changes. One read feeds both, and a read already in flight is
 // left to land; the next tick gets the newer one.
 func (w *workspace) refreshGit() {
-	dir := w.syncDrawerDir()
+	w.refreshGitDir(w.syncDrawerDir())
+}
+
+// refreshGitDir is refreshGit for one checkout, so a pane's branch pill can
+// read its own worktree rather than the project's main checkout.
+func (w *workspace) refreshGitDir(dir string) {
 	if dir == "" || w.gitBusy[dir] {
 		return
 	}

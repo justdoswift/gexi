@@ -129,6 +129,9 @@ type workspace struct {
 	importOpen bool
 	importText string
 	importErr  string
+
+	// pendingToast is handed to the next frame's view, which shows it.
+	pendingToast string
 }
 
 func newWorkspace() *workspace {
@@ -526,6 +529,13 @@ func (w *workspace) selectSession(id string) {
 	}
 	w.SelectedSession = s.ID
 	w.zoomedPane = ""
+	if s.Root != nil {
+		for _, p := range s.Root.panes() {
+			if p.Worktree != nil {
+				w.refreshWorktree(p)
+			}
+		}
+	}
 	if pr := w.projectOf(s); pr != nil {
 		delete(w.collapsed, pr.ID)
 	}
@@ -675,7 +685,9 @@ func (w *workspace) paneExited(p *pane) {
 		return
 	}
 	w.onMain(func() {
-		if w.quitting || w.paneByID(p.ID) == nil {
+		// A pane moved into a worktree is replaced by a new pane with the
+		// same id; the old process exiting must not close its successor.
+		if w.quitting || w.paneByID(p.ID) != p {
 			return
 		}
 		w.requestClose(p)
@@ -706,6 +718,15 @@ func (w *workspace) invalidate() {
 	if w.win != nil {
 		w.win.Invalidate()
 	}
+}
+
+// flash queues a toast for the next frame. Main thread.
+func (w *workspace) flash(message string) {
+	if message == "" {
+		return
+	}
+	w.pendingToast = message
+	w.invalidate()
 }
 
 // onMain runs fn on the UI thread and waits, so the control server can read
