@@ -214,6 +214,28 @@ func worktreeGit(dir string, args ...string) (string, error) {
 	return string(out), err
 }
 
+// errGhMissing says the GitHub CLI, which the PR and Merge buttons drive, is
+// not installed. It has its own toast, since it is the one failure the user
+// can fix from here.
+var errGhMissing = errors.New("gh is not installed")
+
+// ghInstallURL is where GitHub CLI is downloaded, with the command for every
+// package manager that installs it.
+const ghInstallURL = "https://cli.github.com/"
+
+// worktreeFailed reports a worktree operation's error. A missing gh gets a
+// toast with a button to its install page, since gh's own absence says
+// nothing about what to do.
+func (w *workspace) worktreeFailed(err error) {
+	if errors.Is(err, errGhMissing) {
+		w.flashAction(locales.WorktreeGhMissing(), locales.WorktreeGhInstall(), func() {
+			openPath(ghInstallURL)
+		})
+		return
+	}
+	w.flash(locales.WorktreeError(err.Error()))
+}
+
 // ghBinary is gh's path. An app opened from Finder inherits launchd's short
 // PATH, which misses a gh installed beside the user's other tools, though the
 // panes' login shell finds it; the usual install folders are asked as well.
@@ -239,7 +261,7 @@ var ghBinary = sync.OnceValue(func() string {
 func ghOutput(dir string, args ...string) (string, error) {
 	gh := ghBinary()
 	if gh == "" {
-		return "", errors.New("gh is not installed")
+		return "", errGhMissing
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -320,7 +342,7 @@ func createPR(wt *paneWorktree) (int, string, string, string, error) {
 		branch = wt.Branch
 	}
 	if ghBinary() == "" {
-		return 0, "", "", branch, errors.New("gh is not installed")
+		return 0, "", "", branch, errGhMissing
 	}
 	// Local checks come before gh: a repository without a GitHub remote can
 	// leave gh waiting on the network, and a missing commit is a fact git
@@ -356,7 +378,7 @@ func createPR(wt *paneWorktree) (int, string, string, string, error) {
 
 func mergePR(wt *paneWorktree) error {
 	if ghBinary() == "" {
-		return errors.New("gh is not installed")
+		return errGhMissing
 	}
 	clean, err := worktreeIsClean(wt)
 	if err != nil {
@@ -411,7 +433,7 @@ func (w *workspace) createPullRequest(p *pane) {
 		w.onMain(func() {
 			wt.busy = ""
 			if err != nil {
-				w.flash(locales.WorktreeError(err.Error()))
+				w.worktreeFailed(err)
 			} else {
 				wt.PR, wt.URL, wt.State, wt.Branch = n, url, state, branch
 				w.flash(locales.WorktreePROpened())
@@ -437,7 +459,7 @@ func (w *workspace) mergePullRequest(p *pane) {
 		if err := mergePR(&snapshot); err != nil {
 			w.onMain(func() {
 				wt.busy = ""
-				w.flash(locales.WorktreeError(err.Error()))
+				w.worktreeFailed(err)
 				w.invalidate()
 			})
 			return

@@ -130,8 +130,11 @@ type workspace struct {
 	importText string
 	importErr  string
 
-	// pendingToast is handed to the next frame's view, which shows it.
-	pendingToast string
+	// pendingToast is handed to the next frame's view, which shows it. An
+	// action, when set, turns it into a toast with a button.
+	pendingToast       string
+	pendingToastAction string
+	pendingAction      func()
 }
 
 func newWorkspace() *workspace {
@@ -726,6 +729,17 @@ func (w *workspace) flash(message string) {
 		return
 	}
 	w.pendingToast = message
+	w.pendingToastAction, w.pendingAction = "", nil
+	w.invalidate()
+}
+
+// flashAction queues a toast with a button, as the one that offers to install
+// a missing tool. Main thread.
+func (w *workspace) flashAction(message, label string, action func()) {
+	if message == "" {
+		return
+	}
+	w.pendingToast, w.pendingToastAction, w.pendingAction = message, label, action
 	w.invalidate()
 }
 

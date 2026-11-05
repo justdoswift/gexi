@@ -22,8 +22,12 @@ import (
 
 func (w *workspace) view(c *ui.Context) {
 	if w.pendingToast != "" {
-		c.Toast(w.pendingToast)
-		w.pendingToast = ""
+		if w.pendingToastAction != "" && w.pendingAction != nil {
+			c.ToastAction(w.pendingToast, w.pendingToastAction, w.pendingAction)
+		} else {
+			c.Toast(w.pendingToast)
+		}
+		w.pendingToast, w.pendingToastAction, w.pendingAction = "", "", nil
 	}
 	tk := themeTokens(c.Theme())
 	bar := c.TitleBar()

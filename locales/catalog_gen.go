@@ -514,6 +514,26 @@ func (msgs Messages) WorktreeAgentRunning() string {
 	return Catalog.Format(msgs.locale, "worktreeAgentRunning", nil)
 }
 
+// WorktreeGhMissing says "GitHub CLI (gh) is not installed."
+// in the language the app shows.
+func WorktreeGhMissing() string { return In(i18n.Locale()).WorktreeGhMissing() }
+
+// WorktreeGhMissing says "GitHub CLI (gh) is not installed."
+// in the language of msgs.
+func (msgs Messages) WorktreeGhMissing() string {
+	return Catalog.Format(msgs.locale, "worktreeGhMissing", nil)
+}
+
+// WorktreeGhInstall says "Install"
+// in the language the app shows.
+func WorktreeGhInstall() string { return In(i18n.Locale()).WorktreeGhInstall() }
+
+// WorktreeGhInstall says "Install"
+// in the language of msgs.
+func (msgs Messages) WorktreeGhInstall() string {
+	return Catalog.Format(msgs.locale, "worktreeGhInstall", nil)
+}
+
 // WorktreeCreated says "Worktree created"
 // in the language the app shows.
 func WorktreeCreated() string { return In(i18n.Locale()).WorktreeCreated() }
