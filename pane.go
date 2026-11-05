@@ -87,6 +87,7 @@ type pane struct {
 	lastGroup      int
 	lastScan       time.Time
 	openedAt       time.Time
+	shown          bool // the first frame has laid the pane out
 	closing        bool
 	closingAt      time.Time
 	exited         bool

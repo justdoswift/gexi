@@ -522,7 +522,19 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	}
 	outer.Children(func() {
 		col := ui.Column(c).Fill()
-		col = col.Opacity(col.Animate("focusDim", w.focusAmount(focused), focusMotion) * fadeAlpha(c, p))
+		col = col.Opacity(col.Animate("focusDim", w.focusAmount(focused), focusMotion))
+		// The card fades in as it opens and out before it closes. A pose
+		// fades in frames that only paint, without building the view, which
+		// keeps a terminal redrawing its grid from stuttering.
+		fade := float32(0)
+		if p.closing {
+			fade = 1
+		} else if !p.shown {
+			p.shown = true
+			fade = 1
+			c.After(time.Millisecond)
+		}
+		col = col.AnimatePose(ui.Pose{Fade: fade}, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
 		if card {
 			col = col.Radius(windowRadius).Border(1, tk.Border).Background(tk.Background).Clip()
 		}
@@ -606,32 +618,6 @@ func fade(c *ui.Context, tk tokens, el ui.Element, active, hovered bool) ui.Colo
 		target = tk.Active
 	}
 	return el.AnimateColor("bg", target, ui.Animation{Duration: 150 * time.Millisecond})
-}
-
-// fadeAlpha fades a pane in when it opens and out before it closes, keeping
-// frames coming while it moves.
-func fadeAlpha(c *ui.Context, p *pane) float32 {
-	d := paneMotion
-	if p.closing {
-		t := float32(time.Since(p.closingAt)) / float32(d)
-		if t >= 1 {
-			return 0
-		}
-		c.After(16 * time.Millisecond)
-		// Ease in on the way out: the pane holds its weight for a moment,
-		// then leaves.
-		return 1 - t*t
-	}
-	if !p.openedAt.IsZero() {
-		t := float32(time.Since(p.openedAt)) / float32(d)
-		if t < 1 {
-			c.After(16 * time.Millisecond)
-			// Ease out on the way in: most of the fade comes early.
-			return 1 - (1-t)*(1-t)
-		}
-		p.openedAt = time.Time{}
-	}
-	return 1
 }
 
 // focusDim is how far everything but the focused pane recedes once a tab is
