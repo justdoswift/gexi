@@ -567,8 +567,14 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					// The title gives way before the branch pill does: its
 					// texts end in an ellipsis rather than wrapping, and the
 					// pill keeps its width.
+					// A sliver of a pane spends nothing on padding it does
+					// not need: a couple of points buy its title back.
+					stripPad := float32(6)
+					if width > 0 && width < 200 {
+						stripPad = 3
+					}
 					strip := ui.Row(c).Height(24).AlignItems(ui.Center).Shrink(1).
-						Gap(4).Padding(0, 6).Radius(chromeRadius)
+						Gap(4).Padding(0, stripPad).Radius(chromeRadius)
 					if movable {
 						strip = strip.Drag(paneMoved{Pane: p}).Cursor(ui.CursorGrab).
 							Tooltip(locales.PaneDragHint())
@@ -584,11 +590,14 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						// terminal title carries the agent's spinner glyph, and
 						// the directory after it is noise beside the brand.
 						agent := p.agent
+						// The title matters more than its mark once the pane
+						// is a sliver: the name stays, the glyph goes.
+						showMark := width == 0 || width >= 160
 						if agent != nil {
-							if src := agentLogoSource(agent.Kind, tk); src != nil {
+							if src := agentLogoSource(agent.Kind, tk); src != nil && showMark {
 								ui.Image(c, src).Width(13).Height(13)
 							}
-						} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
+						} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil && showMark {
 							ui.Image(c, src).Width(16).Height(16)
 						}
 						title := p.title()
@@ -598,14 +607,20 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						if p.exited {
 							title += " · exited"
 						}
+						// The title gives way only when the close button
+						// would otherwise be clipped.
+						titleShrink := float32(0)
+						if width > 0 && width < 200 {
+							titleShrink = 1
+						}
 						if focused {
 							ui.Text(c, title).FontSize(12).FontWeight(500).SingleLine().
-								Shrink(0).TextColor(tk.Foreground)
+								Shrink(titleShrink).TextColor(tk.Foreground)
 						} else {
 							ui.Text(c, title).FontSize(12).SingleLine().
-								Shrink(0).TextColor(tk.MutedForeground)
+								Shrink(titleShrink).TextColor(tk.MutedForeground)
 						}
-						if agent == nil && (width == 0 || width >= 420) {
+						if agent == nil && (width == 0 || width >= 540) {
 							ui.Text(c, abbreviate(p.dir())).FontSize(11).SingleLine().
 								Shrink(1).TextColor(tk.MutedForeground)
 						}
@@ -614,7 +629,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					// the project is on, counts the working tree's changes,
 					// and opens their diff. A pane too narrow for it keeps
 					// only its title; the drawer still opens from the menu.
-					if width == 0 || width >= 260 {
+					if width == 0 || width >= 320 {
 						w.branchPill(c, tk, p)
 					}
 					w.dragArea(c, tk)
@@ -625,19 +640,24 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					if showActions {
 						alpha = 1
 					}
-					actions := ui.Row(c).Gap(2).Height(chromeLine(bar)).AlignItems(ui.Center)
+					actions := ui.Row(c).Gap(2).Height(chromeLine(bar)).AlignItems(ui.Center).Shrink(0)
 					actions = actions.IgnoreInput(!showActions).
 						Opacity(actions.AnimateTo("actions", alpha, ui.Animation{Duration: 150 * time.Millisecond, Ease: ui.EaseOut}))
 					actions.Children(func() {
-						iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
-						iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
-						// A pane with nowhere to go has nothing to zoom to.
-						if len(w.visiblePanes()) > 1 || w.zoomedPane == p.ID {
-							name, hint := "expand", locales.PaneZoom()+" ("+zoomShortcut+")"
-							if w.zoomedPane == p.ID {
-								name, hint = "collapse", locales.PaneUnzoom()+" ("+zoomShortcut+")"
+						// A pane too narrow for all three keeps only the way
+						// out: splitting and zooming are in the View menu, and
+						// a clipped button is worse than an absent one.
+						if width == 0 || width >= 380 {
+							iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
+							iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
+							// A pane with nowhere to go has nothing to zoom to.
+							if len(w.visiblePanes()) > 1 || w.zoomedPane == p.ID {
+								name, hint := "expand", locales.PaneZoom()+" ("+zoomShortcut+")"
+								if w.zoomedPane == p.ID {
+									name, hint = "collapse", locales.PaneUnzoom()+" ("+zoomShortcut+")"
+								}
+								iconButton(c, tk, name, func() { w.toggleZoom(p) }, hint)
 							}
-							iconButton(c, tk, name, func() { w.toggleZoom(p) }, hint)
 						}
 						iconButton(c, tk, "x", func() { w.requestClose(p) })
 					})

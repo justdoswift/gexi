@@ -143,7 +143,7 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 		bg, color = tk.Control, tk.Foreground
 	}
 	el := ui.Row(c).Height(22).Radius(chromeRadius).Padding(0, 8).Gap(5).
-		AlignItems(ui.Center).Shrink(0).Cursor(ui.CursorPointer)
+		AlignItems(ui.Center).Shrink(1).Cursor(ui.CursorPointer)
 	if el.Hovered() {
 		bg, color = tk.Control, tk.Foreground
 	}
@@ -153,19 +153,19 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 			ui.Image(c, src).Width(12).Height(12).IgnoreInput(true)
 		}
 		ui.Text(c, shortBranch(s.Branch)).FontSize(11).SingleLine().
-			TextColor(color).OnClick(pick)
+			Shrink(1).TextColor(color).OnClick(pick)
 		if s.Added > 0 {
-			ui.Text(c, "+"+strconv.Itoa(s.Added)).FontSize(10).
+			ui.Text(c, "+"+strconv.Itoa(s.Added)).FontSize(10).Shrink(0).
 				TextColor(tk.Working).OnClick(pick)
 		}
 		if s.Deleted > 0 {
-			ui.Text(c, "−"+strconv.Itoa(s.Deleted)).FontSize(10).
+			ui.Text(c, "−"+strconv.Itoa(s.Deleted)).FontSize(10).Shrink(0).
 				TextColor(tk.Danger).OnClick(pick)
 		}
 		if s.Changed && s.Added+s.Deleted == 0 {
 			// A change Git counts no lines for: a new file, a rename, a
 			// binary.
-			ui.Text(c, "•").FontSize(10).TextColor(tk.Waiting).OnClick(pick)
+			ui.Text(c, "•").FontSize(10).Shrink(0).TextColor(tk.Waiting).OnClick(pick)
 		}
 	})
 }
