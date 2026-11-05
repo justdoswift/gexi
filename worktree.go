@@ -52,16 +52,48 @@ const (
 	worktreeMerged     = "merged"
 )
 
-// worktreeCities are the placeholder names, as Conductor uses cities: short,
-// memorable, and never mistaken for a task.
-var worktreeCities = []string{
-	"kyoto", "lisbon", "osaka", "porto", "taipei", "seoul", "helsinki",
-	"prague", "vienna", "zurich", "bergen", "tallinn", "riga", "vilnius",
-	"warsaw", "krakow", "budapest", "athens", "sofia", "dublin", "edinburgh",
-	"glasgow", "bristol", "oxford", "cambridge", "bruges", "ghent", "antwerp",
-	"utrecht", "delft", "leiden", "lille", "lyon", "nantes", "bordeaux",
-	"toulouse", "nice", "genoa", "bologna", "florence", "naples", "valencia",
-	"seville", "granada", "bilbao", "malaga", "faro", "split", "dubrovnik",
+// worktreeNames are the placeholder branch names: Dota 2 heroes, items, and
+// abilities, distinctive enough never to be mistaken for a task.
+var worktreeNames = []string{
+	"anti-mage", "axe", "bane", "bloodseeker", "bounty-hunter", "brewmaster",
+	"bristleback", "broodmother", "centaur-warrunner", "chaos-knight", "chen",
+	"clinkz", "clockwerk", "crystal-maiden", "dark-seer", "dark-willow",
+	"dawnbreaker", "dazzle", "death-prophet", "disruptor", "doom",
+	"dragon-knight", "drow-ranger", "earth-spirit", "earthshaker",
+	"elder-titan", "ember-spirit", "enchantress", "enigma", "faceless-void",
+	"grimstroke", "gyrocopter", "hoodwink", "huskar", "invoker", "io",
+	"jakiro", "juggernaut", "keeper-of-the-light", "kez", "kunkka",
+	"legion-commander", "leshrac", "lich", "lifestealer", "lina", "lion",
+	"lone-druid", "luna", "lycan", "magnus", "marci", "mars", "medusa",
+	"meepo", "mirana", "monkey-king", "morphling", "muerta", "naga-siren",
+	"natures-prophet", "necrophos", "night-stalker", "nyx-assassin",
+	"ogre-magi", "omniknight", "oracle", "outworld-destroyer", "pangolier",
+	"phantom-assassin", "phantom-lancer", "phoenix", "primal-beast", "puck",
+	"pudge", "pugna", "queen-of-pain", "razor", "riki", "ringmaster",
+	"rubick", "sand-king", "shadow-demon", "shadow-fiend", "shadow-shaman",
+	"silencer", "skywrath-mage", "slardar", "slark", "snapfire", "sniper",
+	"spectre", "spirit-breaker", "storm-spirit", "sven", "techies",
+	"templar-assassin", "terrorblade", "tidehunter", "timbersaw", "tinker",
+	"tiny", "treant-protector", "troll-warlord", "tusk", "underlord",
+	"undying", "ursa", "vengeful-spirit", "venomancer", "viper", "visage",
+	"void-spirit", "warlock", "weaver", "windranger", "winter-wyvern",
+	"witch-doctor", "wraith-king", "zeus",
+
+	"abyssal-blade", "aeon-disk", "aghanims-scepter", "assault-cuirass",
+	"blink-dagger", "black-king-bar", "bloodthorn", "butterfly",
+	"crimson-guard", "diffusal-blade", "divine-rapier", "echo-sabre",
+	"euls-scepter", "force-staff", "ghost-scepter", "glimmer-cape",
+	"guardian-greaves", "hand-of-midas", "harpoon", "heart-of-tarrasque",
+	"hurricane-pike", "khanda", "lotus-orb", "mage-slayer", "manta-style",
+	"orchid-malevolence", "phylactery", "pipe-of-insight", "radiance",
+	"refresher-orb", "sange-and-yasha", "shivas-guard", "skadi",
+	"travel-boots", "witch-blade",
+
+	"black-hole", "chain-frost", "chronosphere", "culling-blade",
+	"dream-coil", "echo-slam", "finger-of-death", "fissure", "frozen-touch",
+	"global-silence", "laguna-blade", "macropyre", "meat-hook", "omnislash",
+	"ravage", "requiem-of-souls", "reverse-polarity", "sonic-wave",
+	"thundergods-wrath", "time-lock", "vac-wall", "wall-of-replica",
 }
 
 func worktreesRoot() string {
@@ -159,8 +191,8 @@ func fetchBase(root, base string) {
 	_ = cmd.Run()
 }
 
-func randomCityName() string {
-	return worktreeCities[rand.IntN(len(worktreeCities))]
+func randomWorktreeName() string {
+	return worktreeNames[rand.IntN(len(worktreeNames))]
 }
 
 // uniqueWorktreeName avoids a local or remote branch, and a folder left by an
@@ -168,7 +200,7 @@ func randomCityName() string {
 func uniqueWorktreeName(root string) string {
 	dir := filepath.Join(worktreesRoot(), worktreeRepoName(root))
 	for i := 0; i < 60; i++ {
-		name := randomCityName()
+		name := randomWorktreeName()
 		if i > 0 {
 			name += "-" + strconv.Itoa(i+1)
 		}

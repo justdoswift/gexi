@@ -123,7 +123,7 @@ func TestWorktreeNamingContextIsOneShot(t *testing.T) {
 		ID: "p",
 		Worktree: &paneWorktree{
 			Path:   "/tmp/wt",
-			Branch: "kyoto",
+			Branch: "juggernaut",
 			Naming: true,
 		},
 	}
@@ -131,7 +131,7 @@ func TestWorktreeNamingContextIsOneShot(t *testing.T) {
 	w := &workspace{Projects: []*project{{ID: "pr", Dir: "/tmp", Sessions: []*session{s}}}}
 
 	ctx := w.worktreeNamingContext(p)
-	if !strings.Contains(ctx, "kyoto") || !strings.Contains(ctx, "git branch -m") {
+	if !strings.Contains(ctx, "juggernaut") || !strings.Contains(ctx, "git branch -m") {
 		t.Fatalf("naming context = %q", ctx)
 	}
 	if again := w.worktreeNamingContext(p); again != "" {
