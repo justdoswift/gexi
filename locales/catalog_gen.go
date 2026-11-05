@@ -584,6 +584,26 @@ func (msgs Messages) WorktreeMerge() string {
 	return Catalog.Format(msgs.locale, "worktreeMerge", nil)
 }
 
+// WorktreeMergePR says "Merge pull request"
+// in the language the app shows.
+func WorktreeMergePR() string { return In(i18n.Locale()).WorktreeMergePR() }
+
+// WorktreeMergePR says "Merge pull request"
+// in the language of msgs.
+func (msgs Messages) WorktreeMergePR() string {
+	return Catalog.Format(msgs.locale, "worktreeMergePR", nil)
+}
+
+// WorktreeOpenPR says "Open pull request"
+// in the language the app shows.
+func WorktreeOpenPR() string { return In(i18n.Locale()).WorktreeOpenPR() }
+
+// WorktreeOpenPR says "Open pull request"
+// in the language of msgs.
+func (msgs Messages) WorktreeOpenPR() string {
+	return Catalog.Format(msgs.locale, "worktreeOpenPR", nil)
+}
+
 // WorktreeMerging says "Merging pull request"
 // in the language the app shows.
 func WorktreeMerging() string { return In(i18n.Locale()).WorktreeMerging() }

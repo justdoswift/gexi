@@ -24,8 +24,8 @@ import (
 // A session may own a git worktree of its project: its own branch and folder,
 // so several sessions can work on the same repository at once. Conductor's
 // workspaces are the model. The branch starts with a city name, and the agent
-// renames it from the user's first request; the pane header then offers PR and
-// Merge.
+// renames it from the user's first request; the pane header then offers PR,
+// which opens the pull request and a menu to merge it.
 
 type paneWorktree struct {
 	Root   string `json:"root"`
@@ -1021,32 +1021,23 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 	w.worktreeLeaveButton(c, tk, p)
 }
 
-// worktreeButton is the PR / Merge control in the pane header, left of the
-// pane actions. It appears once the pane owns a worktree.
+// worktreeButton is the PR control in the pane header, left of the pane
+// actions. It appears once the pane owns a worktree: the first press opens a
+// pull request, and once one exists the same PR button opens a menu that
+// merges or opens it.
 func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	wt := p.Worktree
 	label := locales.WorktreePR()
-	action := func() { w.createPullRequest(p) }
 	color := tk.Foreground
 	busy := ""
-	switch {
-	case wt.State == worktreeMerged:
-		label = locales.WorktreeMerged()
-		color = tk.MutedForeground
-		action = func() {
-			if wt.URL != "" {
-				openPath(wt.URL)
-			}
-		}
-	case wt.busy == worktreeBusyPR:
+	switch wt.busy {
+	case worktreeBusyPR:
 		busy = locales.WorktreePROpening()
-		action = func() {}
-	case wt.busy == worktreeBusyMerge:
+	case worktreeBusyMerge:
 		busy = locales.WorktreeMerging()
-		action = func() {}
-	case wt.PR != 0:
-		label = locales.WorktreeMerge()
-		action = func() { w.mergePullRequest(p) }
+	}
+	if wt.State == worktreeMerged {
+		color = tk.MutedForeground
 	}
 	hint := wt.Branch + " → " + wt.Base
 	if wt.URL != "" {
@@ -1057,14 +1048,43 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	if el.Hovered() {
 		el = el.Background(tk.Control)
 	}
-	el.OnClick(action).Children(func() {
-		if busy != "" {
+	if busy != "" {
+		el.OnClick(func() {}).Children(func() {
 			worktreeSpinner(c, tk, busy)
-			return
-		}
+		})
+		return
+	}
+	if wt.PR != 0 {
+		el.Menu(func(m *ui.Menu) { w.worktreePRMenu(m, p) }).Children(func() {
+			// The label must not take the press: the row's menu opens on it.
+			ui.Text(c, label).FontSize(11).FontWeight(600).
+				TextColor(color).IgnoreInput(true)
+		})
+		return
+	}
+	action := func() { w.createPullRequest(p) }
+	el.OnClick(action).Children(func() {
 		ui.Text(c, label).FontSize(11).FontWeight(600).
 			TextColor(color).OnClick(action)
 	})
+}
+
+// worktreePRMenu fills the PR button's menu once a pull request exists. A
+// pull request that is still open offers its merge; the GitHub page opens
+// when gh reported one.
+func (w *workspace) worktreePRMenu(m *ui.Menu, p *pane) {
+	wt := p.Worktree
+	if wt == nil {
+		return
+	}
+	if wt.State == worktreeMerged {
+		m.Item(locales.WorktreeMerged()).Disabled(true)
+	} else if m.Item(locales.WorktreeMergePR()).Chosen() {
+		w.mergePullRequest(p)
+	}
+	if wt.URL != "" && m.Item(locales.WorktreeOpenPR()).Chosen() {
+		openPath(wt.URL)
+	}
 }
 
 // worktreeSpinner is a header button at work: the theme's spinner where the

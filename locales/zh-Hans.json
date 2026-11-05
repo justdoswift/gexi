@@ -55,6 +55,8 @@
   "worktreePR": "PR",
   "worktreePROpening": "正在创建 PR",
   "worktreeMerge": "Merge",
+  "worktreeMergePR": "合并 PR",
+  "worktreeOpenPR": "打开 PR",
   "worktreeMerging": "正在合并 PR",
   "worktreeMerged": "已合并",
   "worktreePROpened": "已创建 PR",
