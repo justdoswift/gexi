@@ -104,6 +104,16 @@ func (msgs Messages) MenuSplitDown() string {
 	return Catalog.Format(msgs.locale, "menuSplitDown", nil)
 }
 
+// MenuZoomPane says "Zoom Pane"
+// in the language the app shows.
+func MenuZoomPane() string { return In(i18n.Locale()).MenuZoomPane() }
+
+// MenuZoomPane says "Zoom Pane"
+// in the language of msgs.
+func (msgs Messages) MenuZoomPane() string {
+	return Catalog.Format(msgs.locale, "menuZoomPane", nil)
+}
+
 // MenuPreviousPane says "Previous Pane"
 // in the language the app shows.
 func MenuPreviousPane() string { return In(i18n.Locale()).MenuPreviousPane() }
@@ -202,6 +212,26 @@ func NoProject() string { return In(i18n.Locale()).NoProject() }
 // in the language of msgs.
 func (msgs Messages) NoProject() string {
 	return Catalog.Format(msgs.locale, "noProject", nil)
+}
+
+// PaneZoom says "Zoom pane"
+// in the language the app shows.
+func PaneZoom() string { return In(i18n.Locale()).PaneZoom() }
+
+// PaneZoom says "Zoom pane"
+// in the language of msgs.
+func (msgs Messages) PaneZoom() string {
+	return Catalog.Format(msgs.locale, "paneZoom", nil)
+}
+
+// PaneUnzoom says "Show all panes"
+// in the language the app shows.
+func PaneUnzoom() string { return In(i18n.Locale()).PaneUnzoom() }
+
+// PaneUnzoom says "Show all panes"
+// in the language of msgs.
+func (msgs Messages) PaneUnzoom() string {
+	return Catalog.Format(msgs.locale, "paneUnzoom", nil)
 }
 
 // DropSplitLeft says "Split left"
@@ -626,6 +656,16 @@ func ShortcutSplitDown() string { return In(i18n.Locale()).ShortcutSplitDown() }
 // in the language of msgs.
 func (msgs Messages) ShortcutSplitDown() string {
 	return Catalog.Format(msgs.locale, "shortcutSplitDown", nil)
+}
+
+// ShortcutZoomPane says "Zoom pane"
+// in the language the app shows.
+func ShortcutZoomPane() string { return In(i18n.Locale()).ShortcutZoomPane() }
+
+// ShortcutZoomPane says "Zoom pane"
+// in the language of msgs.
+func (msgs Messages) ShortcutZoomPane() string {
+	return Catalog.Format(msgs.locale, "shortcutZoomPane", nil)
 }
 
 // ShortcutPreviousPane says "Previous pane"

@@ -76,7 +76,28 @@ func (w *workspace) backdrop(tk tokens) ui.Color {
 
 func (w *workspace) canvas(c *ui.Context, tk tokens) {
 	if tb := w.selected(); tb != nil {
-		w.splitView(c, tk, tb.Root, true)
+		// A zoomed pane fills the session on its own: its tree is still
+		// there, so putting the others back is only a matter of drawing it.
+		// The layout changes in one frame, so the new one settles in with the
+		// same fade and scale a pane opens with.
+		// The stage grows into the new layout: no fade, which reads as a
+		// flash over a grid that is resizing at the same moment, but a scale
+		// big enough to see the pane settle into its new bounds.
+		pose := ui.Pose{}
+		if w.zoomSettling {
+			w.zoomSettling = false
+			pose = ui.Pose{Scale: 0.93}
+			c.After(time.Millisecond)
+		}
+		stage := ui.Column(c).Fill()
+		stage = stage.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
+		stage.Children(func() {
+			if p := w.zoomedIn(tb); p != nil {
+				w.paneView(c, tk, p, true)
+				return
+			}
+			w.splitView(c, tk, tb.Root, true)
+		})
 		return
 	}
 	// The empty workspace is a session's card with nothing in it: no
@@ -489,6 +510,10 @@ func (w *workspace) splitView(c *ui.Context, tk tokens, n *splitNode, leading bo
 	}
 }
 
+// zoomShortcut is the accelerator the menu and the pane's zoom button show,
+// written as macOS writes it on a Mac keyboard.
+const zoomShortcut = "⇧⌘↩"
+
 func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	bar := c.TitleBar()
 	focused := p.ID == w.FocusedPane
@@ -617,6 +642,14 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					actions.Children(func() {
 						iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
 						iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
+						// A pane with nowhere to go has nothing to zoom to.
+						if len(w.visiblePanes()) > 1 || w.zoomedPane == p.ID {
+							name, hint := "expand", locales.PaneZoom()+" ("+zoomShortcut+")"
+							if w.zoomedPane == p.ID {
+								name, hint = "collapse", locales.PaneUnzoom()+" ("+zoomShortcut+")"
+							}
+							iconButton(c, tk, name, func() { w.toggleZoom(p) }, hint)
+						}
 						iconButton(c, tk, "x", func() { w.requestClose(p) })
 					})
 				})

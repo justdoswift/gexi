@@ -7,6 +7,8 @@ let symbols: [(String, String)] = [
     ("gearshape", "setting"),
     ("rectangle.split.2x1", "columns-2"),
     ("rectangle.split.1x2", "rows-2"),
+    ("arrow.up.left.and.arrow.down.right", "expand"),
+    ("arrow.down.right.and.arrow.up.left", "collapse"),
     ("xmark", "x"),
     ("folder", "folder"),
     ("server.rack", "server"),

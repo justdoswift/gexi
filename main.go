@@ -146,6 +146,11 @@ func mainMenu(w *workspace) *mygo.Menu {
 		{Label: locales.MenuView(), Submenu: []*mygo.MenuItem{
 			{Label: locales.MenuSplitRight(), Accelerator: "CmdOrCtrl+D", Click: split(axisHorizontal)},
 			{Label: locales.MenuSplitDown(), Accelerator: "CmdOrCtrl+Shift+D", Click: split(axisVertical)},
+			{Label: locales.MenuZoomPane(), Accelerator: "CmdOrCtrl+Shift+Return", Click: func(*mygo.MenuItem, *mygo.Window) {
+				if p, err := w.resolvePane(""); err == nil {
+					w.toggleZoom(p)
+				}
+			}},
 			mygo.Separator(),
 			{Label: locales.MenuPreviousPane(), Accelerator: "CmdOrCtrl+[", Click: func(*mygo.MenuItem, *mygo.Window) { w.cyclePane(-1) }},
 			{Label: locales.MenuNextPane(), Accelerator: "CmdOrCtrl+]", Click: func(*mygo.MenuItem, *mygo.Window) { w.cyclePane(1) }},

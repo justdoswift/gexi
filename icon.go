@@ -128,9 +128,10 @@ func colorHex(c ui.Color) string {
 }
 
 // iconButton is a 26pt hit area with an SF Symbol and a quiet hover state,
-// in place of mygo's default button chrome.
-func iconButton(c *ui.Context, tk tokens, name string, action func()) {
-	iconButtonSized(c, tk, name, iconSize, 17, action)
+// in place of mygo's default button chrome. A hint, when given, is the
+// tooltip the pointer shows over it.
+func iconButton(c *ui.Context, tk tokens, name string, action func(), hint ...string) {
+	iconButtonSized(c, tk, name, iconSize, 17, action, hint...)
 }
 
 // iconButtonSmall is the list-row size: it sits quieter beside 12pt text.
@@ -156,13 +157,17 @@ func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu
 	})
 }
 
-func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32, action func()) {
+func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32, action func(), hint ...string) {
 	el := ui.Row(c).Width(size).Height(size).Radius(size / 2).
 		Center().Cursor(ui.CursorPointer)
 	if el.Hovered() {
 		el = el.Background(tk.Control)
 	}
-	el.OnClick(action).Children(func() {
+	el = el.OnClick(action)
+	if len(hint) > 0 && hint[0] != "" {
+		el = el.Tooltip(hint[0])
+	}
+	el.Children(func() {
 		if src := iconSource(name, colorHex(tk.MutedForeground)); src != nil {
 			// The image is its own hit target: a click on it does not
 			// reach the row behind it.

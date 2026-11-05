@@ -88,6 +88,11 @@ type workspace struct {
 	SelectedSession string
 	FocusedPane     string
 	focusReq        string
+	// zoomedPane fills the session on its own while set, so the other panes
+	// keep their places without being drawn. zoomSettling asks the next frame
+	// to fade and grow the layout in after a zoom changes.
+	zoomedPane   string
+	zoomSettling bool
 
 	win         *mygo.Window
 	settingsWin *mygo.Window
@@ -307,6 +312,7 @@ func (w *workspace) newSession(pr *project, command []string, dir string) (*sess
 	s := &session{ID: newID(), Root: leaf(p)}
 	pr.Sessions = append(pr.Sessions, s)
 	w.SelectedSession = s.ID
+	w.zoomedPane = ""
 	delete(w.collapsed, pr.ID)
 	w.FocusedPane = p.ID
 	w.focusReq = p.ID
@@ -331,6 +337,9 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 		return nil, fmt.Errorf("No such pane: %s", p.ID)
 	}
 	host.Root = host.Root.splitting(p.ID, ax, np)
+	// A split made while zoomed has to be visible, so the session comes
+	// back to showing all its panes.
+	w.zoomedPane = ""
 	w.FocusedPane = np.ID
 	w.focusReq = np.ID
 	w.invalidate()
@@ -405,6 +414,9 @@ func (w *workspace) requestClose(p *pane) {
 // closePane hangs up the pane's program and collapses its slot. Main thread.
 func (w *workspace) closePane(p *pane) {
 	p.close()
+	if w.zoomedPane == p.ID {
+		w.zoomedPane = ""
+	}
 outer:
 	for _, pr := range w.Projects {
 		for si, s := range pr.Sessions {
@@ -500,6 +512,7 @@ func (w *workspace) selectSession(id string) {
 		return
 	}
 	w.SelectedSession = s.ID
+	w.zoomedPane = ""
 	if pr := w.projectOf(s); pr != nil {
 		delete(w.collapsed, pr.ID)
 	}
@@ -531,6 +544,36 @@ func (w *workspace) focusPane(p *pane) {
 	}
 	w.invalidate()
 	w.scheduleSave()
+}
+
+// toggleZoom fills the session with p, or puts the other panes back when p
+// already fills it.
+func (w *workspace) toggleZoom(p *pane) {
+	if p == nil {
+		return
+	}
+	if w.zoomedPane == p.ID {
+		w.zoomedPane = ""
+	} else {
+		w.zoomedPane = p.ID
+		w.FocusedPane = p.ID
+		w.focusReq = p.ID
+	}
+	w.zoomSettling = true
+	w.invalidate()
+}
+
+// zoomedIn returns the pane the session is zoomed to. A pane that is gone
+// leaves the session unzoomed rather than blank.
+func (w *workspace) zoomedIn(s *session) *pane {
+	if w.zoomedPane == "" || s == nil || s.Root == nil {
+		return nil
+	}
+	p := s.Root.paneByID(w.zoomedPane)
+	if p == nil {
+		w.zoomedPane = ""
+	}
+	return p
 }
 
 // resolveSession accepts a full session id or any unique prefix.
@@ -630,6 +673,9 @@ func (w *workspace) cyclePane(delta int) {
 	if len(panes) < 2 {
 		return
 	}
+	// Moving between panes brings the whole layout back, so the pane the
+	// focus lands on is visible.
+	w.zoomedPane = ""
 	index := 0
 	for i, p := range panes {
 		if p.ID == w.FocusedPane {
