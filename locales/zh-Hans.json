@@ -93,6 +93,5 @@
   "notifyWaiting": "等你输入",
   "notifyAgent": "代理",
   "notifyCodeCopiedTitle": "连接码已复制",
-  "notifyCodeCopiedBody": "在另一台 Mac 的 Gexi 里粘贴。",
-  "planTitle": "计划"
+  "notifyCodeCopiedBody": "在另一台 Mac 的 Gexi 里粘贴。"
 }

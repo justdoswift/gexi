@@ -53,11 +53,7 @@ func runEventCommand(args []string) bool {
 
 // sendEvent hands one event to the running window and never fails loudly: a
 // hook may fire while Gexi is closed, and that must not disturb the agent.
-func sendEvent(params map[string]any) { sendQuiet("event", params) }
-
-// sendQuiet is the hook path for any control method: one request, one
-// response, and silence when the window is not there.
-func sendQuiet(method string, params map[string]any) {
+func sendEvent(params map[string]any) {
 	socket := os.Getenv("GEXI_SOCKET")
 	if socket == "" {
 		socket = socketPath()
@@ -68,7 +64,7 @@ func sendQuiet(method string, params map[string]any) {
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(time.Second))
-	req := map[string]any{"id": newID(), "method": method, "params": params}
+	req := map[string]any{"id": newID(), "method": "event", "params": params}
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
 		return
 	}

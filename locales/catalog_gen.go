@@ -977,13 +977,3 @@ func NotifyCodeCopiedBody() string { return In(i18n.Locale()).NotifyCodeCopiedBo
 func (msgs Messages) NotifyCodeCopiedBody() string {
 	return Catalog.Format(msgs.locale, "notifyCodeCopiedBody", nil)
 }
-
-// PlanTitle says "Plan"
-// in the language the app shows.
-func PlanTitle() string { return In(i18n.Locale()).PlanTitle() }
-
-// PlanTitle says "Plan"
-// in the language of msgs.
-func (msgs Messages) PlanTitle() string {
-	return Catalog.Format(msgs.locale, "planTitle", nil)
-}

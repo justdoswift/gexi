@@ -90,12 +90,6 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		Kind:    ev.Kind,
 		Since:   time.Now().Format(time.RFC3339),
 	}
-	// A new conversation starts with no plan, and a finished one leaves
-	// nothing behind to hover over.
-	if ev.Kind == "session.start" || ev.Kind == "session.end" {
-		p.plan = nil
-		p.planOpen = false
-	}
 	result["pane"] = p.ID
 	w.invalidate()
 
@@ -182,14 +176,10 @@ func installClaudeHooks() (string, error) {
 	command := func(kind string) string {
 		return shellQuote(bin) + " event " + kind + " --agent claude"
 	}
-	// Both the CLI's TodoWrite and the desktop's update_plan carry the whole
-	// list in one tool call, so the hook only has to forward its input.
-	planCommand := shellQuote(bin) + " plan --agent claude"
 	settings := map[string]any{
 		"hooks": map[string]any{
 			"SessionStart":     []any{hookEntry(command("session.start"), "")},
 			"UserPromptSubmit": []any{hookEntry(command("turn.start"), "")},
-			"PreToolUse":       []any{hookEntry(planCommand, "TodoWrite|mcp__ccd_turn__update_plan")},
 			"Stop":             []any{hookEntry(command("turn.end"), "")},
 			// Only a permission request blocks the agent. Claude Code also
 			// fires Notification for idle_prompt sixty seconds after a turn

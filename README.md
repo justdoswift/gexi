@@ -181,14 +181,6 @@ echo '{"session_id":"…"}' | gexi event turn.end --agent claude
 Events only cover agents Gexi launched or that a hook points at. A `claude`
 typed into a plain shell has no hooks, and there `activity` stays unset.
 
-### Plans
-
-A Claude Code pane reports its plan over the same hook file. When the agent
-writes a todo list (`TodoWrite`) or updates its plan
-(`mcp__ccd_turn__update_plan`), the pane header shows its progress as `2/5`:
-hovering previews the steps, and a click pins the full list. The same list is
-in `gexi list --json` under `plan`; it is not written to disk.
-
 ### Socket and storage
 
 The control socket lives at `$GEXI_HOME/control.sock`, or
@@ -214,7 +206,6 @@ The control socket lives at `$GEXI_HOME/control.sock`, or
   marshaling.
 - `split.go` — binary split tree (split / remove / collapse).
 - `pane.go` — one terminal per pane.
-- `plan.go` — the plan model and the Claude hook payload parser.
 - `ui.go` — sidebar, toolbar, recursive split rendering.
 - `control.go` — Unix socket server and the control methods.
 - `cmd/gexi` — the client.

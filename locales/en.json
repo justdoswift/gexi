@@ -93,6 +93,5 @@
   "notifyWaiting": "Waiting for you",
   "notifyAgent": "Agent",
   "notifyCodeCopiedTitle": "Connection code copied",
-  "notifyCodeCopiedBody": "Paste it in Gexi on the other Mac.",
-  "planTitle": "Plan"
+  "notifyCodeCopiedBody": "Paste it in Gexi on the other Mac."
 }

@@ -84,8 +84,6 @@ type pane struct {
 	baseRestore    []string // restoreCommand with no agent running
 	agent          *agentDetection
 	activity       *agentActivity // last hook event from the agent
-	plan           *panePlan      // the steps the agent last reported
-	planOpen       bool           // the header's plan panel is pinned
 	lastGroup      int
 	lastScan       time.Time
 	openedAt       time.Time

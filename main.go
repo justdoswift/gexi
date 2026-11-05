@@ -20,9 +20,6 @@ func main() {
 	if runEventCommand(os.Args[1:]) {
 		return
 	}
-	if runPlanCommand(os.Args[1:]) {
-		return
-	}
 
 	// Daily background checks in the manner of Sparkle; the menu item below
 	// opens the same window on demand.

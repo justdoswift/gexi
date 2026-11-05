@@ -16,8 +16,6 @@
 - New app icon and brand marks, the update window included.
 - A project stays when its last session closes, and an empty workspace
   draws a session card rather than a blank window.
-- A Claude Code pane shows its plan in the header as `2/5`; hovering previews
-  the steps and a click pins them. `gexi list --json` carries the same list.
 - The interface speaks English and Simplified Chinese, from View >
   Language or the system's.
 

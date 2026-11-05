@@ -36,7 +36,7 @@ func TestClaudeLaunchInjectsHooks(t *testing.T) {
 	if err := json.Unmarshal(data, &settings); err != nil {
 		t.Fatalf("hook settings are not JSON: %v", err)
 	}
-	for _, name := range []string{"SessionStart", "UserPromptSubmit", "PreToolUse", "Stop", "Notification", "SessionEnd"} {
+	for _, name := range []string{"SessionStart", "UserPromptSubmit", "Stop", "Notification", "SessionEnd"} {
 		entries := settings.Hooks[name]
 		if len(entries) == 0 || len(entries[0].Hooks) == 0 {
 			t.Fatalf("hook %s missing", name)
@@ -49,12 +49,6 @@ func TestClaudeLaunchInjectsHooks(t *testing.T) {
 	// the agent is blocked.
 	if got := settings.Hooks["Notification"][0].Matcher; got != "permission_prompt" {
 		t.Fatalf("Notification matcher is %q, want permission_prompt", got)
-	}
-	if got := settings.Hooks["PreToolUse"][0].Matcher; got != "TodoWrite|mcp__ccd_turn__update_plan" {
-		t.Fatalf("PreToolUse matcher is %q", got)
-	}
-	if cmd := settings.Hooks["PreToolUse"][0].Hooks[0].Command; !strings.Contains(cmd, " plan ") {
-		t.Fatalf("PreToolUse does not call plan: %s", cmd)
 	}
 
 	// Resume must keep the hook settings, or a restored pane goes silent.
