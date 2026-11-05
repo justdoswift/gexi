@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <g transform="translate(-61.4 -69) scale(1.12)">
+
+  <!-- the workspace: rounded panes inside one tile, one of them live -->
+  <rect x="170" y="186" width="684" height="666" rx="150" fill="#121212"/>
+  <rect x="244" y="262" width="322" height="514" rx="44" fill="#F8F6F5"/>
+  <rect x="596" y="262" width="212" height="228" rx="44" fill="#F8F6F5"/>
+  <rect x="596" y="522" width="212" height="254" rx="44" fill="#121212"/>
+
+</g>
+</svg>
