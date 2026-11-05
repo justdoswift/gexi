@@ -78,11 +78,23 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 	if tb := w.selected(); tb != nil {
 		// A zoomed pane fills the session on its own: its tree is still
 		// there, so putting the others back is only a matter of drawing it.
-		if p := w.zoomedIn(tb); p != nil {
-			w.paneView(c, tk, p, true)
-			return
+		// The layout changes in one frame, so the new one settles in with the
+		// same fade and scale a pane opens with.
+		pose := ui.Pose{}
+		if w.zoomSettling {
+			w.zoomSettling = false
+			pose = ui.Pose{Fade: 1, Scale: 0.98}
+			c.After(time.Millisecond)
 		}
-		w.splitView(c, tk, tb.Root, true)
+		stage := ui.Column(c).Fill()
+		stage = stage.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
+		stage.Children(func() {
+			if p := w.zoomedIn(tb); p != nil {
+				w.paneView(c, tk, p, true)
+				return
+			}
+			w.splitView(c, tk, tb.Root, true)
+		})
 		return
 	}
 	// The empty workspace is a session's card with nothing in it: no

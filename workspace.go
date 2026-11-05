@@ -89,8 +89,10 @@ type workspace struct {
 	FocusedPane     string
 	focusReq        string
 	// zoomedPane fills the session on its own while set, so the other panes
-	// keep their places without being drawn.
-	zoomedPane string
+	// keep their places without being drawn. zoomSettling asks the next frame
+	// to fade and grow the layout in after a zoom changes.
+	zoomedPane   string
+	zoomSettling bool
 
 	win         *mygo.Window
 	settingsWin *mygo.Window
@@ -557,6 +559,7 @@ func (w *workspace) toggleZoom(p *pane) {
 		w.FocusedPane = p.ID
 		w.focusReq = p.ID
 	}
+	w.zoomSettling = true
 	w.invalidate()
 }
 
