@@ -8,9 +8,9 @@
 
 ## 0.0.9
 
-- The sidebar's activity loader is the three-petal spiral from
-  math-curve-loaders: a particle comet running round a breathing, slowly
-  turning curve while an agent works, frozen on one frame while it waits.
+- The sidebar says an agent is at work by running a band of light across the
+  session's name instead of showing a spinner beside it: the label shimmers
+  while the agent works and holds full ink while it waits for you.
 
 ## 0.0.8
 
