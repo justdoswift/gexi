@@ -4,6 +4,9 @@
 
 - The icon is transparent around its rounded shape, so the development
   build and the packages for other platforms no longer show white corners.
+- The sidebar's activity loader is the thinking orb from libraries.dev/orbs:
+  particles on tilted orbits while an agent works, one still frame while it
+  waits for you.
 
 ## 0.0.5
 

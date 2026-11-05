@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -397,53 +396,33 @@ func (w *workspace) projectVisible(pr *project) bool {
 	return false
 }
 
-// activityLoader is the sidebar's grid loader, after loaders.wtf: a short
-// row of dots that lights up in sequence while an agent works. Waiting shows
-// the same dots holding still in amber, so the two states differ by motion
-// and colour, not shape.
+// activityLoader is the sidebar's thinking orb, after libraries.dev/orbs: a
+// small sphere of dots whose particles run on tilted orbits while an agent
+// works. Waiting freezes the same orb on one frame, so the two states differ
+// by motion alone. The orb is monochrome — black on a light window, white on
+// a dark one.
 func (w *workspace) activityLoader(c *ui.Context, tk tokens, state string, pick func()) {
 	// The slot keeps its width when the loader is off, so nothing in the row
 	// shifts as agents start and stop.
-	box := ui.Row(c).Width(loaderWidth).Height(8).Gap(3).AlignItems(ui.Center)
+	box := ui.Row(c).Width(loaderWidth).Height(orbSize).AlignItems(ui.Center)
 	box.OnClick(pick).Children(func() {
 		if state == "" {
 			return
 		}
-		color := tk.Working
-		if state == activityWaiting {
-			color = tk.Waiting
-		}
-		phase := 0.0
+		t := 0.6
 		if state == activityWorking {
-			phase = loaderPhase(c)
+			t = orbPhase(c)
 		}
-		for i := range 3 {
-			alpha := float32(1)
-			if state == activityWorking {
-				alpha = dotAlpha(phase, i)
-			}
-			ui.Column(c).Width(5).Height(5).Radius(1.5).Background(color).
-				Opacity(alpha).OnClick(pick)
-		}
+		dark := c.Theme().Dark
+		ui.Box(c).Size(orbSize, orbSize).OnClick(pick).
+			Draw(func(p *ui.Painter, r ui.Rect) {
+				drawOrb(p, r, t, dark)
+			})
 	})
 }
 
-// loaderPhase advances the wave and keeps frames coming while it runs.
-func loaderPhase(c *ui.Context) float64 {
-	const period = 900 * time.Millisecond
-	c.After(33 * time.Millisecond)
-	return float64(time.Now().UnixMilli()%period.Milliseconds()) / float64(period.Milliseconds())
-}
-
-// dotAlpha gives each dot the same wave a third of a cycle apart, so the row
-// reads as one pulse travelling right.
-func dotAlpha(phase float64, i int) float32 {
-	s := math.Sin(2 * math.Pi * (phase - float64(i)/3))
-	return float32(0.15 + 0.85*(0.5+0.5*s))
-}
-
-// loaderWidth is three 5pt dots and the 3pt gaps between them.
-const loaderWidth float32 = 21
+// loaderWidth is the orb's slot in the session row.
+const loaderWidth float32 = orbSize
 
 // sessionActivityState folds the panes' hook events into one sidebar indicator.
 func sessionActivityState(s *session) string {
