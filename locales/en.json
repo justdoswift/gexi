@@ -131,5 +131,8 @@
   "drawerBinary": "Binary file",
   "drawerTooLarge": "This file is too large to show.",
   "drawerLoading": "Loading…",
-  "drawerOpenChanges": "Open changes"
+  "drawerOpenChanges": "Open changes",
+  "remoteMenuHint": "Remote Macs",
+  "closeProject": "Close Project",
+  "closeSession": "Close Session"
 }

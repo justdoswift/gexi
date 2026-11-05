@@ -153,7 +153,8 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 			// under the header, so the title bar keeps only the drag area.
 			ui.Row(c).Height(searchHeight).Padding(8, 8, 0, 8).Gap(6).Children(func() {
 				w.projectSearch(c, tk)
-				iconButtonSized(c, tk, "plus", 24, 19, func() { w.pickProject() })
+				iconButtonSized(c, tk, "plus", 24, 19, func() { w.pickProject() },
+					locales.ShortcutNewProject()+" (⌘⇧N)")
 			})
 			ui.Column(c).Fill().Padding(8).Gap(1).Children(func() {
 				shown := false
@@ -173,9 +174,10 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 				// the left, settings on the right, off the search row so the
 				// field can run nearly as wide as the sessions.
 				ui.Row(c).Height(iconSize).Gap(2).Children(func() {
-					iconMenuButton(c, tk, "server", w.remoteMenu)
+					iconMenuButton(c, tk, "server", w.remoteMenu, locales.RemoteMenuHint())
 					ui.Spacer(c)
-					iconButton(c, tk, "setting", func() { w.openSettings() })
+					iconButton(c, tk, "setting", func() { w.openSettings() },
+						locales.ShortcutSettings()+" (⌘,)")
 				})
 			})
 		})
@@ -305,7 +307,7 @@ func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
 		w.settings.SidebarCollapsed = !w.settings.SidebarCollapsed
 		w.settings.save()
 		w.invalidate()
-	})
+	}, locales.ShortcutToggleSidebar()+" (⌘B)")
 }
 
 // projectIcon marks where a project runs: a folder on this machine, or a
@@ -345,8 +347,9 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 		ui.Text(c, pr.name()).FontSize(12).FontWeight(500).SingleLine().TextColor(color).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		if hovered {
-			iconButtonSmall(c, tk, "plus", func() { _, _ = w.newSession(pr, nil, pr.Dir) })
-			iconButtonSmall(c, tk, "x", func() { w.closeProject(pr) })
+			iconButtonSmall(c, tk, "plus", func() { _, _ = w.newSession(pr, nil, pr.Dir) },
+				locales.ShortcutNewSession()+" (⌘T)")
+			iconButtonSmall(c, tk, "x", func() { w.closeProject(pr) }, locales.CloseProject())
 		}
 	})
 	if !open {
@@ -383,7 +386,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		sessionLabelElement(c, tk, s, color, pick)
 		ui.Spacer(c).OnClick(pick)
 		if hovered {
-			iconButtonSmall(c, tk, "x", func() { w.closeSession(s) })
+			iconButtonSmall(c, tk, "x", func() { w.closeSession(s) }, locales.CloseSession())
 		}
 	})
 }
@@ -664,8 +667,10 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						// out: splitting and zooming are in the View menu, and
 						// a clipped button is worse than an absent one.
 						if width == 0 || width >= 380 {
-							iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
-							iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
+							iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) },
+								locales.MenuSplitRight()+" (⌘D)")
+							iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) },
+								locales.MenuSplitDown()+" (⌘⇧D)")
 							// A pane with nowhere to go has nothing to zoom to.
 							if len(w.visiblePanes()) > 1 || w.zoomedPane == p.ID {
 								name, hint := "expand", locales.PaneZoom()+" ("+zoomShortcut+")"
@@ -675,7 +680,8 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 								iconButton(c, tk, name, func() { w.toggleZoom(p) }, hint)
 							}
 						}
-						iconButton(c, tk, "x", func() { w.requestClose(p) })
+						iconButton(c, tk, "x", func() { w.requestClose(p) },
+							locales.MenuClosePane()+" (⌘W)")
 					})
 				})
 			})

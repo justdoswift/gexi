@@ -131,5 +131,8 @@
   "drawerBinary": "二进制文件",
   "drawerTooLarge": "文件太大，无法显示。",
   "drawerLoading": "加载中…",
-  "drawerOpenChanges": "查看改动"
+  "drawerOpenChanges": "查看改动",
+  "remoteMenuHint": "远程 Mac",
+  "closeProject": "关闭项目",
+  "closeSession": "关闭会话"
 }
