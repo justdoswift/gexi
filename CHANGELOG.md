@@ -4,7 +4,8 @@
 
 - A files drawer on the right shows the project's changes and files: the
   changes tab opens a file's diff, the files tab walks the folder tree and
-  reads a file in place. ⌘⇧E or the folder button in the sidebar opens it.
+  reads a file in place. The folder button in the window's top-right corner,
+  View > Toggle Files, or ⌘⇧E opens it.
 
 ## 0.0.10
 

@@ -127,6 +127,12 @@ func (w *workspace) drawerDir() string {
 	return pr.Dir
 }
 
+// drawerToggle is the window's own button for the drawer, always in the same
+// corner rather than fading in with a pane's actions.
+func (w *workspace) drawerToggle(c *ui.Context, tk tokens) {
+	iconButton(c, tk, "folder", func() { w.toggleDrawer() }, locales.MenuToggleFiles())
+}
+
 func (w *workspace) toggleDrawer() {
 	if w.drawer.open {
 		w.closeDrawer()
