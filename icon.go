@@ -13,9 +13,10 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The chrome uses Apple's SF Symbols, rendered to PNGs by
-// scripts/render-icons.swift so they keep the system's proportions; each is
-// tinted at use, so one asset serves both themes.
+// Chrome glyphs are alpha masks tinted at use, so one asset serves both
+// themes. scripts/render-icons.swift draws them from Apple's SF Symbols;
+// this branch swaps in IconMCP's outlines, rendered by
+// scripts/render-iconmcp.mjs from the definitions in icons/iconmcp.json.
 //
 //go:embed icons/*.png
 var iconFiles embed.FS
