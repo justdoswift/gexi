@@ -27,6 +27,10 @@ func main() {
 
 	w := newWorkspace()
 
+	// Start in the appearance the user pinned, so the first frame is right
+	// instead of flashing the system's. "" follows the system.
+	mygo.Theme.SetSource(appearanceSource(w.settings.Appearance))
+
 	// Panes are built after the window is ready; the font has to be in
 	// Core Text before the first terminal measures a cell.
 	registerTerminalFont()

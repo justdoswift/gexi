@@ -424,6 +424,46 @@ func (msgs Messages) PaneCompact() string {
 	return Catalog.Format(msgs.locale, "paneCompact", nil)
 }
 
+// SettingsAppearance says "Appearance"
+// in the language the app shows.
+func SettingsAppearance() string { return In(i18n.Locale()).SettingsAppearance() }
+
+// SettingsAppearance says "Appearance"
+// in the language of msgs.
+func (msgs Messages) SettingsAppearance() string {
+	return Catalog.Format(msgs.locale, "settingsAppearance", nil)
+}
+
+// AppearanceAutomatic says "Automatic"
+// in the language the app shows.
+func AppearanceAutomatic() string { return In(i18n.Locale()).AppearanceAutomatic() }
+
+// AppearanceAutomatic says "Automatic"
+// in the language of msgs.
+func (msgs Messages) AppearanceAutomatic() string {
+	return Catalog.Format(msgs.locale, "appearanceAutomatic", nil)
+}
+
+// AppearanceLight says "Light"
+// in the language the app shows.
+func AppearanceLight() string { return In(i18n.Locale()).AppearanceLight() }
+
+// AppearanceLight says "Light"
+// in the language of msgs.
+func (msgs Messages) AppearanceLight() string {
+	return Catalog.Format(msgs.locale, "appearanceLight", nil)
+}
+
+// AppearanceDark says "Dark"
+// in the language the app shows.
+func AppearanceDark() string { return In(i18n.Locale()).AppearanceDark() }
+
+// AppearanceDark says "Dark"
+// in the language of msgs.
+func (msgs Messages) AppearanceDark() string {
+	return Catalog.Format(msgs.locale, "appearanceDark", nil)
+}
+
 // SettingsRestoreScreen says "Restore last screen"
 // in the language the app shows.
 func SettingsRestoreScreen() string { return In(i18n.Locale()).SettingsRestoreScreen() }

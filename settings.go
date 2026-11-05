@@ -23,6 +23,9 @@ type appSettings struct {
 	// Language is the language the app shows: "" follows the system's
 	// languages, "en" and "zh-Hans" pin one.
 	Language string `json:"language"`
+	// Appearance is the light/dark the app draws: "" follows the system,
+	// "light" and "dark" pin one.
+	Appearance string `json:"appearance"`
 
 	// Remote access: either this Mac is reachable through a relay, or it
 	// keeps codes imported from other Macs.
@@ -36,6 +39,9 @@ type appSettings struct {
 const (
 	paneComfortable = "comfortable"
 	paneCompact     = "compact"
+
+	appearanceLight = "light"
+	appearanceDark  = "dark"
 )
 
 func defaultSettings() appSettings {
@@ -57,7 +63,23 @@ func loadSettings() appSettings {
 	if s.PaneStyle != paneCompact {
 		s.PaneStyle = paneComfortable
 	}
+	if s.Appearance != appearanceLight && s.Appearance != appearanceDark {
+		s.Appearance = ""
+	}
 	return s
+}
+
+// appearanceSource turns the saved preference into what mygo wants: ""
+// follows the system.
+func appearanceSource(value string) mygo.ThemeSource {
+	switch value {
+	case appearanceLight:
+		return mygo.ThemeLight
+	case appearanceDark:
+		return mygo.ThemeDark
+	default:
+		return mygo.ThemeSystem
+	}
 }
 
 func (s appSettings) save() {
@@ -224,6 +246,8 @@ func (w *workspace) generalPage(c *ui.Context, tk tokens) {
 	settingsCard(c, tk, func() {
 		w.paneStyleRow(c, tk)
 		cardDivider(c, tk)
+		w.appearanceRow(c, tk)
+		cardDivider(c, tk)
 		w.settingRowView(c, tk, settingRow{
 			title:  locales.SettingsShowSidebar(),
 			detail: locales.SettingsShowSidebarDetail(),
@@ -387,6 +411,27 @@ func (w *workspace) paneStyleRow(c *ui.Context, tk tokens) {
 			w.invalidate()
 		})
 	})
+}
+
+// appearanceRow pins the app's light or dark look, or follows the system's.
+func (w *workspace) appearanceRow(c *ui.Context, tk tokens) {
+	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
+		ui.Text(c, locales.SettingsAppearance()).FontSize(13).TextColor(tk.Foreground)
+		ui.Spacer(c)
+		w.segmented(c, tk, []segment{
+			{value: "", label: locales.AppearanceAutomatic()},
+			{value: appearanceLight, label: locales.AppearanceLight()},
+			{value: appearanceDark, label: locales.AppearanceDark()},
+		}, w.settings.Appearance, w.setAppearance)
+	})
+}
+
+// setAppearance saves the choice and hands it to mygo, which restyles every
+// window — the main one and this settings window — on the spot.
+func (w *workspace) setAppearance(value string) {
+	w.settings.Appearance = value
+	w.settings.save()
+	mygo.Theme.SetSource(appearanceSource(value))
 }
 
 // languageRow pins the app's language, or leaves it to the system's.
