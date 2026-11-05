@@ -1,13 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.0.9
 
 - A pane zooms to fill the session with ⌘⇧↩ or the expand button in its
   header; the inward arrow it turns into, or the same shortcut, brings every
   pane back.
-
-## 0.0.9
-
+- The chrome's glyphs are IconMCP outlines, tuned to the weight and ink of
+  the SF Symbols they replace.
 - The sidebar says an agent is at work by running a band of light across the
   session's name instead of showing a spinner beside it: the label shimmers
   while the agent works and holds full ink while it waits for you.
