@@ -204,6 +204,66 @@ func (msgs Messages) NoProject() string {
 	return Catalog.Format(msgs.locale, "noProject", nil)
 }
 
+// DropSplitLeft says "Split left"
+// in the language the app shows.
+func DropSplitLeft() string { return In(i18n.Locale()).DropSplitLeft() }
+
+// DropSplitLeft says "Split left"
+// in the language of msgs.
+func (msgs Messages) DropSplitLeft() string {
+	return Catalog.Format(msgs.locale, "dropSplitLeft", nil)
+}
+
+// DropSplitRight says "Split right"
+// in the language the app shows.
+func DropSplitRight() string { return In(i18n.Locale()).DropSplitRight() }
+
+// DropSplitRight says "Split right"
+// in the language of msgs.
+func (msgs Messages) DropSplitRight() string {
+	return Catalog.Format(msgs.locale, "dropSplitRight", nil)
+}
+
+// DropSplitUp says "Split up"
+// in the language the app shows.
+func DropSplitUp() string { return In(i18n.Locale()).DropSplitUp() }
+
+// DropSplitUp says "Split up"
+// in the language of msgs.
+func (msgs Messages) DropSplitUp() string {
+	return Catalog.Format(msgs.locale, "dropSplitUp", nil)
+}
+
+// DropSplitDown says "Split down"
+// in the language the app shows.
+func DropSplitDown() string { return In(i18n.Locale()).DropSplitDown() }
+
+// DropSplitDown says "Split down"
+// in the language of msgs.
+func (msgs Messages) DropSplitDown() string {
+	return Catalog.Format(msgs.locale, "dropSplitDown", nil)
+}
+
+// DropSwapPanes says "Swap panes"
+// in the language the app shows.
+func DropSwapPanes() string { return In(i18n.Locale()).DropSwapPanes() }
+
+// DropSwapPanes says "Swap panes"
+// in the language of msgs.
+func (msgs Messages) DropSwapPanes() string {
+	return Catalog.Format(msgs.locale, "dropSwapPanes", nil)
+}
+
+// PaneDragHint says "Drag to move this pane"
+// in the language the app shows.
+func PaneDragHint() string { return In(i18n.Locale()).PaneDragHint() }
+
+// PaneDragHint says "Drag to move this pane"
+// in the language of msgs.
+func (msgs Messages) PaneDragHint() string {
+	return Catalog.Format(msgs.locale, "paneDragHint", nil)
+}
+
 // SettingsTitle says "Settings"
 // in the language the app shows.
 func SettingsTitle() string { return In(i18n.Locale()).SettingsTitle() }
@@ -214,14 +274,94 @@ func (msgs Messages) SettingsTitle() string {
 	return Catalog.Format(msgs.locale, "settingsTitle", nil)
 }
 
-// SettingsPanes says "Panes"
+// SettingsGeneral says "General"
 // in the language the app shows.
-func SettingsPanes() string { return In(i18n.Locale()).SettingsPanes() }
+func SettingsGeneral() string { return In(i18n.Locale()).SettingsGeneral() }
 
-// SettingsPanes says "Panes"
+// SettingsGeneral says "General"
 // in the language of msgs.
-func (msgs Messages) SettingsPanes() string {
-	return Catalog.Format(msgs.locale, "settingsPanes", nil)
+func (msgs Messages) SettingsGeneral() string {
+	return Catalog.Format(msgs.locale, "settingsGeneral", nil)
+}
+
+// SettingsGeneralSessions says "Sessions"
+// in the language the app shows.
+func SettingsGeneralSessions() string { return In(i18n.Locale()).SettingsGeneralSessions() }
+
+// SettingsGeneralSessions says "Sessions"
+// in the language of msgs.
+func (msgs Messages) SettingsGeneralSessions() string {
+	return Catalog.Format(msgs.locale, "settingsGeneralSessions", nil)
+}
+
+// SettingsGeneralInterface says "Interface"
+// in the language the app shows.
+func SettingsGeneralInterface() string { return In(i18n.Locale()).SettingsGeneralInterface() }
+
+// SettingsGeneralInterface says "Interface"
+// in the language of msgs.
+func (msgs Messages) SettingsGeneralInterface() string {
+	return Catalog.Format(msgs.locale, "settingsGeneralInterface", nil)
+}
+
+// SettingsShowSidebar says "Show sidebar"
+// in the language the app shows.
+func SettingsShowSidebar() string { return In(i18n.Locale()).SettingsShowSidebar() }
+
+// SettingsShowSidebar says "Show sidebar"
+// in the language of msgs.
+func (msgs Messages) SettingsShowSidebar() string {
+	return Catalog.Format(msgs.locale, "settingsShowSidebar", nil)
+}
+
+// SettingsShowSidebarDetail says "Hide the session list to give the window to panes."
+// in the language the app shows.
+func SettingsShowSidebarDetail() string { return In(i18n.Locale()).SettingsShowSidebarDetail() }
+
+// SettingsShowSidebarDetail says "Hide the session list to give the window to panes."
+// in the language of msgs.
+func (msgs Messages) SettingsShowSidebarDetail() string {
+	return Catalog.Format(msgs.locale, "settingsShowSidebarDetail", nil)
+}
+
+// SettingsLanguage says "Language"
+// in the language the app shows.
+func SettingsLanguage() string { return In(i18n.Locale()).SettingsLanguage() }
+
+// SettingsLanguage says "Language"
+// in the language of msgs.
+func (msgs Messages) SettingsLanguage() string {
+	return Catalog.Format(msgs.locale, "settingsLanguage", nil)
+}
+
+// SettingsKeyboard says "Keyboard"
+// in the language the app shows.
+func SettingsKeyboard() string { return In(i18n.Locale()).SettingsKeyboard() }
+
+// SettingsKeyboard says "Keyboard"
+// in the language of msgs.
+func (msgs Messages) SettingsKeyboard() string {
+	return Catalog.Format(msgs.locale, "settingsKeyboard", nil)
+}
+
+// SettingsAdvanced says "Advanced"
+// in the language the app shows.
+func SettingsAdvanced() string { return In(i18n.Locale()).SettingsAdvanced() }
+
+// SettingsAdvanced says "Advanced"
+// in the language of msgs.
+func (msgs Messages) SettingsAdvanced() string {
+	return Catalog.Format(msgs.locale, "settingsAdvanced", nil)
+}
+
+// SettingsOpenConfig says "Open config file"
+// in the language the app shows.
+func SettingsOpenConfig() string { return In(i18n.Locale()).SettingsOpenConfig() }
+
+// SettingsOpenConfig says "Open config file"
+// in the language of msgs.
+func (msgs Messages) SettingsOpenConfig() string {
+	return Catalog.Format(msgs.locale, "settingsOpenConfig", nil)
 }
 
 // SettingsPaneStyle says "Pane style"
@@ -252,16 +392,6 @@ func PaneCompact() string { return In(i18n.Locale()).PaneCompact() }
 // in the language of msgs.
 func (msgs Messages) PaneCompact() string {
 	return Catalog.Format(msgs.locale, "paneCompact", nil)
-}
-
-// SettingsWorkspace says "Workspace"
-// in the language the app shows.
-func SettingsWorkspace() string { return In(i18n.Locale()).SettingsWorkspace() }
-
-// SettingsWorkspace says "Workspace"
-// in the language of msgs.
-func (msgs Messages) SettingsWorkspace() string {
-	return Catalog.Format(msgs.locale, "settingsWorkspace", nil)
 }
 
 // SettingsRestoreScreen says "Restore last screen"
@@ -314,6 +444,78 @@ func (msgs Messages) SettingsKeepRemoteDetail() string {
 	return Catalog.Format(msgs.locale, "settingsKeepRemoteDetail", nil)
 }
 
+// SettingsThisMac says "This Mac"
+// in the language the app shows.
+func SettingsThisMac() string { return In(i18n.Locale()).SettingsThisMac() }
+
+// SettingsThisMac says "This Mac"
+// in the language of msgs.
+func (msgs Messages) SettingsThisMac() string {
+	return Catalog.Format(msgs.locale, "settingsThisMac", nil)
+}
+
+// SettingsRemoteAccess says "Remote access"
+// in the language the app shows.
+func SettingsRemoteAccess() string { return In(i18n.Locale()).SettingsRemoteAccess() }
+
+// SettingsRemoteAccess says "Remote access"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteAccess() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteAccess", nil)
+}
+
+// SettingsRemoteOn says "Reachable as {name} · {state}"
+// in the language the app shows.
+func SettingsRemoteOn(name string, state string) string {
+	return In(i18n.Locale()).SettingsRemoteOn(name, state)
+}
+
+// SettingsRemoteOn says "Reachable as {name} · {state}"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteOn(name string, state string) string {
+	return Catalog.Format(msgs.locale, "settingsRemoteOn", map[string]any{"name": name, "state": state})
+}
+
+// SettingsRemoteOff says "Off — turn it on from the Remote menu in the sidebar."
+// in the language the app shows.
+func SettingsRemoteOff() string { return In(i18n.Locale()).SettingsRemoteOff() }
+
+// SettingsRemoteOff says "Off — turn it on from the Remote menu in the sidebar."
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteOff() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteOff", nil)
+}
+
+// SettingsRemoteReachable says "reachable"
+// in the language the app shows.
+func SettingsRemoteReachable() string { return In(i18n.Locale()).SettingsRemoteReachable() }
+
+// SettingsRemoteReachable says "reachable"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteReachable() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteReachable", nil)
+}
+
+// SettingsRemoteReconnecting says "reconnecting"
+// in the language the app shows.
+func SettingsRemoteReconnecting() string { return In(i18n.Locale()).SettingsRemoteReconnecting() }
+
+// SettingsRemoteReconnecting says "reconnecting"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteReconnecting() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteReconnecting", nil)
+}
+
+// SettingsCopyCode says "Copy code"
+// in the language the app shows.
+func SettingsCopyCode() string { return In(i18n.Locale()).SettingsCopyCode() }
+
+// SettingsCopyCode says "Copy code"
+// in the language of msgs.
+func (msgs Messages) SettingsCopyCode() string {
+	return Catalog.Format(msgs.locale, "settingsCopyCode", nil)
+}
+
 // SettingsNotifications says "Notifications"
 // in the language the app shows.
 func SettingsNotifications() string { return In(i18n.Locale()).SettingsNotifications() }
@@ -346,6 +548,26 @@ func (msgs Messages) SettingsDesktopNotificationsDetail() string {
 	return Catalog.Format(msgs.locale, "settingsDesktopNotificationsDetail", nil)
 }
 
+// SettingsNotifyTest says "Test notification"
+// in the language the app shows.
+func SettingsNotifyTest() string { return In(i18n.Locale()).SettingsNotifyTest() }
+
+// SettingsNotifyTest says "Test notification"
+// in the language of msgs.
+func (msgs Messages) SettingsNotifyTest() string {
+	return Catalog.Format(msgs.locale, "settingsNotifyTest", nil)
+}
+
+// SettingsNotifyTestDetail says "Checks that a banner reaches this Mac."
+// in the language the app shows.
+func SettingsNotifyTestDetail() string { return In(i18n.Locale()).SettingsNotifyTestDetail() }
+
+// SettingsNotifyTestDetail says "Checks that a banner reaches this Mac."
+// in the language of msgs.
+func (msgs Messages) SettingsNotifyTestDetail() string {
+	return Catalog.Format(msgs.locale, "settingsNotifyTestDetail", nil)
+}
+
 // SettingsSendTest says "Send test"
 // in the language the app shows.
 func SettingsSendTest() string { return In(i18n.Locale()).SettingsSendTest() }
@@ -354,6 +576,166 @@ func SettingsSendTest() string { return In(i18n.Locale()).SettingsSendTest() }
 // in the language of msgs.
 func (msgs Messages) SettingsSendTest() string {
 	return Catalog.Format(msgs.locale, "settingsSendTest", nil)
+}
+
+// SettingsShortcuts says "Shortcuts"
+// in the language the app shows.
+func SettingsShortcuts() string { return In(i18n.Locale()).SettingsShortcuts() }
+
+// SettingsShortcuts says "Shortcuts"
+// in the language of msgs.
+func (msgs Messages) SettingsShortcuts() string {
+	return Catalog.Format(msgs.locale, "settingsShortcuts", nil)
+}
+
+// ShortcutNewSession says "New session"
+// in the language the app shows.
+func ShortcutNewSession() string { return In(i18n.Locale()).ShortcutNewSession() }
+
+// ShortcutNewSession says "New session"
+// in the language of msgs.
+func (msgs Messages) ShortcutNewSession() string {
+	return Catalog.Format(msgs.locale, "shortcutNewSession", nil)
+}
+
+// ShortcutNewProject says "New project"
+// in the language the app shows.
+func ShortcutNewProject() string { return In(i18n.Locale()).ShortcutNewProject() }
+
+// ShortcutNewProject says "New project"
+// in the language of msgs.
+func (msgs Messages) ShortcutNewProject() string {
+	return Catalog.Format(msgs.locale, "shortcutNewProject", nil)
+}
+
+// ShortcutSplitRight says "Split right"
+// in the language the app shows.
+func ShortcutSplitRight() string { return In(i18n.Locale()).ShortcutSplitRight() }
+
+// ShortcutSplitRight says "Split right"
+// in the language of msgs.
+func (msgs Messages) ShortcutSplitRight() string {
+	return Catalog.Format(msgs.locale, "shortcutSplitRight", nil)
+}
+
+// ShortcutSplitDown says "Split down"
+// in the language the app shows.
+func ShortcutSplitDown() string { return In(i18n.Locale()).ShortcutSplitDown() }
+
+// ShortcutSplitDown says "Split down"
+// in the language of msgs.
+func (msgs Messages) ShortcutSplitDown() string {
+	return Catalog.Format(msgs.locale, "shortcutSplitDown", nil)
+}
+
+// ShortcutPreviousPane says "Previous pane"
+// in the language the app shows.
+func ShortcutPreviousPane() string { return In(i18n.Locale()).ShortcutPreviousPane() }
+
+// ShortcutPreviousPane says "Previous pane"
+// in the language of msgs.
+func (msgs Messages) ShortcutPreviousPane() string {
+	return Catalog.Format(msgs.locale, "shortcutPreviousPane", nil)
+}
+
+// ShortcutNextPane says "Next pane"
+// in the language the app shows.
+func ShortcutNextPane() string { return In(i18n.Locale()).ShortcutNextPane() }
+
+// ShortcutNextPane says "Next pane"
+// in the language of msgs.
+func (msgs Messages) ShortcutNextPane() string {
+	return Catalog.Format(msgs.locale, "shortcutNextPane", nil)
+}
+
+// ShortcutClosePane says "Close pane"
+// in the language the app shows.
+func ShortcutClosePane() string { return In(i18n.Locale()).ShortcutClosePane() }
+
+// ShortcutClosePane says "Close pane"
+// in the language of msgs.
+func (msgs Messages) ShortcutClosePane() string {
+	return Catalog.Format(msgs.locale, "shortcutClosePane", nil)
+}
+
+// ShortcutToggleSidebar says "Toggle sidebar"
+// in the language the app shows.
+func ShortcutToggleSidebar() string { return In(i18n.Locale()).ShortcutToggleSidebar() }
+
+// ShortcutToggleSidebar says "Toggle sidebar"
+// in the language of msgs.
+func (msgs Messages) ShortcutToggleSidebar() string {
+	return Catalog.Format(msgs.locale, "shortcutToggleSidebar", nil)
+}
+
+// ShortcutSettings says "Settings"
+// in the language the app shows.
+func ShortcutSettings() string { return In(i18n.Locale()).ShortcutSettings() }
+
+// ShortcutSettings says "Settings"
+// in the language of msgs.
+func (msgs Messages) ShortcutSettings() string {
+	return Catalog.Format(msgs.locale, "shortcutSettings", nil)
+}
+
+// ShortcutQuit says "Quit"
+// in the language the app shows.
+func ShortcutQuit() string { return In(i18n.Locale()).ShortcutQuit() }
+
+// ShortcutQuit says "Quit"
+// in the language of msgs.
+func (msgs Messages) ShortcutQuit() string {
+	return Catalog.Format(msgs.locale, "shortcutQuit", nil)
+}
+
+// SettingsStorage says "Storage"
+// in the language the app shows.
+func SettingsStorage() string { return In(i18n.Locale()).SettingsStorage() }
+
+// SettingsStorage says "Storage"
+// in the language of msgs.
+func (msgs Messages) SettingsStorage() string {
+	return Catalog.Format(msgs.locale, "settingsStorage", nil)
+}
+
+// SettingsSocketPath says "Socket"
+// in the language the app shows.
+func SettingsSocketPath() string { return In(i18n.Locale()).SettingsSocketPath() }
+
+// SettingsSocketPath says "Socket"
+// in the language of msgs.
+func (msgs Messages) SettingsSocketPath() string {
+	return Catalog.Format(msgs.locale, "settingsSocketPath", nil)
+}
+
+// SettingsDataFolder says "Data folder"
+// in the language the app shows.
+func SettingsDataFolder() string { return In(i18n.Locale()).SettingsDataFolder() }
+
+// SettingsDataFolder says "Data folder"
+// in the language of msgs.
+func (msgs Messages) SettingsDataFolder() string {
+	return Catalog.Format(msgs.locale, "settingsDataFolder", nil)
+}
+
+// SettingsOpenFolder says "Open folder"
+// in the language the app shows.
+func SettingsOpenFolder() string { return In(i18n.Locale()).SettingsOpenFolder() }
+
+// SettingsOpenFolder says "Open folder"
+// in the language of msgs.
+func (msgs Messages) SettingsOpenFolder() string {
+	return Catalog.Format(msgs.locale, "settingsOpenFolder", nil)
+}
+
+// SettingsVersion says "Version"
+// in the language the app shows.
+func SettingsVersion() string { return In(i18n.Locale()).SettingsVersion() }
+
+// SettingsVersion says "Version"
+// in the language of msgs.
+func (msgs Messages) SettingsVersion() string {
+	return Catalog.Format(msgs.locale, "settingsVersion", nil)
 }
 
 // TestNotificationTitle says "Test notification"
@@ -594,4 +976,14 @@ func NotifyCodeCopiedBody() string { return In(i18n.Locale()).NotifyCodeCopiedBo
 // in the language of msgs.
 func (msgs Messages) NotifyCodeCopiedBody() string {
 	return Catalog.Format(msgs.locale, "notifyCodeCopiedBody", nil)
+}
+
+// PlanTitle says "Plan"
+// in the language the app shows.
+func PlanTitle() string { return In(i18n.Locale()).PlanTitle() }
+
+// PlanTitle says "Plan"
+// in the language of msgs.
+func (msgs Messages) PlanTitle() string {
+	return Catalog.Format(msgs.locale, "planTitle", nil)
 }

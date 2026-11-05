@@ -12,7 +12,8 @@ into them, and read their screens.
 > **Status: early.** Projects and sessions, nested splits, focus, keyboard
 > shortcuts, screen capture, persistence, agent session resume, and the control
 > CLI work today. Remote hosts work over ssh; there is no remote agent yet.
-> The settings window is minimal.
+> Settings has a page each for general options, notifications, remote access,
+> shortcuts, and storage.
 
 ## Build
 
@@ -85,6 +86,10 @@ gexi close -p <pane id>
 
 Pane arguments accept a full id or any unique prefix, and default to
 `$GEXI_PANE` (set inside a pane) or the focused pane.
+
+Panes also move by hand: drag a pane's title onto a side of another pane to
+split toward that side, or onto its middle to trade places. A pane alone in
+the window has nowhere to go, so its title keeps moving the window.
 
 ### Remote hosts
 
@@ -176,6 +181,14 @@ echo '{"session_id":"…"}' | gexi event turn.end --agent claude
 Events only cover agents Gexi launched or that a hook points at. A `claude`
 typed into a plain shell has no hooks, and there `activity` stays unset.
 
+### Plans
+
+A Claude Code pane reports its plan over the same hook file. When the agent
+writes a todo list (`TodoWrite`) or updates its plan
+(`mcp__ccd_turn__update_plan`), the pane header shows its progress as `2/5`:
+hovering previews the steps, and a click pins the full list. The same list is
+in `gexi list --json` under `plan`; it is not written to disk.
+
 ### Socket and storage
 
 The control socket lives at `$GEXI_HOME/control.sock`, or
@@ -201,6 +214,7 @@ The control socket lives at `$GEXI_HOME/control.sock`, or
   marshaling.
 - `split.go` — binary split tree (split / remove / collapse).
 - `pane.go` — one terminal per pane.
+- `plan.go` — the plan model and the Claude hook payload parser.
 - `ui.go` — sidebar, toolbar, recursive split rendering.
 - `control.go` — Unix socket server and the control methods.
 - `cmd/gexi` — the client.

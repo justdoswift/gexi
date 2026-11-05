@@ -92,6 +92,8 @@ type workspace struct {
 	win         *mygo.Window
 	settingsWin *mygo.Window
 	settings    appSettings
+	// settingsTab is the page the settings window shows.
+	settingsTab int
 	quitting    bool
 	saveTimer   *time.Timer
 	lastNotify  map[string]time.Time

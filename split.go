@@ -77,14 +77,65 @@ func (n *splitNode) removing(id string) *splitNode {
 
 // splitting puts p after the leaf holding id.
 func (n *splitNode) splitting(id string, ax axis, p *pane) *splitNode {
+	return n.splittingSide(id, ax, p, false)
+}
+
+// splittingSide puts p before or after the leaf holding id. A drop on a
+// pane's left or top edge lands before it, its right or bottom edge after.
+func (n *splitNode) splittingSide(id string, ax axis, p *pane, before bool) *splitNode {
 	target := n.paneByID(id)
 	if target == nil {
 		return n
 	}
+	first, second := leaf(target), leaf(p)
+	if before {
+		first, second = second, first
+	}
 	return n.replacing(id, &splitNode{
 		axis:   ax,
 		ratio:  50,
-		first:  leaf(target),
-		second: leaf(p),
+		first:  first,
+		second: second,
 	})
+}
+
+// moving takes the leaf holding id out of the tree and splits the leaf
+// holding onto with it. A pane cannot move onto itself, and an unknown id
+// leaves the tree as it is.
+func (n *splitNode) moving(id string, onto string, ax axis, before bool) *splitNode {
+	if id == onto {
+		return n
+	}
+	p := n.paneByID(id)
+	if p == nil || n.paneByID(onto) == nil {
+		return n
+	}
+	// Drop the pane before splitting, so the split lands in the tree that is
+	// left: its own old slot has collapsed by then.
+	rest := n.removing(id)
+	if rest == nil {
+		return n
+	}
+	return rest.splittingSide(onto, ax, p, before)
+}
+
+// swapping trades the panes of two leaves, which is what a drop in the
+// middle of another pane asks for. The split structure and its ratios stay
+// where they are; only what lives in each slot changes.
+func (n *splitNode) swapping(a, b *pane) *splitNode {
+	if n == nil || a == nil || b == nil || a == b {
+		return n
+	}
+	if n.isLeaf() {
+		switch n.pane {
+		case a:
+			return leaf(b)
+		case b:
+			return leaf(a)
+		}
+		return n
+	}
+	n.first = n.first.swapping(a, b)
+	n.second = n.second.swapping(a, b)
+	return n
 }

@@ -195,6 +195,13 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		ev.Detail = p["detail"]
 		return w.handleEvent(ev)
 
+	case "plan.update":
+		return w.handlePlan(planUpdate{
+			Agent:  str(p, "agent"),
+			Pane:   str(p, "pane"),
+			Detail: p["detail"],
+		})
+
 	case "debug.proc":
 		pane, err := w.resolvePane(str(p, "pane"))
 		if err != nil {
@@ -250,6 +257,7 @@ func (w *workspace) paneJSON(p *pane) map[string]any {
 		"restoreCommand": p.restoreCommand,
 		"agent":          agentJSON(p.agent),
 		"activity":       activityJSON(p.activity),
+		"plan":           planJSON(p.plan),
 	}
 }
 

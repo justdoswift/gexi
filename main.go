@@ -20,6 +20,9 @@ func main() {
 	if runEventCommand(os.Args[1:]) {
 		return
 	}
+	if runPlanCommand(os.Args[1:]) {
+		return
+	}
 
 	// Daily background checks in the manner of Sparkle; the menu item below
 	// opens the same window on demand.
@@ -168,11 +171,7 @@ func languageMenu(w *workspace) []*mygo.MenuItem {
 			Type:    mygo.MenuItemRadio,
 			Checked: w.settings.Language == tag,
 			Click: func(*mygo.MenuItem, *mygo.Window) {
-				w.settings.Language = tag
-				w.settings.save()
-				mygo.App.SetLocale(tag)
-				mygo.App.SetMenu(mainMenu(w))
-				w.invalidate()
+				w.setLanguage(tag)
 			},
 		}
 	}

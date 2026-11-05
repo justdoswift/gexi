@@ -114,6 +114,7 @@ Usage:
   gexi new-project [--cwd DIR]
   gexi settings
   gexi event  KIND [--agent NAME] [--json]
+  gexi plan   [--agent NAME]      (reads a hook payload on stdin)
   gexi quit
 
 Options:
@@ -217,6 +218,28 @@ func readStdinJSON() map[string]any {
 	return detail
 }
 
+// sendQuiet is the hook path: one request, one response, and no complaint
+// when the window is closed.
+func sendQuiet(socket, pane, method string, params map[string]any) {
+	if params == nil {
+		params = map[string]any{}
+	}
+	if pane != "" && params["pane"] == nil {
+		params["pane"] = pane
+	}
+	conn, err := net.DialTimeout("unix", socket, time.Second)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(time.Second))
+	req := map[string]any{"id": newID(), "method": method, "params": params}
+	if err := json.NewEncoder(conn).Encode(req); err != nil {
+		return
+	}
+	_, _ = bufio.NewReader(conn).ReadBytes('\n')
+}
+
 func supportDir() string {
 	if v := os.Getenv("GEXI_HOME"); v != "" {
 		return v
@@ -271,6 +294,20 @@ func main() {
 
 	command := positional[0]
 	rest := positional[1:]
+
+	if command == "plan" {
+		detail := readStdinJSON()
+		if detail == nil {
+			// A hook with nothing to say must not fail the agent.
+			return
+		}
+		params := map[string]any{"detail": detail}
+		if opt.agent != "" {
+			params["agent"] = opt.agent
+		}
+		sendQuiet(opt.socket, pane, "plan.update", params)
+		return
+	}
 
 	if command == "event" {
 		if len(rest) == 0 {

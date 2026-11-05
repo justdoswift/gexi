@@ -84,6 +84,8 @@ type pane struct {
 	baseRestore    []string // restoreCommand with no agent running
 	agent          *agentDetection
 	activity       *agentActivity // last hook event from the agent
+	plan           *panePlan      // the steps the agent last reported
+	planOpen       bool           // the header's plan panel is pinned
 	lastGroup      int
 	lastScan       time.Time
 	openedAt       time.Time
@@ -132,6 +134,10 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 		},
 		Scrollback: 10 << 20,
 		Padding:    terminal.Padding{X: 12, Y: 10},
+		// The pane card is already the terminal's background colour, and
+		// leaving the grid's own background undrawn lets the card change
+		// colour while its pane is picked up, without the grid covering it.
+		Transparent: true,
 		Font: terminal.Font{
 			Family:     terminalFont + ", SF Mono, Menlo, monospace",
 			Size:       12,

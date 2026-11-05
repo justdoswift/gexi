@@ -520,9 +520,23 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	if card {
 		outer = outer.Padding(3)
 	}
+	// A pane takes another pane dropped on it: the side it lands on splits
+	// toward that side, the middle trades the two. The hint is read before
+	// the drop, which clears the drag, so both read the pointer directly.
+	moved, over := ui.DragOver[paneMoved](outer)
+	place := paneDropNone
+	if over {
+		place = dropPlaceOf(outer, moved.Pane, p)
+	}
+	if v, dropped := ui.Drop[paneMoved](outer); dropped {
+		if at := dropPlaceOf(outer, v.Pane, p); at != paneDropNone {
+			w.movePane(v.Pane, p, at)
+			place = paneDropNone
+		}
+	}
 	outer.Children(func() {
 		col := ui.Column(c).Fill()
-		col = col.Opacity(col.Animate("focusDim", w.focusAmount(focused), focusMotion))
+		dim := col.Animate("focusDim", w.focusAmount(focused), focusMotion)
 		// The card fades and grows in as it opens, and shrinks out before it
 		// closes: a fade alone is easy to miss on a white card over a light
 		// canvas. Poses run in frames that only paint, without building the
@@ -539,6 +553,9 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		if card {
 			col = col.Radius(windowRadius).Border(1, tk.Border).Background(tk.Background).Clip()
 		}
+		dragging := false
+		blend := ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut}
+		panelBg := tk.Background
 		col.Children(func() {
 			left := float32(10)
 			if underChrome {
@@ -550,49 +567,88 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			header := ui.Row(c).Height(headerHeight).Padding(0, 6, 0, left).
 				Background(tk.Background).ClipY().DragWindow()
 			// Split and close belong to the pane the hand is on: they appear
-			// when the pointer is over the header or the pane has the focus, so
-			// an idle layout is only the terminal and its title.
-			showActions := focused || header.Hovered()
+			// wherever the pointer is over the pane, its terminal included,
+			// or when the pane has the focus, so an idle layout is only the
+			// terminal and its title.
+			showActions := focused || col.Hovered()
 
 			header.Children(func() {
 				line := ui.Row(c).FillWidth().Height(chromeLine(bar)).AlignItems(ui.Center).Gap(4)
 				line.Children(func() {
-					// A detected agent wears its own mark and name. The
-					// terminal title carries the agent's spinner glyph, and
-					// the directory after it is noise beside the brand.
-					agent := p.agent
-					if agent != nil {
-						if src := agentLogoSource(agent.Kind, tk); src != nil {
-							ui.Image(c, src).Width(13).Height(13).DragWindow()
-						}
-					} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
-						ui.Image(c, src).Width(16).Height(16).DragWindow()
-					}
-					title := p.title()
-					if agent != nil {
-						title = agent.Kind.name()
-					}
-					if p.exited {
-						title += " · exited"
-					}
-					if focused {
-						ui.Text(c, title).FontSize(12).FontWeight(500).
-							TextColor(tk.Foreground).DragWindow()
+					// The title picks the pane up once there is a second pane
+					// to trade with. Alone in the window it keeps dragging the
+					// window, as a title bar does, since there is nowhere to
+					// put it.
+					// The pill sits inside the header band rather than filling
+					// it, so hovering reads as a chip and not as a second bar.
+					movable := len(w.visiblePanes()) > 1
+					strip := ui.Row(c).Height(24).AlignItems(ui.Center).
+						Gap(4).Padding(0, 6).Radius(chromeRadius)
+					if movable {
+						strip = strip.Drag(paneMoved{Pane: p}).Cursor(ui.CursorGrab).
+							Tooltip(locales.PaneDragHint())
+						dragging = strip.Dragging()
 					} else {
-						ui.Text(c, title).FontSize(12).TextColor(tk.MutedForeground)
+						strip = strip.DragWindow()
 					}
-					if agent == nil {
-						ui.Text(c, abbreviate(p.dir())).FontSize(11).
-							TextColor(tk.MutedForeground).DragWindow()
+					if strip.Hovered() {
+						strip = strip.Background(tk.Active)
 					}
+					strip.Children(func() {
+						// A detected agent wears its own mark and name. The
+						// terminal title carries the agent's spinner glyph, and
+						// the directory after it is noise beside the brand.
+						agent := p.agent
+						if agent != nil {
+							if src := agentLogoSource(agent.Kind, tk); src != nil {
+								ui.Image(c, src).Width(13).Height(13)
+							}
+						} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
+							ui.Image(c, src).Width(16).Height(16)
+						}
+						title := p.title()
+						if agent != nil {
+							title = agent.Kind.name()
+						}
+						if p.exited {
+							title += " · exited"
+						}
+						if focused {
+							ui.Text(c, title).FontSize(12).FontWeight(500).
+								TextColor(tk.Foreground)
+						} else {
+							ui.Text(c, title).FontSize(12).TextColor(tk.MutedForeground)
+						}
+						if agent == nil {
+							ui.Text(c, abbreviate(p.dir())).FontSize(11).
+								TextColor(tk.MutedForeground)
+						}
+					})
 					w.dragArea(c, tk)
+					w.planBadge(c, tk, p)
+					// The buttons keep their room and fade, so the row does
+					// not jump as the pointer comes and goes; they take no
+					// click while invisible.
+					alpha := float32(0)
 					if showActions {
+						alpha = 1
+					}
+					actions := ui.Row(c).Gap(2).Height(chromeLine(bar)).AlignItems(ui.Center)
+					actions = actions.IgnoreInput(!showActions).
+						Opacity(actions.AnimateTo("actions", alpha, ui.Animation{Duration: 150 * time.Millisecond, Ease: ui.EaseOut}))
+					actions.Children(func() {
 						iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
 						iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
 						iconButton(c, tk, "x", func() { w.requestClose(p) })
-					}
+					})
 				})
 			})
+			// A raised pane takes the canvas colour, so the slot reads as
+			// empty behind the chip the pointer carries.
+			if dragging {
+				panelBg = w.backdrop(tk)
+			}
+			header.Background(header.AnimateColor("paneLiftBg", panelBg, blend))
 
 			el := terminal.View(c, p.term).Fill()
 			if el.Focused() && w.FocusedPane != p.ID {
@@ -602,7 +658,126 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				el = el.Focus()
 				w.focusReq = ""
 			}
+			if place != paneDropNone {
+				paneDropHint(c, place, card)
+			}
 		})
+		// Picking the pane up sets it back a touch and fills its surface with
+		// the canvas colour, so the slot it would leave reads as empty. The
+		// change eases in, and the title chip stays what the pointer carries.
+		liftTarget := float32(0)
+		if dragging {
+			liftTarget = 1
+		}
+		lift := col.AnimateTo("paneLift", liftTarget, blend)
+		if lift > 0 {
+			s := 1 - 0.025*lift
+			col = col.Scale(s, s)
+		}
+		col = col.Background(col.AnimateColor("paneLiftBg", panelBg, blend))
+		col = col.Opacity(dim)
+	})
+}
+
+// planBadge is the pane's progress while an agent works through a plan:
+// Codex's (1/3), drawn in the header. Hovering previews the steps; a click
+// pins them in a panel that stays until a press elsewhere.
+func (w *workspace) planBadge(c *ui.Context, tk tokens, p *pane) {
+	plan := p.plan
+	if plan == nil || len(plan.Steps) == 0 || p.exited {
+		return
+	}
+	current, total := plan.progress()
+
+	badge := ui.Row(c).Height(20).Padding(0, 6).Gap(5).Radius(chromeRadius).
+		AlignItems(ui.Center).Cursor(ui.CursorPointer).
+		Description(locales.PlanTitle())
+	if badge.Hovered() || p.planOpen {
+		badge = badge.Background(tk.Active)
+	}
+	badge.OnClick(func() {
+		p.planOpen = !p.planOpen
+		w.invalidate()
+	}).Children(func() {
+		if plan.allDone() {
+			ui.Text(c, "✓").FontSize(10).TextColor(tk.MutedForeground)
+		} else {
+			color := tk.MutedForeground
+			if plan.hasActive() {
+				color = tk.Working
+			}
+			ui.Column(c).Width(6).Height(6).Radius(3).Background(color)
+		}
+		ui.Text(c, fmt.Sprintf("%d/%d", current, total)).
+			FontSize(11).FontWeight(500).TextColor(tk.MutedForeground)
+	})
+
+	ui.TooltipBase(c, badge, func(tip ui.Element) {
+		w.planPanel(c, tk, plan, tip, false)
+	})
+	ui.PopoverBase(c, badge, &p.planOpen, func(panel ui.Element) {
+		panel.AttachTo(badge, ui.AnchorBottomRight, ui.AnchorTopRight)
+		w.planPanel(c, tk, plan, panel, true)
+	})
+}
+
+// planPanel draws the steps under the badge. The tooltip is a preview, so
+// it stops after a few; the pinned popover scrolls.
+func (w *workspace) planPanel(c *ui.Context, tk tokens, plan *panePlan, el ui.Element, pinned bool) {
+	current, total := plan.progress()
+	panel := el.Width(300).Padding(12).Gap(8).Radius(10).
+		Background(tk.Background).Border(1, tk.Border)
+	if pinned {
+		panel = panel.Shadow(0, 10, 28, 0, ui.RGBA(0, 0, 0, 0.22))
+	} else {
+		panel = panel.Shadow(0, 6, 18, 0, ui.RGBA(0, 0, 0, 0.18))
+	}
+	panel.Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
+			ui.Text(c, locales.PlanTitle()).FontSize(11).FontWeight(600).TextColor(tk.Foreground)
+			ui.Spacer(c)
+			ui.Text(c, fmt.Sprintf("%d/%d", current, total)).FontSize(11).TextColor(tk.MutedForeground)
+		})
+
+		steps := plan.Steps
+		more := 0
+		if !pinned && len(steps) > 8 {
+			more = len(steps) - 8
+			steps = steps[:8]
+		}
+		list := ui.Column(c).FillWidth().Gap(6)
+		if pinned && len(steps) > 10 {
+			list = ui.Scroll(c).FillWidth().MaxHeight(260)
+		}
+		list.Children(func() {
+			for _, step := range steps {
+				w.planStepRow(c, tk, step)
+			}
+			if more > 0 {
+				ui.Text(c, fmt.Sprintf("+%d", more)).FontSize(10).
+					TextColor(tk.MutedForeground).Padding(0, 17, 0, 0)
+			}
+		})
+	})
+}
+
+func (w *workspace) planStepRow(c *ui.Context, tk tokens, step planStep) {
+	ui.Row(c).FillWidth().Gap(7).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Width(10).Height(12).AlignItems(ui.Center).Center().Children(func() {
+			switch step.Status {
+			case planDone:
+				ui.Text(c, "✓").FontSize(10).TextColor(tk.MutedForeground)
+			case planActive:
+				ui.Column(c).Width(6).Height(6).Radius(3).Background(tk.Working)
+			default:
+				ui.Column(c).Width(6).Height(6).Radius(3).Border(1, tk.MutedForeground)
+			}
+		})
+		color := tk.MutedForeground
+		if step.Status == planActive {
+			color = tk.Foreground
+		}
+		ui.Text(c, step.Text).FontSize(11).TextColor(color).Grow(1)
 	})
 }
 

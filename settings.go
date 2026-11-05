@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -18,6 +19,7 @@ type appSettings struct {
 	SidebarCollapsed bool   `json:"sidebarCollapsed"`
 	PaneStyle        string `json:"paneStyle"`
 	RemoteTmux       bool   `json:"remoteTmux"`
+	Notifications    bool   `json:"notifications"`
 	// Language is the language the app shows: "" follows the system's
 	// languages, "en" and "zh-Hans" pin one.
 	Language string `json:"language"`
@@ -37,7 +39,12 @@ const (
 )
 
 func defaultSettings() appSettings {
-	return appSettings{RestoreScreen: true, PaneStyle: paneComfortable, RemoteTmux: true}
+	return appSettings{
+		RestoreScreen: true,
+		PaneStyle:     paneComfortable,
+		RemoteTmux:    true,
+		Notifications: true,
+	}
 }
 
 func settingsPath() string { return filepath.Join(supportDir(), "settings.json") }
@@ -62,6 +69,27 @@ func (s appSettings) save() {
 	_ = os.WriteFile(settingsPath(), data, 0o644)
 }
 
+// The settings window is one page per tab: a symbol and a name in the sidebar,
+// a grouped form on the right, as macOS's own settings read.
+const (
+	settingsGeneral = iota
+	settingsNotifications
+	settingsRemote
+	settingsKeyboard
+	settingsAdvanced
+)
+
+var settingsTabs = []struct {
+	icon  string
+	title func() string
+}{
+	{"setting", locales.SettingsGeneral},
+	{"bell", locales.SettingsNotifications},
+	{"server", locales.SettingsRemote},
+	{"keyboard", locales.SettingsKeyboard},
+	{"sliders", locales.SettingsAdvanced},
+}
+
 // openSettings shows the settings window, or focuses it when it is open.
 func (w *workspace) openSettings() {
 	if w.settingsWin != nil {
@@ -71,10 +99,10 @@ func (w *workspace) openSettings() {
 	}
 	w.settingsWin = mygo.NewWindow(mygo.WindowOptions{
 		Title:           "Settings",
-		Width:           480,
-		Height:          440,
-		MinWidth:        400,
-		MinHeight:       300,
+		Width:           720,
+		Height:          540,
+		MinWidth:        620,
+		MinHeight:       420,
 		TitleBarStyle:   mygo.TitleBarHidden,
 		BackgroundColor: "light-dark(#ffffff, #0e0e10)",
 		Content:         ui.View(w.settingsView),
@@ -83,84 +111,372 @@ func (w *workspace) openSettings() {
 	w.settingsWin.OnClosed(func() { w.settingsWin = nil })
 }
 
-type settingRow struct {
-	title    string
-	detail   string
-	value    *bool
-	onChange func()
-}
-
 func (w *workspace) settingsView(c *ui.Context) {
 	tk := themeTokens(c.Theme())
-	bar := c.TitleBar()
-	ui.Column(c).Fill().Background(tk.Background).Children(func() {
-		ui.Row(c).Height(headerHeight).Padding(0, 12, 0, bar.Left+10).Gap(8).
-			DragWindow().Children(func() {
-			ui.Text(c, locales.SettingsTitle()).FontSize(12).FontWeight(500).TextColor(tk.Foreground)
-		})
-		ui.Column(c).Fill().Padding(20).Gap(8).Children(func() {
-			sectionLabel(c, tk, locales.SettingsPanes())
-			ui.Column(c).FillWidth().Radius(8).Border(1, tk.Border).Children(func() {
-				ui.Row(c).Padding(14, 16, 14, 16).Children(func() {
-					ui.Text(c, locales.SettingsPaneStyle()).FontSize(13).TextColor(tk.Foreground)
-					ui.Spacer(c)
-					w.paneStyleControl(c, tk)
+	ui.Row(c).Fill().Background(tk.Background).Children(func() {
+		w.settingsSidebar(c, tk)
+		ui.Column(c).Fill().Children(func() {
+			// The band above the form drags the window, so the whole top of
+			// the window moves it, not only the sidebar.
+			ui.Row(c).Height(headerHeight).DragWindow()
+			ui.Scroll(c).Fill().Children(func() {
+				ui.Column(c).FillWidth().Padding(20, 28, 32, 28).Gap(16).Children(func() {
+					ui.Text(c, settingsTabs[w.settingsTab].title()).FontSize(17).
+						FontWeight(600).TextColor(tk.Foreground)
+					w.settingsPage(c, tk)
 				})
 			})
-			sectionLabel(c, tk, locales.SettingsWorkspace())
-			ui.Column(c).FillWidth().Radius(8).Border(1, tk.Border).Children(func() {
-				w.settingRowView(c, tk, settingRow{
-					title:    locales.SettingsRestoreScreen(),
-					detail:   locales.SettingsRestoreScreenDetail(),
-					value:    &w.settings.RestoreScreen,
-					onChange: func() { w.settings.save(); w.scheduleSave() },
-				})
-			})
-			sectionLabel(c, tk, locales.SettingsRemote())
-			ui.Column(c).FillWidth().Radius(8).Border(1, tk.Border).Children(func() {
-				w.settingRowView(c, tk, settingRow{
-					title:    locales.SettingsKeepRemote(),
-					detail:   locales.SettingsKeepRemoteDetail(),
-					value:    &w.settings.RemoteTmux,
-					onChange: func() { w.settings.save() },
-				})
-			})
-			sectionLabel(c, tk, locales.SettingsNotifications())
-			ui.Column(c).FillWidth().Radius(8).Border(1, tk.Border).Children(func() {
-				w.settingActionView(c, tk,
-					locales.SettingsDesktopNotifications(),
-					locales.SettingsDesktopNotificationsDetail(),
-					locales.SettingsSendTest(),
-					func() {
-						notifyUser(locales.TestNotificationTitle(), locales.TestNotificationBody())
-					},
-				)
-			})
-			ui.Spacer(c)
-			ui.Text(c, locales.Socket(socketPath())).FontSize(10).TextColor(tk.MutedForeground)
 		})
 	})
 }
 
+// settingsSidebar is the window's left rail: the pages above, the config
+// file's door below.
+func (w *workspace) settingsSidebar(c *ui.Context, tk tokens) {
+	ui.Column(c).Width(196).FillHeight().Background(tk.Muted).
+		Padding(0, 10, 10, 10).Children(func() {
+		ui.Row(c).Height(headerHeight).DragWindow()
+		ui.Column(c).FillWidth().Gap(1).Children(func() {
+			for i := range settingsTabs {
+				w.settingsTabRow(c, tk, i)
+			}
+		})
+		ui.Spacer(c)
+		w.sidebarAction(c, tk, locales.SettingsOpenConfig(), func() { openPath(settingsPath()) })
+	})
+}
+
+func (w *workspace) settingsTabRow(c *ui.Context, tk tokens, i int) {
+	selected := w.settingsTab == i
+	color := tk.MutedForeground
+	row := ui.Row(c).Height(30).FillWidth().Padding(0, 8, 0, 8).Gap(8).
+		Radius(chromeRadius).Cursor(ui.CursorPointer)
+	switch {
+	case selected:
+		color = tk.Foreground
+		row = row.Background(tk.Background)
+	case row.Hovered():
+		color = tk.Foreground
+		row = row.Background(tk.Active)
+	}
+	pick := func() {
+		if w.settingsTab == i {
+			return
+		}
+		w.settingsTab = i
+		w.invalidateSettings()
+	}
+	row.OnClick(pick).Children(func() {
+		if src := iconSource(settingsTabs[i].icon, colorHex(color)); src != nil {
+			ui.Image(c, src).Width(15).Height(15).OnClick(pick)
+		}
+		ui.Text(c, settingsTabs[i].title()).FontSize(13).FontWeight(500).
+			TextColor(color).OnClick(pick)
+		ui.Spacer(c).OnClick(pick)
+	})
+}
+
+// sidebarAction is the quiet text button under the pages.
+func (w *workspace) sidebarAction(c *ui.Context, tk tokens, label string, action func()) {
+	color := tk.MutedForeground
+	el := ui.Row(c).Height(28).FillWidth().Padding(0, 8, 0, 8).
+		Radius(chromeRadius).Cursor(ui.CursorPointer)
+	if el.Hovered() {
+		color = tk.Foreground
+		el = el.Background(tk.Active)
+	}
+	el.OnClick(action).Children(func() {
+		ui.Text(c, label).FontSize(12).TextColor(color).OnClick(action)
+	})
+}
+
+func (w *workspace) settingsPage(c *ui.Context, tk tokens) {
+	switch w.settingsTab {
+	case settingsNotifications:
+		w.notificationsPage(c, tk)
+	case settingsRemote:
+		w.remotePage(c, tk)
+	case settingsKeyboard:
+		w.keyboardPage(c, tk)
+	case settingsAdvanced:
+		w.advancedPage(c, tk)
+	default:
+		w.generalPage(c, tk)
+	}
+}
+
+func (w *workspace) generalPage(c *ui.Context, tk tokens) {
+	sectionLabel(c, tk, locales.SettingsGeneralSessions())
+	settingsCard(c, tk, func() {
+		w.settingRowView(c, tk, settingRow{
+			title:  locales.SettingsRestoreScreen(),
+			detail: locales.SettingsRestoreScreenDetail(),
+			on:     w.settings.RestoreScreen,
+			toggle: func() {
+				w.settings.RestoreScreen = !w.settings.RestoreScreen
+				w.settings.save()
+				w.scheduleSave()
+			},
+		})
+	})
+
+	sectionLabel(c, tk, locales.SettingsGeneralInterface())
+	settingsCard(c, tk, func() {
+		w.paneStyleRow(c, tk)
+		cardDivider(c, tk)
+		w.settingRowView(c, tk, settingRow{
+			title:  locales.SettingsShowSidebar(),
+			detail: locales.SettingsShowSidebarDetail(),
+			on:     !w.settings.SidebarCollapsed,
+			toggle: func() {
+				w.settings.SidebarCollapsed = !w.settings.SidebarCollapsed
+				w.settings.save()
+				w.invalidate()
+			},
+		})
+		cardDivider(c, tk)
+		w.languageRow(c, tk)
+	})
+}
+
+func (w *workspace) notificationsPage(c *ui.Context, tk tokens) {
+	sectionLabel(c, tk, locales.SettingsNotifications())
+	settingsCard(c, tk, func() {
+		w.settingRowView(c, tk, settingRow{
+			title:  locales.SettingsDesktopNotifications(),
+			detail: locales.SettingsDesktopNotificationsDetail(),
+			on:     w.settings.Notifications,
+			toggle: func() {
+				w.settings.Notifications = !w.settings.Notifications
+				w.settings.save()
+			},
+		})
+		cardDivider(c, tk)
+		w.settingActionView(c, tk,
+			locales.SettingsNotifyTest(),
+			locales.SettingsNotifyTestDetail(),
+			locales.SettingsSendTest(),
+			func() { notifyUser(locales.TestNotificationTitle(), locales.TestNotificationBody()) },
+		)
+	})
+}
+
+func (w *workspace) remotePage(c *ui.Context, tk tokens) {
+	sectionLabel(c, tk, locales.SettingsRemote())
+	settingsCard(c, tk, func() {
+		w.settingRowView(c, tk, settingRow{
+			title:  locales.SettingsKeepRemote(),
+			detail: locales.SettingsKeepRemoteDetail(),
+			on:     w.settings.RemoteTmux,
+			toggle: func() {
+				w.settings.RemoteTmux = !w.settings.RemoteTmux
+				w.settings.save()
+			},
+		})
+	})
+
+	sectionLabel(c, tk, locales.SettingsThisMac())
+	settingsCard(c, tk, func() {
+		w.remoteAccessRow(c, tk)
+	})
+}
+
+// remoteAccessRow reports whether other Macs can reach this one, and hands
+// over the code when they can.
+func (w *workspace) remoteAccessRow(c *ui.Context, tk tokens) {
+	detail := locales.SettingsRemoteOff()
+	var action func()
+	if w.settings.RemoteListen {
+		state := locales.SettingsRemoteReconnecting()
+		if w.tunnelUp {
+			state = locales.SettingsRemoteReachable()
+		}
+		detail = locales.SettingsRemoteOn(w.settings.RemoteName, state)
+		action = func() {
+			if code, err := w.remoteCodeValue(); err == nil {
+				writeClipboard(code)
+			}
+		}
+	}
+	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
+		ui.Column(c).Gap(2).Children(func() {
+			ui.Text(c, locales.SettingsRemoteAccess()).FontSize(13).TextColor(tk.Foreground)
+			ui.Text(c, detail).FontSize(11).TextColor(tk.MutedForeground)
+		})
+		ui.Spacer(c)
+		if action != nil {
+			outlineButton(c, tk, locales.SettingsCopyCode(), action)
+		}
+	})
+}
+
+func (w *workspace) keyboardPage(c *ui.Context, tk tokens) {
+	sectionLabel(c, tk, locales.SettingsShortcuts())
+	settingsCard(c, tk, func() {
+		rows := [][2]string{
+			{locales.ShortcutNewSession(), "⌘T"},
+			{locales.ShortcutNewProject(), "⌘⇧N"},
+			{locales.ShortcutSplitRight(), "⌘D"},
+			{locales.ShortcutSplitDown(), "⌘⇧D"},
+			{locales.ShortcutPreviousPane(), "⌘["},
+			{locales.ShortcutNextPane(), "⌘]"},
+			{locales.ShortcutClosePane(), "⌘W"},
+			{locales.ShortcutToggleSidebar(), "⌘B"},
+			{locales.ShortcutSettings(), "⌘,"},
+			{locales.ShortcutQuit(), "⌘Q"},
+		}
+		for i, row := range rows {
+			if i > 0 {
+				cardDivider(c, tk)
+			}
+			ui.Row(c).Padding(11, 16, 11, 16).Gap(16).Children(func() {
+				ui.Text(c, row[0]).FontSize(13).TextColor(tk.Foreground)
+				ui.Spacer(c)
+				ui.Text(c, row[1]).FontSize(12).TextColor(tk.MutedForeground)
+			})
+		}
+	})
+}
+
+func (w *workspace) advancedPage(c *ui.Context, tk tokens) {
+	sectionLabel(c, tk, locales.SettingsStorage())
+	settingsCard(c, tk, func() {
+		w.pathRow(c, tk, locales.SettingsSocketPath(), socketPath())
+		cardDivider(c, tk)
+		ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
+			ui.Column(c).Gap(2).Children(func() {
+				ui.Text(c, locales.SettingsDataFolder()).FontSize(13).TextColor(tk.Foreground)
+				ui.Text(c, abbreviate(supportDir())).FontSize(11).
+					TextColor(tk.MutedForeground).SingleLine().Selectable()
+			})
+			ui.Spacer(c)
+			outlineButton(c, tk, locales.SettingsOpenFolder(), func() { openPath(supportDir()) })
+		})
+		cardDivider(c, tk)
+		ui.Row(c).Padding(11, 16, 11, 16).Children(func() {
+			ui.Text(c, locales.SettingsVersion()).FontSize(13).TextColor(tk.Foreground)
+			ui.Spacer(c)
+			ui.Text(c, Version).FontSize(12).TextColor(tk.MutedForeground).Selectable()
+		})
+	})
+}
+
+// pathRow shows a path the user can copy, with no control beside it.
+func (w *workspace) pathRow(c *ui.Context, tk tokens, title, path string) {
+	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
+		ui.Column(c).Gap(2).Children(func() {
+			ui.Text(c, title).FontSize(13).TextColor(tk.Foreground)
+			ui.Text(c, abbreviate(path)).FontSize(11).TextColor(tk.MutedForeground).
+				SingleLine().Selectable()
+		})
+	})
+}
+
+// paneStyleRow is the segmented switch between the two pane layouts.
+func (w *workspace) paneStyleRow(c *ui.Context, tk tokens) {
+	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
+		ui.Text(c, locales.SettingsPaneStyle()).FontSize(13).TextColor(tk.Foreground)
+		ui.Spacer(c)
+		w.segmented(c, tk, []segment{
+			{value: paneComfortable, label: locales.PaneComfortable()},
+			{value: paneCompact, label: locales.PaneCompact()},
+		}, w.settings.PaneStyle, func(value string) {
+			w.settings.PaneStyle = value
+			w.settings.save()
+			w.invalidate()
+		})
+	})
+}
+
+// languageRow pins the app's language, or leaves it to the system's.
+func (w *workspace) languageRow(c *ui.Context, tk tokens) {
+	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
+		ui.Text(c, locales.SettingsLanguage()).FontSize(13).TextColor(tk.Foreground)
+		ui.Spacer(c)
+		w.segmented(c, tk, []segment{
+			{value: "", label: locales.MenuLanguageSystem()},
+			{value: "en", label: "English"},
+			{value: "zh-Hans", label: "简体中文"},
+		}, w.settings.Language, w.setLanguage)
+	})
+}
+
+type segment struct {
+	value string
+	label string
+}
+
+// segmented is shadcn's segmented switch: a muted track, a raised card on the
+// chosen side.
+func (w *workspace) segmented(c *ui.Context, tk tokens, options []segment, selected string, pick func(string)) {
+	ui.Row(c).Height(30).Padding(2).Radius(8).Background(tk.Active).Gap(2).Children(func() {
+		for _, opt := range options {
+			w.segmentButton(c, tk, opt, opt.value == selected, pick)
+		}
+	})
+}
+
+func (w *workspace) segmentButton(c *ui.Context, tk tokens, opt segment, selected bool, pick func(string)) {
+	color := tk.MutedForeground
+	el := ui.Row(c).Height(26).Padding(0, 10, 0, 10).Radius(6).
+		Cursor(ui.CursorPointer)
+	if selected {
+		color = tk.Foreground
+		el = el.Background(tk.Raised).Border(1, tk.Border)
+	}
+	choose := func() {
+		if selected {
+			return
+		}
+		pick(opt.value)
+		w.invalidateSettings()
+	}
+	el.OnClick(choose).Children(func() {
+		ui.Text(c, opt.label).FontSize(12).FontWeight(500).
+			TextColor(color).OnClick(choose)
+	})
+}
+
+// settingsCard is one group of rows: a rounded panel with a divider between
+// each two rows, inset from the panel's sides the way macOS insets them.
+func settingsCard(c *ui.Context, tk tokens, rows func()) {
+	ui.Column(c).FillWidth().Radius(10).Border(1, tk.Border).
+		Background(tk.Background).Children(rows)
+}
+
+func cardDivider(c *ui.Context, tk tokens) {
+	ui.Row(c).Height(1).Padding(0, 16, 0, 16).Children(func() {
+		ui.Box(c).FillWidth().Height(1).Background(tk.Border)
+	})
+}
+
 func sectionLabel(c *ui.Context, tk tokens, title string) {
-	ui.Text(c, title).FontSize(11).FontWeight(500).TextColor(tk.MutedForeground)
+	ui.Text(c, title).FontSize(12).FontWeight(500).TextColor(tk.MutedForeground).
+		Padding(2, 2, 0, 2)
+}
+
+type settingRow struct {
+	title  string
+	detail string
+	on     bool
+	toggle func()
 }
 
 func (w *workspace) settingRowView(c *ui.Context, tk tokens, row settingRow) {
-	ui.Row(c).Padding(14, 16, 14, 16).Gap(16).Children(func() {
+	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
 		ui.Column(c).Gap(2).Children(func() {
 			ui.Text(c, row.title).FontSize(13).TextColor(tk.Foreground)
 			ui.Text(c, row.detail).FontSize(11).TextColor(tk.MutedForeground)
 		})
 		ui.Spacer(c)
-		w.switchControl(c, tk, row.value, row.onChange)
+		w.switchControl(c, tk, row.on, row.toggle)
 	})
 }
 
 // settingActionView is a setting row whose control is a button: same
 // title/detail pair, no switch to hold.
 func (w *workspace) settingActionView(c *ui.Context, tk tokens, title, detail, label string, action func()) {
-	ui.Row(c).Padding(14, 16, 14, 16).Gap(16).Children(func() {
+	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
 		ui.Column(c).Gap(2).Children(func() {
 			ui.Text(c, title).FontSize(13).TextColor(tk.Foreground)
 			ui.Text(c, detail).FontSize(11).TextColor(tk.MutedForeground)
@@ -186,8 +502,7 @@ func outlineButton(c *ui.Context, tk tokens, label string, action func()) {
 
 // switchControl is shadcn's switch: a 36×20 track and a 16pt thumb that
 // slides over 150ms, colours easing out the same way.
-func (w *workspace) switchControl(c *ui.Context, tk tokens, value *bool, onChange func()) {
-	on := *value
+func (w *workspace) switchControl(c *ui.Context, tk tokens, on bool, toggle func()) {
 	anim := ui.Animation{Duration: 150 * time.Millisecond}
 
 	track := ui.Row(c).Width(36).Height(20).Radius(10).Padding(2).
@@ -205,10 +520,6 @@ func (w *workspace) switchControl(c *ui.Context, tk tokens, value *bool, onChang
 	}
 	pos := track.Animate("thumb", target, 150*time.Millisecond)
 
-	toggle := func() {
-		*value = !*value
-		onChange()
-	}
 	track.OnClick(toggle).Children(func() {
 		// The whole track is the hit area: the thumb alone left the empty
 		// half unclickable.
@@ -220,36 +531,28 @@ func (w *workspace) switchControl(c *ui.Context, tk tokens, value *bool, onChang
 	})
 }
 
-// paneStyleControl is shadcn's segmented switch: a muted track, a raised
-// card on the chosen side.
-func (w *workspace) paneStyleControl(c *ui.Context, tk tokens) {
-	ui.Row(c).Height(32).Padding(2).Radius(8).Background(tk.Active).Gap(2).Children(func() {
-		w.paneStyleSegment(c, tk, paneComfortable, "layout-grid", locales.PaneComfortable())
-		w.paneStyleSegment(c, tk, paneCompact, "grid-2x2", locales.PaneCompact())
-	})
+// setLanguage shows the app in the chosen language at once, and keeps it for
+// the next launches. The menu is rebuilt so its own labels follow.
+func (w *workspace) setLanguage(tag string) {
+	if w.settings.Language == tag {
+		return
+	}
+	w.settings.Language = tag
+	w.settings.save()
+	mygo.App.SetLocale(tag)
+	mygo.App.SetMenu(mainMenu(w))
+	w.invalidate()
+	w.invalidateSettings()
 }
 
-func (w *workspace) paneStyleSegment(c *ui.Context, tk tokens, value, icon, label string) {
-	selected := w.settings.PaneStyle == value
-	color := tk.MutedForeground
-	el := ui.Row(c).Height(28).Padding(0, 10, 0, 10).Gap(6).Radius(6).
-		Cursor(ui.CursorPointer)
-	if selected {
-		color = tk.Foreground
-		el = el.Background(tk.Background).Border(1, tk.Border)
+func (w *workspace) invalidateSettings() {
+	if w.settingsWin != nil {
+		w.settingsWin.Invalidate()
 	}
-	pick := func() {
-		if w.settings.PaneStyle == value {
-			return
-		}
-		w.settings.PaneStyle = value
-		w.settings.save()
-		w.invalidate()
-	}
-	el.OnClick(pick).Children(func() {
-		if src := iconSource(icon, colorHex(color)); src != nil {
-			ui.Image(c, src).Width(13).Height(13).OnClick(pick)
-		}
-		ui.Text(c, label).FontSize(12).TextColor(color).OnClick(pick)
-	})
+}
+
+// openPath hands a file or folder to the Finder, which opens it the way a
+// double click would.
+func openPath(path string) {
+	go func() { _ = exec.Command("open", path).Run() }()
 }

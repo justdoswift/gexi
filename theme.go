@@ -19,8 +19,11 @@ type tokens struct {
 	Accent          ui.Color
 	Active          ui.Color
 	Control         ui.Color
-	Working         ui.Color
-	Waiting         ui.Color
+	// Raised is what a chosen segment lifts onto: a white card in light,
+	// a step above the track in dark.
+	Raised  ui.Color
+	Working ui.Color
+	Waiting ui.Color
 }
 
 func themeTokens(t *ui.Theme) tokens {
@@ -39,6 +42,7 @@ func themeTokens(t *ui.Theme) tokens {
 			Accent:          ui.RGB(0x1f, 0x1f, 0x1f),
 			Active:          ui.RGB(0x26, 0x26, 0x26),
 			Control:         ui.RGB(0x3a, 0x3a, 0x3a),
+			Raised:          ui.RGB(0x35, 0x35, 0x3a),
 			Working:         ui.RGB(0x22, 0xc5, 0x5e),
 			Waiting:         ui.RGB(0xf5, 0x9e, 0x0b),
 		}
@@ -53,6 +57,7 @@ func themeTokens(t *ui.Theme) tokens {
 		Accent:          ui.RGB(0xf5, 0xf5, 0xf5),
 		Active:          ui.RGB(0xed, 0xed, 0xed),
 		Control:         ui.RGB(0xe0, 0xe0, 0xe0),
+		Raised:          ui.RGB(0xff, 0xff, 0xff),
 		Working:         ui.RGB(0x16, 0xa3, 0x4a),
 		Waiting:         ui.RGB(0xd9, 0x77, 0x06),
 	}

@@ -2,6 +2,11 @@
 
 ## 0.0.4
 
+- A pane moves by its title: dropped on a side of another pane it splits
+  toward that side, dropped in the middle it trades places with it.
+- Settings is a window of its own: a sidebar of pages (General, Notifications,
+  Remote, Keyboard, Advanced) beside grouped forms, with the language, sidebar,
+  notification and remote-access switches all in one place.
 - The terminal font is JetBrains Mono Nerd Font Mono, embedded, so panes
   draw Powerline and devicon glyphs on a Mac without the font installed.
 - The headers move and zoom the window from any blank spot, not only from
@@ -11,6 +16,8 @@
 - New app icon and brand marks, the update window included.
 - A project stays when its last session closes, and an empty workspace
   draws a session card rather than a blank window.
+- A Claude Code pane shows its plan in the header as `2/5`; hovering previews
+  the steps and a click pins them. `gexi list --json` carries the same list.
 - The interface speaks English and Simplified Chinese, from View >
   Language or the system's.
 

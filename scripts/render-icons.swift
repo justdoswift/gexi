@@ -13,6 +13,9 @@ let symbols: [(String, String)] = [
     ("chevron.right", "chevron-right"),
     ("chevron.down", "chevron-down"),
     ("terminal", "terminal"),
+    ("bell", "bell"),
+    ("keyboard", "keyboard"),
+    ("slider.horizontal.3", "sliders"),
 ]
 
 let pointSize: CGFloat = 128
