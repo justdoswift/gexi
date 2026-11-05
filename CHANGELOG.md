@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.6
+
+- The icon is transparent around its rounded shape, so the development
+  build and the packages for other platforms no longer show white corners.
+
 ## 0.0.5
 
 - A pane moves by its title: dropped on a side of another pane it splits
