@@ -1,29 +1,24 @@
 package main
 
 import (
+	"bytes"
+	"embed"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
+	"strconv"
 	"sync"
 
 	"github.com/egoist/mygo/ui"
 )
 
-// Lucide icons (MIT), drawn from inline SVG so they match shadcn's stroke
-// weight instead of the nearest text glyph.
-var iconPaths = map[string]string{
-	"panel-left":    `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>`,
-	"plus":          `<path d="M3 12h18"/><path d="M12 3v18"/>`,
-	"search":        `<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>`,
-	"columns-2":     `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/>`,
-	"rows-2":        `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/>`,
-	"x":             `<path d="M18 6 6 18"/><path d="m6 6 12 12"/>`,
-	"folder":        `<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>`,
-	"server":        `<rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/>`,
-	"chevron-right": `<path d="m9 18 6-6-6-6"/>`,
-	"chevron-down":  `<path d="m6 9 6 6 6-6"/>`,
-	"terminal":      `<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>`,
-	"layout-grid":   `<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>`,
-	"grid-2x2":      `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/><path d="M12 3v18"/>`,
-}
+// The chrome uses Apple's SF Symbols, rendered to PNGs by
+// scripts/render-icons.swift so they keep the system's proportions; each is
+// tinted at use, so one asset serves both themes.
+//
+//go:embed icons/*.png
+var iconFiles embed.FS
 
 // Agent marks are the vendors' filled logos, not stroke icons: the pane can
 // then show which agent runs there instead of a generic terminal glyph.
@@ -78,20 +73,36 @@ func agentLogoSource(kind agentKind, tk tokens) ui.ImageSource {
 
 var iconCache sync.Map // "name|color" -> ui.ImageSource
 
-func iconSource(name, color string) ui.ImageSource {
-	key := name + "|" + color
+func iconSource(name, tint string) ui.ImageSource {
+	key := name + "|" + tint
 	if v, ok := iconCache.Load(key); ok {
 		return v.(ui.ImageSource)
 	}
-	paths, ok := iconPaths[name]
-	if !ok {
+	raw, err := iconFiles.ReadFile("icons/" + name + ".png")
+	if err != nil {
 		return nil
 	}
-	svg := fmt.Sprintf(
-		`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%s" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">%s</svg>`,
-		color, paths,
-	)
-	src, err := ui.DecodeImage([]byte(svg))
+	mask, err := png.Decode(bytes.NewReader(raw))
+	if err != nil {
+		return nil
+	}
+	r, g, b := hexColor(tint)
+	bounds := mask.Bounds()
+	tinted := image.NewNRGBA(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			_, _, _, a := mask.At(x, y).RGBA()
+			if a == 0 {
+				continue
+			}
+			tinted.SetNRGBA(x, y, color.NRGBA{R: r, G: g, B: b, A: uint8(a >> 8)})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, tinted); err != nil {
+		return nil
+	}
+	src, err := ui.DecodeImage(buf.Bytes())
 	if err != nil {
 		return nil
 	}
@@ -99,19 +110,31 @@ func iconSource(name, color string) ui.ImageSource {
 	return src
 }
 
+// hexColor parses the "#rrggbb" colour iconSource is given.
+func hexColor(s string) (r, g, b uint8) {
+	if len(s) != 7 || s[0] != '#' {
+		return 0, 0, 0
+	}
+	v, err := strconv.ParseUint(s[1:], 16, 32)
+	if err != nil {
+		return 0, 0, 0
+	}
+	return uint8(v >> 16), uint8(v >> 8), uint8(v)
+}
+
 func colorHex(c ui.Color) string {
 	return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B)
 }
 
-// iconButton is a 26pt hit area with a Lucide icon and a quiet hover state,
+// iconButton is a 26pt hit area with an SF Symbol and a quiet hover state,
 // in place of mygo's default button chrome.
 func iconButton(c *ui.Context, tk tokens, name string, action func()) {
-	iconButtonSized(c, tk, name, iconSize, 14, action)
+	iconButtonSized(c, tk, name, iconSize, 17, action)
 }
 
 // iconButtonSmall is the list-row size: it sits quieter beside 12pt text.
 func iconButtonSmall(c *ui.Context, tk tokens, name string, action func()) {
-	iconButtonSized(c, tk, name, 20, 12, action)
+	iconButtonSized(c, tk, name, 20, 15, action)
 }
 
 // iconMenuButton is iconButton that opens a menu. The menu is built when it
@@ -127,7 +150,7 @@ func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu
 		if src := iconSource(name, colorHex(tk.MutedForeground)); src != nil {
 			// The glyph sits inside the button: the press has to reach the
 			// button so its menu opens.
-			ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
+			ui.Image(c, src).Width(17).Height(17).IgnoreInput(true)
 		}
 	})
 }

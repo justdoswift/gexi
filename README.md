@@ -21,7 +21,22 @@ Requires Go 1.27+ and macOS 13+ (Apple silicon or Intel).
 ```sh
 go tool mygo dev        # development build with live reload
 go tool mygo build      # packaged .app and .dmg in build/
+scripts/build.sh        # mygo build; widens the .icns on ad-hoc builds only
 ```
+
+Production builds are signed with the Developer ID in `mygo.json` and the
+`.dmg` is notarized with the `justwrite-notary` keychain profile, then stapled:
+
+```sh
+go tool mygo build      # signed .app and notarized .dmg in build/
+```
+
+mygo compiles `AppIcon.icon` into an `.icns` capped at 256 px. macOS 26+ takes
+the full-size icon from `Assets.car`, so this only matters on older systems.
+`scripts/build.sh` widens the `.icns` from `brand/renders/e-dinkie.png` for
+ad-hoc development builds; it leaves a Developer ID signed bundle alone, since
+replacing a resource voids its signature and notarization ticket
+(`FORCE_ICNS_PATCH=1` overrides that).
 
 Build the CLI:
 

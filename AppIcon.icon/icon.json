@@ -1,12 +1,12 @@
 {
   "fill": {
-    "automatic-gradient": "extended-srgb:0.95294,0.98039,0.93725,1.00000"
+    "automatic-gradient": "extended-srgb:0.04314,0.07059,0.12549,1.00000"
   },
   "fill-specializations": [
     {
       "appearance": "dark",
       "value": {
-        "automatic-gradient": "extended-srgb:0.07843,0.14118,0.10588,1.00000"
+        "automatic-gradient": "extended-srgb:0.04314,0.07059,0.12549,1.00000"
       }
     },
     {
@@ -21,18 +21,13 @@
       "layers": [
         {
           "glass": false,
-          "image-name": "03-face.svg",
-          "name": "Face"
+          "image-name": "01-mark.svg",
+          "name": "Mark"
         },
         {
           "glass": false,
-          "image-name": "02-head.svg",
-          "name": "Head"
-        },
-        {
-          "glass": false,
-          "image-name": "01-body.svg",
-          "name": "Body"
+          "image-name": "02-back.svg",
+          "name": "Back"
         }
       ],
       "lighting": "individual",

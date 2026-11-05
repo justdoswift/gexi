@@ -29,7 +29,8 @@ func TestClaudeLaunchInjectsHooks(t *testing.T) {
 	}
 	var settings struct {
 		Hooks map[string][]struct {
-			Hooks []struct{ Type, Command string } `json:"hooks"`
+			Matcher string
+			Hooks   []struct{ Type, Command string } `json:"hooks"`
 		} `json:"hooks"`
 	}
 	if err := json.Unmarshal(data, &settings); err != nil {
@@ -44,6 +45,11 @@ func TestClaudeLaunchInjectsHooks(t *testing.T) {
 			t.Fatalf("hook %s does not call gexi: %s", name, entries[0].Hooks[0].Command)
 		}
 	}
+	// An idle Claude fires Notification too; only a permission prompt means
+	// the agent is blocked.
+	if got := settings.Hooks["Notification"][0].Matcher; got != "permission_prompt" {
+		t.Fatalf("Notification matcher is %q, want permission_prompt", got)
+	}
 
 	// Resume must keep the hook settings, or a restored pane goes silent.
 	restore, _ := rawCommand(resolved.restore)
@@ -52,14 +58,45 @@ func TestClaudeLaunchInjectsHooks(t *testing.T) {
 	}
 }
 
-func TestClaudeWithoutClientSkipsHooks(t *testing.T) {
+func TestClaudeResumeKeepsHooks(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	t.Setenv("GEXI_BIN", "/opt/test/bin/gexi")
+
+	resolved := resolveAgentCommand(shellCommand("claude --resume 2e1130fe-78ba-4fbc-917b-8254bd823f52"))
+	raw, _ := rawCommand(resolved.launch)
+	if !strings.Contains(raw, "--settings") {
+		t.Fatalf("resume has no hook settings: %s", raw)
+	}
+	if strings.Count(raw, "--resume") != 1 {
+		t.Fatalf("resume was not left alone: %s", raw)
+	}
+	restore, _ := rawCommand(resolved.restore)
+	if restore != raw {
+		t.Fatalf("resume restore differs from launch: %s", restore)
+	}
+}
+
+// A bundle has no gexi CLI beside it, so the app binary itself must answer
+// the hook's `event` call.
+func TestClaudeWithoutClientUsesOwnBinary(t *testing.T) {
 	t.Setenv("GEXI_HOME", t.TempDir())
 	t.Setenv("GEXI_BIN", "")
 	t.Setenv("PATH", t.TempDir())
 
 	resolved := resolveAgentCommand(shellCommand("claude"))
 	raw, _ := rawCommand(resolved.launch)
-	if strings.Contains(raw, "--settings") {
-		t.Fatalf("launch points at a missing client: %s", raw)
+	if !strings.Contains(raw, "--settings") {
+		t.Fatalf("launch has no hook settings: %s", raw)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("own executable: %v", err)
+	}
+	data, err := os.ReadFile(hookSettingsPath())
+	if err != nil {
+		t.Fatalf("hook settings not written: %v", err)
+	}
+	if !strings.Contains(string(data), exe) {
+		t.Fatalf("hooks do not call this binary: %s", data)
 	}
 }

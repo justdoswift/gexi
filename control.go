@@ -65,7 +65,6 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 			"focusedPane":     nullable(w.FocusedPane),
 			"projects":        w.projectsJSON(),
 			"paneStyle":       w.settings.PaneStyle,
-			"searchOpen":      w.searchOpen,
 		}, nil
 
 	case "project.list":

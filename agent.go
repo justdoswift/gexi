@@ -78,16 +78,24 @@ func resolveAgentCommand(command []string) resolvedCommand {
 }
 
 func resolveClaude(raw string, command []string) resolvedCommand {
+	// Hooks ride along with every launch, resume included: Claude Code keeps
+	// no memory of --settings, so a restored pane would come back deaf to
+	// events and its sidebar loader would never light.
+	settings := ""
+	if !strings.Contains(raw, "--settings") {
+		if hooks, err := installClaudeHooks(); err == nil {
+			settings = " --settings " + shellQuote(hooks)
+		}
+	}
 	if strings.Contains(raw, "--resume") || strings.Contains(raw, "--continue") || strings.Contains(raw, " -c ") {
-		return resolvedCommand{command, command}
+		if settings == "" {
+			return resolvedCommand{command, command}
+		}
+		launch := raw + settings
+		return resolvedCommand{replaceRaw(launch, command), replaceRaw(launch, command)}
 	}
 	id := newID()
-	launch := raw + " --session-id " + id
-	// Hooks ride along with the launch. --settings is additive, so the
-	// user's own hooks still fire; if we cannot find the CLI, launch plain.
-	if hooks, err := installClaudeHooks(); err == nil {
-		launch += " --settings " + shellQuote(hooks)
-	}
+	launch := raw + " --session-id " + id + settings
 	restore := strings.Replace(launch, "--session-id "+id, "--resume "+id, 1)
 	return resolvedCommand{replaceRaw(launch, command), replaceRaw(restore, command)}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater"
@@ -12,11 +13,21 @@ import (
 const Version = "0.0.3"
 
 func main() {
+	// Hooks call back into this same binary (`Gexi event turn.start`), so it
+	// has to answer that before any window is built.
+	if runEventCommand(os.Args[1:]) {
+		return
+	}
+
 	// Daily background checks in the manner of Sparkle; the menu item below
 	// opens the same window on demand.
 	mygo.Use(updater.Plugin)
 
 	w := newWorkspace()
+
+	// Panes are built after the window is ready; the font has to be in
+	// Core Text before the first terminal measures a cell.
+	registerTerminalFont()
 
 	// Restored panes carry the --settings path saved last run; make sure the
 	// file is there before any of them try to launch.

@@ -1,0 +1,94 @@
+{
+  "v": 3,
+  "name": "My App",
+  "source": "clipart",
+  "clipart": {
+    "id": "dinkie-icons:snake",
+    "svg": "<path fill=\"currentColor\" d=\"M10 11H1v-1H0v2h10Zm0 0h1V5h-1v4H9V7H8V2H7v5H6V4H4V2H3v1H1v1h2v1h2v2H2v1h6v1H2V8H1v2h9ZM0 5h1V4H0Zm0-2h1V2H0Zm5 0h1V2h1V1H4v1h1Zm0 0\"/>",
+    "vb": "0 0 12 12"
+  },
+  "emoji": {
+    "char": "🚀"
+  },
+  "text": {
+    "value": "A",
+    "font": "Inter",
+    "weight": 800,
+    "ls": 0,
+    "lh": 1.1,
+    "curve": "none",
+    "curveAmt": 30
+  },
+  "image": {
+    "data": null,
+    "mode": "original"
+  },
+  "svg": {
+    "code": null
+  },
+  "tint": {
+    "mode": "solid",
+    "c1": "#ffffff",
+    "c2": "#ffd166"
+  },
+  "fg": {
+    "scale": 0.6,
+    "dx": 0,
+    "dy": 0,
+    "rot": 0,
+    "flip": false
+  },
+  "bg": {
+    "type": "linear",
+    "c1": "#000000",
+    "c2": "#64748b",
+    "angle": 135,
+    "image": null,
+    "pattern": "none",
+    "patSize": 12,
+    "patOp": 0.2,
+    "noise": 0.21
+  },
+  "mask": {
+    "type": "square",
+    "radius": 22,
+    "pad": 0,
+    "custom": null
+  },
+  "fx": {
+    "shadow": {
+      "mode": "soft",
+      "x": 0,
+      "y": 4,
+      "blur": 10,
+      "op": 0.3,
+      "color": "#000000"
+    },
+    "stroke": {
+      "on": false,
+      "w": 4,
+      "color": "#1e1b4b"
+    },
+    "glow": {
+      "on": false,
+      "str": 0.5,
+      "color": "#ffffff"
+    },
+    "gloss": "none",
+    "border": false
+  },
+  "layers": {
+    "fg": true,
+    "bg": true,
+    "badge": true
+  },
+  "badge": {
+    "on": false,
+    "style": "ribbon",
+    "text": "NEW",
+    "pos": "tr",
+    "size": 0.3,
+    "bg": "#ef4444",
+    "fg": "#ffffff"
+  }
+}

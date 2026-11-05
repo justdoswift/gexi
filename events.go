@@ -176,11 +176,15 @@ func installClaudeHooks() (string, error) {
 	}
 	settings := map[string]any{
 		"hooks": map[string]any{
-			"SessionStart":     []any{hookEntry(command("session.start"))},
-			"UserPromptSubmit": []any{hookEntry(command("turn.start"))},
-			"Stop":             []any{hookEntry(command("turn.end"))},
-			"Notification":     []any{hookEntry(command("needs-input"))},
-			"SessionEnd":       []any{hookEntry(command("session.end"))},
+			"SessionStart":     []any{hookEntry(command("session.start"), "")},
+			"UserPromptSubmit": []any{hookEntry(command("turn.start"), "")},
+			"Stop":             []any{hookEntry(command("turn.end"), "")},
+			// Only a permission request blocks the agent. Claude Code also
+			// fires Notification for idle_prompt sixty seconds after a turn
+			// ends; without the matcher that would leave the sidebar loader
+			// on for a finished session.
+			"Notification": []any{hookEntry(command("needs-input"), "permission_prompt")},
+			"SessionEnd":   []any{hookEntry(command("session.end"), "")},
 		},
 	}
 	data, err := json.MarshalIndent(settings, "", "  ")
@@ -193,18 +197,25 @@ func installClaudeHooks() (string, error) {
 	return path, nil
 }
 
-func hookEntry(command string) map[string]any {
-	return map[string]any{
+// hookEntry is one command hook, optionally narrowed to the event's matcher
+// (Notification's permission_prompt, idle_prompt, …).
+func hookEntry(command, matcher string) map[string]any {
+	entry := map[string]any{
 		"hooks": []any{map[string]any{
 			"type":    "command",
 			"command": command,
 			"timeout": 10,
 		}},
 	}
+	if matcher != "" {
+		entry["matcher"] = matcher
+	}
+	return entry
 }
 
 // gexiBinary finds the client a hook will run. PATH first: that is where
-// `go build -o gexi` and a packaged copy land.
+// `go build -o gexi` lands. Otherwise the app binary itself answers `event`,
+// which is the only option inside a bundle.
 func gexiBinary() string {
 	if v := os.Getenv("GEXI_BIN"); v != "" {
 		return v
@@ -213,10 +224,7 @@ func gexiBinary() string {
 		return p
 	}
 	if exe, err := os.Executable(); err == nil {
-		p := filepath.Join(filepath.Dir(exe), "gexi")
-		if st, err := os.Stat(p); err == nil && !st.IsDir() {
-			return p
-		}
+		return exe
 	}
 	return ""
 }

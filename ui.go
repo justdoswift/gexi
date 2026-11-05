@@ -46,11 +46,11 @@ func (w *workspace) view(c *ui.Context) {
 			Children(func() {
 				w.canvas(c, tk)
 			})
-		// The toggle stays put whether the sidebar is shown or not, so it
-		// sits above the layout rather than inside either header.
-		top := float32(11)
+		// The toggle sits beside the traffic lights and never moves, so
+		// collapsing or showing the sidebar leaves it where the hand expects
+		// it.
 		ui.Row(c).Width(iconSize).Height(iconSize).Absolute().
-			Left(bar.Left + 6).Top(top).Children(func() {
+			Left(bar.Left + 6).Top(11).Children(func() {
 			w.sidebarToggle(c, tk)
 		})
 	})
@@ -59,9 +59,11 @@ func (w *workspace) view(c *ui.Context) {
 }
 
 // dragArea is a draggable stretch of a header that also zooms the window on
-// a double click.
+// a double click. A Row centers its items, so a bare Spacer would be no
+// taller than its empty content and take no press: stretching it fills the
+// row's height.
 func (w *workspace) dragArea(c *ui.Context, tk tokens) ui.Element {
-	return ui.Spacer(c).DragWindow()
+	return ui.Box(c).Grow(1).AlignSelf(ui.Stretch).DragWindow()
 }
 
 func (w *workspace) backdrop(tk tokens) ui.Color {
@@ -93,25 +95,17 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 	side.Opacity(side.Animate("focusDim", w.focusAmount(false), focusMotion)).
 		Children(func() {
 			ui.Row(c).Height(headerHeight).Padding(11, 8, 0, bar.Left+6+iconSize+8).
-				Children(func() {
-					ui.Row(c).FillWidth().Height(iconSize).AlignItems(ui.Center).Gap(2).Children(func() {
+				DragWindow().Children(func() {
+					ui.Row(c).FillWidth().Height(iconSize).AlignItems(ui.Center).Children(func() {
 						w.dragArea(c, tk)
-						iconButton(c, tk, "search", func() {
-							w.searchOpen = !w.searchOpen
-							if !w.searchOpen {
-								w.searchQuery = ""
-							}
-							w.invalidate()
-						})
-						iconButton(c, tk, "plus", func() { w.pickProject() })
 					})
 				})
-			if w.searchOpen {
-				ui.Row(c).Padding(0, 8, 6, 8).Children(func() {
-					ui.TextInput(c, &w.searchQuery).Placeholder("Search projects").
-						FontSize(12).Height(26).FillWidth().AutoFocus()
-				})
-			}
+			// The search field and the new-project button share the first row
+			// under the header, so the title bar keeps only the drag area.
+			ui.Row(c).Height(searchHeight).Padding(8, 8, 0, 8).Gap(6).Children(func() {
+				w.projectSearch(c, tk)
+				iconButtonSized(c, tk, "plus", 24, 19, func() { w.pickProject() })
+			})
 			ui.Column(c).Fill().Padding(8).Gap(1).Children(func() {
 				shown := false
 				for _, pr := range w.Projects {
@@ -126,6 +120,12 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 						TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
 				}
 				ui.Spacer(c)
+				// The settings gear is the sidebar's footer, kept off the
+				// search row so the field can run nearly as wide as the
+				// sessions.
+				ui.Row(c).Height(iconSize).Gap(2).Children(func() {
+					iconButton(c, tk, "setting", func() { w.openSettings() })
+				})
 			})
 			// Remote hosts are places too, but they come from ~/.ssh/config
 			// rather than the project list, so the menu sits under the list
@@ -134,6 +134,28 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 				w.remoteRow(c, tk)
 			})
 		})
+}
+
+// projectSearch is the field that filters the project list. It is a pill of
+// the list's own size and tint, so it reads as the first row of the list.
+func (w *workspace) projectSearch(c *ui.Context, tk tokens) {
+	field := ui.Row(c).Height(searchHeight).FillWidth().AlignItems(ui.Center).Gap(6).
+		PaddingStart(9).PaddingEnd(8).Radius(chromeRadius).
+		Background(tk.Active).Border(1, ui.RGBA(0, 0, 0, 0)).Cursor(ui.CursorText)
+	var in ui.Element
+	field.OnClick(func() { in.Focus() }).Children(func() {
+		if src := iconSource("search", colorHex(tk.MutedForeground)); src != nil {
+			ui.Image(c, src).Width(16).Height(16).IgnoreInput(true)
+		}
+		in = ui.TextInputBase(c, &w.searchQuery).Label("Search projects").
+			Placeholder("Search").PlaceholderColor(tk.MutedForeground).
+			FontSize(11).FillWidth()
+	})
+	// The pill lights its border while the query has the focus; the input
+	// itself draws no chrome, so this is the only focus cue it needs.
+	if in.Focused() {
+		field.BorderColor(tk.MutedForeground)
+	}
 }
 
 // remoteMenu is the whole Remote row: whether this Mac can be reached, the
@@ -290,10 +312,10 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 			chevron = "chevron-down"
 		}
 		if src := iconSource(chevron, colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(12).Height(12).OnClick(toggle)
+			ui.Image(c, src).Width(15).Height(15).OnClick(toggle)
 		}
 		if src := iconSource(projectIcon(pr), colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(13).Height(13).OnClick(toggle)
+			ui.Image(c, src).Width(16).Height(16).OnClick(toggle)
 		}
 		ui.Text(c, pr.name()).FontSize(12).FontWeight(500).SingleLine().TextColor(color).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
@@ -315,8 +337,9 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session) {
 	sel := s.ID == w.SelectedSession
 	color := tk.MutedForeground
-	// Indented past the project's chevron and folder.
-	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 26).Gap(8).Radius(chromeRadius)
+	// Flush with the project row: the session card reads as its own row, not
+	// as something hanging under an indent.
+	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(8).Radius(chromeRadius)
 	hovered := row.Hovered()
 	if sel || hovered {
 		color = tk.Foreground
@@ -330,7 +353,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 				ui.Image(c, src).Width(13).Height(13).OnClick(pick)
 			}
 		} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(13).Height(13).OnClick(pick)
+			ui.Image(c, src).Width(16).Height(16).OnClick(pick)
 		}
 		ui.Text(c, sessionLabel(s)).FontSize(12).FontWeight(500).SingleLine().TextColor(color).OnClick(pick)
 		ui.Spacer(c).OnClick(pick)
@@ -518,7 +541,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			// sidebar toggle over bare terminal content.
 			// No rule under the header: the pane card itself is the frame.
 			header := ui.Row(c).Height(headerHeight).Padding(0, 6, 0, left).
-				Background(tk.Background).ClipY()
+				Background(tk.Background).ClipY().DragWindow()
+			// Split and close belong to the pane the hand is on: they appear
+			// when the pointer is over the header or the pane has the focus, so
+			// an idle layout is only the terminal and its title.
+			showActions := focused || header.Hovered()
 
 			header.Children(func() {
 				line := ui.Row(c).FillWidth().Height(chromeLine(bar)).AlignItems(ui.Center).Gap(4)
@@ -532,7 +559,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 							ui.Image(c, src).Width(13).Height(13).DragWindow()
 						}
 					} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
-						ui.Image(c, src).Width(13).Height(13).DragWindow()
+						ui.Image(c, src).Width(16).Height(16).DragWindow()
 					}
 					title := p.title()
 					if agent != nil {
@@ -552,9 +579,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 							TextColor(tk.MutedForeground).DragWindow()
 					}
 					w.dragArea(c, tk)
-					iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
-					iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
-					iconButton(c, tk, "x", func() { w.requestClose(p) })
+					if showActions {
+						iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
+						iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
+						iconButton(c, tk, "x", func() { w.requestClose(p) })
+					}
 				})
 			})
 

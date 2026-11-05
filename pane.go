@@ -132,7 +132,7 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 		Scrollback: 10 << 20,
 		Padding:    terminal.Padding{X: 12, Y: 10},
 		Font: terminal.Font{
-			Family:     "SF Mono, Menlo, monospace",
+			Family:     terminalFont + ", SF Mono, Menlo, monospace",
 			Size:       12,
 			Weight:     400,
 			LineHeight: 1.2,

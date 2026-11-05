@@ -95,7 +95,6 @@ type workspace struct {
 	lastNotify  map[string]time.Time
 
 	collapsed   map[string]bool
-	searchOpen  bool
 	searchQuery string
 
 	// Remote access: the reverse tunnel this Mac keeps when it is reachable,

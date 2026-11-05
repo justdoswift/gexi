@@ -68,6 +68,7 @@ const sidebarWidth float32 = 240
 
 const (
 	headerHeight float32 = 36
+	searchHeight float32 = 28
 	rowHeightPx  float32 = 30
 	iconSize     float32 = 26
 )
