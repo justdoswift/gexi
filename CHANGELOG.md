@@ -1,12 +1,16 @@
 # Changelog
 
-## 0.0.4
+## 0.0.5
 
 - A pane moves by its title: dropped on a side of another pane it splits
   toward that side, dropped in the middle it trades places with it.
 - Settings is a window of its own: a sidebar of pages (General, Notifications,
   Remote, Keyboard, Advanced) beside grouped forms, with the language, sidebar,
   notification and remote-access switches all in one place.
+- Panes fade and grow in as they open, and shrink out before they close.
+
+## 0.0.4
+
 - The terminal font is JetBrains Mono Nerd Font Mono, embedded, so panes
   draw Powerline and devicon glyphs on a Mac without the font installed.
 - The headers move and zoom the window from any blank spot, not only from
