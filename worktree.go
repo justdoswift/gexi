@@ -801,18 +801,29 @@ func (w *workspace) refreshWorktree(p *pane) {
 // It stops once the pull request is ready, and after twenty minutes of polls.
 func (w *workspace) schedulePRRefresh(p *pane) {
 	wt := p.Worktree
-	if wt == nil || wt.State != "open" || w.mergeBlocker(wt) == "" || wt.prPolls >= 40 {
-		if wt != nil && wt.prTimer != nil {
-			wt.prTimer.Stop()
-			wt.prTimer = nil
-		}
+	if wt == nil || wt.State != "open" || wt.prPolls >= 40 {
+		stopPRTimer(wt)
 		return
 	}
 	wt.prPolls++
+	// The first two looks catch checks that register just after the pull
+	// request opens; after that only one that is not ready keeps polling.
+	delay := 30 * time.Second
+	switch wt.prPolls {
+	case 1:
+		delay = 5 * time.Second
+	case 2:
+		delay = 20 * time.Second
+	default:
+		if w.mergeBlocker(wt) == "" {
+			stopPRTimer(wt)
+			return
+		}
+	}
 	if wt.prTimer != nil {
 		wt.prTimer.Stop()
 	}
-	wt.prTimer = time.AfterFunc(30*time.Second, func() {
+	wt.prTimer = time.AfterFunc(delay, func() {
 		w.onMain(func() {
 			if p.Worktree != wt || w.paneByID(p.ID) != p {
 				return
@@ -1262,7 +1273,6 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 		return
 	}
 	w.pullRequestChip(c, tk, p)
-	w.mergeStatusPill(c, tk, p)
 	if wt.State == "open" {
 		w.mergeChip(c, tk, p)
 	}
@@ -1341,43 +1351,29 @@ func (w *workspace) mergeStatus(wt *paneWorktree) (label string, ready, danger b
 	return locales.WorktreeStatusReady(), true, false
 }
 
-func (w *workspace) mergeStatusPill(c *ui.Context, tk tokens, p *pane) {
-	label, ready, danger := w.mergeStatus(p.Worktree)
-	color := tk.MutedForeground
-	if ready {
-		color = tk.Working
-	} else if danger {
-		color = tk.Danger
-	}
-	el := ui.Row(c).Height(22).Padding(0, 4, 0, 4).Gap(5).
-		Center().Tooltip(prStatusHint(p.Worktree))
-	el.Children(func() {
-		ui.Box(c).Width(6).Height(6).Radius(3).Background(color).IgnoreInput(true)
-		ui.Text(c, label).FontSize(11).TextColor(color)
-	})
-}
-
 // mergeChip is Conductor's filled Merge button: it asks first, and stays
 // disabled while GitHub would refuse the merge. A press refreshes the status
 // first, so a check that finished since the last look still lets it through.
 func (w *workspace) mergeChip(c *ui.Context, tk tokens, p *pane) {
 	wt := p.Worktree
-	_, ready, _ := w.mergeStatus(wt)
-	bg, fg := tk.Active, tk.MutedForeground
+	label, ready, danger := w.mergeStatus(wt)
+	// The button's colour is the status: green can merge, amber is still
+	// checking, red is blocked. No separate dot or label is needed.
+	bg := tk.Waiting
 	if ready {
-		bg, fg = tk.Foreground, tk.Background
+		bg = tk.Working
+	} else if danger {
+		bg = tk.Danger
 	}
+	fg := tk.Background
 	blocker := w.mergeBlocker(wt)
-	hint := locales.WorktreeMerge()
+	hint := label
 	if blocker != "" {
 		hint = locales.WorktreeMergeBlocked(blocker)
 	}
 	action := func() { w.requestMerge(p) }
 	el := ui.Row(c).Height(22).Padding(0, 9, 0, 9).Radius(6).
 		Center().Background(bg).Cursor(ui.CursorPointer).Tooltip(hint)
-	if ready && el.Hovered() {
-		el = el.Background(tk.MutedForeground)
-	}
 	el.OnClick(action).Children(func() {
 		ui.Text(c, locales.WorktreeMerge()).FontSize(11).FontWeight(600).
 			TextColor(fg).OnClick(action)
