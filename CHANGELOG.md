@@ -8,7 +8,11 @@
   the title text.
 - Claude hooks ride along with resumed sessions, and idle notifications no
   longer leave the sidebar loader on.
-- New app icon and brand marks.
+- New app icon and brand marks, the update window included.
+- A project stays when its last session closes, and an empty workspace
+  draws a session card rather than a blank window.
+- The interface speaks English and Simplified Chinese, from View >
+  Language or the system's.
 
 ## 0.0.3
 
