@@ -36,8 +36,9 @@ type savedProject struct {
 }
 
 type savedSession struct {
-	ID   string    `json:"id"`
-	Root savedNode `json:"root"`
+	ID       string           `json:"id"`
+	Root     savedNode        `json:"root"`
+	Worktree *sessionWorktree `json:"worktree,omitempty"`
 }
 
 type savedTab struct {
@@ -95,6 +96,19 @@ func (n *splitNode) saved() savedNode {
 
 func ptr(n savedNode) *savedNode { return &n }
 
+// rebaseDir moves panes that lived in a worktree to the project folder, for a
+// worktree that is gone by the time the layout comes back.
+func (n *savedNode) rebaseDir(from, to string) {
+	if n == nil {
+		return
+	}
+	if n.Pane != nil && filepath.Clean(n.Pane.WorkingDirectory) == filepath.Clean(from) {
+		n.Pane.WorkingDirectory = to
+	}
+	n.First.rebaseDir(from, to)
+	n.Second.rebaseDir(from, to)
+}
+
 func (w *workspace) savedState() workspaceState {
 	state := workspaceState{
 		Version:         2,
@@ -114,8 +128,9 @@ func (w *workspace) savedState() workspaceState {
 				continue
 			}
 			saved.Sessions = append(saved.Sessions, savedSession{
-				ID:   s.ID,
-				Root: s.Root.saved(),
+				ID:       s.ID,
+				Root:     s.Root.saved(),
+				Worktree: s.Worktree,
 			})
 		}
 		if len(saved.Sessions) == 0 {
@@ -228,11 +243,19 @@ func (w *workspace) restoreOrCreate() {
 	for _, sp := range state.Projects {
 		pr := &project{ID: sp.ID, Dir: sp.Dir, Label: sp.Label, RemoteHost: sp.RemoteHost}
 		for _, ss := range sp.Sessions {
+			// A worktree removed outside Gexi would otherwise restore into
+			// the home folder; fall back to the project itself instead.
+			if ss.Worktree != nil {
+				if info, err := os.Stat(ss.Worktree.Path); err != nil || !info.IsDir() {
+					ss.Root.rebaseDir(ss.Worktree.Path, sp.Dir)
+					ss.Worktree = nil
+				}
+			}
 			root, err := ss.Root.restore(w)
 			if err != nil {
 				continue
 			}
-			pr.Sessions = append(pr.Sessions, &session{ID: ss.ID, Root: root})
+			pr.Sessions = append(pr.Sessions, &session{ID: ss.ID, Root: root, Worktree: ss.Worktree})
 		}
 		if len(pr.Sessions) == 0 {
 			continue
@@ -282,6 +305,9 @@ func (w *workspace) restoreOrCreate() {
 		}
 	}
 	w.focusReq = w.FocusedPane
+	if s := w.selected(); s != nil && s.Worktree != nil {
+		w.refreshWorktree(s)
+	}
 }
 
 func loadSnapshot(id string) string {

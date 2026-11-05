@@ -21,6 +21,10 @@ import (
 // radius, quiet hover states.
 
 func (w *workspace) view(c *ui.Context) {
+	if w.pendingToast != "" {
+		c.Toast(w.pendingToast)
+		w.pendingToast = ""
+	}
 	tk := themeTokens(c.Theme())
 	bar := c.TitleBar()
 	// The window's own surface is the canvas the panes sit on, so a pane
@@ -380,6 +384,9 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 // sessionLabel is what the sidebar calls a session: its agent when one runs
 // there, the terminal title otherwise.
 func sessionLabel(s *session) string {
+	if s.Worktree != nil && s.Worktree.Branch != "" {
+		return s.Worktree.Branch
+	}
 	if agent := s.agent(); agent != nil {
 		return agent.Kind.name()
 	}
@@ -609,6 +616,9 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					actions = actions.IgnoreInput(!showActions).
 						Opacity(actions.AnimateTo("actions", alpha, ui.Animation{Duration: 150 * time.Millisecond, Ease: ui.EaseOut}))
 					actions.Children(func() {
+						if s := w.sessionOf(p); s != nil && s.Worktree != nil {
+							w.worktreeButton(c, tk, s)
+						}
 						iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
 						iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
 						// A pane with nowhere to go has nothing to zoom to.

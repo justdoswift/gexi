@@ -28,10 +28,12 @@ type project struct {
 	Sessions   []*session
 }
 
-// session is one split tree of panes inside a project.
+// session is one split tree of panes inside a project. A session created
+// under the worktree setting also owns a worktree and its branch.
 type session struct {
-	ID   string
-	Root *splitNode
+	ID       string
+	Root     *splitNode
+	Worktree *sessionWorktree
 }
 
 func (s *session) title() string {
@@ -120,6 +122,9 @@ type workspace struct {
 	importOpen bool
 	importText string
 	importErr  string
+
+	// pendingToast is handed to the next frame's view, which shows it.
+	pendingToast string
 }
 
 func newWorkspace() *workspace {
@@ -305,11 +310,23 @@ func (w *workspace) newSession(pr *project, command []string, dir string) (*sess
 	if dir == "" {
 		dir = pr.Dir
 	}
+	wt, wtErr := w.worktreeForSession(pr, dir)
+	if wtErr != nil {
+		// A worktree that cannot be made must not stop the session: it
+		// opens where it would have before, and the reason shows as a toast.
+		w.flash(locales.WorktreeError(wtErr.Error()))
+	} else if wt != nil {
+		dir = wt.Path
+	}
 	p, err := newPane(w, "", command, dir, "")
 	if err != nil {
+		// The checkout was made for a pane that never opened.
+		if wt != nil {
+			go func() { _ = removeWorktree(wt) }()
+		}
 		return nil, err
 	}
-	s := &session{ID: newID(), Root: leaf(p)}
+	s := &session{ID: newID(), Root: leaf(p), Worktree: wt}
 	pr.Sessions = append(pr.Sessions, s)
 	w.SelectedSession = s.ID
 	w.zoomedPane = ""
@@ -513,6 +530,9 @@ func (w *workspace) selectSession(id string) {
 	}
 	w.SelectedSession = s.ID
 	w.zoomedPane = ""
+	if s.Worktree != nil {
+		w.refreshWorktree(s)
+	}
 	if pr := w.projectOf(s); pr != nil {
 		delete(w.collapsed, pr.ID)
 	}
@@ -691,6 +711,15 @@ func (w *workspace) invalidate() {
 	if w.win != nil {
 		w.win.Invalidate()
 	}
+}
+
+// flash queues a toast for the next frame. Main thread.
+func (w *workspace) flash(message string) {
+	if message == "" {
+		return
+	}
+	w.pendingToast = message
+	w.invalidate()
 }
 
 // onMain runs fn on the UI thread and waits, so the control server can read

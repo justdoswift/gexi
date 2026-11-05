@@ -82,6 +82,18 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 	if p == nil {
 		return result, nil
 	}
+	switch ev.Kind {
+	case "turn.start":
+		// The hook's stdout becomes context for this prompt, which is where
+		// the one-time branch rename note reaches the agent.
+		if ctx := w.worktreeNamingContext(p); ctx != "" {
+			result["context"] = ctx
+		}
+	case "turn.end":
+		if s := w.sessionOf(p); s != nil && s.Worktree != nil {
+			w.refreshWorktree(s)
+		}
+	}
 
 	p.activity = &agentActivity{
 		State:   state,

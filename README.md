@@ -95,6 +95,18 @@ the window has nowhere to go, so its title keeps moving the window.
 pane; the inward arrow it turns into, or the same shortcut, brings every pane
 back.
 
+### Worktrees and pull requests
+
+Settings → General → Sessions → *Worktrees & pull requests* gives every new
+local session its own git worktree, branched from the latest `origin` base
+branch and kept under the app's data folder. The branch starts with a
+placeholder city name, as Conductor does; the first prompt asks Claude Code to
+rename it to the task. The pane header then shows **PR**, which pushes the
+branch and opens a pull request with `gh`, and turns into **Merge**, which
+merges the PR, fast-forwards your local base branch, and removes the worktree.
+With the setting off, sessions work exactly as before. Opening and merging
+pull requests needs the GitHub CLI, authenticated.
+
 ### Remote hosts
 
 The **Remote** row at the bottom of the sidebar is the whole feature.

@@ -271,13 +271,24 @@ func (w *workspace) sessionJSON(pr *project, s *session) map[string]any {
 	if pr != nil {
 		projectID = pr.ID
 	}
-	return map[string]any{
+	out := map[string]any{
 		"id":       s.ID,
 		"title":    s.title(),
 		"project":  projectID,
 		"selected": s.ID == w.SelectedSession,
 		"panes":    ids,
 	}
+	if s.Worktree != nil {
+		out["worktree"] = map[string]any{
+			"path":   s.Worktree.Path,
+			"branch": s.Worktree.Branch,
+			"base":   s.Worktree.Base,
+			"pr":     nullableInt(s.Worktree.PR),
+			"url":    nullable(s.Worktree.URL),
+			"state":  nullable(s.Worktree.State),
+		}
+	}
+	return out
 }
 
 func (w *workspace) projectsJSON() []any {
@@ -377,6 +388,13 @@ func nullable(s string) any {
 		return nil
 	}
 	return s
+}
+
+func nullableInt(n int) any {
+	if n == 0 {
+		return nil
+	}
+	return n
 }
 
 // startControl serves the socket. It returns a function that removes it.

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -47,26 +48,42 @@ func runEventCommand(args []string) bool {
 	if pane != "" {
 		params["pane"] = pane
 	}
-	sendEvent(params)
+	if result := sendEvent(params); result != nil {
+		// Claude Code adds a UserPromptSubmit hook's stdout to the prompt.
+		if ctx, _ := result["context"].(string); ctx != "" {
+			fmt.Print(ctx)
+		}
+	}
 	return true
 }
 
 // sendEvent hands one event to the running window and never fails loudly: a
 // hook may fire while Gexi is closed, and that must not disturb the agent.
-func sendEvent(params map[string]any) {
+func sendEvent(params map[string]any) map[string]any {
 	socket := os.Getenv("GEXI_SOCKET")
 	if socket == "" {
 		socket = socketPath()
 	}
 	conn, err := net.DialTimeout("unix", socket, time.Second)
 	if err != nil {
-		return
+		return nil
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(time.Second))
 	req := map[string]any{"id": newID(), "method": "event", "params": params}
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
-		return
+		return nil
 	}
-	_, _ = bufio.NewReader(conn).ReadBytes('\n')
+	line, err := bufio.NewReader(conn).ReadBytes('\n')
+	if err != nil {
+		return nil
+	}
+	var resp struct {
+		OK     bool           `json:"ok"`
+		Result map[string]any `json:"result"`
+	}
+	if json.Unmarshal(line, &resp) != nil || !resp.OK {
+		return nil
+	}
+	return resp.Result
 }
