@@ -6,6 +6,12 @@
   header; the inward arrow it turns into, or the same shortcut, brings every
   pane back.
 
+## 0.0.9
+
+- The sidebar's activity loader is the three-petal spiral from
+  math-curve-loaders: a particle comet running round a breathing, slowly
+  turning curve while an agent works, frozen on one frame while it waits.
+
 ## 0.0.8
 
 - A Claude Code started by hand in a pane now lights the sidebar's activity
