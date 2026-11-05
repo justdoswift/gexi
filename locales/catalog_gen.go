@@ -1359,3 +1359,33 @@ func DrawerOpenChanges() string { return In(i18n.Locale()).DrawerOpenChanges() }
 func (msgs Messages) DrawerOpenChanges() string {
 	return Catalog.Format(msgs.locale, "drawerOpenChanges", nil)
 }
+
+// RemoteMenuHint says "Remote Macs"
+// in the language the app shows.
+func RemoteMenuHint() string { return In(i18n.Locale()).RemoteMenuHint() }
+
+// RemoteMenuHint says "Remote Macs"
+// in the language of msgs.
+func (msgs Messages) RemoteMenuHint() string {
+	return Catalog.Format(msgs.locale, "remoteMenuHint", nil)
+}
+
+// CloseProject says "Close Project"
+// in the language the app shows.
+func CloseProject() string { return In(i18n.Locale()).CloseProject() }
+
+// CloseProject says "Close Project"
+// in the language of msgs.
+func (msgs Messages) CloseProject() string {
+	return Catalog.Format(msgs.locale, "closeProject", nil)
+}
+
+// CloseSession says "Close Session"
+// in the language the app shows.
+func CloseSession() string { return In(i18n.Locale()).CloseSession() }
+
+// CloseSession says "Close Session"
+// in the language of msgs.
+func (msgs Messages) CloseSession() string {
+	return Catalog.Format(msgs.locale, "closeSession", nil)
+}

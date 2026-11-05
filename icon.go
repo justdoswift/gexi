@@ -135,18 +135,23 @@ func iconButton(c *ui.Context, tk tokens, name string, action func(), hint ...st
 }
 
 // iconButtonSmall is the list-row size: it sits quieter beside 12pt text.
-func iconButtonSmall(c *ui.Context, tk tokens, name string, action func()) {
-	iconButtonSized(c, tk, name, 20, 15, action)
+// A hint, when given, is the tooltip the pointer shows over it.
+func iconButtonSmall(c *ui.Context, tk tokens, name string, action func(), hint ...string) {
+	iconButtonSized(c, tk, name, 20, 15, action, hint...)
 }
 
 // iconMenuButton is iconButton that opens a menu. The menu is built when it
-// opens, so the host list is read fresh instead of at startup.
-func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu)) {
+// opens, so the host list is read fresh instead of at startup. A hint, when
+// given, is the tooltip the pointer shows over it.
+func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu), hint ...string) {
 	size := iconSize
 	el := ui.Row(c).Width(size).Height(size).Radius(size / 2).
 		Center().Cursor(ui.CursorPointer)
 	if el.Hovered() {
 		el = el.Background(tk.Control)
+	}
+	if len(hint) > 0 && hint[0] != "" {
+		el = el.Tooltip(hint[0])
 	}
 	el.Menu(build).Children(func() {
 		if src := iconSource(name, colorHex(tk.MutedForeground)); src != nil {
