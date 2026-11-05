@@ -1187,3 +1187,13 @@ func DrawerLoading() string { return In(i18n.Locale()).DrawerLoading() }
 func (msgs Messages) DrawerLoading() string {
 	return Catalog.Format(msgs.locale, "drawerLoading", nil)
 }
+
+// DrawerOpenChanges says "Open changes"
+// in the language the app shows.
+func DrawerOpenChanges() string { return In(i18n.Locale()).DrawerOpenChanges() }
+
+// DrawerOpenChanges says "Open changes"
+// in the language of msgs.
+func (msgs Messages) DrawerOpenChanges() string {
+	return Catalog.Format(msgs.locale, "drawerOpenChanges", nil)
+}

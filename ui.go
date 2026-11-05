@@ -54,13 +54,6 @@ func (w *workspace) view(c *ui.Context) {
 			Left(bar.Left + 6).Top(11).Children(func() {
 			w.sidebarToggle(c, tk)
 		})
-		// The drawer's toggle sits at the window's top-right corner, as an
-		// inspector button does, so it is there whether the drawer is open or
-		// not; the drawer covers it while open, where its own close button is.
-		ui.Row(c).Width(iconSize).Height(iconSize).Absolute().
-			Right(6).Top(5).Children(func() {
-			w.drawerToggle(c, tk)
-		})
 		// The drawer sits above the panes and below nothing: it is the last
 		// thing drawn, so it slides over the canvas rather than resizing it.
 		w.drawerView(c, tk)
@@ -172,7 +165,6 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 				// the left, settings on the right, off the search row so the
 				// field can run nearly as wide as the sessions.
 				ui.Row(c).Height(iconSize).Gap(2).Children(func() {
-					iconButton(c, tk, "folder", func() { w.toggleDrawer() }, locales.MenuToggleFiles())
 					iconMenuButton(c, tk, "server", w.remoteMenu)
 					ui.Spacer(c)
 					iconButton(c, tk, "setting", func() { w.openSettings() })
@@ -548,9 +540,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			// Headers are always there: hiding them would leave the collapsed
 			// sidebar toggle over bare terminal content.
 			// No rule under the header: the pane card itself is the frame.
-			// The right padding leaves the drawer's window-corner toggle its
-			// own room, so a pane's actions never sit under it.
-			header := ui.Row(c).Height(headerHeight).Padding(0, 6+iconSize+6, 0, left).
+			header := ui.Row(c).Height(headerHeight).Padding(0, 6, 0, left).
 				Background(tk.Background).ClipY().DragWindow()
 			// Split and close belong to the pane the hand is on: they appear
 			// wherever the pointer is over the pane, its terminal included,
@@ -610,6 +600,10 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 								TextColor(tk.MutedForeground)
 						}
 					})
+					// The branch pill follows the title: it names the branch
+					// the project is on, counts the working tree's changes,
+					// and opens their diff.
+					w.branchPill(c, tk, p)
 					w.dragArea(c, tk)
 					// The buttons keep their room and fade, so the row does
 					// not jump as the pointer comes and goes; they take no

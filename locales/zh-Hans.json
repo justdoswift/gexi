@@ -114,5 +114,6 @@
   "drawerRemote": "远程会话暂时不能浏览文件。",
   "drawerBinary": "二进制文件",
   "drawerTooLarge": "文件太大，无法显示。",
-  "drawerLoading": "加载中…"
+  "drawerLoading": "加载中…",
+  "drawerOpenChanges": "查看改动"
 }

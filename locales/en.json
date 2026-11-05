@@ -114,5 +114,6 @@
   "drawerRemote": "Files are not available for remote sessions yet.",
   "drawerBinary": "Binary file",
   "drawerTooLarge": "This file is too large to show.",
-  "drawerLoading": "Loading…"
+  "drawerLoading": "Loading…",
+  "drawerOpenChanges": "Open changes"
 }

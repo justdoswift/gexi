@@ -5,6 +5,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -63,8 +64,6 @@ type drawerState struct {
 	dir     string
 	changes []changedFile
 	err     string
-	busy    bool
-	gen     int
 
 	// The files tree: the folders opened, and the listings read so far.
 	expanded map[string]bool
@@ -101,9 +100,6 @@ func (w *workspace) syncDrawerDir() string {
 		d.dirs = map[string][]drawerEntry{}
 		d.file = nil
 		d.viewGen++
-		// A read still in flight belongs to the folder we just left.
-		d.gen++
-		d.busy = false
 	}
 	return dir
 }
@@ -127,10 +123,79 @@ func (w *workspace) drawerDir() string {
 	return pr.Dir
 }
 
-// drawerToggle is the window's own button for the drawer, always in the same
-// corner rather than fading in with a pane's actions.
-func (w *workspace) drawerToggle(c *ui.Context, tk tokens) {
-	iconButton(c, tk, "folder", func() { w.toggleDrawer() }, locales.MenuToggleFiles())
+// branchPill is the pane header's Git badge: the branch the project is on,
+// what the working tree changes, and, on a click, their diff. It follows the
+// title as Rex's does, and is the drawer's everyday way in.
+func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
+	pr := w.projectOf(w.sessionOf(p))
+	if pr == nil || pr.RemoteHost != "" {
+		return
+	}
+	s, ok := w.gitInfo[pr.Dir]
+	if !ok || !s.OK || s.Branch == "" {
+		return
+	}
+	d := &w.drawer
+	showing := d.open && d.tab == drawerTabChanges && d.dir == pr.Dir
+	bg := tk.Active
+	color := tk.MutedForeground
+	if showing {
+		bg, color = tk.Control, tk.Foreground
+	}
+	el := ui.Row(c).Height(22).Radius(chromeRadius).Padding(0, 8).Gap(5).
+		AlignItems(ui.Center).Cursor(ui.CursorPointer)
+	if el.Hovered() {
+		bg, color = tk.Control, tk.Foreground
+	}
+	pick := func() { w.toggleChangesDrawer(pr.Dir) }
+	el.Background(bg).Tooltip(locales.DrawerOpenChanges()).OnClick(pick).Children(func() {
+		if src := iconSource("branch", colorHex(tk.MutedForeground)); src != nil {
+			ui.Image(c, src).Width(12).Height(12).IgnoreInput(true)
+		}
+		ui.Text(c, shortBranch(s.Branch)).FontSize(11).SingleLine().
+			TextColor(color).OnClick(pick)
+		if s.Added > 0 {
+			ui.Text(c, "+"+strconv.Itoa(s.Added)).FontSize(10).
+				TextColor(tk.Working).OnClick(pick)
+		}
+		if s.Deleted > 0 {
+			ui.Text(c, "−"+strconv.Itoa(s.Deleted)).FontSize(10).
+				TextColor(tk.Danger).OnClick(pick)
+		}
+		if s.Changed && s.Added+s.Deleted == 0 {
+			// A change Git counts no lines for: a new file, a rename, a
+			// binary.
+			ui.Text(c, "•").FontSize(10).TextColor(tk.Waiting).OnClick(pick)
+		}
+	})
+}
+
+// shortBranch keeps a long branch name from crowding the header.
+func shortBranch(name string) string {
+	r := []rune(name)
+	if len(r) > 28 {
+		return string(r[:27]) + "…"
+	}
+	return name
+}
+
+// toggleChangesDrawer opens the drawer on the changes, or puts them away when
+// they are already what it shows; a file open over the list comes back to it.
+func (w *workspace) toggleChangesDrawer(dir string) {
+	d := &w.drawer
+	if d.open && d.tab == drawerTabChanges && d.dir == dir {
+		if d.file != nil {
+			w.closeDrawerFile()
+			return
+		}
+		w.closeDrawer()
+		return
+	}
+	if !d.open {
+		w.openDrawer(drawerTabChanges)
+		return
+	}
+	w.setDrawerTab(drawerTabChanges)
 }
 
 func (w *workspace) toggleDrawer() {
@@ -151,7 +216,7 @@ func (w *workspace) openDrawer(tab int) {
 	w.invalidate()
 	w.scheduleSave()
 	if tab == drawerTabChanges {
-		w.refreshChanges()
+		w.refreshGit()
 	}
 }
 
@@ -182,7 +247,6 @@ func (w *workspace) resetDrawer() {
 	d.dir = ""
 	d.changes = nil
 	d.err = ""
-	d.busy = false
 	d.expanded = map[string]bool{}
 	d.dirs = map[string][]drawerEntry{}
 	d.file = nil
@@ -203,37 +267,43 @@ func (w *workspace) setDrawerTab(tab int) {
 	w.invalidate()
 	w.scheduleSave()
 	if tab == drawerTabChanges {
-		w.refreshChanges()
+		w.refreshGit()
 	}
 }
 
-// refreshChanges reads `git status` off the UI thread and applies it there.
-// A read already in flight is left to land; the next tick gets the newer one.
-func (w *workspace) refreshChanges() {
-	d := &w.drawer
-	if d.busy {
-		return
-	}
+// refreshGit reads the selected project's status off the UI thread and applies
+// it there: the pane headers' branch pill always, and the drawer's list while
+// it shows the changes. One read feeds both, and a read already in flight is
+// left to land; the next tick gets the newer one.
+func (w *workspace) refreshGit() {
 	dir := w.syncDrawerDir()
-	if dir == "" {
+	if dir == "" || w.gitBusy[dir] {
 		return
 	}
-	d.busy = true
-	d.gen++
-	gen := d.gen
+	w.gitBusy[dir] = true
+	w.gitGen[dir]++
+	gen := w.gitGen[dir]
 	go func() {
-		files, err := gitChanges(dir)
+		files, summary, err := gitSnapshot(dir)
 		w.onMain(func() {
-			if d.gen != gen {
+			if w.gitGen[dir] != gen {
 				return
 			}
-			d.busy = false
-			if err != nil {
-				d.changes, d.err = nil, drawerError(err)
-			} else {
-				d.changes, d.err = files, ""
+			delete(w.gitBusy, dir)
+			changed := w.gitInfo[dir] != summary
+			w.gitInfo[dir] = summary
+			d := &w.drawer
+			showing := d.open && d.tab == drawerTabChanges && d.dir == dir && d.file == nil
+			if showing {
+				if err != nil {
+					d.changes, d.err = nil, drawerError(err)
+				} else {
+					d.changes, d.err = files, ""
+				}
 			}
-			w.invalidate()
+			if changed || showing {
+				w.invalidate()
+			}
 		})
 	}()
 }
@@ -246,9 +316,10 @@ func drawerError(err error) string {
 	return err.Error()
 }
 
-// startDrawerMonitor refreshes the changes while the drawer shows them, so a
-// build or an agent's edits land without a click.
-func (w *workspace) startDrawerMonitor() {
+// startGitMonitor keeps the branch pill, and the drawer's list while it is
+// up, following the working tree, so a build or an agent's edits land without
+// a click.
+func (w *workspace) startGitMonitor() {
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
@@ -257,9 +328,7 @@ func (w *workspace) startDrawerMonitor() {
 				continue
 			}
 			w.onMain(func() {
-				if w.drawer.open && w.drawer.tab == drawerTabChanges && w.drawer.file == nil {
-					w.refreshChanges()
-				}
+				w.refreshGit()
 			})
 		}
 	}()
@@ -349,7 +418,7 @@ func (w *workspace) closeDrawerFile() {
 	w.drawer.viewGen++
 	w.invalidate()
 	if w.drawer.tab == drawerTabChanges {
-		w.refreshChanges()
+		w.refreshGit()
 	}
 }
 
@@ -459,7 +528,7 @@ func (w *workspace) drawerChanges(c *ui.Context, tk tokens) {
 	case d.err != "":
 		w.drawerNote(c, tk, d.err)
 		return
-	case len(d.changes) == 0 && d.busy:
+	case len(d.changes) == 0 && w.gitBusy[d.dir]:
 		w.drawerNote(c, tk, locales.DrawerLoading())
 		return
 	case len(d.changes) == 0:

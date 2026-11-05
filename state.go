@@ -308,7 +308,7 @@ func (w *workspace) restoreOrCreate() {
 		w.drawer.shown = true
 		w.resetDrawer()
 		if w.drawer.tab == drawerTabChanges {
-			w.refreshChanges()
+			w.refreshGit()
 		}
 	}
 }

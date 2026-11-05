@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -49,13 +50,68 @@ func gitChanges(dir string) ([]changedFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parseGitStatus(out), nil
+	files, _ := parseGitStatus(out)
+	return files, nil
+}
+
+// gitSummary is what a pane header's branch pill shows: the branch the
+// project is on, whether the working tree differs, and how many lines that
+// difference added and deleted.
+type gitSummary struct {
+	Branch  string
+	Added   int
+	Deleted int
+	Changed bool
+	OK      bool
+}
+
+// gitSnapshot reads the status once for both the drawer's list and the
+// header's pill: the branch and the changes come from one call, and the
+// line counts, which status does not carry, from a second.
+func gitSnapshot(dir string) ([]changedFile, gitSummary, error) {
+	out, err := gitOutput(dir, "status", "--porcelain=v1", "-z", "-b", "--untracked-files=all")
+	if err != nil {
+		return nil, gitSummary{}, err
+	}
+	files, branch := parseGitStatus(out)
+	s := gitSummary{Branch: branch, Changed: len(files) > 0, OK: true}
+	if s.Changed {
+		s.Added, s.Deleted = gitNumstat(dir)
+	}
+	return files, s, nil
+}
+
+// gitNumstat sums the lines Git counts between HEAD and the working tree,
+// staged and unstaged alike. A repository whose first commit is being made
+// has no HEAD to count against.
+func gitNumstat(dir string) (added, deleted int) {
+	out, err := gitOutput(dir, "diff", "--numstat", "HEAD")
+	if err != nil {
+		return 0, 0
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		f := strings.SplitN(line, "\t", 3)
+		if len(f) < 2 || f[0] == "-" || f[1] == "-" {
+			continue
+		}
+		a, errA := strconv.Atoi(f[0])
+		d, errD := strconv.Atoi(f[1])
+		if errA != nil || errD != nil {
+			continue
+		}
+		added += a
+		deleted += d
+	}
+	return added, deleted
 }
 
 // parseGitStatus reads porcelain v1's NUL-separated records: "XY path", and
 // for a rename or copy "XY new" followed by the old path as its own record.
-func parseGitStatus(out []byte) []changedFile {
+// With -b the first record is "## branch", which it returns as the branch.
+func parseGitStatus(out []byte) ([]changedFile, string) {
 	var files []changedFile
+	branch := ""
+	first := true
 	next := func() (string, bool) {
 		if len(out) == 0 {
 			return "", false
@@ -72,8 +128,18 @@ func parseGitStatus(out []byte) []changedFile {
 	}
 	for {
 		rec, ok := next()
-		if !ok || len(rec) < 4 {
+		if !ok {
 			break
+		}
+		if first {
+			first = false
+			if strings.HasPrefix(rec, "## ") {
+				branch = branchFromHeader(rec)
+				continue
+			}
+		}
+		if len(rec) < 4 {
+			continue
 		}
 		x, y := rec[0], rec[1]
 		f := changedFile{Path: rec[3:], Status: changeLetter(x, y)}
@@ -87,7 +153,26 @@ func parseGitStatus(out []byte) []changedFile {
 	sort.Slice(files, func(i, j int) bool {
 		return strings.ToLower(files[i].Path) < strings.ToLower(files[j].Path)
 	})
-	return files
+	return files, branch
+}
+
+// branchFromHeader reads the name out of git status -b's header: "## main",
+// "## main...origin/main [ahead 1]", or a repository without a commit yet.
+func branchFromHeader(rec string) string {
+	rest := strings.TrimPrefix(rec, "## ")
+	if strings.HasPrefix(rest, "No commits yet on ") {
+		return strings.TrimPrefix(rest, "No commits yet on ")
+	}
+	if rest == "HEAD (no branch)" {
+		return "HEAD"
+	}
+	if i := strings.Index(rest, "..."); i >= 0 {
+		rest = rest[:i]
+	}
+	if i := strings.Index(rest, " ["); i >= 0 {
+		rest = rest[:i]
+	}
+	return rest
 }
 
 // changeLetter folds Git's two status letters into the one a row shows: the

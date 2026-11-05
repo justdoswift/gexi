@@ -594,6 +594,44 @@
       "stroke": 1.058,
       "dx": 0,
       "dy": 0
+    },
+    "branch": {
+      "label": "Git branch",
+      "ref": "dev/git-branch",
+      "rotate": 0,
+      "els": [
+        {
+          "t": "line",
+          "x1": 4.5,
+          "y1": 2.5,
+          "x2": 4.5,
+          "y2": 9.9,
+          "role": "body"
+        },
+        {
+          "t": "circle",
+          "cx": 4.5,
+          "cy": 11.5,
+          "r": 1.6,
+          "role": "body"
+        },
+        {
+          "t": "circle",
+          "cx": 11.5,
+          "cy": 4.5,
+          "r": 1.6,
+          "role": "body"
+        },
+        {
+          "t": "path",
+          "d": "M11.5 6.1 A5.4 5.4 0 0 1 6.1 11.5",
+          "role": "body"
+        }
+      ],
+      "box": 160,
+      "stroke": 1.0,
+      "dx": 0,
+      "dy": 0
     }
   },
   "strokeWidth": 1.25

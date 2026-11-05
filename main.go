@@ -78,8 +78,9 @@ func main() {
 
 		mygo.App.SetMenu(mainMenu(w))
 		w.restoreOrCreate()
+		w.refreshGit()
 		w.startAgentMonitor()
-		w.startDrawerMonitor()
+		w.startGitMonitor()
 		stop := startControl(w)
 		mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
 			w.saveNow()

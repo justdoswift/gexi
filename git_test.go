@@ -11,13 +11,17 @@ import (
 // came from in a second record.
 func TestParseGitStatus(t *testing.T) {
 	out := "" +
+		"## main...origin/main [ahead 1]\x00" +
 		" M main.go\x00" +
 		"?? new file.txt\x00" +
 		"A  added.go\x00" +
 		"R  renamed.go\x00old.go\x00" +
 		"UU conflict.txt\x00" +
 		"D  gone.go\x00"
-	got := parseGitStatus([]byte(out))
+	got, branch := parseGitStatus([]byte(out))
+	if branch != "main" {
+		t.Errorf("branch = %q, want main", branch)
+	}
 	want := []changedFile{
 		{Path: "added.go", Status: 'A'},
 		{Path: "conflict.txt", Status: '!'},
@@ -69,12 +73,15 @@ func TestGitChangesAndDiff(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	changes, err := gitChanges(dir)
+	changes, summary, err := gitSnapshot(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(changes) != 2 {
 		t.Fatalf("changes = %+v, want two", changes)
+	}
+	if summary.Branch == "" || !summary.Changed || summary.Added != 1 || summary.Deleted != 0 {
+		t.Errorf("summary = %+v, want the branch, a change, and one added line", summary)
 	}
 	byPath := map[string]changedFile{}
 	for _, c := range changes {
