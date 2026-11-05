@@ -39,7 +39,19 @@ Intersection: a coiled snake that is settled, not threatening.
 
 Picked three, most different: **Coiled G**, **Snake badge**, **Nest**.
 
-## 选定（2026-11-04）
+## 选定（2026-11-06）
+
+蛇的约束作废（用户：「不一定非要蛇，从产品角度出发」）。改从产品动作推导，
+方向记录在 `icon-product/README.md`，三个候选：窗格 / 分叉 / 嵌套。
+
+用户选定 **A · 窗格**：一块窗格按真实布局切成三块，右下角是正在跑的那个会话。
+
+- 墨黑 `#121212` 底、纸白 `#F8F6F5` 窗格、紫 `#AC46EA` 只给聚焦窗格。
+- 矢量与 8 档 PNG：`icon-product/final/`；对比图：`icon-product/preview.png`。
+- `AppIcon.icon` 的 `01-mark.svg` / `02-back.svg` / `icon.json` 已按本方案重建。
+- 旧的像素蛇方案（dinkie）保留在 `renders/`、`concepts/` 里，不再使用。
+
+## 选定（2026-11-04，已作废）
 
 用户在 icon.qiaomu.ai 上选定 **dinkie-icons:snake**（12×12 像素蛇）＋ 石墨线性渐变底
 （#000000 → #64748b，135°）＋ 白色单体标记，缩放 0.6，圆角 22。
@@ -60,7 +72,7 @@ Picked three, most different: **Coiled G**, **Snake badge**, **Nest**.
 
 `go tool mygo build` 会把 `AppIcon.icon` 编成最高 256 px 的 `AppIcon.icns`。
 要全尺寸就用 `scripts/build.sh`（或对已构建的包跑 `scripts/fix-app-icon.sh
-<app>`）：它从 `renders/e-dinkie.png` 重新生成 16–1024 的 icns、替换并重签名。
+<app>`）：它从 `../icon-product/final/png/gexi-icon-1024.png` 重新生成 16–1024 的 icns、替换并重签名。
 源图换了，这一步跟着换。dmg 仍是 mygo 打的 256 px 版本。
 
 ## 签名与公证

@@ -35,7 +35,8 @@ go tool mygo build      # signed .app and notarized .dmg in build/
 
 mygo compiles `AppIcon.icon` into an `.icns` capped at 256 px. macOS 26+ takes
 the full-size icon from `Assets.car`, so this only matters on older systems.
-`scripts/build.sh` widens the `.icns` from `brand/renders/e-dinkie.png` for
+`scripts/build.sh` widens the `.icns` from
+`brand/icon-product/final/png/gexi-icon-1024.png` for
 ad-hoc development builds; it leaves a Developer ID signed bundle alone, since
 replacing a resource voids its signature and notarization ticket
 (`FORCE_ICNS_PATCH=1` overrides that).

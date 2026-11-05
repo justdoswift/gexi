@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="paper3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FCFBF9"/>
+      <stop offset="1" stop-color="#EEEAE4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#paper3)"/>
+
+  <!-- a pane inside a pane: split anywhere, as deep as you like -->
+  <rect x="180" y="196" width="664" height="664" rx="152" fill="#121212"/>
+  <rect x="262" y="262" width="420" height="420" rx="100" fill="#F8F6F5"/>
+  <rect x="352" y="344" width="190" height="190" rx="50" fill="#AC46EA"/>
+</svg>
