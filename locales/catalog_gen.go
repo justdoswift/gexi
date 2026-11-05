@@ -830,6 +830,106 @@ func (msgs Messages) WorktreeBlockedGeneric() string {
 	return Catalog.Format(msgs.locale, "worktreeBlockedGeneric", nil)
 }
 
+// WorktreeStatusReady says "Ready to merge"
+// in the language the app shows.
+func WorktreeStatusReady() string { return In(i18n.Locale()).WorktreeStatusReady() }
+
+// WorktreeStatusReady says "Ready to merge"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusReady() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusReady", nil)
+}
+
+// WorktreeStatusChecks says "Checks failed"
+// in the language the app shows.
+func WorktreeStatusChecks() string { return In(i18n.Locale()).WorktreeStatusChecks() }
+
+// WorktreeStatusChecks says "Checks failed"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusChecks() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusChecks", nil)
+}
+
+// WorktreeStatusChecksPending says "Checks running"
+// in the language the app shows.
+func WorktreeStatusChecksPending() string { return In(i18n.Locale()).WorktreeStatusChecksPending() }
+
+// WorktreeStatusChecksPending says "Checks running"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusChecksPending() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusChecksPending", nil)
+}
+
+// WorktreeStatusConflicts says "Conflicts"
+// in the language the app shows.
+func WorktreeStatusConflicts() string { return In(i18n.Locale()).WorktreeStatusConflicts() }
+
+// WorktreeStatusConflicts says "Conflicts"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusConflicts() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusConflicts", nil)
+}
+
+// WorktreeStatusReview says "Review required"
+// in the language the app shows.
+func WorktreeStatusReview() string { return In(i18n.Locale()).WorktreeStatusReview() }
+
+// WorktreeStatusReview says "Review required"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusReview() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusReview", nil)
+}
+
+// WorktreeStatusChanges says "Changes requested"
+// in the language the app shows.
+func WorktreeStatusChanges() string { return In(i18n.Locale()).WorktreeStatusChanges() }
+
+// WorktreeStatusChanges says "Changes requested"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusChanges() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusChanges", nil)
+}
+
+// WorktreeStatusBehind says "Behind base"
+// in the language the app shows.
+func WorktreeStatusBehind() string { return In(i18n.Locale()).WorktreeStatusBehind() }
+
+// WorktreeStatusBehind says "Behind base"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusBehind() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusBehind", nil)
+}
+
+// WorktreeStatusChecking says "Checking…"
+// in the language the app shows.
+func WorktreeStatusChecking() string { return In(i18n.Locale()).WorktreeStatusChecking() }
+
+// WorktreeStatusChecking says "Checking…"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusChecking() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusChecking", nil)
+}
+
+// WorktreeStatusBlocked says "Blocked"
+// in the language the app shows.
+func WorktreeStatusBlocked() string { return In(i18n.Locale()).WorktreeStatusBlocked() }
+
+// WorktreeStatusBlocked says "Blocked"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusBlocked() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusBlocked", nil)
+}
+
+// WorktreeStatusClosed says "Closed"
+// in the language the app shows.
+func WorktreeStatusClosed() string { return In(i18n.Locale()).WorktreeStatusClosed() }
+
+// WorktreeStatusClosed says "Closed"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusClosed() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusClosed", nil)
+}
+
 // WorktreeLeaveHint says "Leave this worktree and return to the project"
 // in the language the app shows.
 func WorktreeLeaveHint() string { return In(i18n.Locale()).WorktreeLeaveHint() }

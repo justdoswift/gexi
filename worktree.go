@@ -1262,6 +1262,7 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 		return
 	}
 	w.pullRequestChip(c, tk, p)
+	w.mergeStatusPill(c, tk, p)
 	if wt.State == "open" {
 		w.mergeChip(c, tk, p)
 	}
@@ -1288,19 +1289,9 @@ func worktreeBusyLabel(wt *paneWorktree) string {
 	return ""
 }
 
-// pullRequestChip shows the number and a dot for the latest known state, and
-// opens the page.
+// pullRequestChip shows the number and opens the page, as Conductor's #8376 ↗.
 func (w *workspace) pullRequestChip(c *ui.Context, tk tokens, p *pane) {
 	wt := p.Worktree
-	color := tk.MutedForeground
-	switch {
-	case wt.State == "closed":
-	case wt.checks == "failing" || strings.EqualFold(wt.mergeable, "CONFLICTING") ||
-		strings.EqualFold(wt.review, "CHANGES_REQUESTED"):
-		color = tk.Danger
-	case w.mergeBlocker(wt) == "":
-		color = tk.Working
-	}
 	action := func() {
 		w.refreshWorktree(p)
 		if wt.URL != "" {
@@ -1309,28 +1300,87 @@ func (w *workspace) pullRequestChip(c *ui.Context, tk tokens, p *pane) {
 	}
 	el := worktreeChip(c, tk).Tooltip(prStatusHint(wt)).OnClick(action)
 	el.Children(func() {
-		ui.Box(c).Width(6).Height(6).Radius(3).Background(color).IgnoreInput(true)
-		ui.Text(c, "PR #"+strconv.Itoa(wt.PR)).FontSize(11).FontWeight(600).
+		ui.Text(c, "#"+strconv.Itoa(wt.PR)).FontSize(11).FontWeight(600).
 			TextColor(tk.Foreground).OnClick(action)
+		ui.Text(c, "↗").FontSize(10).TextColor(tk.MutedForeground).OnClick(action)
 	})
 }
 
-// mergeChip merges only when GitHub would: the button is muted and its
-// tooltip says why otherwise. A press refreshes the status first, so a check
-// that finished since the last look still lets it through.
+// mergeStatus is the short label Conductor puts beside the pull request:
+// ready, or the first thing standing in the way.
+func (w *workspace) mergeStatus(wt *paneWorktree) (label string, ready, danger bool) {
+	switch wt.State {
+	case "merged":
+		return locales.WorktreeMerged(), false, false
+	case "closed":
+		return locales.WorktreeStatusClosed(), false, false
+	}
+	switch {
+	case strings.EqualFold(wt.mergeState, "BEHIND"):
+		return locales.WorktreeStatusBehind(), false, false
+	case strings.EqualFold(wt.mergeable, "CONFLICTING") || strings.EqualFold(wt.mergeState, "DIRTY"):
+		return locales.WorktreeStatusConflicts(), false, true
+	case strings.EqualFold(wt.review, "CHANGES_REQUESTED"):
+		return locales.WorktreeStatusChanges(), false, true
+	case strings.EqualFold(wt.review, "REVIEW_REQUIRED"):
+		return locales.WorktreeStatusReview(), false, false
+	case wt.checks == "failing":
+		return locales.WorktreeStatusChecks(), false, true
+	case wt.checks == "pending":
+		return locales.WorktreeStatusChecksPending(), false, false
+	case wt.checks == "":
+		return locales.WorktreeStatusChecking(), false, false
+	}
+	switch strings.ToUpper(wt.mergeable) {
+	case "", "UNKNOWN":
+		return locales.WorktreeStatusChecking(), false, false
+	}
+	if strings.EqualFold(wt.mergeState, "BLOCKED") {
+		return locales.WorktreeStatusBlocked(), false, false
+	}
+	return locales.WorktreeStatusReady(), true, false
+}
+
+func (w *workspace) mergeStatusPill(c *ui.Context, tk tokens, p *pane) {
+	label, ready, danger := w.mergeStatus(p.Worktree)
+	color := tk.MutedForeground
+	if ready {
+		color = tk.Working
+	} else if danger {
+		color = tk.Danger
+	}
+	el := ui.Row(c).Height(22).Padding(0, 4, 0, 4).Gap(5).
+		Center().Tooltip(prStatusHint(p.Worktree))
+	el.Children(func() {
+		ui.Box(c).Width(6).Height(6).Radius(3).Background(color).IgnoreInput(true)
+		ui.Text(c, label).FontSize(11).TextColor(color)
+	})
+}
+
+// mergeChip is Conductor's filled Merge button: it asks first, and stays
+// disabled while GitHub would refuse the merge. A press refreshes the status
+// first, so a check that finished since the last look still lets it through.
 func (w *workspace) mergeChip(c *ui.Context, tk tokens, p *pane) {
 	wt := p.Worktree
+	_, ready, _ := w.mergeStatus(wt)
+	bg, fg := tk.Active, tk.MutedForeground
+	if ready {
+		bg, fg = tk.Foreground, tk.Background
+	}
 	blocker := w.mergeBlocker(wt)
-	color := tk.Foreground
 	hint := locales.WorktreeMerge()
 	if blocker != "" {
-		color = tk.MutedForeground
 		hint = locales.WorktreeMergeBlocked(blocker)
 	}
 	action := func() { w.requestMerge(p) }
-	worktreeChip(c, tk).Tooltip(hint).OnClick(action).Children(func() {
+	el := ui.Row(c).Height(22).Padding(0, 9, 0, 9).Radius(6).
+		Center().Background(bg).Cursor(ui.CursorPointer).Tooltip(hint)
+	if ready && el.Hovered() {
+		el = el.Background(tk.MutedForeground)
+	}
+	el.OnClick(action).Children(func() {
 		ui.Text(c, locales.WorktreeMerge()).FontSize(11).FontWeight(600).
-			TextColor(color).OnClick(action)
+			TextColor(fg).OnClick(action)
 	})
 }
 
