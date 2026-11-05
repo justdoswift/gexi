@@ -132,7 +132,7 @@ func mainMenu(w *workspace) *mygo.Menu {
 			mygo.Separator(),
 			{Label: locales.MenuClosePane(), Accelerator: "CmdOrCtrl+W", Click: func(*mygo.MenuItem, *mygo.Window) {
 				if p, err := w.resolvePane(""); err == nil {
-					w.closePane(p)
+					w.requestClose(p)
 				}
 			}},
 			mygo.Separator(),

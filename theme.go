@@ -81,6 +81,6 @@ const canvasInset float32 = 3
 // Motion, as shadcn: short, ease-out, and only on what changes.
 const (
 	sidebarMotion = 200 * time.Millisecond
-	paneMotion    = 140 * time.Millisecond
+	paneMotion    = 200 * time.Millisecond
 	focusMotion   = 150 * time.Millisecond
 )

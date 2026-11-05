@@ -174,7 +174,7 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		w.closePane(pane)
+		w.requestClose(pane)
 		return map[string]any{"closed": pane.ID}, nil
 
 	case "pane.focus":

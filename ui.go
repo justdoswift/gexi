@@ -618,13 +618,16 @@ func fadeAlpha(c *ui.Context, p *pane) float32 {
 			return 0
 		}
 		c.After(16 * time.Millisecond)
-		return 1 - t
+		// Ease in on the way out: the pane holds its weight for a moment,
+		// then leaves.
+		return 1 - t*t
 	}
 	if !p.openedAt.IsZero() {
 		t := float32(time.Since(p.openedAt)) / float32(d)
 		if t < 1 {
 			c.After(16 * time.Millisecond)
-			return t
+			// Ease out on the way in: most of the fade comes early.
+			return 1 - (1-t)*(1-t)
 		}
 		p.openedAt = time.Time{}
 	}

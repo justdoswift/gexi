@@ -356,7 +356,7 @@ func (w *workspace) closeSession(s *session) {
 		p.closingAt = now
 	}
 	w.invalidate()
-	time.AfterFunc(140*time.Millisecond, func() {
+	time.AfterFunc(paneMotion, func() {
 		w.onMain(func() {
 			for _, p := range panes {
 				if w.paneByID(p.ID) != nil {
@@ -391,7 +391,7 @@ func (w *workspace) requestClose(p *pane) {
 	p.closing = true
 	p.closingAt = time.Now()
 	w.invalidate()
-	time.AfterFunc(140*time.Millisecond, func() {
+	time.AfterFunc(paneMotion, func() {
 		w.onMain(func() {
 			if w.paneByID(p.ID) != nil {
 				w.closePane(p)
@@ -462,7 +462,7 @@ func (w *workspace) closeProject(pr *project) {
 		p.closingAt = now
 	}
 	w.invalidate()
-	time.AfterFunc(140*time.Millisecond, func() {
+	time.AfterFunc(paneMotion, func() {
 		w.onMain(func() {
 			for _, p := range panes {
 				if w.paneByID(p.ID) != nil {
@@ -618,7 +618,7 @@ func (w *workspace) paneExited(p *pane) {
 		if w.quitting || w.paneByID(p.ID) == nil {
 			return
 		}
-		w.closePane(p)
+		w.requestClose(p)
 	})
 }
 
