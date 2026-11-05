@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- A worktree pane's PR button keeps its label once the pull request exists:
+  clicking it opens a menu that merges the pull request or opens it on
+  GitHub, in place of turning into a separate Merge button.
+
 ## 0.0.13
 
 - A worktree pane can return to the project with ↩: the checkout is deleted,

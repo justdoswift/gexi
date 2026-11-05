@@ -55,6 +55,8 @@
   "worktreePR": "PR",
   "worktreePROpening": "Opening pull request",
   "worktreeMerge": "Merge",
+  "worktreeMergePR": "Merge pull request",
+  "worktreeOpenPR": "Open pull request",
   "worktreeMerging": "Merging pull request",
   "worktreeMerged": "Merged",
   "worktreePROpened": "Pull request created",

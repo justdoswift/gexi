@@ -104,12 +104,13 @@ worktree, branched from the latest `origin` base branch and kept under the
 app's data folder. The pane moves into the worktree with a fresh shell. The
 branch starts with a placeholder Dota 2 name — a hero, item, or ability; the
 first prompt asks Claude Code to rename it to the task. The header then shows **PR**, which
-pushes the branch and opens a pull request with `gh`, and turns into **Merge**,
-which merges the PR, fast-forwards your local base branch, and removes the
-worktree. Panes that never press W work exactly as before. Opening and merging
+pushes the branch and opens a pull request with `gh`. Once the pull request
+exists, the same **PR** button opens a menu that merges the pull request,
+fast-forwards your local base branch, and removes the worktree, or opens it on
+GitHub. Panes that never press W work exactly as before. Opening and merging
 pull requests needs the GitHub CLI, authenticated.
 
-**↩** beside PR / Merge leaves the checkout: it returns the pane to the project
+**↩** beside PR leaves the checkout: it returns the pane to the project
 folder and deletes the worktree. A branch with unmerged commits is kept, and
 uncommitted changes ask first. Closing a pane removes a clean checkout with
 nothing ahead; otherwise the worktree stays. Settings → Advanced → Clean up
