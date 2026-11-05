@@ -686,6 +686,150 @@ func (msgs Messages) WorktreeError(error string) string {
 	return Catalog.Format(msgs.locale, "worktreeError", map[string]any{"error": error})
 }
 
+// WorktreeCheckingPR says "Checking pull request"
+// in the language the app shows.
+func WorktreeCheckingPR() string { return In(i18n.Locale()).WorktreeCheckingPR() }
+
+// WorktreeCheckingPR says "Checking pull request"
+// in the language of msgs.
+func (msgs Messages) WorktreeCheckingPR() string {
+	return Catalog.Format(msgs.locale, "worktreeCheckingPR", nil)
+}
+
+// WorktreeMergeTitle says "Merge pull request?"
+// in the language the app shows.
+func WorktreeMergeTitle() string { return In(i18n.Locale()).WorktreeMergeTitle() }
+
+// WorktreeMergeTitle says "Merge pull request?"
+// in the language of msgs.
+func (msgs Messages) WorktreeMergeTitle() string {
+	return Catalog.Format(msgs.locale, "worktreeMergeTitle", nil)
+}
+
+// WorktreeMergeConfirm says "Merge #{number} into {base}?"
+// in the language the app shows.
+func WorktreeMergeConfirm(number string, base string) string {
+	return In(i18n.Locale()).WorktreeMergeConfirm(number, base)
+}
+
+// WorktreeMergeConfirm says "Merge #{number} into {base}?"
+// in the language of msgs.
+func (msgs Messages) WorktreeMergeConfirm(number string, base string) string {
+	return Catalog.Format(msgs.locale, "worktreeMergeConfirm", map[string]any{"number": number, "base": base})
+}
+
+// WorktreeMergeBlocked says "Cannot merge: {reason}"
+// in the language the app shows.
+func WorktreeMergeBlocked(reason string) string {
+	return In(i18n.Locale()).WorktreeMergeBlocked(reason)
+}
+
+// WorktreeMergeBlocked says "Cannot merge: {reason}"
+// in the language of msgs.
+func (msgs Messages) WorktreeMergeBlocked(reason string) string {
+	return Catalog.Format(msgs.locale, "worktreeMergeBlocked", map[string]any{"reason": reason})
+}
+
+// WorktreeBlockedMerged says "the pull request is already merged"
+// in the language the app shows.
+func WorktreeBlockedMerged() string { return In(i18n.Locale()).WorktreeBlockedMerged() }
+
+// WorktreeBlockedMerged says "the pull request is already merged"
+// in the language of msgs.
+func (msgs Messages) WorktreeBlockedMerged() string {
+	return Catalog.Format(msgs.locale, "worktreeBlockedMerged", nil)
+}
+
+// WorktreeBlockedClosed says "the pull request is closed"
+// in the language the app shows.
+func WorktreeBlockedClosed() string { return In(i18n.Locale()).WorktreeBlockedClosed() }
+
+// WorktreeBlockedClosed says "the pull request is closed"
+// in the language of msgs.
+func (msgs Messages) WorktreeBlockedClosed() string {
+	return Catalog.Format(msgs.locale, "worktreeBlockedClosed", nil)
+}
+
+// WorktreeBlockedBehind says "the branch is behind the base"
+// in the language the app shows.
+func WorktreeBlockedBehind() string { return In(i18n.Locale()).WorktreeBlockedBehind() }
+
+// WorktreeBlockedBehind says "the branch is behind the base"
+// in the language of msgs.
+func (msgs Messages) WorktreeBlockedBehind() string {
+	return Catalog.Format(msgs.locale, "worktreeBlockedBehind", nil)
+}
+
+// WorktreeBlockedConflicts says "the branch has conflicts"
+// in the language the app shows.
+func WorktreeBlockedConflicts() string { return In(i18n.Locale()).WorktreeBlockedConflicts() }
+
+// WorktreeBlockedConflicts says "the branch has conflicts"
+// in the language of msgs.
+func (msgs Messages) WorktreeBlockedConflicts() string {
+	return Catalog.Format(msgs.locale, "worktreeBlockedConflicts", nil)
+}
+
+// WorktreeBlockedChanges says "changes were requested"
+// in the language the app shows.
+func WorktreeBlockedChanges() string { return In(i18n.Locale()).WorktreeBlockedChanges() }
+
+// WorktreeBlockedChanges says "changes were requested"
+// in the language of msgs.
+func (msgs Messages) WorktreeBlockedChanges() string {
+	return Catalog.Format(msgs.locale, "worktreeBlockedChanges", nil)
+}
+
+// WorktreeBlockedReview says "the pull request needs review"
+// in the language the app shows.
+func WorktreeBlockedReview() string { return In(i18n.Locale()).WorktreeBlockedReview() }
+
+// WorktreeBlockedReview says "the pull request needs review"
+// in the language of msgs.
+func (msgs Messages) WorktreeBlockedReview() string {
+	return Catalog.Format(msgs.locale, "worktreeBlockedReview", nil)
+}
+
+// WorktreeBlockedChecks says "checks are failing"
+// in the language the app shows.
+func WorktreeBlockedChecks() string { return In(i18n.Locale()).WorktreeBlockedChecks() }
+
+// WorktreeBlockedChecks says "checks are failing"
+// in the language of msgs.
+func (msgs Messages) WorktreeBlockedChecks() string {
+	return Catalog.Format(msgs.locale, "worktreeBlockedChecks", nil)
+}
+
+// WorktreeBlockedChecksPending says "checks are still running"
+// in the language the app shows.
+func WorktreeBlockedChecksPending() string { return In(i18n.Locale()).WorktreeBlockedChecksPending() }
+
+// WorktreeBlockedChecksPending says "checks are still running"
+// in the language of msgs.
+func (msgs Messages) WorktreeBlockedChecksPending() string {
+	return Catalog.Format(msgs.locale, "worktreeBlockedChecksPending", nil)
+}
+
+// WorktreeBlockedChecking says "GitHub is still checking"
+// in the language the app shows.
+func WorktreeBlockedChecking() string { return In(i18n.Locale()).WorktreeBlockedChecking() }
+
+// WorktreeBlockedChecking says "GitHub is still checking"
+// in the language of msgs.
+func (msgs Messages) WorktreeBlockedChecking() string {
+	return Catalog.Format(msgs.locale, "worktreeBlockedChecking", nil)
+}
+
+// WorktreeBlockedGeneric says "GitHub will not merge this pull request now"
+// in the language the app shows.
+func WorktreeBlockedGeneric() string { return In(i18n.Locale()).WorktreeBlockedGeneric() }
+
+// WorktreeBlockedGeneric says "GitHub will not merge this pull request now"
+// in the language of msgs.
+func (msgs Messages) WorktreeBlockedGeneric() string {
+	return Catalog.Format(msgs.locale, "worktreeBlockedGeneric", nil)
+}
+
 // WorktreeLeaveHint says "Leave this worktree and return to the project"
 // in the language the app shows.
 func WorktreeLeaveHint() string { return In(i18n.Locale()).WorktreeLeaveHint() }

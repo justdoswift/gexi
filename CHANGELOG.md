@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- PR and Merge are separate: PR #N opens the pull request, and Merge refreshes
+  GitHub's checks, review, and mergeability, asks before merging, and stays
+  muted while GitHub would refuse it.
 - Merging a pull request no longer clears the worktree away on its own: the
   pane stays open, and the PR button becomes Archive, which closes the pane
   and removes the checkout when you press it.

@@ -227,3 +227,55 @@ func TestReplacingPaneKeepsSlot(t *testing.T) {
 		t.Fatal("the other pane was lost")
 	}
 }
+
+func TestSummarizeChecks(t *testing.T) {
+	cases := []struct {
+		name   string
+		checks []prCheck
+		want   string
+	}{
+		{"none", nil, "none"},
+		{"success", []prCheck{{Conclusion: "SUCCESS"}}, "passing"},
+		{"skipped", []prCheck{{Conclusion: "SKIPPED"}}, "passing"},
+		{"failure", []prCheck{{Conclusion: "FAILURE"}}, "failing"},
+		{"pending", []prCheck{{Status: "IN_PROGRESS"}}, "pending"},
+		{"status context", []prCheck{{State: "PENDING"}}, "pending"},
+		{"failure wins", []prCheck{{Status: "IN_PROGRESS"}, {Conclusion: "FAILURE"}}, "failing"},
+	}
+	for _, c := range cases {
+		if got := summarizeChecks(c.checks); got != c.want {
+			t.Fatalf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+func TestMergeBlocker(t *testing.T) {
+	w := &workspace{}
+	blocked := []paneWorktree{
+		{State: "merged"},
+		{State: "closed"},
+		{State: "open", mergeable: "CONFLICTING"},
+		{State: "open", mergeable: "UNKNOWN"},
+		{State: "open", mergeable: ""},
+		{State: "open", mergeable: "MERGEABLE", checks: "failing"},
+		{State: "open", mergeable: "MERGEABLE", checks: "pending"},
+		{State: "open", mergeable: "MERGEABLE", checks: "none", review: "REVIEW_REQUIRED"},
+		{State: "open", mergeable: "MERGEABLE", checks: "none", review: "CHANGES_REQUESTED"},
+		{State: "open", mergeable: "MERGEABLE", checks: "none", mergeState: "BEHIND"},
+	}
+	for i := range blocked {
+		if got := w.mergeBlocker(&blocked[i]); got == "" {
+			t.Fatalf("case %d should block", i)
+		}
+	}
+	ready := []paneWorktree{
+		{State: "open", mergeable: "MERGEABLE", checks: "none"},
+		{State: "open", mergeable: "MERGEABLE", checks: "passing", review: "APPROVED"},
+		{State: "open", mergeable: "MERGEABLE", checks: "none", mergeState: "CLEAN"},
+	}
+	for i := range ready {
+		if got := w.mergeBlocker(&ready[i]); got != "" {
+			t.Fatalf("case %d should be ready: %q", i, got)
+		}
+	}
+}

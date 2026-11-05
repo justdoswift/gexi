@@ -141,6 +141,11 @@ type workspace struct {
 	leaveOpen   bool
 	leaveTarget *pane
 	leaveMsg    string
+
+	// mergeOpen is the alert asking before merging; mergeTarget is the pane.
+	mergeOpen   bool
+	mergeTarget *pane
+	mergeMsg    string
 }
 
 func newWorkspace() *workspace {

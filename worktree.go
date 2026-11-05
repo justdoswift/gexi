@@ -39,15 +39,24 @@ type paneWorktree struct {
 	// placeholder branch.
 	Naming bool `json:"naming,omitempty"`
 
-	// busy is the operation the header button waits on: "pr" or "merge".
-	// checked throttles the gh lookups when a session is selected.
-	busy    string
-	checked time.Time
+	// busy is the operation the header button waits on: "pr", "check", or
+	// "merge". checked throttles the gh lookups when a session is selected.
+	busy       string
+	checked    time.Time
+	mergeable  string
+	review     string
+	checks     string
+	mergeState string
+	// prPolls counts the refresh timers spent on a pull request that is not
+	// ready yet; prTimer is the one waiting.
+	prPolls int
+	prTimer *time.Timer
 }
 
 const (
 	worktreeBusyCreate = "create"
 	worktreeBusyLeave  = "leave"
+	worktreeBusyCheck  = "check"
 	worktreeBusyPR     = "pr"
 	worktreeBusyMerge  = "merge"
 	worktreeMerged     = "merged"
@@ -350,63 +359,140 @@ func hasOriginRemote(dir string) bool {
 	return err == nil
 }
 
-func lookupPR(dir, branch string) (int, string, string, error) {
-	out, err := ghOutput(dir, "pr", "view", branch, "--json", "number,url,state")
+// prInfo is what the header needs to judge a pull request: the identity, and
+// whether GitHub would merge it now.
+type prInfo struct {
+	Number     int
+	URL        string
+	State      string
+	Mergeable  string
+	Review     string
+	MergeState string
+	Checks     string // passing, pending, failing, none
+}
+
+type prCheck struct {
+	Conclusion string
+	Status     string
+	State      string
+}
+
+func lookupPR(dir, branch string) (prInfo, error) {
+	out, err := ghOutput(dir, "pr", "view", branch, "--json",
+		"number,url,state,mergeable,reviewDecision,mergeStateStatus,statusCheckRollup")
 	if err != nil {
-		return 0, "", "", err
+		return prInfo{}, err
 	}
 	var v struct {
-		Number int
-		URL    string
-		State  string
+		Number            int
+		URL               string
+		State             string
+		Mergeable         string
+		ReviewDecision    string
+		MergeStateStatus  string
+		StatusCheckRollup []prCheck
 	}
 	if err := json.Unmarshal([]byte(out), &v); err != nil {
-		return 0, "", "", err
+		return prInfo{}, err
 	}
-	return v.Number, v.URL, strings.ToLower(v.State), nil
+	return prInfo{
+		Number:     v.Number,
+		URL:        v.URL,
+		State:      strings.ToLower(v.State),
+		Mergeable:  v.Mergeable,
+		Review:     v.ReviewDecision,
+		MergeState: v.MergeStateStatus,
+		Checks:     summarizeChecks(v.StatusCheckRollup),
+	}, nil
+}
+
+// summarizeChecks folds GitHub's check runs and status contexts into one
+// state. A failure outranks a wait; no checks at all is not a blocker.
+func summarizeChecks(checks []prCheck) string {
+	failing, pending := false, false
+	for _, c := range checks {
+		state := strings.ToUpper(c.Conclusion)
+		if state == "" {
+			state = strings.ToUpper(c.State)
+		}
+		if state == "" {
+			state = strings.ToUpper(c.Status)
+		}
+		switch state {
+		case "FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE":
+			failing = true
+		case "PENDING", "EXPECTED", "QUEUED", "IN_PROGRESS", "WAITING", "REQUESTED":
+			pending = true
+		case "SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED":
+		default:
+			if state != "" {
+				pending = true
+			}
+		}
+	}
+	switch {
+	case failing:
+		return "failing"
+	case pending:
+		return "pending"
+	case len(checks) > 0:
+		return "passing"
+	default:
+		return "none"
+	}
+}
+
+func applyPRStatus(wt *paneWorktree, info prInfo) {
+	wt.PR = info.Number
+	wt.URL = info.URL
+	wt.State = info.State
+	wt.mergeable = info.Mergeable
+	wt.review = info.Review
+	wt.checks = info.Checks
+	wt.mergeState = info.MergeState
 }
 
 // createPR pushes the worktree branch and opens its pull request. When one is
 // already open, it returns that instead. The branch is read from git, since
 // the agent may have renamed it since the last turn ended.
-func createPR(wt *paneWorktree) (int, string, string, string, error) {
+func createPR(wt *paneWorktree) (prInfo, string, error) {
 	branch := currentBranch(wt.Path)
 	if branch == "" {
 		branch = wt.Branch
 	}
 	if ghBinary() == "" {
-		return 0, "", "", branch, errGhMissing
+		return prInfo{}, branch, errGhMissing
 	}
 	// Local checks come before gh: a repository without a GitHub remote can
 	// leave gh waiting on the network, and a missing commit is a fact git
 	// already knows.
 	clean, err := worktreeIsClean(wt)
 	if err != nil {
-		return 0, "", "", branch, err
+		return prInfo{}, branch, err
 	}
 	if !clean {
-		return 0, "", "", branch, errors.New("commit the changes first")
+		return prInfo{}, branch, errors.New("commit the changes first")
 	}
 	ahead, err := commitsAhead(wt)
 	if err != nil {
-		return 0, "", "", branch, err
+		return prInfo{}, branch, err
 	}
 	if ahead == 0 {
-		return 0, "", "", branch, errors.New("there are no commits to open a pull request with")
+		return prInfo{}, branch, errors.New("there are no commits to open a pull request with")
 	}
 	if hasOriginRemote(wt.Path) {
-		if n, url, state, err := lookupPR(wt.Path, branch); err == nil && n != 0 {
-			return n, url, state, branch, nil
+		if info, err := lookupPR(wt.Path, branch); err == nil && info.Number != 0 {
+			return info, branch, nil
 		}
 	}
 	if _, err := worktreeGit(wt.Path, "push", "-u", "origin", branch); err != nil {
-		return 0, "", "", branch, err
+		return prInfo{}, branch, err
 	}
 	if _, err := ghOutput(wt.Path, "pr", "create", "--fill", "--base", wt.Base, "--head", branch); err != nil {
-		return 0, "", "", branch, err
+		return prInfo{}, branch, err
 	}
-	n, url, state, err := lookupPR(wt.Path, branch)
-	return n, url, state, branch, err
+	info, err := lookupPR(wt.Path, branch)
+	return info, branch, err
 }
 
 func mergePR(wt *paneWorktree) error {
@@ -442,6 +528,7 @@ func syncLocalBase(wt *paneWorktree) error {
 }
 
 func removeWorktree(wt *paneWorktree) error {
+	stopPRTimer(wt)
 	if _, err := worktreeGit(wt.Root, "worktree", "remove", "--force", wt.Path); err != nil {
 		return err
 	}
@@ -454,6 +541,7 @@ func removeWorktree(wt *paneWorktree) error {
 // removeWorktreeKeeping removes the checkout but leaves the branch when it
 // holds commits that were never merged. The remote branch is never deleted.
 func removeWorktreeKeeping(wt *paneWorktree, keepBranch bool) error {
+	stopPRTimer(wt)
 	if _, err := worktreeGit(wt.Root, "worktree", "remove", "--force", wt.Path); err != nil {
 		return err
 	}
@@ -489,14 +577,16 @@ func (w *workspace) createPullRequest(p *pane) {
 	w.invalidate()
 	snapshot := *wt
 	go func() {
-		n, url, state, branch, err := createPR(&snapshot)
+		info, branch, err := createPR(&snapshot)
 		w.onMain(func() {
 			wt.busy = ""
 			if err != nil {
 				w.worktreeFailed(err)
 			} else {
-				wt.PR, wt.URL, wt.State, wt.Branch = n, url, state, branch
+				applyPRStatus(wt, info)
+				wt.Branch = branch
 				w.flash(locales.WorktreePROpened())
+				w.schedulePRRefresh(p)
 			}
 			w.invalidate()
 			w.scheduleSave()
@@ -510,9 +600,14 @@ func (w *workspace) createPullRequest(p *pane) {
 // side effect of the merge.
 func (w *workspace) mergePullRequest(p *pane) {
 	wt := p.Worktree
-	if wt == nil || wt.busy != "" || wt.PR == 0 || wt.State == worktreeMerged {
+	if wt == nil || wt.busy != "" || wt.PR == 0 || wt.State == worktreeMerged || w.paneByID(p.ID) != p {
 		return
 	}
+	if reason := w.mergeBlocker(wt); reason != "" {
+		w.flash(locales.WorktreeMergeBlocked(reason))
+		return
+	}
+	stopPRTimer(wt)
 	wt.busy = worktreeBusyMerge
 	w.invalidate()
 	snapshot := *wt
@@ -540,6 +635,83 @@ func (w *workspace) mergePullRequest(p *pane) {
 	}()
 }
 
+// mergeBlocker says why GitHub would not merge the pull request now, in the
+// user's language, or "" when it is ready.
+func (w *workspace) mergeBlocker(wt *paneWorktree) string {
+	switch wt.State {
+	case "merged":
+		return locales.WorktreeBlockedMerged()
+	case "closed":
+		return locales.WorktreeBlockedClosed()
+	}
+	switch strings.ToUpper(wt.mergeState) {
+	case "BEHIND":
+		return locales.WorktreeBlockedBehind()
+	case "DIRTY":
+		return locales.WorktreeBlockedConflicts()
+	}
+	switch strings.ToUpper(wt.mergeable) {
+	case "CONFLICTING":
+		return locales.WorktreeBlockedConflicts()
+	case "", "UNKNOWN":
+		return locales.WorktreeBlockedChecking()
+	}
+	switch strings.ToUpper(wt.review) {
+	case "CHANGES_REQUESTED":
+		return locales.WorktreeBlockedChanges()
+	case "REVIEW_REQUIRED":
+		return locales.WorktreeBlockedReview()
+	}
+	switch wt.checks {
+	case "":
+		return locales.WorktreeBlockedChecking()
+	case "failing":
+		return locales.WorktreeBlockedChecks()
+	case "pending":
+		return locales.WorktreeBlockedChecksPending()
+	}
+	if strings.ToUpper(wt.mergeState) == "BLOCKED" {
+		return locales.WorktreeBlockedGeneric()
+	}
+	return ""
+}
+
+// requestMerge refreshes the pull request, then asks before merging. The
+// button is muted while GitHub would refuse it, and a press re-reads the
+// status, so a check that finished since the last look still lets it through.
+func (w *workspace) requestMerge(p *pane) {
+	wt := p.Worktree
+	if wt == nil || wt.busy != "" || wt.PR == 0 || wt.State != "open" {
+		return
+	}
+	wt.busy = worktreeBusyCheck
+	w.invalidate()
+	path, branch := wt.Path, wt.Branch
+	go func() {
+		info, err := lookupPR(path, branch)
+		w.onMain(func() {
+			wt.busy = ""
+			if err != nil {
+				w.worktreeFailed(err)
+				w.invalidate()
+				return
+			}
+			applyPRStatus(wt, info)
+			if reason := w.mergeBlocker(wt); reason != "" {
+				w.flash(locales.WorktreeMergeBlocked(reason))
+				w.schedulePRRefresh(p)
+				w.invalidate()
+				w.scheduleSave()
+				return
+			}
+			w.mergeTarget = p
+			w.mergeMsg = locales.WorktreeMergeConfirm(strconv.Itoa(wt.PR), wt.Base)
+			w.mergeOpen = true
+			w.invalidate()
+		})
+	}()
+}
+
 // archiveMergedWorktree hangs up the pane and any split that shares its
 // checkout, then removes the checkout. The branch is already merged, so
 // nothing is lost. The header offers this once the PR is merged instead of
@@ -549,6 +721,7 @@ func (w *workspace) archiveMergedWorktree(p *pane) {
 	if wt == nil || wt.busy != "" || wt.State != worktreeMerged {
 		return
 	}
+	stopPRTimer(wt)
 	s := w.sessionOf(p)
 	if s != nil && s.Root != nil {
 		for _, other := range s.Root.panes() {
@@ -606,7 +779,7 @@ func (w *workspace) refreshWorktree(p *pane) {
 		wt.checked = time.Now()
 		prPath, prBranch := wt.Path, wt.Branch
 		go func() {
-			n, url, state, err := lookupPR(prPath, prBranch)
+			info, err := lookupPR(prPath, prBranch)
 			if err != nil {
 				return
 			}
@@ -614,11 +787,46 @@ func (w *workspace) refreshWorktree(p *pane) {
 				if wt.PR == 0 {
 					return
 				}
-				wt.PR, wt.URL, wt.State = n, url, state
+				applyPRStatus(wt, info)
 				w.invalidate()
 				w.scheduleSave()
+				w.schedulePRRefresh(p)
 			})
 		}()
+	}
+}
+
+// schedulePRRefresh keeps a pull request that is not ready yet up to date:
+// checks finish and reviews land without the user reselecting the session.
+// It stops once the pull request is ready, and after twenty minutes of polls.
+func (w *workspace) schedulePRRefresh(p *pane) {
+	wt := p.Worktree
+	if wt == nil || wt.State != "open" || w.mergeBlocker(wt) == "" || wt.prPolls >= 40 {
+		if wt != nil && wt.prTimer != nil {
+			wt.prTimer.Stop()
+			wt.prTimer = nil
+		}
+		return
+	}
+	wt.prPolls++
+	if wt.prTimer != nil {
+		wt.prTimer.Stop()
+	}
+	wt.prTimer = time.AfterFunc(30*time.Second, func() {
+		w.onMain(func() {
+			if p.Worktree != wt || w.paneByID(p.ID) != p {
+				return
+			}
+			wt.checked = time.Time{}
+			w.refreshWorktree(p)
+		})
+	})
+}
+
+func stopPRTimer(wt *paneWorktree) {
+	if wt != nil && wt.prTimer != nil {
+		wt.prTimer.Stop()
+		wt.prTimer = nil
 	}
 }
 
@@ -760,6 +968,7 @@ func (w *workspace) leaveWorktree(p *pane) {
 	if pr == nil {
 		return
 	}
+	stopPRTimer(wt)
 	dir := pr.Dir
 	p.worktreeBusy = worktreeBusyLeave
 	w.invalidate()
@@ -826,6 +1035,7 @@ func (w *workspace) cleanupClosedWorktree(wt *paneWorktree) {
 	if wt == nil {
 		return
 	}
+	stopPRTimer(wt)
 	go func() {
 		if worktreeSafeToDelete(wt) {
 			if err := removeWorktreeKeeping(wt, false); err != nil {
@@ -1023,77 +1233,129 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 }
 
 // worktreeButton is the PR control in the pane header, left of the pane
-// actions. It appears once the pane owns a worktree: the first press opens a
-// pull request, and once one exists the same PR button opens a menu that
-// merges or opens it. After the merge the button becomes Archive, which
+// actions. The first press opens a pull request. Once one exists, PR opens
+// the page and a separate Merge button appears; Merge asks first and is muted
+// while GitHub would not merge it. After the merge it becomes Archive, which
 // clears the pane and its checkout away.
 func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	wt := p.Worktree
-	merged := wt.State == worktreeMerged
-	label := locales.WorktreePR()
-	if merged {
-		label = locales.WorktreeArchive()
-	}
-	busy := ""
-	switch wt.busy {
-	case worktreeBusyPR:
-		busy = locales.WorktreePROpening()
-	case worktreeBusyMerge:
-		busy = locales.WorktreeMerging()
-	}
-	hint := wt.Branch + " → " + wt.Base
-	if merged {
-		hint = locales.WorktreeArchiveHint()
-	} else if wt.URL != "" {
-		hint = wt.URL
-	}
-	el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
-		Center().Cursor(ui.CursorPointer).Tooltip(hint)
-	if el.Hovered() {
-		el = el.Background(tk.Control)
-	}
-	if busy != "" {
-		el.OnClick(func() {}).Children(func() {
-			worktreeSpinner(c, tk, busy)
-		})
-		return
-	}
-	if merged {
+	if wt.State == worktreeMerged {
 		action := func() { w.archiveMergedWorktree(p) }
-		el.OnClick(action).Children(func() {
-			ui.Text(c, label).FontSize(11).FontWeight(600).
+		worktreeChip(c, tk).Tooltip(locales.WorktreeArchiveHint()).OnClick(action).Children(func() {
+			ui.Text(c, locales.WorktreeArchive()).FontSize(11).FontWeight(600).
 				TextColor(tk.Foreground).OnClick(action)
 		})
 		return
 	}
-	if wt.PR != 0 {
-		el.Menu(func(m *ui.Menu) { w.worktreePRMenu(m, p) }).Children(func() {
-			// The label must not take the press: the row's menu opens on it.
-			ui.Text(c, label).FontSize(11).FontWeight(600).
-				TextColor(tk.Foreground).IgnoreInput(true)
+	if busy := worktreeBusyLabel(wt); busy != "" {
+		worktreeChip(c, tk).OnClick(func() {}).Children(func() {
+			worktreeSpinner(c, tk, busy)
 		})
 		return
 	}
-	action := func() { w.createPullRequest(p) }
-	el.OnClick(action).Children(func() {
-		ui.Text(c, label).FontSize(11).FontWeight(600).
+	if wt.PR == 0 {
+		action := func() { w.createPullRequest(p) }
+		worktreeChip(c, tk).Tooltip(wt.Branch + " → " + wt.Base).OnClick(action).Children(func() {
+			ui.Text(c, locales.WorktreePR()).FontSize(11).FontWeight(600).
+				TextColor(tk.Foreground).OnClick(action)
+		})
+		return
+	}
+	w.pullRequestChip(c, tk, p)
+	if wt.State == "open" {
+		w.mergeChip(c, tk, p)
+	}
+}
+
+func worktreeChip(c *ui.Context, tk tokens) ui.Element {
+	el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
+		Center().Cursor(ui.CursorPointer)
+	if el.Hovered() {
+		el = el.Background(tk.Control)
+	}
+	return el
+}
+
+func worktreeBusyLabel(wt *paneWorktree) string {
+	switch wt.busy {
+	case worktreeBusyPR:
+		return locales.WorktreePROpening()
+	case worktreeBusyCheck:
+		return locales.WorktreeCheckingPR()
+	case worktreeBusyMerge:
+		return locales.WorktreeMerging()
+	}
+	return ""
+}
+
+// pullRequestChip shows the number and a dot for the latest known state, and
+// opens the page.
+func (w *workspace) pullRequestChip(c *ui.Context, tk tokens, p *pane) {
+	wt := p.Worktree
+	color := tk.MutedForeground
+	switch {
+	case wt.State == "closed":
+	case wt.checks == "failing" || strings.EqualFold(wt.mergeable, "CONFLICTING") ||
+		strings.EqualFold(wt.review, "CHANGES_REQUESTED"):
+		color = tk.Danger
+	case w.mergeBlocker(wt) == "":
+		color = tk.Working
+	}
+	action := func() {
+		w.refreshWorktree(p)
+		if wt.URL != "" {
+			openPath(wt.URL)
+		}
+	}
+	el := worktreeChip(c, tk).Tooltip(prStatusHint(wt)).OnClick(action)
+	el.Children(func() {
+		ui.Box(c).Width(6).Height(6).Radius(3).Background(color).IgnoreInput(true)
+		ui.Text(c, "PR #"+strconv.Itoa(wt.PR)).FontSize(11).FontWeight(600).
 			TextColor(tk.Foreground).OnClick(action)
 	})
 }
 
-// worktreePRMenu fills the PR button's menu once a pull request exists. It
-// offers the merge; the GitHub page opens when gh reported one.
-func (w *workspace) worktreePRMenu(m *ui.Menu, p *pane) {
+// mergeChip merges only when GitHub would: the button is muted and its
+// tooltip says why otherwise. A press refreshes the status first, so a check
+// that finished since the last look still lets it through.
+func (w *workspace) mergeChip(c *ui.Context, tk tokens, p *pane) {
 	wt := p.Worktree
-	if wt == nil {
-		return
+	blocker := w.mergeBlocker(wt)
+	color := tk.Foreground
+	hint := locales.WorktreeMerge()
+	if blocker != "" {
+		color = tk.MutedForeground
+		hint = locales.WorktreeMergeBlocked(blocker)
 	}
-	if m.Item(locales.WorktreeMergePR()).Chosen() {
-		w.mergePullRequest(p)
+	action := func() { w.requestMerge(p) }
+	worktreeChip(c, tk).Tooltip(hint).OnClick(action).Children(func() {
+		ui.Text(c, locales.WorktreeMerge()).FontSize(11).FontWeight(600).
+			TextColor(color).OnClick(action)
+	})
+}
+
+func prStatusHint(wt *paneWorktree) string {
+	parts := []string{}
+	if wt.checks != "" {
+		parts = append(parts, "checks: "+wt.checks)
 	}
-	if wt.URL != "" && m.Item(locales.WorktreeOpenPR()).Chosen() {
-		openPath(wt.URL)
+	if wt.review != "" {
+		parts = append(parts, "review: "+strings.ToLower(wt.review))
 	}
+	if wt.mergeable != "" {
+		parts = append(parts, "mergeable: "+strings.ToLower(wt.mergeable))
+	}
+	if wt.mergeState != "" {
+		parts = append(parts, "state: "+strings.ToLower(wt.mergeState))
+	}
+	hint := strings.Join(parts, " · ")
+	if hint == "" {
+		hint = wt.Branch + " → " + wt.Base
+	}
+	if wt.URL != "" {
+		hint = wt.URL + "\n" + hint
+	}
+	return hint
 }
 
 // worktreeSpinner is a header button at work: the theme's spinner where the
