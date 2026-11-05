@@ -550,6 +550,12 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 
 			header.Children(func() {
 				line := ui.Row(c).FillWidth().Height(chromeLine(bar)).AlignItems(ui.Center).Gap(4)
+				// The header drops what a narrow pane cannot show before it
+				// lets anything overlap: the folder first, then the branch
+				// pill. The width is the one it had in the frame before this,
+				// which is exact until the pane or its split is resized and
+				// settles one frame later.
+				width := line.Bounds().W
 				line.Children(func() {
 					// The title picks the pane up once there is a second pane
 					// to trade with. Alone in the window it keeps dragging the
@@ -599,15 +605,18 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 							ui.Text(c, title).FontSize(12).SingleLine().
 								Shrink(0).TextColor(tk.MutedForeground)
 						}
-						if agent == nil {
+						if agent == nil && (width == 0 || width >= 420) {
 							ui.Text(c, abbreviate(p.dir())).FontSize(11).SingleLine().
 								Shrink(1).TextColor(tk.MutedForeground)
 						}
 					})
 					// The branch pill follows the title: it names the branch
 					// the project is on, counts the working tree's changes,
-					// and opens their diff.
-					w.branchPill(c, tk, p)
+					// and opens their diff. A pane too narrow for it keeps
+					// only its title; the drawer still opens from the menu.
+					if width == 0 || width >= 260 {
+						w.branchPill(c, tk, p)
+					}
 					w.dragArea(c, tk)
 					// The buttons keep their room and fade, so the row does
 					// not jump as the pointer comes and goes; they take no
