@@ -83,6 +83,7 @@ func (w *workspace) movePane(dragged, target *pane, place paneDropPlace) {
 	if s == nil || s.Root == nil || w.sessionOf(dragged) != s {
 		return
 	}
+	w.zoomedPane = ""
 	switch place {
 	case paneDropLeft:
 		s.Root = s.Root.moving(dragged.ID, target.ID, axisHorizontal, true)

@@ -318,6 +318,7 @@ func (w *workspace) keyboardPage(c *ui.Context, tk tokens) {
 			{locales.ShortcutNewProject(), "⌘⇧N"},
 			{locales.ShortcutSplitRight(), "⌘D"},
 			{locales.ShortcutSplitDown(), "⌘⇧D"},
+			{locales.ShortcutZoomPane(), "⌘⇧↩"},
 			{locales.ShortcutPreviousPane(), "⌘["},
 			{locales.ShortcutNextPane(), "⌘]"},
 			{locales.ShortcutClosePane(), "⌘W"},

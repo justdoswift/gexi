@@ -91,6 +91,10 @@ Panes also move by hand: drag a pane's title onto a side of another pane to
 split toward that side, or onto its middle to trade places. A pane alone in
 the window has nowhere to go, so its title keeps moving the window.
 
+`⌘⇧↩`, or the expand button in a pane's header, fills the session with that
+pane; the inward arrow it turns into, or the same shortcut, brings every pane
+back.
+
 ### Remote hosts
 
 The **Remote** row at the bottom of the sidebar is the whole feature.
@@ -130,6 +134,7 @@ agent on the far side, so a remote `claude` does not report activity.
 | New project | ⌘⇧N |
 | Split right | ⌘D |
 | Split down | ⌘⇧D |
+| Zoom pane / show all | ⌘⇧↩ |
 | Focus previous / next pane | ⌘[ / ⌘] |
 | Close pane | ⌘W |
 | Settings | ⌘, |

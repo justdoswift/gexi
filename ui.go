@@ -76,6 +76,12 @@ func (w *workspace) backdrop(tk tokens) ui.Color {
 
 func (w *workspace) canvas(c *ui.Context, tk tokens) {
 	if tb := w.selected(); tb != nil {
+		// A zoomed pane fills the session on its own: its tree is still
+		// there, so putting the others back is only a matter of drawing it.
+		if p := w.zoomedIn(tb); p != nil {
+			w.paneView(c, tk, p, true)
+			return
+		}
 		w.splitView(c, tk, tb.Root, true)
 		return
 	}
@@ -489,6 +495,10 @@ func (w *workspace) splitView(c *ui.Context, tk tokens, n *splitNode, leading bo
 	}
 }
 
+// zoomShortcut is the accelerator the menu and the pane's zoom button show,
+// written as macOS writes it on a Mac keyboard.
+const zoomShortcut = "⇧⌘↩"
+
 func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	bar := c.TitleBar()
 	focused := p.ID == w.FocusedPane
@@ -617,6 +627,14 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					actions.Children(func() {
 						iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) })
 						iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) })
+						// A pane with nowhere to go has nothing to zoom to.
+						if len(w.visiblePanes()) > 1 || w.zoomedPane == p.ID {
+							name, hint := "expand", locales.PaneZoom()+" ("+zoomShortcut+")"
+							if w.zoomedPane == p.ID {
+								name, hint = "collapse", locales.PaneUnzoom()+" ("+zoomShortcut+")"
+							}
+							iconButton(c, tk, name, func() { w.toggleZoom(p) }, hint)
+						}
 						iconButton(c, tk, "x", func() { w.requestClose(p) })
 					})
 				})

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- A pane zooms to fill the session with ⌘⇧↩ or the expand button in its
+  header; the inward arrow it turns into, or the same shortcut, brings every
+  pane back.
+
 ## 0.0.8
 
 - A Claude Code started by hand in a pane now lights the sidebar's activity
