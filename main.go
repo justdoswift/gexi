@@ -7,6 +7,8 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/ui"
+
+	"github.com/justdoswift/gexi/locales"
 )
 
 // Version is what ping and info report.
@@ -36,6 +38,10 @@ func main() {
 	var win *mygo.Window
 
 	mygo.App.WhenReady(func() {
+		// The language the app shows: the one the user picked, or the
+		// system's when they follow it.
+		mygo.App.SetLocale(w.settings.Language)
+
 		win = mygo.NewWindow(mygo.WindowOptions{
 			Title:     "Gexi",
 			Width:     1180,
@@ -120,11 +126,11 @@ func mainMenu(w *workspace) *mygo.Menu {
 			mygo.Separator(),
 			{Role: mygo.RoleQuit},
 		}},
-		{Label: "File", Submenu: []*mygo.MenuItem{
-			{Label: "New Session", Accelerator: "CmdOrCtrl+T", Click: newSession},
-			{Label: "New Project…", Accelerator: "CmdOrCtrl+Shift+N", Click: func(*mygo.MenuItem, *mygo.Window) { w.pickProject() }},
+		{Label: locales.MenuFile(), Submenu: []*mygo.MenuItem{
+			{Label: locales.MenuNewSession(), Accelerator: "CmdOrCtrl+T", Click: newSession},
+			{Label: locales.MenuNewProject(), Accelerator: "CmdOrCtrl+Shift+N", Click: func(*mygo.MenuItem, *mygo.Window) { w.pickProject() }},
 			mygo.Separator(),
-			{Label: "Close Pane", Accelerator: "CmdOrCtrl+W", Click: func(*mygo.MenuItem, *mygo.Window) {
+			{Label: locales.MenuClosePane(), Accelerator: "CmdOrCtrl+W", Click: func(*mygo.MenuItem, *mygo.Window) {
 				if p, err := w.resolvePane(""); err == nil {
 					w.closePane(p)
 				}
@@ -133,20 +139,46 @@ func mainMenu(w *workspace) *mygo.Menu {
 			{Role: mygo.RoleClose},
 		}},
 		{Role: mygo.RoleEditMenu},
-		{Label: "View", Submenu: []*mygo.MenuItem{
-			{Label: "Split Right", Accelerator: "CmdOrCtrl+D", Click: split(axisHorizontal)},
-			{Label: "Split Down", Accelerator: "CmdOrCtrl+Shift+D", Click: split(axisVertical)},
+		{Label: locales.MenuView(), Submenu: []*mygo.MenuItem{
+			{Label: locales.MenuSplitRight(), Accelerator: "CmdOrCtrl+D", Click: split(axisHorizontal)},
+			{Label: locales.MenuSplitDown(), Accelerator: "CmdOrCtrl+Shift+D", Click: split(axisVertical)},
 			mygo.Separator(),
-			{Label: "Previous Pane", Accelerator: "CmdOrCtrl+[", Click: func(*mygo.MenuItem, *mygo.Window) { w.cyclePane(-1) }},
-			{Label: "Next Pane", Accelerator: "CmdOrCtrl+]", Click: func(*mygo.MenuItem, *mygo.Window) { w.cyclePane(1) }},
+			{Label: locales.MenuPreviousPane(), Accelerator: "CmdOrCtrl+[", Click: func(*mygo.MenuItem, *mygo.Window) { w.cyclePane(-1) }},
+			{Label: locales.MenuNextPane(), Accelerator: "CmdOrCtrl+]", Click: func(*mygo.MenuItem, *mygo.Window) { w.cyclePane(1) }},
 			mygo.Separator(),
-			{Label: "Toggle Sidebar", Accelerator: "CmdOrCtrl+B", Click: func(*mygo.MenuItem, *mygo.Window) {
+			{Label: locales.MenuToggleSidebar(), Accelerator: "CmdOrCtrl+B", Click: func(*mygo.MenuItem, *mygo.Window) {
 				w.settings.SidebarCollapsed = !w.settings.SidebarCollapsed
 				w.settings.save()
 				w.invalidate()
 			}},
-			{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { w.openSettings() }},
+			{Label: locales.MenuLanguage(), Submenu: languageMenu(w)},
+			{Label: locales.MenuSettings(), Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { w.openSettings() }},
 		}},
 		{Role: mygo.RoleWindowMenu},
 	})
+}
+
+// languageMenu lists the languages the app ships, and the system's choice
+// above them. Picking one shows it at once and keeps it for the next
+// launches; the menu is rebuilt so its labels are in the new language.
+func languageMenu(w *workspace) []*mygo.MenuItem {
+	item := func(label, tag string) *mygo.MenuItem {
+		return &mygo.MenuItem{
+			Label:   label,
+			Type:    mygo.MenuItemRadio,
+			Checked: w.settings.Language == tag,
+			Click: func(*mygo.MenuItem, *mygo.Window) {
+				w.settings.Language = tag
+				w.settings.save()
+				mygo.App.SetLocale(tag)
+				mygo.App.SetMenu(mainMenu(w))
+				w.invalidate()
+			},
+		}
+	}
+	return []*mygo.MenuItem{
+		item(locales.MenuLanguageSystem(), ""),
+		item("English", "en"),
+		item("简体中文", "zh-Hans"),
+	}
 }

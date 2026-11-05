@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+
+	"github.com/justdoswift/gexi/locales"
 )
 
 // The workspace is two levels: a project is a folder on disk, and the sessions
@@ -34,11 +36,11 @@ type session struct {
 
 func (s *session) title() string {
 	if s.Root == nil {
-		return "Terminal"
+		return locales.Terminal()
 	}
 	ps := s.Root.panes()
 	if len(ps) == 0 {
-		return "Terminal"
+		return locales.Terminal()
 	}
 	p := ps[0]
 	if title := strings.TrimSpace(p.term.Title()); title != "" {
@@ -219,9 +221,9 @@ func (w *workspace) pickProject() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Parent:            w.win,
-			Title:             "New Project",
-			Message:           "Choose the folder this project works in.",
-			ButtonLabel:       "Open",
+			Title:             locales.NewProjectTitle(),
+			Message:           locales.NewProjectMessage(),
+			ButtonLabel:       locales.Open(),
 			Directory:         true,
 			CreateDirectories: true,
 		})
@@ -402,7 +404,7 @@ func (w *workspace) requestClose(p *pane) {
 func (w *workspace) closePane(p *pane) {
 	p.close()
 outer:
-	for pi, pr := range w.Projects {
+	for _, pr := range w.Projects {
 		for si, s := range pr.Sessions {
 			if s.Root == nil || s.Root.paneByID(p.ID) == nil {
 				continue
@@ -411,9 +413,9 @@ outer:
 			if s.Root == nil {
 				pr.Sessions = append(pr.Sessions[:si], pr.Sessions[si+1:]...)
 			}
-			if len(pr.Sessions) == 0 {
-				w.Projects = append(w.Projects[:pi], w.Projects[pi+1:]...)
-			}
+			// The project stays when its last session closes: a folder is a
+			// place the user opened, not a side effect of a session. It goes
+			// only when they close it.
 			break outer
 		}
 	}

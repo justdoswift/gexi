@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/justdoswift/gexi/locales"
 )
 
 // Agent lifecycle events arrive from CLI hooks (Claude Code today), not from
@@ -115,11 +117,11 @@ func (w *workspace) shouldNotify(p *pane, kind string) bool {
 func eventTitle(kind string) string {
 	switch kind {
 	case "turn.end":
-		return "Turn finished"
+		return locales.NotifyTurnFinished()
 	case "needs-input":
-		return "Waiting for you"
+		return locales.NotifyWaiting()
 	default:
-		return "Agent"
+		return locales.NotifyAgent()
 	}
 }
 

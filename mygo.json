@@ -3,6 +3,10 @@
   "identifier": "dev.gexi.app",
   "version": "0.0.4",
   "out": "build",
+  "i18n": {
+    "dir": "locales",
+    "source": "en"
+  },
   "macos": {
     "icon": "AppIcon.icon",
     "signingIdentity": "Developer ID Application: Peng Ge (6SUWJ2JVNM)",

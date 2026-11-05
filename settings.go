@@ -8,6 +8,8 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+
+	"github.com/justdoswift/gexi/locales"
 )
 
 // appSettings holds the interface settings the UI honours today.
@@ -16,6 +18,9 @@ type appSettings struct {
 	SidebarCollapsed bool   `json:"sidebarCollapsed"`
 	PaneStyle        string `json:"paneStyle"`
 	RemoteTmux       bool   `json:"remoteTmux"`
+	// Language is the language the app shows: "" follows the system's
+	// languages, "en" and "zh-Hans" pin one.
+	Language string `json:"language"`
 
 	// Remote access: either this Mac is reachable through a relay, or it
 	// keeps codes imported from other Macs.
@@ -91,48 +96,48 @@ func (w *workspace) settingsView(c *ui.Context) {
 	ui.Column(c).Fill().Background(tk.Background).Children(func() {
 		ui.Row(c).Height(headerHeight).Padding(0, 12, 0, bar.Left+10).Gap(8).
 			DragWindow().Children(func() {
-			ui.Text(c, "Settings").FontSize(12).FontWeight(500).TextColor(tk.Foreground)
+			ui.Text(c, locales.SettingsTitle()).FontSize(12).FontWeight(500).TextColor(tk.Foreground)
 		})
 		ui.Column(c).Fill().Padding(20).Gap(8).Children(func() {
-			sectionLabel(c, tk, "Panes")
+			sectionLabel(c, tk, locales.SettingsPanes())
 			ui.Column(c).FillWidth().Radius(8).Border(1, tk.Border).Children(func() {
 				ui.Row(c).Padding(14, 16, 14, 16).Children(func() {
-					ui.Text(c, "Pane style").FontSize(13).TextColor(tk.Foreground)
+					ui.Text(c, locales.SettingsPaneStyle()).FontSize(13).TextColor(tk.Foreground)
 					ui.Spacer(c)
 					w.paneStyleControl(c, tk)
 				})
 			})
-			sectionLabel(c, tk, "Workspace")
+			sectionLabel(c, tk, locales.SettingsWorkspace())
 			ui.Column(c).FillWidth().Radius(8).Border(1, tk.Border).Children(func() {
 				w.settingRowView(c, tk, settingRow{
-					title:    "Restore last screen",
-					detail:   "Paint the previous screen above the new shell.",
+					title:    locales.SettingsRestoreScreen(),
+					detail:   locales.SettingsRestoreScreenDetail(),
 					value:    &w.settings.RestoreScreen,
 					onChange: func() { w.settings.save(); w.scheduleSave() },
 				})
 			})
-			sectionLabel(c, tk, "Remote")
+			sectionLabel(c, tk, locales.SettingsRemote())
 			ui.Column(c).FillWidth().Radius(8).Border(1, tk.Border).Children(func() {
 				w.settingRowView(c, tk, settingRow{
-					title:    "Keep remote sessions",
-					detail:   "Run tmux on the host so a dropped link can reconnect.",
+					title:    locales.SettingsKeepRemote(),
+					detail:   locales.SettingsKeepRemoteDetail(),
 					value:    &w.settings.RemoteTmux,
 					onChange: func() { w.settings.save() },
 				})
 			})
-			sectionLabel(c, tk, "Notifications")
+			sectionLabel(c, tk, locales.SettingsNotifications())
 			ui.Column(c).FillWidth().Radius(8).Border(1, tk.Border).Children(func() {
 				w.settingActionView(c, tk,
-					"Desktop notifications",
-					"Sent when an agent finishes a turn or waits for input.",
-					"Send test",
+					locales.SettingsDesktopNotifications(),
+					locales.SettingsDesktopNotificationsDetail(),
+					locales.SettingsSendTest(),
 					func() {
-						notifyUser("Test notification", "If this banner shows up, agent events can reach you.")
+						notifyUser(locales.TestNotificationTitle(), locales.TestNotificationBody())
 					},
 				)
 			})
 			ui.Spacer(c)
-			ui.Textf(c, "Socket  %s", socketPath()).FontSize(10).TextColor(tk.MutedForeground)
+			ui.Text(c, locales.Socket(socketPath())).FontSize(10).TextColor(tk.MutedForeground)
 		})
 	})
 }
@@ -219,8 +224,8 @@ func (w *workspace) switchControl(c *ui.Context, tk tokens, value *bool, onChang
 // card on the chosen side.
 func (w *workspace) paneStyleControl(c *ui.Context, tk tokens) {
 	ui.Row(c).Height(32).Padding(2).Radius(8).Background(tk.Active).Gap(2).Children(func() {
-		w.paneStyleSegment(c, tk, paneComfortable, "layout-grid", "Comfortable")
-		w.paneStyleSegment(c, tk, paneCompact, "grid-2x2", "Compact")
+		w.paneStyleSegment(c, tk, paneComfortable, "layout-grid", locales.PaneComfortable())
+		w.paneStyleSegment(c, tk, paneCompact, "grid-2x2", locales.PaneCompact())
 	})
 }
 

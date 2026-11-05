@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/justdoswift/gexi/locales"
 )
 
 // Remote access, the simple half: the Mac being reached keeps one reverse
@@ -491,7 +493,7 @@ func (w *workspace) submitRelay() {
 			writeClipboard(code)
 			w.relayOpen = false
 			w.invalidate()
-			notifyUser("Connection code copied", "Paste it in Gexi on the other Mac.")
+			notifyUser(locales.NotifyCodeCopiedTitle(), locales.NotifyCodeCopiedBody())
 		})
 	}()
 }

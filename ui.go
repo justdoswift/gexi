@@ -10,6 +10,8 @@ import (
 
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
+
+	"github.com/justdoswift/gexi/locales"
 )
 
 // The layout follows Rex: the window has no title bar of its own, the traffic
@@ -78,8 +80,24 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 		w.splitView(c, tk, tb.Root, true)
 		return
 	}
-	ui.Column(c).Fill().Center().Children(func() {
-		ui.Text(c, "No project").FontSize(13).TextColor(tk.MutedForeground)
+	// The empty workspace is a session's card with nothing in it: no
+	// project, or a project with no session, still reads as a place waiting
+	// for work rather than a blank window.
+	outer := ui.Column(c).Fill()
+	if w.settings.PaneStyle == paneComfortable {
+		outer = outer.Padding(3)
+	}
+	outer.Children(func() {
+		col := ui.Column(c).Fill()
+		if w.settings.PaneStyle == paneComfortable {
+			col = col.Radius(windowRadius).Border(1, tk.Border).Background(tk.Background).Clip()
+		}
+		col.Children(func() {
+			ui.Row(c).Height(headerHeight).Background(tk.Background).DragWindow()
+			ui.Column(c).Fill().Center().Children(func() {
+				ui.Text(c, locales.NoProject()).FontSize(13).TextColor(tk.MutedForeground)
+			})
+		})
 	})
 }
 
@@ -116,7 +134,7 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 					w.projectRow(c, tk, pr)
 				}
 				if !shown {
-					ui.Text(c, "No projects").FontSize(12).
+					ui.Text(c, locales.NoProjects()).FontSize(12).
 						TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
 				}
 				ui.Spacer(c)
@@ -143,8 +161,8 @@ func (w *workspace) projectSearch(c *ui.Context, tk tokens) {
 		if src := iconSource("search", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(16).Height(16).IgnoreInput(true)
 		}
-		in = ui.TextInputBase(c, &w.searchQuery).Label("Search projects").
-			Placeholder("Search").PlaceholderColor(tk.MutedForeground).
+		in = ui.TextInputBase(c, &w.searchQuery).Label(locales.SearchProjects()).
+			Placeholder(locales.SearchPlaceholder()).PlaceholderColor(tk.MutedForeground).
 			FontSize(11).FillWidth()
 	})
 	// The pill lights its border while the query has the focus; the input
@@ -204,25 +222,25 @@ func (w *workspace) remoteMenu(m *ui.Menu) {
 // relayDialog is the one-time setup for a Mac that should be reachable.
 func (w *workspace) relayDialog(c *ui.Context, tk tokens) {
 	ui.Column(c).Width(400).Padding(20).Gap(8).Children(func() {
-		ui.Text(c, "Allow this Mac to be reached").FontSize(14).FontWeight(600).TextColor(tk.Foreground)
-		ui.Text(c, "Gexi keeps a tunnel to your relay and gives you one code for the other Mac. The relay only forwards ssh.").
+		ui.Text(c, locales.RelayTitle()).FontSize(14).FontWeight(600).TextColor(tk.Foreground)
+		ui.Text(c, locales.RelayBody()).
 			FontSize(11).TextColor(tk.MutedForeground)
-		ui.Text(c, "Relay (user@host)").FontSize(11).TextColor(tk.MutedForeground).Padding(6, 0, 0, 0)
-		ui.TextInput(c, &w.relayInput).Placeholder("you@relay.example.com").Height(28).FontSize(12)
-		ui.Text(c, "Name on the other Mac").FontSize(11).TextColor(tk.MutedForeground).Padding(6, 0, 0, 0)
-		ui.TextInput(c, &w.relayName).Placeholder("company").Height(28).FontSize(12)
+		ui.Text(c, locales.RelayHost()).FontSize(11).TextColor(tk.MutedForeground).Padding(6, 0, 0, 0)
+		ui.TextInput(c, &w.relayInput).Placeholder(locales.RelayHostPlaceholder()).Height(28).FontSize(12)
+		ui.Text(c, locales.RelayName()).FontSize(11).TextColor(tk.MutedForeground).Padding(6, 0, 0, 0)
+		ui.TextInput(c, &w.relayName).Placeholder(locales.RelayNamePlaceholder()).Height(28).FontSize(12)
 		if w.relayErr != "" {
 			ui.Text(c, w.relayErr).FontSize(11).TextColor(tk.Waiting)
 		}
 		ui.Row(c).Gap(8).Padding(8, 0, 0, 0).Children(func() {
 			ui.Spacer(c)
-			ui.Button(c, "Cancel").OnClick(func() {
+			ui.Button(c, locales.Cancel()).OnClick(func() {
 				w.relayOpen = false
 				w.invalidate()
 			})
-			label := "Turn on"
+			label := locales.TurnOn()
 			if w.relayBusy {
-				label = "Checking…"
+				label = locales.Checking()
 			}
 			ui.Button(c, label).OnClick(func() { w.submitRelay() })
 		})
@@ -233,8 +251,8 @@ func (w *workspace) relayDialog(c *ui.Context, tk tokens) {
 // clipboard, so the usual path is open, connect.
 func (w *workspace) importDialog(c *ui.Context, tk tokens) {
 	ui.Column(c).Width(440).Padding(20).Gap(8).Children(func() {
-		ui.Text(c, "Connect to another Mac").FontSize(14).FontWeight(600).TextColor(tk.Foreground)
-		ui.Text(c, "Paste the code the other Mac copied. It works once per Mac and can be revoked there.").
+		ui.Text(c, locales.ImportTitle()).FontSize(14).FontWeight(600).TextColor(tk.Foreground)
+		ui.Text(c, locales.ImportBody()).
 			FontSize(11).TextColor(tk.MutedForeground)
 		ui.TextInput(c, &w.importText).Height(28).FontSize(12).Placeholder("gexi1.…")
 		if w.importErr != "" {
@@ -242,11 +260,11 @@ func (w *workspace) importDialog(c *ui.Context, tk tokens) {
 		}
 		ui.Row(c).Gap(8).Padding(8, 0, 0, 0).Children(func() {
 			ui.Spacer(c)
-			ui.Button(c, "Cancel").OnClick(func() {
+			ui.Button(c, locales.Cancel()).OnClick(func() {
 				w.importOpen = false
 				w.invalidate()
 			})
-			ui.Button(c, "Connect").OnClick(func() { w.submitImport() })
+			ui.Button(c, locales.Connect()).OnClick(func() { w.submitImport() })
 		})
 	})
 }
