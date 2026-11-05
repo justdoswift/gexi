@@ -59,6 +59,8 @@
   "worktreeOpenPR": "打开 PR",
   "worktreeMerging": "正在合并 PR",
   "worktreeMerged": "已合并",
+  "worktreeArchive": "归档",
+  "worktreeArchiveHint": "归档此工作树并删除检出目录",
   "worktreePROpened": "已创建 PR",
   "worktreeMergedInto": "已合并到 {base}",
   "worktreeMergedLocalFailed": "已在 GitHub 上合并，但本地 {base} 未能更新：{error}",

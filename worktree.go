@@ -504,9 +504,10 @@ func (w *workspace) createPullRequest(p *pane) {
 	}()
 }
 
-// mergePullRequest merges the PR on GitHub, then fast-forwards the local base
-// branch and closes the pane with its worktree. A local sync that fails leaves
-// the worktree in place, so nothing is lost.
+// mergePullRequest merges the PR on GitHub and fast-forwards the local base
+// branch. The pane and its worktree stay open: the header button becomes
+// Archive, so clearing them away is the user's next step rather than a
+// side effect of the merge.
 func (w *workspace) mergePullRequest(p *pane) {
 	wt := p.Worktree
 	if wt == nil || wt.busy != "" || wt.PR == 0 || wt.State == worktreeMerged {
@@ -532,7 +533,6 @@ func (w *workspace) mergePullRequest(p *pane) {
 				w.flash(locales.WorktreeMergedLocalFailed(wt.Base, syncErr.Error()))
 			} else {
 				w.flash(locales.WorktreeMergedInto(wt.Base))
-				w.cleanupMergedWorktree(p)
 			}
 			w.invalidate()
 			w.scheduleSave()
@@ -540,12 +540,13 @@ func (w *workspace) mergePullRequest(p *pane) {
 	}()
 }
 
-// cleanupMergedWorktree hangs up the pane and any split that shares its
+// archiveMergedWorktree hangs up the pane and any split that shares its
 // checkout, then removes the checkout. The branch is already merged, so
-// nothing is lost.
-func (w *workspace) cleanupMergedWorktree(p *pane) {
+// nothing is lost. The header offers this once the PR is merged instead of
+// running it on its own.
+func (w *workspace) archiveMergedWorktree(p *pane) {
 	wt := p.Worktree
-	if wt == nil {
+	if wt == nil || wt.busy != "" || wt.State != worktreeMerged {
 		return
 	}
 	s := w.sessionOf(p)
@@ -1024,11 +1025,15 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 // worktreeButton is the PR control in the pane header, left of the pane
 // actions. It appears once the pane owns a worktree: the first press opens a
 // pull request, and once one exists the same PR button opens a menu that
-// merges or opens it.
+// merges or opens it. After the merge the button becomes Archive, which
+// clears the pane and its checkout away.
 func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	wt := p.Worktree
+	merged := wt.State == worktreeMerged
 	label := locales.WorktreePR()
-	color := tk.Foreground
+	if merged {
+		label = locales.WorktreeArchive()
+	}
 	busy := ""
 	switch wt.busy {
 	case worktreeBusyPR:
@@ -1036,11 +1041,10 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	case worktreeBusyMerge:
 		busy = locales.WorktreeMerging()
 	}
-	if wt.State == worktreeMerged {
-		color = tk.MutedForeground
-	}
 	hint := wt.Branch + " → " + wt.Base
-	if wt.URL != "" {
+	if merged {
+		hint = locales.WorktreeArchiveHint()
+	} else if wt.URL != "" {
 		hint = wt.URL
 	}
 	el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
@@ -1054,32 +1058,37 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 		})
 		return
 	}
+	if merged {
+		action := func() { w.archiveMergedWorktree(p) }
+		el.OnClick(action).Children(func() {
+			ui.Text(c, label).FontSize(11).FontWeight(600).
+				TextColor(tk.Foreground).OnClick(action)
+		})
+		return
+	}
 	if wt.PR != 0 {
 		el.Menu(func(m *ui.Menu) { w.worktreePRMenu(m, p) }).Children(func() {
 			// The label must not take the press: the row's menu opens on it.
 			ui.Text(c, label).FontSize(11).FontWeight(600).
-				TextColor(color).IgnoreInput(true)
+				TextColor(tk.Foreground).IgnoreInput(true)
 		})
 		return
 	}
 	action := func() { w.createPullRequest(p) }
 	el.OnClick(action).Children(func() {
 		ui.Text(c, label).FontSize(11).FontWeight(600).
-			TextColor(color).OnClick(action)
+			TextColor(tk.Foreground).OnClick(action)
 	})
 }
 
-// worktreePRMenu fills the PR button's menu once a pull request exists. A
-// pull request that is still open offers its merge; the GitHub page opens
-// when gh reported one.
+// worktreePRMenu fills the PR button's menu once a pull request exists. It
+// offers the merge; the GitHub page opens when gh reported one.
 func (w *workspace) worktreePRMenu(m *ui.Menu, p *pane) {
 	wt := p.Worktree
 	if wt == nil {
 		return
 	}
-	if wt.State == worktreeMerged {
-		m.Item(locales.WorktreeMerged()).Disabled(true)
-	} else if m.Item(locales.WorktreeMergePR()).Chosen() {
+	if m.Item(locales.WorktreeMergePR()).Chosen() {
 		w.mergePullRequest(p)
 	}
 	if wt.URL != "" && m.Item(locales.WorktreeOpenPR()).Chosen() {
