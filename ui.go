@@ -79,6 +79,17 @@ func (w *workspace) view(c *ui.Context) {
 			w.leaveTarget = nil
 		}
 	}
+	if w.mergeTarget != nil {
+		switch ui.AlertDialog(c, &w.mergeOpen, locales.WorktreeMergeTitle(), w.mergeMsg,
+			locales.WorktreeMerge(), locales.Cancel()) {
+		case 0:
+			p := w.mergeTarget
+			w.mergeTarget = nil
+			w.mergePullRequest(p)
+		case 1, ui.AlertDismissed:
+			w.mergeTarget = nil
+		}
+	}
 }
 
 // dragArea is a draggable stretch of a header that also zooms the window on
