@@ -352,8 +352,7 @@ func newestClaudeSessionID(cwd string) string {
 	if override := os.Getenv("CLAUDE_CONFIG_DIR"); override != "" {
 		root = filepath.Join(override, "projects")
 	}
-	slug := strings.NewReplacer("/", "-", ".", "-").Replace(cwd)
-	dir := filepath.Join(root, slug)
+	dir := filepath.Join(root, claudeProjectSlug(cwd))
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -382,6 +381,23 @@ func newestClaudeSessionID(cwd string) string {
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].mod.After(list[j].mod) })
 	return list[0].id
+}
+
+// claudeProjectSlug is the folder Claude Code files a directory's transcripts
+// under: every character that is not a letter, a digit, or a hyphen becomes a
+// hyphen. A path with a space is the one that matters here, since Gexi keeps
+// its own worktrees under "Application Support", and a missing folder there
+// left the agent undetected, showing a terminal glyph beside the glyph the
+// title already carried.
+func claudeProjectSlug(dir string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-':
+			return r
+		default:
+			return '-'
+		}
+	}, dir)
 }
 
 func homeDir() string {
