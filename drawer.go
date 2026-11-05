@@ -143,7 +143,7 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 		bg, color = tk.Control, tk.Foreground
 	}
 	el := ui.Row(c).Height(22).Radius(chromeRadius).Padding(0, 8).Gap(5).
-		AlignItems(ui.Center).Cursor(ui.CursorPointer)
+		AlignItems(ui.Center).Shrink(0).Cursor(ui.CursorPointer)
 	if el.Hovered() {
 		bg, color = tk.Control, tk.Foreground
 	}

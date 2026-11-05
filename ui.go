@@ -558,7 +558,10 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					// The pill sits inside the header band rather than filling
 					// it, so hovering reads as a chip and not as a second bar.
 					movable := len(w.visiblePanes()) > 1
-					strip := ui.Row(c).Height(24).AlignItems(ui.Center).
+					// The title gives way before the branch pill does: its
+					// texts end in an ellipsis rather than wrapping, and the
+					// pill keeps its width.
+					strip := ui.Row(c).Height(24).AlignItems(ui.Center).Shrink(1).
 						Gap(4).Padding(0, 6).Radius(chromeRadius)
 					if movable {
 						strip = strip.Drag(paneMoved{Pane: p}).Cursor(ui.CursorGrab).
@@ -590,14 +593,15 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 							title += " · exited"
 						}
 						if focused {
-							ui.Text(c, title).FontSize(12).FontWeight(500).
-								TextColor(tk.Foreground)
+							ui.Text(c, title).FontSize(12).FontWeight(500).SingleLine().
+								Shrink(0).TextColor(tk.Foreground)
 						} else {
-							ui.Text(c, title).FontSize(12).TextColor(tk.MutedForeground)
+							ui.Text(c, title).FontSize(12).SingleLine().
+								Shrink(0).TextColor(tk.MutedForeground)
 						}
 						if agent == nil {
-							ui.Text(c, abbreviate(p.dir())).FontSize(11).
-								TextColor(tk.MutedForeground)
+							ui.Text(c, abbreviate(p.dir())).FontSize(11).SingleLine().
+								Shrink(1).TextColor(tk.MutedForeground)
 						}
 					})
 					// The branch pill follows the title: it names the branch
