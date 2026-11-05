@@ -4,9 +4,13 @@
 // so icon.go can keep treating them as alpha masks.
 //
 // Each entry carries its own box and stroke: IconMCP draws on a 16-unit
-// grid, and box/stroke were tuned per icon so its ink covers the same area,
-// and reads at the same weight, as the SF Symbol it replaces. Re-run this
-// only after editing those numbers by hand — nothing here infers them.
+// grid, and box/stroke were tuned per icon so a glyph covers the same area,
+// and carries the same amount of ink, as the SF Symbol it replaces. Re-run
+// this only after editing those numbers by hand — nothing here infers them.
+//
+// Mind the diagonals when retuning: a 45° arm's horizontal section is √2
+// times its stroke width, so x and the chevrons take a smaller value than
+// their neighbours to end up the same weight.
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
