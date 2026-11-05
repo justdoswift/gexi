@@ -120,18 +120,14 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 						TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
 				}
 				ui.Spacer(c)
-				// The settings gear is the sidebar's footer, kept off the
-				// search row so the field can run nearly as wide as the
-				// sessions.
+				// The footer holds the sidebar's two menus: remote Macs on
+				// the left, settings on the right, off the search row so the
+				// field can run nearly as wide as the sessions.
 				ui.Row(c).Height(iconSize).Gap(2).Children(func() {
+					iconMenuButton(c, tk, "server", w.remoteMenu)
+					ui.Spacer(c)
 					iconButton(c, tk, "setting", func() { w.openSettings() })
 				})
-			})
-			// Remote hosts are places too, but they come from ~/.ssh/config
-			// rather than the project list, so the menu sits under the list
-			// instead of in the chrome row.
-			ui.Row(c).Padding(2, 8, 8, 8).Children(func() {
-				w.remoteRow(c, tk)
 			})
 		})
 }
@@ -203,26 +199,6 @@ func (w *workspace) remoteMenu(m *ui.Menu) {
 	if m.Item("Connect to another Mac…").Chosen() {
 		w.openImportDialog()
 	}
-}
-
-// remoteRow opens the remote menu from the bottom of the sidebar. It reads as
-// one more list row rather than a chrome button: a Mac is a place, not a
-// command.
-func (w *workspace) remoteRow(c *ui.Context, tk tokens) {
-	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(6).
-		Radius(chromeRadius).Cursor(ui.CursorPointer).Menu(w.remoteMenu)
-	color := tk.MutedForeground
-	if row.Hovered() {
-		row = row.Background(tk.Active)
-		color = tk.Foreground
-	}
-	row.Children(func() {
-		if src := iconSource("server", colorHex(color)); src != nil {
-			ui.Image(c, src).Width(13).Height(13).IgnoreInput(true)
-		}
-		ui.Text(c, "Remote").FontSize(12).FontWeight(500).TextColor(color).IgnoreInput(true)
-		ui.Spacer(c).IgnoreInput(true)
-	})
 }
 
 // relayDialog is the one-time setup for a Mac that should be reachable.
