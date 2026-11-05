@@ -214,10 +214,36 @@ func worktreeGit(dir string, args ...string) (string, error) {
 	return string(out), err
 }
 
+// ghBinary is gh's path. An app opened from Finder inherits launchd's short
+// PATH, which misses a gh installed beside the user's other tools, though the
+// panes' login shell finds it; the usual install folders are asked as well.
+var ghBinary = sync.OnceValue(func() string {
+	if path, err := exec.LookPath("gh"); err == nil {
+		return path
+	}
+	home, _ := os.UserHomeDir()
+	for _, dir := range []string{
+		"/opt/homebrew/bin",
+		"/usr/local/bin",
+		filepath.Join(home, ".local/bin"),
+		filepath.Join(home, "bin"),
+	} {
+		path := filepath.Join(dir, "gh")
+		if info, err := os.Stat(path); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			return path
+		}
+	}
+	return ""
+})
+
 func ghOutput(dir string, args ...string) (string, error) {
+	gh := ghBinary()
+	if gh == "" {
+		return "", errors.New("gh is not installed")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "gh", args...)
+	cmd := exec.CommandContext(ctx, gh, args...)
 	cmd.Dir = dir
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
@@ -293,7 +319,7 @@ func createPR(wt *paneWorktree) (int, string, string, string, error) {
 	if branch == "" {
 		branch = wt.Branch
 	}
-	if _, err := exec.LookPath("gh"); err != nil {
+	if ghBinary() == "" {
 		return 0, "", "", branch, errors.New("gh is not installed")
 	}
 	// Local checks come before gh: a repository without a GitHub remote can
@@ -329,7 +355,7 @@ func createPR(wt *paneWorktree) (int, string, string, string, error) {
 }
 
 func mergePR(wt *paneWorktree) error {
-	if _, err := exec.LookPath("gh"); err != nil {
+	if ghBinary() == "" {
 		return errors.New("gh is not installed")
 	}
 	clean, err := worktreeIsClean(wt)
