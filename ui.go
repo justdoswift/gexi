@@ -80,12 +80,13 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 		// there, so putting the others back is only a matter of drawing it.
 		// The layout changes in one frame, so the new one settles in with the
 		// same fade and scale a pane opens with.
-		// Only the scale moves: fading the stage out and back in reads as a
-		// flash, while the terminal underneath is resizing its grid anyway.
+		// The stage grows into the new layout: no fade, which reads as a
+		// flash over a grid that is resizing at the same moment, but a scale
+		// big enough to see the pane settle into its new bounds.
 		pose := ui.Pose{}
 		if w.zoomSettling {
 			w.zoomSettling = false
-			pose = ui.Pose{Scale: 0.97}
+			pose = ui.Pose{Scale: 0.93}
 			c.After(time.Millisecond)
 		}
 		stage := ui.Column(c).Fill()
