@@ -113,10 +113,10 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 		Children(func() {
 			ui.Row(c).Height(headerHeight).Padding(11, 8, 0, bar.Left+6+iconSize+8).
 				DragWindow().Children(func() {
-					ui.Row(c).FillWidth().Height(iconSize).AlignItems(ui.Center).Children(func() {
-						w.dragArea(c, tk)
-					})
+				ui.Row(c).FillWidth().Height(iconSize).AlignItems(ui.Center).Children(func() {
+					w.dragArea(c, tk)
 				})
+			})
 			// The search field and the new-project button share the first row
 			// under the header, so the title bar keeps only the drag area.
 			ui.Row(c).Height(searchHeight).Padding(8, 8, 0, 8).Gap(6).Children(func() {
@@ -396,33 +396,33 @@ func (w *workspace) projectVisible(pr *project) bool {
 	return false
 }
 
-// activityLoader is the sidebar's thinking orb, after libraries.dev/orbs: a
-// small sphere of dots whose particles run on tilted orbits while an agent
-// works. Waiting freezes the same orb on one frame, so the two states differ
-// by motion alone. The orb is monochrome — black on a light window, white on
+// activityLoader is the sidebar's activity line, after math-curve-loaders: a
+// particle trail running round a seven-petal rose while an agent works.
+// Waiting freezes the same trail on one frame, so the two states differ by
+// motion alone. The loader is monochrome — black on a light window, white on
 // a dark one.
 func (w *workspace) activityLoader(c *ui.Context, tk tokens, state string, pick func()) {
 	// The slot keeps its width when the loader is off, so nothing in the row
 	// shifts as agents start and stop.
-	box := ui.Row(c).Width(loaderWidth).Height(orbSize).AlignItems(ui.Center)
+	box := ui.Row(c).Width(loaderWidth).Height(loaderSize).AlignItems(ui.Center)
 	box.OnClick(pick).Children(func() {
 		if state == "" {
 			return
 		}
-		t := 0.6
+		t := float64(loaderStillMs)
 		if state == activityWorking {
-			t = orbPhase(c)
+			t = loaderPhase(c)
 		}
 		dark := c.Theme().Dark
-		ui.Box(c).Size(orbSize, orbSize).OnClick(pick).
+		ui.Box(c).Size(loaderSize, loaderSize).OnClick(pick).
 			Draw(func(p *ui.Painter, r ui.Rect) {
-				drawOrb(p, r, t, dark)
+				drawCurveLoader(p, r, t, dark)
 			})
 	})
 }
 
-// loaderWidth is the orb's slot in the session row.
-const loaderWidth float32 = orbSize
+// loaderWidth is the loader's slot in the session row.
+const loaderWidth float32 = loaderSize
 
 // sessionActivityState folds the panes' hook events into one sidebar indicator.
 func sessionActivityState(s *session) string {

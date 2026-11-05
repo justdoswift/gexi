@@ -19,8 +19,9 @@
 - **形状**：会话行圆角 7；Comfortable pane 圆角 8、内缩 5；Compact 无圆角、无内缩。
 - **间距**：侧栏宽 264；pane 标题栏 36 / 30；行高 32；会话行左右内边距 8；分组标签上 14 / 下 4。
 - **动效**：悬停 0.10s、侧栏开合 0.18s easeInOut；会话行的活动指示是
-  libraries.dev/orbs 的 20pt 轨道图，纯黑白——浅色下黑、深色下白；
-  working 运行时转动，waiting 定格成一帧。它是界面里唯一的循环动画。
+  math-curve-loaders 的三瓣螺旋粒子尾迹，20pt，纯黑白——浅色下黑、深色下白；
+  working 时尾迹沿曲线行进、曲线缓慢转动并呼吸，waiting 定格成一帧。
+  它是界面里唯一的循环动画。
 - **图标**：统一 SF Symbols，10–12pt medium；点击区 22pt。
 
 ## 设置
