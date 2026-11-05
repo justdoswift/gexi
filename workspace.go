@@ -43,7 +43,7 @@ func (s *session) title() string {
 		return locales.Terminal()
 	}
 	p := ps[0]
-	if title := strings.TrimSpace(p.term.Title()); title != "" {
+	if title := cleanTitle(p.term.Title()); title != "" {
 		return title
 	}
 	shell := ""

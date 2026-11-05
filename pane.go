@@ -211,8 +211,26 @@ func (p *pane) foregroundGroup() int {
 	return foregroundGroupOf(p.ptmx.Fd())
 }
 
+// titleSpinners are the progress marks an agent puts in front of the terminal
+// title while it works; Claude Code cycles through these quarter circles.
+// Chrome already says an agent is working with the session label's shimmer,
+// so the mark is noise beside the words and is dropped.
+const titleSpinners = "◐◑◒◓"
+
+// cleanTitle trims a terminal title and drops the agent's leading activity
+// mark, leaving the words themselves.
+func cleanTitle(title string) string {
+	t := strings.TrimSpace(title)
+	for _, spinner := range titleSpinners {
+		if rest, ok := strings.CutPrefix(t, string(spinner)); ok {
+			return strings.TrimSpace(rest)
+		}
+	}
+	return t
+}
+
 func (p *pane) title() string {
-	if t := strings.TrimSpace(p.term.Title()); t != "" {
+	if t := cleanTitle(p.term.Title()); t != "" {
 		return t
 	}
 	if len(p.command) > 0 {
