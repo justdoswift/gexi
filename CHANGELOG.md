@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.10
+
+- General → Interface can pin the app's appearance to Light or Dark, or leave
+  it on Automatic to follow the system.
+- Settings → Advanced and `gexi info` report the running version again; the
+  number had been stuck at 0.0.8.
+
 ## 0.0.9
 
 - A pane zooms to fill the session with ⌘⇧↩ or the expand button in its
