@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.0.12
 
+- A new app icon: an ink tile split like the workspace, the focused pane in
+  violet. `brand/icon-product/` holds the mark, a mono variant and eight PNG
+  sizes; the icns widen step reads from the 1024 render.
 - Worktree branches take Dota 2 hero, item, and ability names as their
   placeholder before the first prompt renames them to the task.
 
