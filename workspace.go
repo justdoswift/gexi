@@ -135,6 +135,12 @@ type workspace struct {
 	pendingToast       string
 	pendingToastAction string
 	pendingAction      func()
+
+	// leaveOpen is the alert asking whether a checkout with unmerged work
+	// should be deleted; leaveTarget is the pane it belongs to.
+	leaveOpen   bool
+	leaveTarget *pane
+	leaveMsg    string
 }
 
 func newWorkspace() *workspace {
@@ -392,6 +398,7 @@ func (w *workspace) closeSession(s *session) {
 				if w.paneByID(p.ID) != nil {
 					w.closePane(p)
 				}
+				w.cleanupClosedWorktree(p.Worktree)
 			}
 			// closePane fixes focus, but a session that was selected and is
 			// now gone still needs the selection moved.
@@ -426,6 +433,7 @@ func (w *workspace) requestClose(p *pane) {
 			if w.paneByID(p.ID) != nil {
 				w.closePane(p)
 			}
+			w.cleanupClosedWorktree(p.Worktree)
 		})
 	})
 }
@@ -501,6 +509,7 @@ func (w *workspace) closeProject(pr *project) {
 				if w.paneByID(p.ID) != nil {
 					w.closePane(p)
 				}
+				w.cleanupClosedWorktree(p.Worktree)
 			}
 			w.removeProject(pr)
 			w.invalidate()

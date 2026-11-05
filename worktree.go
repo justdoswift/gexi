@@ -47,6 +47,7 @@ type paneWorktree struct {
 
 const (
 	worktreeBusyCreate = "create"
+	worktreeBusyLeave  = "leave"
 	worktreeBusyPR     = "pr"
 	worktreeBusyMerge  = "merge"
 	worktreeMerged     = "merged"
@@ -450,6 +451,33 @@ func removeWorktree(wt *paneWorktree) error {
 	return nil
 }
 
+// removeWorktreeKeeping removes the checkout but leaves the branch when it
+// holds commits that were never merged. The remote branch is never deleted.
+func removeWorktreeKeeping(wt *paneWorktree, keepBranch bool) error {
+	if _, err := worktreeGit(wt.Root, "worktree", "remove", "--force", wt.Path); err != nil {
+		return err
+	}
+	_, _ = worktreeGit(wt.Root, "worktree", "prune")
+	if !keepBranch {
+		_, _ = worktreeGit(wt.Root, "branch", "-D", wt.Branch)
+	}
+	return nil
+}
+
+// worktreeSafeToDelete reports a checkout with nothing to lose: no
+// uncommitted changes and no commits ahead of the base branch.
+func worktreeSafeToDelete(wt *paneWorktree) bool {
+	if wt == nil || wt.busy != "" {
+		return false
+	}
+	clean, err := worktreeIsClean(wt)
+	if err != nil || !clean {
+		return false
+	}
+	ahead, err := commitsAhead(wt)
+	return err == nil && ahead == 0
+}
+
 // createPullRequest starts the PR in the background; the header button shows
 // the operation while it runs.
 func (w *workspace) createPullRequest(p *pane) {
@@ -639,30 +667,304 @@ func (w *workspace) createPaneWorktree(p *pane) {
 // restartPaneInWorktree swaps the pane's terminal for a fresh shell in the
 // worktree, keeping its slot, id, and focus.
 func (w *workspace) restartPaneInWorktree(p *pane, wt *paneWorktree) {
+	if w.restartPaneInDir(p, wt.Path, wt, locales.WorktreeCreated()) {
+		return
+	}
+	go func() { _ = removeWorktree(wt) }()
+}
+
+// restartPaneInDir swaps the pane's terminal for a fresh shell in dir,
+// keeping its slot, id, and focus. It reports whether the pane restarted.
+func (w *workspace) restartPaneInDir(p *pane, dir string, wt *paneWorktree, message string) bool {
 	s := w.sessionOf(p)
 	if s == nil || s.Root == nil || w.paneByID(p.ID) != p {
-		go func() { _ = removeWorktree(wt) }()
-		return
+		return false
 	}
 	if p.agent != nil {
 		w.flash(locales.WorktreeAgentRunning())
-		go func() { _ = removeWorktree(wt) }()
-		return
+		return false
 	}
-	np, err := newPane(w, p.ID, nil, wt.Path, "")
+	np, err := newPane(w, p.ID, nil, dir, "")
 	if err != nil {
 		w.flash(locales.WorktreeError(err.Error()))
-		go func() { _ = removeWorktree(wt) }()
-		return
+		return false
 	}
 	np.Worktree = wt
 	s.Root = s.Root.replacing(p.ID, leaf(np))
 	p.close()
 	w.FocusedPane = np.ID
 	w.focusReq = np.ID
-	w.flash(locales.WorktreeCreated())
+	if message != "" {
+		w.flash(message)
+	}
 	w.invalidate()
 	w.scheduleSave()
+	return true
+}
+
+// promptLeaveWorktree asks before deleting a checkout that holds uncommitted
+// changes or commits that were never merged. A checkout with nothing to lose
+// goes straight back to the project.
+func (w *workspace) promptLeaveWorktree(p *pane) {
+	wt := p.Worktree
+	if wt == nil || p.worktreeBusy != "" || wt.busy != "" {
+		return
+	}
+	if p.agent != nil {
+		w.flash(locales.WorktreeAgentRunning())
+		return
+	}
+	p.worktreeBusy = worktreeBusyLeave
+	w.invalidate()
+	go func() {
+		clean, _ := worktreeIsClean(wt)
+		ahead, _ := commitsAhead(wt)
+		w.onMain(func() {
+			p.worktreeBusy = ""
+			if w.paneByID(p.ID) != p {
+				w.invalidate()
+				return
+			}
+			if clean && ahead == 0 {
+				w.leaveWorktree(p)
+				return
+			}
+			msg := ""
+			if ahead > 0 {
+				msg = locales.WorktreeLeaveUnmerged(strconv.Itoa(ahead), wt.Branch)
+			}
+			if !clean {
+				if msg != "" {
+					msg += "\n\n"
+				}
+				msg += locales.WorktreeLeaveDirty()
+			}
+			w.leaveTarget = p
+			w.leaveMsg = msg
+			w.leaveOpen = true
+			w.invalidate()
+		})
+	}()
+}
+
+// leaveWorktree deletes the checkout and restarts the pane in the project
+// folder. A branch with commits that were never merged is kept.
+func (w *workspace) leaveWorktree(p *pane) {
+	wt := p.Worktree
+	if wt == nil {
+		return
+	}
+	s := w.sessionOf(p)
+	pr := w.projectOf(s)
+	if pr == nil {
+		return
+	}
+	dir := pr.Dir
+	p.worktreeBusy = worktreeBusyLeave
+	w.invalidate()
+	go func() {
+		ahead, _ := commitsAhead(wt)
+		w.onMain(func() {
+			if w.paneByID(p.ID) != p {
+				return
+			}
+			p.worktreeBusy = ""
+			if !w.restartPaneInDir(p, dir, nil, locales.WorktreeLeft()) {
+				w.invalidate()
+				return
+			}
+			// Splits opened inside the checkout would be left with a
+			// deleted folder; close them with it.
+			if s != nil && s.Root != nil {
+				for _, other := range s.Root.panes() {
+					if other.ID == p.ID || !inWorktree(other, wt) {
+						continue
+					}
+					if w.paneByID(other.ID) != nil {
+						w.closePane(other)
+					}
+				}
+			}
+			go func() {
+				if err := removeWorktreeKeeping(wt, ahead > 0); err != nil {
+					w.onMain(func() { w.flash(locales.WorktreeError(err.Error())) })
+				}
+			}()
+			w.invalidate()
+			w.scheduleSave()
+		})
+	}()
+}
+
+// worktreeLeaveButton returns the pane to the project folder.
+func (w *workspace) worktreeLeaveButton(c *ui.Context, tk tokens, p *pane) {
+	if p.Worktree == nil {
+		return
+	}
+	action := func() { w.promptLeaveWorktree(p) }
+	hint := locales.WorktreeLeaveHint()
+	el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
+		Center().Cursor(ui.CursorPointer).Tooltip(hint)
+	if el.Hovered() {
+		el = el.Background(tk.Control)
+	}
+	el.OnClick(action).Children(func() {
+		if p.worktreeBusy == worktreeBusyLeave {
+			worktreeSpinner(c, tk, locales.WorktreeLeaving())
+			return
+		}
+		ui.Text(c, "↩").FontSize(12).
+			TextColor(tk.MutedForeground).OnClick(action)
+	})
+}
+
+// cleanupClosedWorktree removes a clean checkout with nothing ahead when its
+// last pane closes. Anything with changes or unmerged commits stays, so
+// closing a pane never loses work.
+func (w *workspace) cleanupClosedWorktree(wt *paneWorktree) {
+	if wt == nil {
+		return
+	}
+	go func() {
+		if worktreeSafeToDelete(wt) {
+			if err := removeWorktreeKeeping(wt, false); err != nil {
+				w.onMain(func() { w.flash(locales.WorktreeError(err.Error())) })
+			}
+			return
+		}
+		w.onMain(func() { w.flash(locales.WorktreeKeptClose(wt.Path)) })
+	}()
+}
+
+// cleanupOrphanWorktrees removes checkouts under the app's worktree folder
+// that no pane uses and that have nothing to lose. The manual run reports
+// even when it found nothing.
+func (w *workspace) cleanupOrphanWorktrees(manual bool) {
+	referenced := map[string]bool{}
+	for _, p := range w.allPanes() {
+		if p.Worktree != nil {
+			referenced[filepath.Clean(p.Worktree.Path)] = true
+		}
+	}
+	// A split pane inside a checkout has no worktree of its own; its folder
+	// still marks the checkout as used.
+	used := func(path string) bool {
+		for _, p := range w.allPanes() {
+			for _, dir := range []string{p.dir(), p.initialDir} {
+				if dir == path || strings.HasPrefix(dir, path+string(os.PathSeparator)) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	root := worktreesRoot()
+	repos, err := os.ReadDir(root)
+	if err != nil {
+		if manual {
+			w.flash(locales.WorktreeCleanupNothing())
+		}
+		return
+	}
+	var candidates []string
+	for _, repo := range repos {
+		if !repo.IsDir() {
+			continue
+		}
+		names, err := os.ReadDir(filepath.Join(root, repo.Name()))
+		if err != nil {
+			continue
+		}
+		for _, name := range names {
+			if !name.IsDir() {
+				continue
+			}
+			path := filepath.Join(root, repo.Name(), name.Name())
+			if referenced[filepath.Clean(path)] || used(path) {
+				continue
+			}
+			candidates = append(candidates, path)
+		}
+	}
+	if len(candidates) == 0 {
+		if manual {
+			w.flash(locales.WorktreeCleanupNothing())
+		}
+		return
+	}
+	go func() {
+		removed := 0
+		for _, path := range candidates {
+			if orphanWorktreeSafe(path) && removeOrphanWorktree(path) == nil {
+				removed++
+			}
+		}
+		w.onMain(func() {
+			switch {
+			case removed > 0:
+				w.flash(locales.WorktreeCleanupDone(strconv.Itoa(removed)))
+			case manual:
+				w.flash(locales.WorktreeCleanupNothing())
+			}
+		})
+	}()
+}
+
+// worktreeRepoRoot is the main checkout of the repository a worktree belongs
+// to, found through the shared git directory.
+func worktreeRepoRoot(path string) (string, bool) {
+	out, err := worktreeGit(path, "rev-parse", "--git-common-dir")
+	if err != nil {
+		return "", false
+	}
+	common := strings.TrimSpace(out)
+	if common == "" {
+		return "", false
+	}
+	if !filepath.IsAbs(common) {
+		common = filepath.Join(path, common)
+	}
+	root := filepath.Dir(filepath.Clean(common))
+	if info, err := os.Stat(root); err != nil || !info.IsDir() {
+		return "", false
+	}
+	return root, true
+}
+
+// orphanWorktreeSafe reports a checkout with no session that has nothing to
+// lose: clean, and no commits ahead of its base branch.
+func orphanWorktreeSafe(path string) bool {
+	out, err := worktreeGit(path, "status", "--porcelain")
+	if err != nil || strings.TrimSpace(out) != "" {
+		return false
+	}
+	root, ok := worktreeRepoRoot(path)
+	if !ok {
+		return false
+	}
+	base := detectBaseBranch(root)
+	if base == "" {
+		return false
+	}
+	ahead, err := commitsAhead(&paneWorktree{Path: path, Base: base})
+	return err == nil && ahead == 0
+}
+
+func removeOrphanWorktree(path string) error {
+	root, ok := worktreeRepoRoot(path)
+	if !ok {
+		return errors.New("not a worktree")
+	}
+	branch := currentBranch(path)
+	if _, err := worktreeGit(root, "worktree", "remove", "--force", path); err != nil {
+		return err
+	}
+	_, _ = worktreeGit(root, "worktree", "prune")
+	if branch != "" {
+		_, _ = worktreeGit(root, "branch", "-D", branch)
+	}
+	_ = os.Remove(filepath.Dir(path))
+	return nil
 }
 
 // worktreeNamingContext is the one-time note that tells the agent its branch
@@ -716,6 +1018,7 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 		return
 	}
 	w.worktreeButton(c, tk, p)
+	w.worktreeLeaveButton(c, tk, p)
 }
 
 // worktreeButton is the PR / Merge control in the pane header, left of the

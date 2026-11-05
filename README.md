@@ -109,6 +109,13 @@ which merges the PR, fast-forwards your local base branch, and removes the
 worktree. Panes that never press W work exactly as before. Opening and merging
 pull requests needs the GitHub CLI, authenticated.
 
+**↩** beside PR / Merge leaves the checkout: it returns the pane to the project
+folder and deletes the worktree. A branch with unmerged commits is kept, and
+uncommitted changes ask first. Closing a pane removes a clean checkout with
+nothing ahead; otherwise the worktree stays. Settings → Advanced → Clean up
+worktrees removes unused ones, and startup does the same for checkouts that
+have nothing to lose.
+
 ### Remote hosts
 
 The **Remote** row at the bottom of the sidebar is the whole feature.

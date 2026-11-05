@@ -104,18 +104,29 @@ func (n *splitNode) saved() savedNode {
 
 func ptr(n savedNode) *savedNode { return &n }
 
-// dropMissingWorktrees moves panes whose worktree is gone back to the project
-// folder, and forgets the worktree, instead of restoring into a missing path.
+// dropMissingWorktrees moves panes whose checkout is gone back to the
+// project folder, and forgets the worktree, instead of restoring into a
+// missing path. A split pane inside a worktree has no worktree of its own,
+// so its folder is checked too.
 func (n *savedNode) dropMissingWorktrees(fallback string) {
 	if n == nil {
 		return
 	}
-	if n.Pane != nil && n.Pane.Worktree != nil {
-		if info, err := os.Stat(n.Pane.Worktree.Path); err != nil || !info.IsDir() {
-			if filepath.Clean(n.Pane.WorkingDirectory) == filepath.Clean(n.Pane.Worktree.Path) {
-				n.Pane.WorkingDirectory = fallback
+	if n.Pane != nil {
+		p := n.Pane
+		missing := func(dir string) bool {
+			info, err := os.Stat(dir)
+			return err != nil || !info.IsDir()
+		}
+		if p.Worktree != nil && missing(p.Worktree.Path) {
+			if filepath.Clean(p.WorkingDirectory) == filepath.Clean(p.Worktree.Path) {
+				p.WorkingDirectory = fallback
 			}
-			n.Pane.Worktree = nil
+			p.Worktree = nil
+		}
+		root := filepath.Clean(worktreesRoot()) + string(os.PathSeparator)
+		if p.Worktree == nil && strings.HasPrefix(filepath.Clean(p.WorkingDirectory), root) && missing(p.WorkingDirectory) {
+			p.WorkingDirectory = fallback
 		}
 	}
 	n.First.dropMissingWorktrees(fallback)
@@ -340,6 +351,7 @@ func (w *workspace) restoreOrCreate() {
 			}
 		}
 	}
+	w.cleanupOrphanWorktrees(false)
 }
 
 func loadSnapshot(id string) string {

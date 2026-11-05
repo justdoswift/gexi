@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- A worktree pane can return to the project with ↩: the checkout is deleted,
+  a branch with unmerged commits is kept, and uncommitted changes ask first.
+  Closing a pane removes a clean checkout with nothing ahead; Settings →
+  Advanced → Clean up worktrees removes unused ones, and startup prunes
+  checkouts that have nothing to lose.
+
 ## 0.0.12
 
 - A new app icon: an ink tile split like the workspace, the focused pane in
