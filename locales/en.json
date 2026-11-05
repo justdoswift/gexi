@@ -59,6 +59,8 @@
   "worktreeOpenPR": "Open pull request",
   "worktreeMerging": "Merging pull request",
   "worktreeMerged": "Merged",
+  "worktreeArchive": "Archive",
+  "worktreeArchiveHint": "Archive this worktree and remove its checkout",
   "worktreePROpened": "Pull request created",
   "worktreeMergedInto": "Merged into {base}",
   "worktreeMergedLocalFailed": "Merged on GitHub, but local {base} could not be updated: {error}",

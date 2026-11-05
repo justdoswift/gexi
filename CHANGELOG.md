@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Merging a pull request no longer clears the worktree away on its own: the
+  pane stays open, and the PR button becomes Archive, which closes the pane
+  and removes the checkout when you press it.
 - A worktree pane's PR button keeps its label once the pull request exists:
   clicking it opens a menu that merges the pull request or opens it on
   GitHub, in place of turning into a separate Merge button.

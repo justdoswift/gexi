@@ -624,6 +624,26 @@ func (msgs Messages) WorktreeMerged() string {
 	return Catalog.Format(msgs.locale, "worktreeMerged", nil)
 }
 
+// WorktreeArchive says "Archive"
+// in the language the app shows.
+func WorktreeArchive() string { return In(i18n.Locale()).WorktreeArchive() }
+
+// WorktreeArchive says "Archive"
+// in the language of msgs.
+func (msgs Messages) WorktreeArchive() string {
+	return Catalog.Format(msgs.locale, "worktreeArchive", nil)
+}
+
+// WorktreeArchiveHint says "Archive this worktree and remove its checkout"
+// in the language the app shows.
+func WorktreeArchiveHint() string { return In(i18n.Locale()).WorktreeArchiveHint() }
+
+// WorktreeArchiveHint says "Archive this worktree and remove its checkout"
+// in the language of msgs.
+func (msgs Messages) WorktreeArchiveHint() string {
+	return Catalog.Format(msgs.locale, "worktreeArchiveHint", nil)
+}
+
 // WorktreePROpened says "Pull request created"
 // in the language the app shows.
 func WorktreePROpened() string { return In(i18n.Locale()).WorktreePROpened() }
