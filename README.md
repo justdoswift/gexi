@@ -105,9 +105,10 @@ app's data folder. The pane moves into the worktree with a fresh shell. The
 branch starts with a placeholder Dota 2 name — a hero, item, or ability; the
 first prompt asks Claude Code to rename it to the task. The header then shows **PR**, which
 pushes the branch and opens a pull request with `gh`. Once it exists, **PR #N**
-opens the pull request on GitHub, and **Merge** refreshes GitHub's checks,
-review, and mergeability, asks before merging, and stays muted while GitHub
-would refuse it. Merging fast-forwards your local base branch and leaves the
+opens the pull request on GitHub, and **Merge** reports the state by its
+colour: green when GitHub would merge, amber while checks or reviews are still
+pending, red when something blocks it. Merge asks before merging, and a blocked
+press says why. Merging fast-forwards your local base branch and leaves the
 pane in the worktree. The button then becomes **Archive**, which closes the
 pane and removes the checkout when you press it. Panes that never press W work
 exactly as before. Opening and merging pull requests needs the GitHub CLI,
