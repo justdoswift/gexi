@@ -613,12 +613,11 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 			}
 		}
 		label := "W"
-		color := tk.Foreground
 		action := func() { w.createPaneWorktree(p) }
 		hint := locales.WorktreeCreateHint()
+		busy := ""
 		if p.worktreeBusy != "" {
-			label = "W…"
-			color = tk.MutedForeground
+			busy = locales.WorktreeCreating()
 			action = func() {}
 		}
 		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
@@ -627,8 +626,12 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 			el = el.Background(tk.Control)
 		}
 		el.OnClick(action).Children(func() {
+			if busy != "" {
+				worktreeSpinner(c, tk, busy)
+				return
+			}
 			ui.Text(c, label).FontSize(11).FontWeight(600).
-				TextColor(color).OnClick(action)
+				TextColor(tk.Foreground).OnClick(action)
 		})
 		return
 	}
@@ -642,6 +645,7 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	label := locales.WorktreePR()
 	action := func() { w.createPullRequest(p) }
 	color := tk.Foreground
+	busy := ""
 	switch {
 	case wt.State == worktreeMerged:
 		label = locales.WorktreeMerged()
@@ -652,12 +656,10 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 			}
 		}
 	case wt.busy == worktreeBusyPR:
-		label = locales.WorktreePROpening()
-		color = tk.MutedForeground
+		busy = locales.WorktreePROpening()
 		action = func() {}
 	case wt.busy == worktreeBusyMerge:
-		label = locales.WorktreeMerging()
-		color = tk.MutedForeground
+		busy = locales.WorktreeMerging()
 		action = func() {}
 	case wt.PR != 0:
 		label = locales.WorktreeMerge()
@@ -673,7 +675,18 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 		el = el.Background(tk.Control)
 	}
 	el.OnClick(action).Children(func() {
+		if busy != "" {
+			worktreeSpinner(c, tk, busy)
+			return
+		}
 		ui.Text(c, label).FontSize(11).FontWeight(600).
 			TextColor(color).OnClick(action)
 	})
+}
+
+// worktreeSpinner is a header button at work: the theme's spinner where the
+// label was, so the wait reads as work rather than a truncated word. label
+// names the operation for assistive technology.
+func worktreeSpinner(c *ui.Context, tk tokens, label string) {
+	ui.Spinner(c).Size(12, 12).TextColor(tk.MutedForeground).Label(label)
 }
