@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Worktree branches take Dota 2 hero, item, and ability names as their
+  placeholder before the first prompt renames them to the task.
+
 ## 0.0.11
 
 - A files drawer on the right shows the project's changes and files: the
