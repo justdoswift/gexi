@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.8
+
+- A Claude Code started by hand in a pane now lights the sidebar's activity
+  orb: Gexi merges its event hooks into your own Claude settings, guarded so
+  they fire only inside a Gexi pane.
+
 ## 0.0.7
 
 - The sidebar's activity loader is the thinking orb from libraries.dev/orbs:

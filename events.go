@@ -160,6 +160,19 @@ func hookSettingsPath() string {
 	return filepath.Join(supportDir(), "hooks", "claude-settings.json")
 }
 
+// claudeHookKinds pairs each Claude Code hook event with the Gexi event it
+// reports. Only a permission request blocks the agent: Claude Code also
+// fires Notification for idle_prompt sixty seconds after a turn ends, which
+// without the matcher would leave the sidebar loader on for a finished
+// session.
+var claudeHookKinds = []struct{ event, kind, matcher string }{
+	{"SessionStart", "session.start", ""},
+	{"UserPromptSubmit", "turn.start", ""},
+	{"Stop", "turn.end", ""},
+	{"Notification", "needs-input", "permission_prompt"},
+	{"SessionEnd", "session.end", ""},
+}
+
 // installClaudeHooks writes the extra settings file Gexi passes to
 // `claude --settings`. It is layered on top of the user's own settings, so
 // hooks the user already has (vibe-island, orca, …) keep running.
@@ -173,23 +186,11 @@ func installClaudeHooks() (string, error) {
 		return "", err
 	}
 
-	command := func(kind string) string {
-		return shellQuote(bin) + " event " + kind + " --agent claude"
+	hooks := map[string]any{}
+	for _, h := range claudeHookKinds {
+		hooks[h.event] = []any{hookEntry(shellQuote(bin)+" event "+h.kind+" --agent claude", h.matcher)}
 	}
-	settings := map[string]any{
-		"hooks": map[string]any{
-			"SessionStart":     []any{hookEntry(command("session.start"), "")},
-			"UserPromptSubmit": []any{hookEntry(command("turn.start"), "")},
-			"Stop":             []any{hookEntry(command("turn.end"), "")},
-			// Only a permission request blocks the agent. Claude Code also
-			// fires Notification for idle_prompt sixty seconds after a turn
-			// ends; without the matcher that would leave the sidebar loader
-			// on for a finished session.
-			"Notification": []any{hookEntry(command("needs-input"), "permission_prompt")},
-			"SessionEnd":   []any{hookEntry(command("session.end"), "")},
-		},
-	}
-	data, err := json.MarshalIndent(settings, "", "  ")
+	data, err := json.MarshalIndent(map[string]any{"hooks": hooks}, "", "  ")
 	if err != nil {
 		return "", err
 	}
@@ -197,6 +198,118 @@ func installClaudeHooks() (string, error) {
 		return "", err
 	}
 	return path, nil
+}
+
+// globalHooksInstalled reports that the user's own settings now carry the
+// hooks, so a launch does not have to pass them again.
+var globalHooksInstalled bool
+
+// globalClaudeSettingsPath is the file every `claude` on this Mac reads,
+// whether Gexi launched it or the user typed it into a pane.
+func globalClaudeSettingsPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".claude", "settings.json")
+}
+
+// installGlobalClaudeHooks merges Gexi's events into the user's own Claude
+// Code settings. A claude Gexi launches gets them through --settings, but one
+// the user starts by hand in a pane only reads this file, and without a hook
+// here its sidebar loader would never light. Each command exits at once when
+// GEXI_PANE is unset, so Claude Code running anywhere else on the Mac reports
+// nothing.
+func installGlobalClaudeHooks() error {
+	bin := gexiBinary()
+	if bin == "" {
+		return fmt.Errorf("gexi binary not found")
+	}
+	path := globalClaudeSettingsPath()
+	top := map[string]json.RawMessage{}
+	data, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+		if err := json.Unmarshal(data, &top); err != nil {
+			return err
+		}
+	case !os.IsNotExist(err):
+		return err
+	}
+	hooks := map[string]json.RawMessage{}
+	if raw, ok := top["hooks"]; ok {
+		if err := json.Unmarshal(raw, &hooks); err != nil {
+			return err
+		}
+	}
+
+	for _, h := range claudeHookKinds {
+		var groups []json.RawMessage
+		if raw, ok := hooks[h.event]; ok {
+			if err := json.Unmarshal(raw, &groups); err != nil {
+				return err
+			}
+		}
+		// Replace Gexi's own entry, which may name an older binary after an
+		// update, and leave every other tool's hooks where they are.
+		kept := groups[:0]
+		for _, g := range groups {
+			if !isGexiHookGroup(g) {
+				kept = append(kept, g)
+			}
+		}
+		entry, err := json.Marshal(hookEntry(guardedHookCommand(bin, h.kind), h.matcher))
+		if err != nil {
+			return err
+		}
+		if hooks[h.event], err = json.Marshal(append(kept, entry)); err != nil {
+			return err
+		}
+	}
+	if top["hooks"], err = json.Marshal(hooks); err != nil {
+		return err
+	}
+	out, err := json.MarshalIndent(top, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	// Write beside the file and rename it into place, so a crash cannot leave
+	// the user's settings half written.
+	tmp := path + ".gexi.tmp"
+	if err := os.WriteFile(tmp, append(out, '\n'), 0o644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return err
+	}
+	globalHooksInstalled = true
+	return nil
+}
+
+// guardedHookCommand is the hook for the user's settings: it returns at once
+// unless it runs inside a Gexi pane.
+func guardedHookCommand(bin, kind string) string {
+	script := `[ -n "${GEXI_PANE-}" ] || exit 0; exec ` +
+		shellQuote(bin) + " event " + kind + " --agent claude"
+	return "/bin/sh -c " + shellQuote(script)
+}
+
+// isGexiHookGroup tells a hook Gexi installed from anyone else's.
+func isGexiHookGroup(raw json.RawMessage) bool {
+	var group struct {
+		Hooks []struct {
+			Command string `json:"command"`
+		} `json:"hooks"`
+	}
+	if json.Unmarshal(raw, &group) != nil {
+		return false
+	}
+	for _, h := range group.Hooks {
+		if strings.Contains(h.Command, "GEXI_PANE") && strings.Contains(h.Command, " event ") {
+			return true
+		}
+	}
+	return false
 }
 
 // hookEntry is one command hook, optionally narrowed to the event's matcher

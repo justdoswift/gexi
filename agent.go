@@ -78,11 +78,12 @@ func resolveAgentCommand(command []string) resolvedCommand {
 }
 
 func resolveClaude(raw string, command []string) resolvedCommand {
-	// Hooks ride along with every launch, resume included: Claude Code keeps
-	// no memory of --settings, so a restored pane would come back deaf to
-	// events and its sidebar loader would never light.
+	// The user's own settings carry the hooks after installGlobalClaudeHooks,
+	// so every claude in a pane reports events — one Gexi launched and one the
+	// user typed alike. Only when that file could not be written does a
+	// launch fall back to a private settings file.
 	settings := ""
-	if !strings.Contains(raw, "--settings") {
+	if !globalHooksInstalled && !strings.Contains(raw, "--settings") {
 		if hooks, err := installClaudeHooks(); err == nil {
 			settings = " --settings " + shellQuote(hooks)
 		}
