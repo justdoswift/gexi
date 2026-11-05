@@ -523,18 +523,19 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	outer.Children(func() {
 		col := ui.Column(c).Fill()
 		col = col.Opacity(col.Animate("focusDim", w.focusAmount(focused), focusMotion))
-		// The card fades in as it opens and out before it closes. A pose
-		// fades in frames that only paint, without building the view, which
-		// keeps a terminal redrawing its grid from stuttering.
-		fade := float32(0)
+		// The card fades and grows in as it opens, and shrinks out before it
+		// closes: a fade alone is easy to miss on a white card over a light
+		// canvas. Poses run in frames that only paint, without building the
+		// view, which keeps a terminal redrawing its grid from stuttering.
+		pose := ui.Pose{}
 		if p.closing {
-			fade = 1
+			pose = ui.Pose{Fade: 1, Scale: 0.98}
 		} else if !p.shown {
 			p.shown = true
-			fade = 1
+			pose = ui.Pose{Fade: 1, Scale: 0.97}
 			c.After(time.Millisecond)
 		}
-		col = col.AnimatePose(ui.Pose{Fade: fade}, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
+		col = col.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
 		if card {
 			col = col.Radius(windowRadius).Border(1, tk.Border).Background(tk.Background).Clip()
 		}
