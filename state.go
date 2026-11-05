@@ -24,6 +24,13 @@ type workspaceState struct {
 	// their own, so they are grouped by directory on the way in.
 	SelectedTab string     `json:"selectedTabID,omitempty"`
 	Tabs        []savedTab `json:"tabs,omitempty"`
+
+	// The files drawer: whether it was open, which tab it showed, and how
+	// wide it was.
+	DrawerOpen      bool    `json:"drawerOpen,omitempty"`
+	DrawerTab       string  `json:"drawerTab,omitempty"`
+	DrawerListWidth float32 `json:"drawerListWidth,omitempty"`
+	DrawerFileWidth float32 `json:"drawerFileWidth,omitempty"`
 }
 
 type savedProject struct {
@@ -100,6 +107,13 @@ func (w *workspace) savedState() workspaceState {
 		Version:         2,
 		SelectedSession: w.SelectedSession,
 		FocusedPane:     w.FocusedPane,
+		DrawerOpen:      w.drawer.open,
+		DrawerTab:       "changes",
+		DrawerListWidth: w.drawer.listWidth,
+		DrawerFileWidth: w.drawer.fileWidth,
+	}
+	if w.drawer.tab == drawerTabFiles {
+		state.DrawerTab = "files"
 	}
 	for _, pr := range w.Projects {
 		saved := savedProject{
@@ -282,6 +296,21 @@ func (w *workspace) restoreOrCreate() {
 		}
 	}
 	w.focusReq = w.FocusedPane
+
+	// The drawer comes back as it was left, without sliding in.
+	w.drawer.listWidth = state.DrawerListWidth
+	w.drawer.fileWidth = state.DrawerFileWidth
+	if state.DrawerTab == "files" {
+		w.drawer.tab = drawerTabFiles
+	}
+	if state.DrawerOpen {
+		w.drawer.open = true
+		w.drawer.shown = true
+		w.resetDrawer()
+		if w.drawer.tab == drawerTabChanges {
+			w.refreshGit()
+		}
+	}
 }
 
 func loadSnapshot(id string) string {

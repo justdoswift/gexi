@@ -106,6 +106,15 @@ type workspace struct {
 	collapsed   map[string]bool
 	searchQuery string
 
+	// The files drawer: the right-hand column of changes and files.
+	drawer drawerState
+
+	// Each project's Git state, for the pane headers' branch pill and the
+	// drawer's list, read off the UI thread.
+	gitInfo map[string]gitSummary
+	gitBusy map[string]bool
+	gitGen  map[string]int
+
 	// Remote access: the reverse tunnel this Mac keeps when it is reachable,
 	// and the small dialog that turns it on.
 	tunnel     *exec.Cmd
@@ -127,6 +136,9 @@ func newWorkspace() *workspace {
 		InstanceID: newID(),
 		settings:   loadSettings(),
 		collapsed:  map[string]bool{},
+		gitInfo:    map[string]gitSummary{},
+		gitBusy:    map[string]bool{},
+		gitGen:     map[string]int{},
 	}
 	// A Mac that was left reachable comes back reachable without a click.
 	w.startRemoteTunnel()
@@ -318,6 +330,7 @@ func (w *workspace) newSession(pr *project, command []string, dir string) (*sess
 	w.focusReq = p.ID
 	w.invalidate()
 	w.scheduleSave()
+	w.refreshGit()
 	return s, nil
 }
 
@@ -524,6 +537,7 @@ func (w *workspace) selectSession(id string) {
 	}
 	w.invalidate()
 	w.scheduleSave()
+	w.refreshGit()
 }
 
 func (w *workspace) toggleProject(pr *project) {
@@ -544,6 +558,7 @@ func (w *workspace) focusPane(p *pane) {
 	}
 	w.invalidate()
 	w.scheduleSave()
+	w.refreshGit()
 }
 
 // toggleZoom fills the session with p, or puts the other panes back when p

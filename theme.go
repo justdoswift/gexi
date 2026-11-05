@@ -24,6 +24,8 @@ type tokens struct {
 	Raised  ui.Color
 	Working ui.Color
 	Waiting ui.Color
+	// Danger marks what is gone or in conflict, as a deleted file.
+	Danger ui.Color
 }
 
 func themeTokens(t *ui.Theme) tokens {
@@ -45,6 +47,7 @@ func themeTokens(t *ui.Theme) tokens {
 			Raised:          ui.RGB(0x35, 0x35, 0x3a),
 			Working:         ui.RGB(0x22, 0xc5, 0x5e),
 			Waiting:         ui.RGB(0xf5, 0x9e, 0x0b),
+			Danger:          ui.RGB(0xf8, 0x71, 0x71),
 		}
 	}
 	return tokens{
@@ -60,6 +63,7 @@ func themeTokens(t *ui.Theme) tokens {
 		Raised:          ui.RGB(0xff, 0xff, 0xff),
 		Working:         ui.RGB(0x16, 0xa3, 0x4a),
 		Waiting:         ui.RGB(0xd9, 0x77, 0x06),
+		Danger:          ui.RGB(0xdc, 0x26, 0x26),
 	}
 }
 

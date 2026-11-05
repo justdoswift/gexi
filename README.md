@@ -10,8 +10,9 @@ so an agent running in a pane can create projects, sessions, and panes, type
 into them, and read their screens.
 
 > **Status: early.** Projects and sessions, nested splits, focus, keyboard
-> shortcuts, screen capture, persistence, agent session resume, and the control
-> CLI work today. Remote hosts work over ssh; there is no remote agent yet.
+> shortcuts, screen capture, persistence, agent session resume, a files drawer
+> with changes and diffs, and the control CLI work today. Remote hosts work
+> over ssh; there is no remote agent yet.
 > Settings has a page each for general options, notifications, remote access,
 > shortcuts, and storage.
 
