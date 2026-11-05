@@ -106,6 +106,9 @@ type workspace struct {
 	collapsed   map[string]bool
 	searchQuery string
 
+	// The files drawer: the right-hand column of changes and files.
+	drawer drawerState
+
 	// Remote access: the reverse tunnel this Mac keeps when it is reachable,
 	// and the small dialog that turns it on.
 	tunnel     *exec.Cmd

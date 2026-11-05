@@ -347,6 +347,7 @@ func (w *workspace) keyboardPage(c *ui.Context, tk tokens) {
 			{locales.ShortcutNextPane(), "⌘]"},
 			{locales.ShortcutClosePane(), "⌘W"},
 			{locales.ShortcutToggleSidebar(), "⌘B"},
+			{locales.ShortcutToggleFiles(), "⌘⇧E"},
 			{locales.ShortcutSettings(), "⌘,"},
 			{locales.ShortcutQuit(), "⌘Q"},
 		}

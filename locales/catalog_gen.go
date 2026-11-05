@@ -1057,3 +1057,133 @@ func NotifyCodeCopiedBody() string { return In(i18n.Locale()).NotifyCodeCopiedBo
 func (msgs Messages) NotifyCodeCopiedBody() string {
 	return Catalog.Format(msgs.locale, "notifyCodeCopiedBody", nil)
 }
+
+// MenuToggleFiles says "Toggle Files"
+// in the language the app shows.
+func MenuToggleFiles() string { return In(i18n.Locale()).MenuToggleFiles() }
+
+// MenuToggleFiles says "Toggle Files"
+// in the language of msgs.
+func (msgs Messages) MenuToggleFiles() string {
+	return Catalog.Format(msgs.locale, "menuToggleFiles", nil)
+}
+
+// ShortcutToggleFiles says "Toggle files"
+// in the language the app shows.
+func ShortcutToggleFiles() string { return In(i18n.Locale()).ShortcutToggleFiles() }
+
+// ShortcutToggleFiles says "Toggle files"
+// in the language of msgs.
+func (msgs Messages) ShortcutToggleFiles() string {
+	return Catalog.Format(msgs.locale, "shortcutToggleFiles", nil)
+}
+
+// DrawerChanges says "Changes"
+// in the language the app shows.
+func DrawerChanges() string { return In(i18n.Locale()).DrawerChanges() }
+
+// DrawerChanges says "Changes"
+// in the language of msgs.
+func (msgs Messages) DrawerChanges() string {
+	return Catalog.Format(msgs.locale, "drawerChanges", nil)
+}
+
+// DrawerFiles says "Files"
+// in the language the app shows.
+func DrawerFiles() string { return In(i18n.Locale()).DrawerFiles() }
+
+// DrawerFiles says "Files"
+// in the language of msgs.
+func (msgs Messages) DrawerFiles() string {
+	return Catalog.Format(msgs.locale, "drawerFiles", nil)
+}
+
+// DrawerClose says "Close files"
+// in the language the app shows.
+func DrawerClose() string { return In(i18n.Locale()).DrawerClose() }
+
+// DrawerClose says "Close files"
+// in the language of msgs.
+func (msgs Messages) DrawerClose() string {
+	return Catalog.Format(msgs.locale, "drawerClose", nil)
+}
+
+// DrawerBack says "Back to the list"
+// in the language the app shows.
+func DrawerBack() string { return In(i18n.Locale()).DrawerBack() }
+
+// DrawerBack says "Back to the list"
+// in the language of msgs.
+func (msgs Messages) DrawerBack() string {
+	return Catalog.Format(msgs.locale, "drawerBack", nil)
+}
+
+// DrawerNoChanges says "No changes"
+// in the language the app shows.
+func DrawerNoChanges() string { return In(i18n.Locale()).DrawerNoChanges() }
+
+// DrawerNoChanges says "No changes"
+// in the language of msgs.
+func (msgs Messages) DrawerNoChanges() string {
+	return Catalog.Format(msgs.locale, "drawerNoChanges", nil)
+}
+
+// DrawerNotRepo says "This folder is not a Git repository."
+// in the language the app shows.
+func DrawerNotRepo() string { return In(i18n.Locale()).DrawerNotRepo() }
+
+// DrawerNotRepo says "This folder is not a Git repository."
+// in the language of msgs.
+func (msgs Messages) DrawerNotRepo() string {
+	return Catalog.Format(msgs.locale, "drawerNotRepo", nil)
+}
+
+// DrawerNoProject says "No project is selected."
+// in the language the app shows.
+func DrawerNoProject() string { return In(i18n.Locale()).DrawerNoProject() }
+
+// DrawerNoProject says "No project is selected."
+// in the language of msgs.
+func (msgs Messages) DrawerNoProject() string {
+	return Catalog.Format(msgs.locale, "drawerNoProject", nil)
+}
+
+// DrawerRemote says "Files are not available for remote sessions yet."
+// in the language the app shows.
+func DrawerRemote() string { return In(i18n.Locale()).DrawerRemote() }
+
+// DrawerRemote says "Files are not available for remote sessions yet."
+// in the language of msgs.
+func (msgs Messages) DrawerRemote() string {
+	return Catalog.Format(msgs.locale, "drawerRemote", nil)
+}
+
+// DrawerBinary says "Binary file"
+// in the language the app shows.
+func DrawerBinary() string { return In(i18n.Locale()).DrawerBinary() }
+
+// DrawerBinary says "Binary file"
+// in the language of msgs.
+func (msgs Messages) DrawerBinary() string {
+	return Catalog.Format(msgs.locale, "drawerBinary", nil)
+}
+
+// DrawerTooLarge says "This file is too large to show."
+// in the language the app shows.
+func DrawerTooLarge() string { return In(i18n.Locale()).DrawerTooLarge() }
+
+// DrawerTooLarge says "This file is too large to show."
+// in the language of msgs.
+func (msgs Messages) DrawerTooLarge() string {
+	return Catalog.Format(msgs.locale, "drawerTooLarge", nil)
+}
+
+// DrawerLoading says "Loading…"
+// in the language the app shows.
+func DrawerLoading() string { return In(i18n.Locale()).DrawerLoading() }
+
+// DrawerLoading says "Loading…"
+// in the language of msgs.
+func (msgs Messages) DrawerLoading() string {
+	return Catalog.Format(msgs.locale, "drawerLoading", nil)
+}

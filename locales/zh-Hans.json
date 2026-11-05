@@ -101,5 +101,18 @@
   "notifyWaiting": "等你输入",
   "notifyAgent": "代理",
   "notifyCodeCopiedTitle": "连接码已复制",
-  "notifyCodeCopiedBody": "在另一台 Mac 的 Gexi 里粘贴。"
+  "notifyCodeCopiedBody": "在另一台 Mac 的 Gexi 里粘贴。",
+  "menuToggleFiles": "显示/隐藏文件",
+  "shortcutToggleFiles": "显示/隐藏文件",
+  "drawerChanges": "改动",
+  "drawerFiles": "文件",
+  "drawerClose": "关闭文件面板",
+  "drawerBack": "返回列表",
+  "drawerNoChanges": "没有改动",
+  "drawerNotRepo": "这个文件夹不是 Git 仓库。",
+  "drawerNoProject": "还没有选中项目。",
+  "drawerRemote": "远程会话暂时不能浏览文件。",
+  "drawerBinary": "二进制文件",
+  "drawerTooLarge": "文件太大，无法显示。",
+  "drawerLoading": "加载中…"
 }

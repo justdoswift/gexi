@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- A files drawer on the right shows the project's changes and files: the
+  changes tab opens a file's diff, the files tab walks the folder tree and
+  reads a file in place. ⌘⇧E or the folder button in the sidebar opens it.
+
 ## 0.0.10
 
 - General → Interface can pin the app's appearance to Light or Dark, or leave

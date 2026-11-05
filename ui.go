@@ -54,6 +54,9 @@ func (w *workspace) view(c *ui.Context) {
 			Left(bar.Left + 6).Top(11).Children(func() {
 			w.sidebarToggle(c, tk)
 		})
+		// The drawer sits above the panes and below nothing: it is the last
+		// thing drawn, so it slides over the canvas rather than resizing it.
+		w.drawerView(c, tk)
 	})
 	ui.Modal(c, &w.relayOpen, func() { w.relayDialog(c, tk) })
 	ui.Modal(c, &w.importOpen, func() { w.importDialog(c, tk) })
@@ -162,6 +165,7 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 				// the left, settings on the right, off the search row so the
 				// field can run nearly as wide as the sessions.
 				ui.Row(c).Height(iconSize).Gap(2).Children(func() {
+					iconButton(c, tk, "folder", func() { w.toggleDrawer() }, locales.MenuToggleFiles())
 					iconMenuButton(c, tk, "server", w.remoteMenu)
 					ui.Spacer(c)
 					iconButton(c, tk, "setting", func() { w.openSettings() })
