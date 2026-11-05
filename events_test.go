@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -98,5 +99,88 @@ func TestClaudeWithoutClientUsesOwnBinary(t *testing.T) {
 	}
 	if !strings.Contains(string(data), exe) {
 		t.Fatalf("hooks do not call this binary: %s", data)
+	}
+}
+
+// A claude started by hand in a pane never sees --settings, so the user's own
+// settings carry the same hooks, guarded by GEXI_PANE.
+func TestGlobalClaudeHooksMerge(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("GEXI_BIN", "/opt/test/bin/gexi")
+	t.Cleanup(func() { globalHooksInstalled = false })
+
+	path := globalClaudeSettingsPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	existing := `{
+  "model": "opus",
+  "hooks": {
+    "Stop": [
+      {"hooks": [{"type": "command", "command": "/opt/other/bridge"}]}
+    ]
+  }
+}`
+	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := installGlobalClaudeHooks(); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	// Installing again must replace Gexi's entries, not stack another set.
+	if err := installGlobalClaudeHooks(); err != nil {
+		t.Fatalf("install again: %v", err)
+	}
+
+	var doc struct {
+		Model string `json:"model"`
+		Hooks map[string][]struct {
+			Matcher string
+			Hooks   []struct{ Command string }
+		} `json:"hooks"`
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("settings are not JSON: %v", err)
+	}
+	if doc.Model != "opus" {
+		t.Fatalf("unrelated setting lost: %s", data)
+	}
+	for _, name := range []string{"SessionStart", "UserPromptSubmit", "Stop", "Notification", "SessionEnd"} {
+		entries := doc.Hooks[name]
+		var gexi []string
+		for _, e := range entries {
+			for _, h := range e.Hooks {
+				if strings.Contains(h.Command, "GEXI_PANE") {
+					gexi = append(gexi, h.Command)
+				}
+			}
+		}
+		if len(gexi) != 1 {
+			t.Fatalf("%s has %d gexi hooks, want 1: %s", name, len(gexi), data)
+		}
+		if !strings.Contains(gexi[0], "/opt/test/bin/gexi") || !strings.Contains(gexi[0], " event ") {
+			t.Fatalf("%s hook does not call gexi: %s", name, gexi[0])
+		}
+	}
+	// Another tool's hook under the same event stays where it was.
+	kept := false
+	for _, e := range doc.Hooks["Stop"] {
+		for _, h := range e.Hooks {
+			if h.Command == "/opt/other/bridge" {
+				kept = true
+			}
+		}
+	}
+	if !kept {
+		t.Fatalf("another tool's Stop hook was dropped: %s", data)
+	}
+	if got := doc.Hooks["Notification"][len(doc.Hooks["Notification"])-1].Matcher; got != "permission_prompt" {
+		t.Fatalf("Notification matcher is %q, want permission_prompt", got)
 	}
 }

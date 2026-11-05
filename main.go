@@ -32,8 +32,12 @@ func main() {
 	registerTerminalFont()
 
 	// Restored panes carry the --settings path saved last run; make sure the
-	// file is there before any of them try to launch.
+	// file is there before any of them try to launch. The user's own settings
+	// take the same hooks, so a claude started by hand in a pane reports too.
 	_, _ = installClaudeHooks()
+	if err := installGlobalClaudeHooks(); err != nil {
+		log.Printf("claude hooks: %v", err)
+	}
 
 	var win *mygo.Window
 
