@@ -702,6 +702,14 @@ func (w *workspace) paneExited(p *pane) {
 		if w.quitting || w.paneByID(p.ID) != p {
 			return
 		}
+		// A restored pane whose resume never came up keeps its place: a
+		// failed resume must not take the session with it.
+		if p.restored && !p.sawAgent && len(p.lastAgentRestore) > 0 {
+			p.exited = true
+			w.invalidate()
+			w.scheduleSave()
+			return
+		}
 		w.requestClose(p)
 	})
 }
@@ -800,6 +808,12 @@ func (w *workspace) startAgentMonitor() {
 			}
 			var jobs []job
 			w.onMain(func() {
+				// Quitting closes the windows first, so every agent looks
+				// gone while the layout is still to be saved. Forgetting the
+				// resume here is what emptied the panes on an update restart.
+				if w.quitting {
+					return
+				}
 				now := time.Now()
 				for _, p := range w.allPanes() {
 					group := p.foregroundGroup()
@@ -821,6 +835,9 @@ func (w *workspace) startAgentMonitor() {
 				detections[i] = detectAgent(j.group, j.p.initialDir)
 			}
 			w.onMain(func() {
+				if w.quitting {
+					return
+				}
 				changed := false
 				for i, j := range jobs {
 					if j.p.applyAgent(detections[i]) {
