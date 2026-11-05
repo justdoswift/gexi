@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -26,7 +27,7 @@ import (
 // renames it from the user's first request; the pane header then offers PR and
 // Merge.
 
-type sessionWorktree struct {
+type paneWorktree struct {
 	Root   string `json:"root"`
 	Path   string `json:"path"`
 	Branch string `json:"branch"`
@@ -45,9 +46,10 @@ type sessionWorktree struct {
 }
 
 const (
-	worktreeBusyPR    = "pr"
-	worktreeBusyMerge = "merge"
-	worktreeMerged    = "merged"
+	worktreeBusyCreate = "create"
+	worktreeBusyPR     = "pr"
+	worktreeBusyMerge  = "merge"
+	worktreeMerged     = "merged"
 )
 
 // worktreeCities are the placeholder names, as Conductor uses cities: short,
@@ -66,26 +68,15 @@ func worktreesRoot() string {
 	return filepath.Join(supportDir(), "worktrees")
 }
 
-// worktreeForSession creates the worktree a new session works in, when the
-// setting is on and the project is the root of a git repository. A remote
-// project, a folder that is not a repository, or a session opened at another
-// folder keeps the old behavior.
-func (w *workspace) worktreeForSession(pr *project, dir string) (*sessionWorktree, error) {
-	if !w.settings.WorktreePerSession || pr == nil || pr.RemoteHost != "" {
-		return nil, nil
-	}
-	if dir == "" {
-		dir = pr.Dir
-	}
-	if !sameDir(dir, pr.Dir) {
-		return nil, nil
-	}
-	return createSessionWorktree(pr.Dir)
-}
+// worktreeCreateMu serializes naming and adding worktrees, so two panes
+// clicked at once cannot pick the same city and race for the same branch.
+var worktreeCreateMu sync.Mutex
 
-// createSessionWorktree branches from the latest origin base branch, as
-// Conductor does, and gives the branch a placeholder city name.
-func createSessionWorktree(projectDir string) (*sessionWorktree, error) {
+// createWorktree branches from the latest origin base branch, as Conductor
+// does, and gives the branch a placeholder city name.
+func createWorktree(projectDir string) (*paneWorktree, error) {
+	worktreeCreateMu.Lock()
+	defer worktreeCreateMu.Unlock()
 	root, ok := gitTopLevel(projectDir)
 	if !ok || !sameDir(root, projectDir) {
 		return nil, nil
@@ -109,7 +100,7 @@ func createSessionWorktree(projectDir string) (*sessionWorktree, error) {
 	if _, err := gitOutput(root, "worktree", "add", "--no-track", "-b", name, path, start); err != nil {
 		return nil, err
 	}
-	return &sessionWorktree{
+	return &paneWorktree{
 		Root:   root,
 		Path:   path,
 		Branch: name,
@@ -253,7 +244,7 @@ func ghOutput(dir string, args ...string) (string, error) {
 
 // worktreeIsClean refuses to open or merge a PR over changes the commit does
 // not carry, which would otherwise be silently left behind.
-func worktreeIsClean(wt *sessionWorktree) (bool, error) {
+func worktreeIsClean(wt *paneWorktree) (bool, error) {
 	out, err := gitOutput(wt.Path, "status", "--porcelain")
 	if err != nil {
 		return false, err
@@ -261,7 +252,7 @@ func worktreeIsClean(wt *sessionWorktree) (bool, error) {
 	return strings.TrimSpace(out) == "", nil
 }
 
-func commitsAhead(wt *sessionWorktree) (int, error) {
+func commitsAhead(wt *paneWorktree) (int, error) {
 	for _, base := range []string{"origin/" + wt.Base, wt.Base} {
 		out, err := gitOutput(wt.Path, "rev-list", "--count", base+"..HEAD")
 		if err == nil {
@@ -303,7 +294,7 @@ func lookupPR(dir, branch string) (int, string, string, error) {
 // createPR pushes the worktree branch and opens its pull request. When one is
 // already open, it returns that instead. The branch is read from git, since
 // the agent may have renamed it since the last turn ended.
-func createPR(wt *sessionWorktree) (int, string, string, string, error) {
+func createPR(wt *paneWorktree) (int, string, string, string, error) {
 	branch := currentBranch(wt.Path)
 	if branch == "" {
 		branch = wt.Branch
@@ -338,7 +329,7 @@ func createPR(wt *sessionWorktree) (int, string, string, string, error) {
 	return n, url, state, branch, err
 }
 
-func mergePR(wt *sessionWorktree) error {
+func mergePR(wt *paneWorktree) error {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return errors.New("gh is not installed")
 	}
@@ -356,7 +347,7 @@ func mergePR(wt *sessionWorktree) error {
 // syncLocalBase brings the user's checkout of the base branch up to date after
 // the PR merged on GitHub. When the checkout is on another branch, the local
 // base ref moves instead.
-func syncLocalBase(wt *sessionWorktree) error {
+func syncLocalBase(wt *paneWorktree) error {
 	if _, err := gitOutput(wt.Root, "fetch", "--quiet", "origin", wt.Base); err != nil {
 		return err
 	}
@@ -370,7 +361,7 @@ func syncLocalBase(wt *sessionWorktree) error {
 	return err
 }
 
-func removeWorktree(wt *sessionWorktree) error {
+func removeWorktree(wt *paneWorktree) error {
 	if _, err := gitOutput(wt.Root, "worktree", "remove", "--force", wt.Path); err != nil {
 		return err
 	}
@@ -382,8 +373,8 @@ func removeWorktree(wt *sessionWorktree) error {
 
 // createPullRequest starts the PR in the background; the header button shows
 // the operation while it runs.
-func (w *workspace) createPullRequest(s *session) {
-	wt := s.Worktree
+func (w *workspace) createPullRequest(p *pane) {
+	wt := p.Worktree
 	if wt == nil || wt.busy != "" || wt.State == worktreeMerged || wt.PR != 0 {
 		return
 	}
@@ -407,10 +398,10 @@ func (w *workspace) createPullRequest(s *session) {
 }
 
 // mergePullRequest merges the PR on GitHub, then fast-forwards the local base
-// branch and closes the session with its worktree. A local sync that fails
-// leaves the worktree in place, so nothing is lost.
-func (w *workspace) mergePullRequest(s *session) {
-	wt := s.Worktree
+// branch and closes the pane with its worktree. A local sync that fails leaves
+// the worktree in place, so nothing is lost.
+func (w *workspace) mergePullRequest(p *pane) {
+	wt := p.Worktree
 	if wt == nil || wt.busy != "" || wt.PR == 0 || wt.State == worktreeMerged {
 		return
 	}
@@ -434,7 +425,7 @@ func (w *workspace) mergePullRequest(s *session) {
 				w.flash(locales.WorktreeMergedLocalFailed(wt.Base, syncErr.Error()))
 			} else {
 				w.flash(locales.WorktreeMergedInto(wt.Base))
-				w.cleanupMergedWorktree(s)
+				w.cleanupMergedWorktree(p)
 			}
 			w.invalidate()
 			w.scheduleSave()
@@ -442,18 +433,26 @@ func (w *workspace) mergePullRequest(s *session) {
 	}()
 }
 
-// cleanupMergedWorktree hangs up the session's panes and removes its checkout.
-// The branch is already merged, so nothing is lost.
-func (w *workspace) cleanupMergedWorktree(s *session) {
-	wt := s.Worktree
-	if wt == nil || s.Root == nil {
+// cleanupMergedWorktree hangs up the pane and any split that shares its
+// checkout, then removes the checkout. The branch is already merged, so
+// nothing is lost.
+func (w *workspace) cleanupMergedWorktree(p *pane) {
+	wt := p.Worktree
+	if wt == nil {
 		return
 	}
-	panes := s.Root.panes()
-	for _, p := range panes {
-		if w.paneByID(p.ID) != nil {
-			w.closePane(p)
+	s := w.sessionOf(p)
+	if s != nil && s.Root != nil {
+		for _, other := range s.Root.panes() {
+			if !inWorktree(other, wt) {
+				continue
+			}
+			if w.paneByID(other.ID) != nil {
+				w.closePane(other)
+			}
 		}
+	} else if w.paneByID(p.ID) != nil {
+		w.closePane(p)
 	}
 	go func() {
 		if err := removeWorktree(wt); err != nil {
@@ -462,10 +461,19 @@ func (w *workspace) cleanupMergedWorktree(s *session) {
 	}()
 }
 
+func inWorktree(p *pane, wt *paneWorktree) bool {
+	for _, dir := range []string{p.dir(), p.initialDir} {
+		if dir == wt.Path || strings.HasPrefix(dir, wt.Path+string(os.PathSeparator)) {
+			return true
+		}
+	}
+	return false
+}
+
 // refreshWorktree picks up a branch the agent renamed and, now and then, a PR
 // state that changed outside Gexi.
-func (w *workspace) refreshWorktree(s *session) {
-	wt := s.Worktree
+func (w *workspace) refreshWorktree(p *pane) {
+	wt := p.Worktree
 	if wt == nil {
 		return
 	}
@@ -477,11 +485,11 @@ func (w *workspace) refreshWorktree(s *session) {
 		}
 		branch := strings.TrimSpace(out)
 		w.onMain(func() {
-			if s.Worktree == nil || branch == "" || branch == "HEAD" || branch == s.Worktree.Branch {
+			if p.Worktree == nil || branch == "" || branch == "HEAD" || branch == p.Worktree.Branch {
 				return
 			}
-			s.Worktree.Branch = branch
-			s.Worktree.Naming = false
+			p.Worktree.Branch = branch
+			p.Worktree.Naming = false
 			w.invalidate()
 			w.scheduleSave()
 		})
@@ -506,15 +514,86 @@ func (w *workspace) refreshWorktree(s *session) {
 	}
 }
 
+// createPaneWorktree makes the worktree the W button asks for, then restarts
+// the pane in it. Git runs off the UI thread.
+func (w *workspace) createPaneWorktree(p *pane) {
+	if p.Worktree != nil || p.worktreeBusy != "" {
+		return
+	}
+	s := w.sessionOf(p)
+	pr := w.projectOf(s)
+	if pr == nil || pr.RemoteHost != "" {
+		return
+	}
+	if p.agent != nil {
+		w.flash(locales.WorktreeAgentRunning())
+		return
+	}
+	p.worktreeBusy = worktreeBusyCreate
+	w.invalidate()
+	dir := pr.Dir
+	go func() {
+		wt, err := createWorktree(dir)
+		w.onMain(func() {
+			if w.paneByID(p.ID) != p {
+				// The pane closed while git worked.
+				if wt != nil {
+					go func() { _ = removeWorktree(wt) }()
+				}
+				return
+			}
+			p.worktreeBusy = ""
+			switch {
+			case err != nil:
+				w.flash(locales.WorktreeError(err.Error()))
+			case wt == nil:
+				w.flash(locales.WorktreeNotRepo())
+			default:
+				w.restartPaneInWorktree(p, wt)
+				return
+			}
+			w.invalidate()
+		})
+	}()
+}
+
+// restartPaneInWorktree swaps the pane's terminal for a fresh shell in the
+// worktree, keeping its slot, id, and focus.
+func (w *workspace) restartPaneInWorktree(p *pane, wt *paneWorktree) {
+	s := w.sessionOf(p)
+	if s == nil || s.Root == nil || w.paneByID(p.ID) != p {
+		go func() { _ = removeWorktree(wt) }()
+		return
+	}
+	if p.agent != nil {
+		w.flash(locales.WorktreeAgentRunning())
+		go func() { _ = removeWorktree(wt) }()
+		return
+	}
+	np, err := newPane(w, p.ID, nil, wt.Path, "")
+	if err != nil {
+		w.flash(locales.WorktreeError(err.Error()))
+		go func() { _ = removeWorktree(wt) }()
+		return
+	}
+	np.Worktree = wt
+	s.Root = s.Root.replacing(p.ID, leaf(np))
+	p.close()
+	w.FocusedPane = np.ID
+	w.focusReq = np.ID
+	w.flash(locales.WorktreeCreated())
+	w.invalidate()
+	w.scheduleSave()
+}
+
 // worktreeNamingContext is the one-time note that tells the agent its branch
 // is a placeholder. Claude Code adds a UserPromptSubmit hook's stdout to the
 // prompt, so this reaches the model with the first request.
 func (w *workspace) worktreeNamingContext(p *pane) string {
-	s := w.sessionOf(p)
-	if s == nil || s.Worktree == nil || !s.Worktree.Naming {
+	wt := p.Worktree
+	if wt == nil || !wt.Naming {
 		return ""
 	}
-	wt := s.Worktree
 	wt.Naming = false
 	w.scheduleSave()
 	return fmt.Sprintf(
@@ -525,12 +604,44 @@ func (w *workspace) worktreeNamingContext(p *pane) string {
 		wt.Path, wt.Branch)
 }
 
+// paneWorktreeButton is the W control in the pane header. W makes a worktree
+// for the pane; once it has one, the same slot shows PR / Merge instead.
+func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
+	if p.Worktree == nil {
+		if s := w.sessionOf(p); s != nil {
+			if pr := w.projectOf(s); pr != nil && pr.RemoteHost != "" {
+				return
+			}
+		}
+		label := "W"
+		color := tk.Foreground
+		action := func() { w.createPaneWorktree(p) }
+		hint := locales.WorktreeCreateHint()
+		if p.worktreeBusy != "" {
+			label = "W…"
+			color = tk.MutedForeground
+			action = func() {}
+		}
+		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
+			Center().Cursor(ui.CursorPointer).Tooltip(hint)
+		if el.Hovered() {
+			el = el.Background(tk.Control)
+		}
+		el.OnClick(action).Children(func() {
+			ui.Text(c, label).FontSize(11).FontWeight(600).
+				TextColor(color).OnClick(action)
+		})
+		return
+	}
+	w.worktreeButton(c, tk, p)
+}
+
 // worktreeButton is the PR / Merge control in the pane header, left of the
-// pane actions. It appears only for a session that owns a worktree.
-func (w *workspace) worktreeButton(c *ui.Context, tk tokens, s *session) {
-	wt := s.Worktree
+// pane actions. It appears once the pane owns a worktree.
+func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
+	wt := p.Worktree
 	label := locales.WorktreePR()
-	action := func() { w.createPullRequest(s) }
+	action := func() { w.createPullRequest(p) }
 	color := tk.Foreground
 	switch {
 	case wt.State == worktreeMerged:
@@ -551,7 +662,7 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, s *session) {
 		action = func() {}
 	case wt.PR != 0:
 		label = locales.WorktreeMerge()
-		action = func() { w.mergePullRequest(s) }
+		action = func() { w.mergePullRequest(p) }
 	}
 	hint := wt.Branch + " → " + wt.Base
 	if wt.URL != "" {

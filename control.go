@@ -278,15 +278,25 @@ func (w *workspace) sessionJSON(pr *project, s *session) map[string]any {
 		"selected": s.ID == w.SelectedSession,
 		"panes":    ids,
 	}
-	if s.Worktree != nil {
-		out["worktree"] = map[string]any{
-			"path":   s.Worktree.Path,
-			"branch": s.Worktree.Branch,
-			"base":   s.Worktree.Base,
-			"pr":     nullableInt(s.Worktree.PR),
-			"url":    nullable(s.Worktree.URL),
-			"state":  nullable(s.Worktree.State),
+	worktrees := []any{}
+	if s.Root != nil {
+		for _, p := range s.Root.panes() {
+			if p.Worktree == nil {
+				continue
+			}
+			worktrees = append(worktrees, map[string]any{
+				"pane":   p.ID,
+				"path":   p.Worktree.Path,
+				"branch": p.Worktree.Branch,
+				"base":   p.Worktree.Base,
+				"pr":     nullableInt(p.Worktree.PR),
+				"url":    nullable(p.Worktree.URL),
+				"state":  nullable(p.Worktree.State),
+			})
 		}
+	}
+	if len(worktrees) > 0 {
+		out["worktrees"] = worktrees
 	}
 	return out
 }

@@ -484,26 +484,44 @@ func (msgs Messages) SettingsRestoreScreenDetail() string {
 	return Catalog.Format(msgs.locale, "settingsRestoreScreenDetail", nil)
 }
 
-// SettingsWorktreeSessions says "Worktrees & pull requests"
+// WorktreeCreateHint says "Create a worktree for this pane"
 // in the language the app shows.
-func SettingsWorktreeSessions() string { return In(i18n.Locale()).SettingsWorktreeSessions() }
+func WorktreeCreateHint() string { return In(i18n.Locale()).WorktreeCreateHint() }
 
-// SettingsWorktreeSessions says "Worktrees & pull requests"
+// WorktreeCreateHint says "Create a worktree for this pane"
 // in the language of msgs.
-func (msgs Messages) SettingsWorktreeSessions() string {
-	return Catalog.Format(msgs.locale, "settingsWorktreeSessions", nil)
+func (msgs Messages) WorktreeCreateHint() string {
+	return Catalog.Format(msgs.locale, "worktreeCreateHint", nil)
 }
 
-// SettingsWorktreeSessionsDetail says "New sessions get their own git worktree, branch, and PR / Merge button in the pane header."
+// WorktreeNotRepo says "This project is not a git repository."
 // in the language the app shows.
-func SettingsWorktreeSessionsDetail() string {
-	return In(i18n.Locale()).SettingsWorktreeSessionsDetail()
+func WorktreeNotRepo() string { return In(i18n.Locale()).WorktreeNotRepo() }
+
+// WorktreeNotRepo says "This project is not a git repository."
+// in the language of msgs.
+func (msgs Messages) WorktreeNotRepo() string {
+	return Catalog.Format(msgs.locale, "worktreeNotRepo", nil)
 }
 
-// SettingsWorktreeSessionsDetail says "New sessions get their own git worktree, branch, and PR / Merge button in the pane header."
+// WorktreeAgentRunning says "Stop the agent in this pane first."
+// in the language the app shows.
+func WorktreeAgentRunning() string { return In(i18n.Locale()).WorktreeAgentRunning() }
+
+// WorktreeAgentRunning says "Stop the agent in this pane first."
 // in the language of msgs.
-func (msgs Messages) SettingsWorktreeSessionsDetail() string {
-	return Catalog.Format(msgs.locale, "settingsWorktreeSessionsDetail", nil)
+func (msgs Messages) WorktreeAgentRunning() string {
+	return Catalog.Format(msgs.locale, "worktreeAgentRunning", nil)
+}
+
+// WorktreeCreated says "Worktree created"
+// in the language the app shows.
+func WorktreeCreated() string { return In(i18n.Locale()).WorktreeCreated() }
+
+// WorktreeCreated says "Worktree created"
+// in the language of msgs.
+func (msgs Messages) WorktreeCreated() string {
+	return Catalog.Format(msgs.locale, "worktreeCreated", nil)
 }
 
 // WorktreePR says "PR"

@@ -36,9 +36,8 @@ type savedProject struct {
 }
 
 type savedSession struct {
-	ID       string           `json:"id"`
-	Root     savedNode        `json:"root"`
-	Worktree *sessionWorktree `json:"worktree,omitempty"`
+	ID   string    `json:"id"`
+	Root savedNode `json:"root"`
 }
 
 type savedTab struct {
@@ -57,9 +56,10 @@ type savedNode struct {
 }
 
 type savedPane struct {
-	ID               string   `json:"id"`
-	Command          []string `json:"command"`
-	WorkingDirectory string   `json:"workingDirectory"`
+	ID               string        `json:"id"`
+	Command          []string      `json:"command"`
+	WorkingDirectory string        `json:"workingDirectory"`
+	Worktree         *paneWorktree `json:"worktree,omitempty"`
 }
 
 func statePath() string {
@@ -78,6 +78,7 @@ func (n *splitNode) saved() savedNode {
 				ID:               n.pane.ID,
 				Command:          n.pane.restoreCommand,
 				WorkingDirectory: n.pane.dir(),
+				Worktree:         n.pane.Worktree,
 			},
 		}
 	}
@@ -96,17 +97,22 @@ func (n *splitNode) saved() savedNode {
 
 func ptr(n savedNode) *savedNode { return &n }
 
-// rebaseDir moves panes that lived in a worktree to the project folder, for a
-// worktree that is gone by the time the layout comes back.
-func (n *savedNode) rebaseDir(from, to string) {
+// dropMissingWorktrees moves panes whose worktree is gone back to the project
+// folder, and forgets the worktree, instead of restoring into a missing path.
+func (n *savedNode) dropMissingWorktrees(fallback string) {
 	if n == nil {
 		return
 	}
-	if n.Pane != nil && filepath.Clean(n.Pane.WorkingDirectory) == filepath.Clean(from) {
-		n.Pane.WorkingDirectory = to
+	if n.Pane != nil && n.Pane.Worktree != nil {
+		if info, err := os.Stat(n.Pane.Worktree.Path); err != nil || !info.IsDir() {
+			if filepath.Clean(n.Pane.WorkingDirectory) == filepath.Clean(n.Pane.Worktree.Path) {
+				n.Pane.WorkingDirectory = fallback
+			}
+			n.Pane.Worktree = nil
+		}
 	}
-	n.First.rebaseDir(from, to)
-	n.Second.rebaseDir(from, to)
+	n.First.dropMissingWorktrees(fallback)
+	n.Second.dropMissingWorktrees(fallback)
 }
 
 func (w *workspace) savedState() workspaceState {
@@ -128,9 +134,8 @@ func (w *workspace) savedState() workspaceState {
 				continue
 			}
 			saved.Sessions = append(saved.Sessions, savedSession{
-				ID:       s.ID,
-				Root:     s.Root.saved(),
-				Worktree: s.Worktree,
+				ID:   s.ID,
+				Root: s.Root.saved(),
 			})
 		}
 		if len(saved.Sessions) == 0 {
@@ -204,6 +209,7 @@ func (n *savedNode) restore(w *workspace) (*splitNode, error) {
 		if err != nil {
 			return nil, err
 		}
+		p.Worktree = n.Pane.Worktree
 		return leaf(p), nil
 	case "split":
 		if n.First == nil || n.Second == nil {
@@ -243,19 +249,12 @@ func (w *workspace) restoreOrCreate() {
 	for _, sp := range state.Projects {
 		pr := &project{ID: sp.ID, Dir: sp.Dir, Label: sp.Label, RemoteHost: sp.RemoteHost}
 		for _, ss := range sp.Sessions {
-			// A worktree removed outside Gexi would otherwise restore into
-			// the home folder; fall back to the project itself instead.
-			if ss.Worktree != nil {
-				if info, err := os.Stat(ss.Worktree.Path); err != nil || !info.IsDir() {
-					ss.Root.rebaseDir(ss.Worktree.Path, sp.Dir)
-					ss.Worktree = nil
-				}
-			}
+			ss.Root.dropMissingWorktrees(sp.Dir)
 			root, err := ss.Root.restore(w)
 			if err != nil {
 				continue
 			}
-			pr.Sessions = append(pr.Sessions, &session{ID: ss.ID, Root: root, Worktree: ss.Worktree})
+			pr.Sessions = append(pr.Sessions, &session{ID: ss.ID, Root: root})
 		}
 		if len(pr.Sessions) == 0 {
 			continue
@@ -305,8 +304,12 @@ func (w *workspace) restoreOrCreate() {
 		}
 	}
 	w.focusReq = w.FocusedPane
-	if s := w.selected(); s != nil && s.Worktree != nil {
-		w.refreshWorktree(s)
+	if s := w.selected(); s != nil && s.Root != nil {
+		for _, p := range s.Root.panes() {
+			if p.Worktree != nil {
+				w.refreshWorktree(p)
+			}
+		}
 	}
 }
 

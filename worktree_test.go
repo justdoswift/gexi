@@ -28,11 +28,11 @@ func initRepoTest(t *testing.T) string {
 	return dir
 }
 
-func TestCreateSessionWorktree(t *testing.T) {
+func TestCreateWorktree(t *testing.T) {
 	t.Setenv("GEXI_HOME", t.TempDir())
 	root := initRepoTest(t)
 
-	wt, err := createSessionWorktree(root)
+	wt, err := createWorktree(root)
 	if err != nil {
 		t.Fatalf("create worktree: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestSyncLocalBase(t *testing.T) {
 	runGitTest(t, root, "remote", "add", "origin", remote)
 	runGitTest(t, root, "push", "-u", "origin", "main")
 
-	wt, err := createSessionWorktree(root)
+	wt, err := createWorktree(root)
 	if err != nil || wt == nil {
 		t.Fatalf("create worktree: %v %+v", err, wt)
 	}
@@ -99,32 +99,9 @@ func TestSyncLocalBase(t *testing.T) {
 	}
 }
 
-func TestWorktreeForSessionHonorsSetting(t *testing.T) {
+func TestCreateWorktreeSkipsNonRepo(t *testing.T) {
 	t.Setenv("GEXI_HOME", t.TempDir())
-	root := initRepoTest(t)
-	pr := &project{ID: "p", Dir: root}
-
-	w := &workspace{settings: appSettings{WorktreePerSession: false}}
-	if wt, err := w.worktreeForSession(pr, root); err != nil || wt != nil {
-		t.Fatalf("worktree with the setting off: %v %+v", err, wt)
-	}
-
-	w.settings.WorktreePerSession = true
-	wt, err := w.worktreeForSession(pr, root)
-	if err != nil || wt == nil {
-		t.Fatalf("worktree with the setting on: %v %+v", err, wt)
-	}
-	t.Cleanup(func() {
-		_ = exec.Command("git", "-C", root, "worktree", "remove", "--force", wt.Path).Run()
-	})
-	if wt.Base != "main" {
-		t.Fatalf("base = %q", wt.Base)
-	}
-}
-
-func TestCreateSessionWorktreeSkipsNonRepo(t *testing.T) {
-	t.Setenv("GEXI_HOME", t.TempDir())
-	wt, err := createSessionWorktree(t.TempDir())
+	wt, err := createWorktree(t.TempDir())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -133,24 +110,24 @@ func TestCreateSessionWorktreeSkipsNonRepo(t *testing.T) {
 	}
 }
 
-func TestSessionLabelUsesWorktreeBranch(t *testing.T) {
-	s := &session{ID: "s", Worktree: &sessionWorktree{Branch: "fix-login"}}
+func TestSessionLabelUsesPaneWorktreeBranch(t *testing.T) {
+	p := &pane{ID: "p", Worktree: &paneWorktree{Branch: "fix-login"}}
+	s := &session{ID: "s", Root: leaf(p)}
 	if got := sessionLabel(s); got != "fix-login" {
 		t.Fatalf("label = %q, want the branch", got)
 	}
 }
 
 func TestWorktreeNamingContextIsOneShot(t *testing.T) {
-	p := &pane{ID: "p"}
-	s := &session{
-		ID:   "s",
-		Root: leaf(p),
-		Worktree: &sessionWorktree{
+	p := &pane{
+		ID: "p",
+		Worktree: &paneWorktree{
 			Path:   "/tmp/wt",
 			Branch: "kyoto",
 			Naming: true,
 		},
 	}
+	s := &session{ID: "s", Root: leaf(p)}
 	w := &workspace{Projects: []*project{{ID: "pr", Dir: "/tmp", Sessions: []*session{s}}}}
 
 	ctx := w.worktreeNamingContext(p)
@@ -162,13 +139,37 @@ func TestWorktreeNamingContextIsOneShot(t *testing.T) {
 	}
 }
 
-func TestRebaseDirForMissingWorktree(t *testing.T) {
+func TestDropMissingWorktrees(t *testing.T) {
 	n := savedNode{
 		Type: "leaf",
-		Pane: &savedPane{ID: "p", WorkingDirectory: "/tmp/worktrees/kyoto"},
+		Pane: &savedPane{
+			ID:               "p",
+			WorkingDirectory: "/tmp/worktrees/kyoto",
+			Worktree:         &paneWorktree{Path: "/tmp/worktrees/kyoto"},
+		},
 	}
-	n.rebaseDir("/tmp/worktrees/kyoto", "/tmp/project")
+	n.dropMissingWorktrees("/tmp/project")
 	if n.Pane.WorkingDirectory != "/tmp/project" {
 		t.Fatalf("working directory = %q", n.Pane.WorkingDirectory)
+	}
+	if n.Pane.Worktree != nil {
+		t.Fatal("a missing worktree stayed on the pane")
+	}
+}
+
+func TestReplacingPaneKeepsSlot(t *testing.T) {
+	n := &splitNode{
+		axis:   axisHorizontal,
+		ratio:  50,
+		first:  leaf(&pane{ID: "a"}),
+		second: leaf(&pane{ID: "b"}),
+	}
+	np := &pane{ID: "a"}
+	n = n.replacing("a", leaf(np))
+	if n.paneByID("a") != np {
+		t.Fatal("the pane was not replaced")
+	}
+	if n.paneByID("b") == nil {
+		t.Fatal("the other pane was lost")
 	}
 }

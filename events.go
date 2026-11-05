@@ -90,8 +90,8 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 			result["context"] = ctx
 		}
 	case "turn.end":
-		if s := w.sessionOf(p); s != nil && s.Worktree != nil {
-			w.refreshWorktree(s)
+		if p.Worktree != nil {
+			w.refreshWorktree(p)
 		}
 	}
 

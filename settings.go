@@ -20,9 +20,6 @@ type appSettings struct {
 	PaneStyle        string `json:"paneStyle"`
 	RemoteTmux       bool   `json:"remoteTmux"`
 	Notifications    bool   `json:"notifications"`
-	// WorktreePerSession gives every new local session its own git
-	// worktree, branch, and PR / Merge button.
-	WorktreePerSession bool `json:"worktreePerSession"`
 	// Language is the language the app shows: "" follows the system's
 	// languages, "en" and "zh-Hans" pin one.
 	Language string `json:"language"`
@@ -241,17 +238,6 @@ func (w *workspace) generalPage(c *ui.Context, tk tokens) {
 				w.settings.RestoreScreen = !w.settings.RestoreScreen
 				w.settings.save()
 				w.scheduleSave()
-			},
-		})
-		cardDivider(c, tk)
-		w.settingRowView(c, tk, settingRow{
-			title:  locales.SettingsWorktreeSessions(),
-			detail: locales.SettingsWorktreeSessionsDetail(),
-			on:     w.settings.WorktreePerSession,
-			toggle: func() {
-				w.settings.WorktreePerSession = !w.settings.WorktreePerSession
-				w.settings.save()
-				w.invalidate()
 			},
 		})
 	})
