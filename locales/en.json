@@ -114,5 +114,19 @@
   "notifyWaiting": "Waiting for you",
   "notifyAgent": "Agent",
   "notifyCodeCopiedTitle": "Connection code copied",
-  "notifyCodeCopiedBody": "Paste it in Gexi on the other Mac."
+  "notifyCodeCopiedBody": "Paste it in Gexi on the other Mac.",
+  "menuToggleFiles": "Toggle Files",
+  "shortcutToggleFiles": "Toggle files",
+  "drawerChanges": "Changes",
+  "drawerFiles": "Files",
+  "drawerClose": "Close files",
+  "drawerBack": "Back to the list",
+  "drawerNoChanges": "No changes",
+  "drawerNotRepo": "This folder is not a Git repository.",
+  "drawerNoProject": "No project is selected.",
+  "drawerRemote": "Files are not available for remote sessions yet.",
+  "drawerBinary": "Binary file",
+  "drawerTooLarge": "This file is too large to show.",
+  "drawerLoading": "Loading…",
+  "drawerOpenChanges": "Open changes"
 }

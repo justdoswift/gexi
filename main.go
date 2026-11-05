@@ -78,7 +78,9 @@ func main() {
 
 		mygo.App.SetMenu(mainMenu(w))
 		w.restoreOrCreate()
+		w.refreshGit()
 		w.startAgentMonitor()
+		w.startGitMonitor()
 		stop := startControl(w)
 		mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
 			w.saveNow()
@@ -163,6 +165,9 @@ func mainMenu(w *workspace) *mygo.Menu {
 				w.settings.SidebarCollapsed = !w.settings.SidebarCollapsed
 				w.settings.save()
 				w.invalidate()
+			}},
+			{Label: locales.MenuToggleFiles(), Accelerator: "CmdOrCtrl+Shift+E", Click: func(*mygo.MenuItem, *mygo.Window) {
+				w.toggleDrawer()
 			}},
 			{Label: locales.MenuLanguage(), Submenu: languageMenu(w)},
 			{Label: locales.MenuSettings(), Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { w.openSettings() }},

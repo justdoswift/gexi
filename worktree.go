@@ -88,7 +88,7 @@ func createWorktree(projectDir string) (*paneWorktree, error) {
 	fetchBase(root, base)
 
 	start := base
-	if _, err := gitOutput(root, "rev-parse", "--verify", "--quiet", "origin/"+base); err == nil {
+	if _, err := worktreeGit(root, "rev-parse", "--verify", "--quiet", "origin/"+base); err == nil {
 		start = "origin/" + base
 	}
 	name := uniqueWorktreeName(root)
@@ -97,7 +97,7 @@ func createWorktree(projectDir string) (*paneWorktree, error) {
 		return nil, err
 	}
 	// --no-track keeps the branch from pushing to the base it started from.
-	if _, err := gitOutput(root, "worktree", "add", "--no-track", "-b", name, path, start); err != nil {
+	if _, err := worktreeGit(root, "worktree", "add", "--no-track", "-b", name, path, start); err != nil {
 		return nil, err
 	}
 	return &paneWorktree{
@@ -123,7 +123,7 @@ func sameDir(a, b string) bool {
 }
 
 func gitTopLevel(dir string) (string, bool) {
-	out, err := gitOutput(dir, "rev-parse", "--show-toplevel")
+	out, err := worktreeGit(dir, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", false
 	}
@@ -137,13 +137,13 @@ func gitTopLevel(dir string) (string, bool) {
 // detectBaseBranch asks origin what its default branch is, then falls back to
 // the two names almost every repository uses.
 func detectBaseBranch(root string) string {
-	if out, err := gitOutput(root, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"); err == nil {
+	if out, err := worktreeGit(root, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"); err == nil {
 		if name := strings.TrimPrefix(strings.TrimSpace(out), "origin/"); name != "" {
 			return name
 		}
 	}
 	for _, name := range []string{"main", "master"} {
-		if _, err := gitOutput(root, "rev-parse", "--verify", "--quiet", name); err == nil {
+		if _, err := worktreeGit(root, "rev-parse", "--verify", "--quiet", name); err == nil {
 			return name
 		}
 	}
@@ -184,7 +184,7 @@ func uniqueWorktreeName(root string) string {
 }
 
 func branchExists(root, ref string) bool {
-	_, err := gitOutput(root, "show-ref", "--verify", "--quiet", ref)
+	_, err := worktreeGit(root, "show-ref", "--verify", "--quiet", ref)
 	return err == nil
 }
 
@@ -207,22 +207,11 @@ func worktreeRepoName(root string) string {
 	return fmt.Sprintf("%s-%08x", base, h.Sum32())
 }
 
-// gitOutput runs git in dir and returns its stdout. The timeout keeps a hung
-// git from holding the UI thread forever; work along the path is quick.
-func gitOutput(dir string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
-		}
-		return "", errors.New(msg)
-	}
-	return stdout.String(), nil
+// worktreeGit runs git and returns stdout as text, sharing the drawer's
+// deadline and error messages.
+func worktreeGit(dir string, args ...string) (string, error) {
+	out, err := gitOutput(dir, args...)
+	return string(out), err
 }
 
 func ghOutput(dir string, args ...string) (string, error) {
@@ -245,7 +234,7 @@ func ghOutput(dir string, args ...string) (string, error) {
 // worktreeIsClean refuses to open or merge a PR over changes the commit does
 // not carry, which would otherwise be silently left behind.
 func worktreeIsClean(wt *paneWorktree) (bool, error) {
-	out, err := gitOutput(wt.Path, "status", "--porcelain")
+	out, err := worktreeGit(wt.Path, "status", "--porcelain")
 	if err != nil {
 		return false, err
 	}
@@ -254,7 +243,7 @@ func worktreeIsClean(wt *paneWorktree) (bool, error) {
 
 func commitsAhead(wt *paneWorktree) (int, error) {
 	for _, base := range []string{"origin/" + wt.Base, wt.Base} {
-		out, err := gitOutput(wt.Path, "rev-list", "--count", base+"..HEAD")
+		out, err := worktreeGit(wt.Path, "rev-list", "--count", base+"..HEAD")
 		if err == nil {
 			n, _ := strconv.Atoi(strings.TrimSpace(out))
 			return n, nil
@@ -264,7 +253,7 @@ func commitsAhead(wt *paneWorktree) (int, error) {
 }
 
 func currentBranch(dir string) string {
-	out, err := gitOutput(dir, "rev-parse", "--abbrev-ref", "HEAD")
+	out, err := worktreeGit(dir, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return ""
 	}
@@ -276,7 +265,7 @@ func currentBranch(dir string) string {
 }
 
 func hasOriginRemote(dir string) bool {
-	_, err := gitOutput(dir, "remote", "get-url", "origin")
+	_, err := worktreeGit(dir, "remote", "get-url", "origin")
 	return err == nil
 }
 
@@ -329,7 +318,7 @@ func createPR(wt *paneWorktree) (int, string, string, string, error) {
 			return n, url, state, branch, nil
 		}
 	}
-	if _, err := gitOutput(wt.Path, "push", "-u", "origin", branch); err != nil {
+	if _, err := worktreeGit(wt.Path, "push", "-u", "origin", branch); err != nil {
 		return 0, "", "", branch, err
 	}
 	if _, err := ghOutput(wt.Path, "pr", "create", "--fill", "--base", wt.Base, "--head", branch); err != nil {
@@ -358,26 +347,26 @@ func mergePR(wt *paneWorktree) error {
 // the PR merged on GitHub. When the checkout is on another branch, the local
 // base ref moves instead.
 func syncLocalBase(wt *paneWorktree) error {
-	if _, err := gitOutput(wt.Root, "fetch", "--quiet", "origin", wt.Base); err != nil {
+	if _, err := worktreeGit(wt.Root, "fetch", "--quiet", "origin", wt.Base); err != nil {
 		return err
 	}
-	if cur, err := gitOutput(wt.Root, "symbolic-ref", "--quiet", "--short", "HEAD"); err == nil {
+	if cur, err := worktreeGit(wt.Root, "symbolic-ref", "--quiet", "--short", "HEAD"); err == nil {
 		if strings.TrimSpace(cur) == wt.Base {
-			_, err := gitOutput(wt.Root, "merge", "--ff-only", "origin/"+wt.Base)
+			_, err := worktreeGit(wt.Root, "merge", "--ff-only", "origin/"+wt.Base)
 			return err
 		}
 	}
-	_, err := gitOutput(wt.Root, "fetch", "--quiet", "origin", wt.Base+":"+wt.Base)
+	_, err := worktreeGit(wt.Root, "fetch", "--quiet", "origin", wt.Base+":"+wt.Base)
 	return err
 }
 
 func removeWorktree(wt *paneWorktree) error {
-	if _, err := gitOutput(wt.Root, "worktree", "remove", "--force", wt.Path); err != nil {
+	if _, err := worktreeGit(wt.Root, "worktree", "remove", "--force", wt.Path); err != nil {
 		return err
 	}
-	_, _ = gitOutput(wt.Root, "worktree", "prune")
-	_, _ = gitOutput(wt.Root, "branch", "-D", wt.Branch)
-	_, _ = gitOutput(wt.Root, "push", "origin", "--delete", wt.Branch)
+	_, _ = worktreeGit(wt.Root, "worktree", "prune")
+	_, _ = worktreeGit(wt.Root, "branch", "-D", wt.Branch)
+	_, _ = worktreeGit(wt.Root, "push", "origin", "--delete", wt.Branch)
 	return nil
 }
 
@@ -489,7 +478,7 @@ func (w *workspace) refreshWorktree(p *pane) {
 	}
 	path := wt.Path
 	go func() {
-		out, err := gitOutput(path, "rev-parse", "--abbrev-ref", "HEAD")
+		out, err := worktreeGit(path, "rev-parse", "--abbrev-ref", "HEAD")
 		if err != nil {
 			return
 		}
