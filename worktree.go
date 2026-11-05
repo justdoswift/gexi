@@ -275,6 +275,11 @@ func currentBranch(dir string) string {
 	return branch
 }
 
+func hasOriginRemote(dir string) bool {
+	_, err := gitOutput(dir, "remote", "get-url", "origin")
+	return err == nil
+}
+
 func lookupPR(dir, branch string) (int, string, string, error) {
 	out, err := ghOutput(dir, "pr", "view", branch, "--json", "number,url,state")
 	if err != nil {
@@ -302,9 +307,9 @@ func createPR(wt *paneWorktree) (int, string, string, string, error) {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return 0, "", "", branch, errors.New("gh is not installed")
 	}
-	if n, url, state, err := lookupPR(wt.Path, branch); err == nil && n != 0 {
-		return n, url, state, branch, nil
-	}
+	// Local checks come before gh: a repository without a GitHub remote can
+	// leave gh waiting on the network, and a missing commit is a fact git
+	// already knows.
 	clean, err := worktreeIsClean(wt)
 	if err != nil {
 		return 0, "", "", branch, err
@@ -318,6 +323,11 @@ func createPR(wt *paneWorktree) (int, string, string, string, error) {
 	}
 	if ahead == 0 {
 		return 0, "", "", branch, errors.New("there are no commits to open a pull request with")
+	}
+	if hasOriginRemote(wt.Path) {
+		if n, url, state, err := lookupPR(wt.Path, branch); err == nil && n != 0 {
+			return n, url, state, branch, nil
+		}
 	}
 	if _, err := gitOutput(wt.Path, "push", "-u", "origin", branch); err != nil {
 		return 0, "", "", branch, err
