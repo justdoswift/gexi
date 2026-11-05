@@ -83,7 +83,7 @@ func (n *splitNode) saved() savedNode {
 			Type: "leaf",
 			Pane: &savedPane{
 				ID:               n.pane.ID,
-				Command:          n.pane.restoreCommand,
+				Command:          n.pane.savedCommand(),
 				WorkingDirectory: n.pane.dir(),
 				Worktree:         n.pane.Worktree,
 			},
@@ -234,6 +234,7 @@ func (n *savedNode) restore(w *workspace) (*splitNode, error) {
 		if err != nil {
 			return nil, err
 		}
+		p.restored = true
 		p.Worktree = n.Pane.Worktree
 		return leaf(p), nil
 	case "split":

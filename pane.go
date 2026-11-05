@@ -83,7 +83,15 @@ type pane struct {
 	restoreCommand []string // what the next launch should run
 	baseRestore    []string // restoreCommand with no agent running
 	agent          *agentDetection
-	activity       *agentActivity // last hook event from the agent
+	// lastAgentRestore is the resume command of the last agent seen in this
+	// pane. It outlives the agent: the next launch brings the conversation
+	// back even when the agent had already exited when the layout was saved.
+	lastAgentRestore []string
+	// restored marks a pane built from the saved layout. A program that
+	// fails to come up in it keeps the pane instead of closing it.
+	restored bool
+	sawAgent bool           // an agent was detected at some point in this pane
+	activity *agentActivity // last hook event from the agent
 	// Worktree is the checkout this pane was moved into by its W button.
 	// worktreeBusy is the operation it waits on: "create".
 	Worktree     *paneWorktree
@@ -124,6 +132,11 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 		baseRestore:    resolved.restore,
 		ws:             ws,
 		conn:           newPTYConn(),
+	}
+	// A command that resumes an agent on launch is already what the next
+	// launch should run, even before the monitor ever sees the process.
+	if resumesAgent(resolved.restore) {
+		p.lastAgentRestore = append([]string(nil), resolved.restore...)
 	}
 
 	term, err := terminal.New(terminal.Options{
@@ -173,6 +186,18 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 }
 
 func connOf(p *pane) *ptyConn { return p.conn }
+
+// resumesAgent tells a command that brings a conversation back from one that
+// starts fresh: claude --resume, codex resume --last, omp --continue, and the
+// like.
+func resumesAgent(command []string) bool {
+	for _, arg := range command {
+		if strings.Contains(arg, "--resume") || strings.Contains(arg, "--continue") || strings.Contains(arg, " resume") {
+			return true
+		}
+	}
+	return false
+}
 
 func (p *pane) start(argv []string, dir string) error {
 	cmd := exec.Command(argv[0], argv[1:]...)
@@ -255,11 +280,13 @@ func (p *pane) dir() string {
 // restore command changed.
 func (p *pane) applyAgent(det *agentDetection) bool {
 	if det != nil {
+		p.sawAgent = true
 		if p.agent != nil && p.agent.Kind == det.Kind && p.agent.SessionID == det.SessionID {
 			return false
 		}
 		p.agent = det
 		p.restoreCommand = det.Resume
+		p.lastAgentRestore = det.Resume
 		return true
 	}
 	if p.agent != nil {
@@ -268,6 +295,16 @@ func (p *pane) applyAgent(det *agentDetection) bool {
 		return true
 	}
 	return false
+}
+
+// savedCommand is what the next launch runs. An agent's resume command wins
+// even after the agent exited: an update restart kills the agents first, and
+// saving the bare shell there is what made every pane come back empty.
+func (p *pane) savedCommand() []string {
+	if len(p.lastAgentRestore) > 0 {
+		return p.lastAgentRestore
+	}
+	return p.restoreCommand
 }
 
 func (p *pane) send(text string) { p.term.Send([]byte(text)) }
