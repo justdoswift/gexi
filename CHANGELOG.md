@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.13
 
 - A worktree pane can return to the project with ↩: the checkout is deleted,
   a branch with unmerged commits is kept, and uncommitted changes ask first.
