@@ -68,6 +68,17 @@ func (w *workspace) view(c *ui.Context) {
 	})
 	ui.Modal(c, &w.relayOpen, func() { w.relayDialog(c, tk) })
 	ui.Modal(c, &w.importOpen, func() { w.importDialog(c, tk) })
+	if w.leaveTarget != nil {
+		switch ui.AlertDialog(c, &w.leaveOpen, locales.WorktreeLeaveTitle(), w.leaveMsg,
+			locales.WorktreeLeaveConfirm(), locales.Cancel()) {
+		case 0:
+			p := w.leaveTarget
+			w.leaveTarget = nil
+			w.leaveWorktree(p)
+		case 1, ui.AlertDismissed:
+			w.leaveTarget = nil
+		}
+	}
 }
 
 // dragArea is a draggable stretch of a header that also zooms the window on

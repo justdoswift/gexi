@@ -646,6 +646,142 @@ func (msgs Messages) WorktreeError(error string) string {
 	return Catalog.Format(msgs.locale, "worktreeError", map[string]any{"error": error})
 }
 
+// WorktreeLeaveHint says "Leave this worktree and return to the project"
+// in the language the app shows.
+func WorktreeLeaveHint() string { return In(i18n.Locale()).WorktreeLeaveHint() }
+
+// WorktreeLeaveHint says "Leave this worktree and return to the project"
+// in the language of msgs.
+func (msgs Messages) WorktreeLeaveHint() string {
+	return Catalog.Format(msgs.locale, "worktreeLeaveHint", nil)
+}
+
+// WorktreeLeaveTitle says "Leave worktree?"
+// in the language the app shows.
+func WorktreeLeaveTitle() string { return In(i18n.Locale()).WorktreeLeaveTitle() }
+
+// WorktreeLeaveTitle says "Leave worktree?"
+// in the language of msgs.
+func (msgs Messages) WorktreeLeaveTitle() string {
+	return Catalog.Format(msgs.locale, "worktreeLeaveTitle", nil)
+}
+
+// WorktreeLeaveUnmerged says "There are {count} commits that are not merged. The branch {branch} will be kept."
+// in the language the app shows.
+func WorktreeLeaveUnmerged(count string, branch string) string {
+	return In(i18n.Locale()).WorktreeLeaveUnmerged(count, branch)
+}
+
+// WorktreeLeaveUnmerged says "There are {count} commits that are not merged. The branch {branch} will be kept."
+// in the language of msgs.
+func (msgs Messages) WorktreeLeaveUnmerged(count string, branch string) string {
+	return Catalog.Format(msgs.locale, "worktreeLeaveUnmerged", map[string]any{"count": count, "branch": branch})
+}
+
+// WorktreeLeaveDirty says "There are uncommitted changes. They will be lost."
+// in the language the app shows.
+func WorktreeLeaveDirty() string { return In(i18n.Locale()).WorktreeLeaveDirty() }
+
+// WorktreeLeaveDirty says "There are uncommitted changes. They will be lost."
+// in the language of msgs.
+func (msgs Messages) WorktreeLeaveDirty() string {
+	return Catalog.Format(msgs.locale, "worktreeLeaveDirty", nil)
+}
+
+// WorktreeLeaveConfirm says "Delete and return"
+// in the language the app shows.
+func WorktreeLeaveConfirm() string { return In(i18n.Locale()).WorktreeLeaveConfirm() }
+
+// WorktreeLeaveConfirm says "Delete and return"
+// in the language of msgs.
+func (msgs Messages) WorktreeLeaveConfirm() string {
+	return Catalog.Format(msgs.locale, "worktreeLeaveConfirm", nil)
+}
+
+// WorktreeLeaving says "Leaving worktree"
+// in the language the app shows.
+func WorktreeLeaving() string { return In(i18n.Locale()).WorktreeLeaving() }
+
+// WorktreeLeaving says "Leaving worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeLeaving() string {
+	return Catalog.Format(msgs.locale, "worktreeLeaving", nil)
+}
+
+// WorktreeLeft says "Worktree removed; back in the project folder."
+// in the language the app shows.
+func WorktreeLeft() string { return In(i18n.Locale()).WorktreeLeft() }
+
+// WorktreeLeft says "Worktree removed; back in the project folder."
+// in the language of msgs.
+func (msgs Messages) WorktreeLeft() string {
+	return Catalog.Format(msgs.locale, "worktreeLeft", nil)
+}
+
+// WorktreeKeptClose says "Worktree kept at {path}."
+// in the language the app shows.
+func WorktreeKeptClose(path string) string { return In(i18n.Locale()).WorktreeKeptClose(path) }
+
+// WorktreeKeptClose says "Worktree kept at {path}."
+// in the language of msgs.
+func (msgs Messages) WorktreeKeptClose(path string) string {
+	return Catalog.Format(msgs.locale, "worktreeKeptClose", map[string]any{"path": path})
+}
+
+// SettingsCleanupWorktrees says "Clean up worktrees"
+// in the language the app shows.
+func SettingsCleanupWorktrees() string { return In(i18n.Locale()).SettingsCleanupWorktrees() }
+
+// SettingsCleanupWorktrees says "Clean up worktrees"
+// in the language of msgs.
+func (msgs Messages) SettingsCleanupWorktrees() string {
+	return Catalog.Format(msgs.locale, "settingsCleanupWorktrees", nil)
+}
+
+// SettingsCleanupWorktreesDetail says "Remove checkouts no pane uses that have no changes and no commits ahead."
+// in the language the app shows.
+func SettingsCleanupWorktreesDetail() string {
+	return In(i18n.Locale()).SettingsCleanupWorktreesDetail()
+}
+
+// SettingsCleanupWorktreesDetail says "Remove checkouts no pane uses that have no changes and no commits ahead."
+// in the language of msgs.
+func (msgs Messages) SettingsCleanupWorktreesDetail() string {
+	return Catalog.Format(msgs.locale, "settingsCleanupWorktreesDetail", nil)
+}
+
+// SettingsCleanupWorktreesAction says "Clean up"
+// in the language the app shows.
+func SettingsCleanupWorktreesAction() string {
+	return In(i18n.Locale()).SettingsCleanupWorktreesAction()
+}
+
+// SettingsCleanupWorktreesAction says "Clean up"
+// in the language of msgs.
+func (msgs Messages) SettingsCleanupWorktreesAction() string {
+	return Catalog.Format(msgs.locale, "settingsCleanupWorktreesAction", nil)
+}
+
+// WorktreeCleanupDone says "Removed {count} unused worktrees."
+// in the language the app shows.
+func WorktreeCleanupDone(count string) string { return In(i18n.Locale()).WorktreeCleanupDone(count) }
+
+// WorktreeCleanupDone says "Removed {count} unused worktrees."
+// in the language of msgs.
+func (msgs Messages) WorktreeCleanupDone(count string) string {
+	return Catalog.Format(msgs.locale, "worktreeCleanupDone", map[string]any{"count": count})
+}
+
+// WorktreeCleanupNothing says "No unused worktrees to remove."
+// in the language the app shows.
+func WorktreeCleanupNothing() string { return In(i18n.Locale()).WorktreeCleanupNothing() }
+
+// WorktreeCleanupNothing says "No unused worktrees to remove."
+// in the language of msgs.
+func (msgs Messages) WorktreeCleanupNothing() string {
+	return Catalog.Format(msgs.locale, "worktreeCleanupNothing", nil)
+}
+
 // SettingsRemote says "Remote"
 // in the language the app shows.
 func SettingsRemote() string { return In(i18n.Locale()).SettingsRemote() }

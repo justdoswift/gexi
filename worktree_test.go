@@ -157,6 +157,60 @@ func TestDropMissingWorktrees(t *testing.T) {
 	}
 }
 
+func TestDropMissingPlainWorktreePane(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	dir := filepath.Join(worktreesRoot(), "Gexi-abc", "missing")
+	n := savedNode{
+		Type: "leaf",
+		Pane: &savedPane{ID: "p", WorkingDirectory: dir},
+	}
+	n.dropMissingWorktrees("/tmp/project")
+	if n.Pane.WorkingDirectory != "/tmp/project" {
+		t.Fatalf("working directory = %q", n.Pane.WorkingDirectory)
+	}
+}
+
+func TestOrphanWorktreeCleanup(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %v %+v", err, wt)
+	}
+	if !orphanWorktreeSafe(wt.Path) {
+		t.Fatal("a clean worktree with no commits ahead should be safe")
+	}
+	if err := removeOrphanWorktree(wt.Path); err != nil {
+		t.Fatalf("remove orphan: %v", err)
+	}
+	if _, err := os.Stat(wt.Path); !os.IsNotExist(err) {
+		t.Fatalf("worktree path still exists: %v", err)
+	}
+	if out := runGitTest(t, root, "branch", "--list", wt.Branch); out != "" {
+		t.Fatalf("branch %q was not deleted: %q", wt.Branch, out)
+	}
+}
+
+func TestRemoveWorktreeKeepingBranch(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %v %+v", err, wt)
+	}
+	runGitTest(t, wt.Path, "commit", "--allow-empty", "-m", "work")
+	if err := removeWorktreeKeeping(wt, true); err != nil {
+		t.Fatalf("remove worktree: %v", err)
+	}
+	if _, err := os.Stat(wt.Path); !os.IsNotExist(err) {
+		t.Fatalf("worktree path still exists: %v", err)
+	}
+	if out := runGitTest(t, root, "branch", "--list", wt.Branch); out == "" {
+		t.Fatal("the branch was deleted")
+	}
+	_ = exec.Command("git", "-C", root, "branch", "-D", wt.Branch).Run()
+}
+
 func TestReplacingPaneKeepsSlot(t *testing.T) {
 	n := &splitNode{
 		axis:   axisHorizontal,

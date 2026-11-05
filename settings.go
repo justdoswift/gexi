@@ -379,6 +379,13 @@ func (w *workspace) advancedPage(c *ui.Context, tk tokens) {
 			outlineButton(c, tk, locales.SettingsOpenFolder(), func() { openPath(supportDir()) })
 		})
 		cardDivider(c, tk)
+		w.settingActionView(c, tk,
+			locales.SettingsCleanupWorktrees(),
+			locales.SettingsCleanupWorktreesDetail(),
+			locales.SettingsCleanupWorktreesAction(),
+			func() { w.cleanupOrphanWorktrees(true) },
+		)
+		cardDivider(c, tk)
 		ui.Row(c).Padding(11, 16, 11, 16).Children(func() {
 			ui.Text(c, locales.SettingsVersion()).FontSize(13).TextColor(tk.Foreground)
 			ui.Spacer(c)
