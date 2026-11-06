@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"math/rand/v2"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -281,27 +283,6 @@ func (w *workspace) worktreeFailed(err error) {
 // ghBinary is gh's path. An app opened from Finder inherits launchd's short
 // PATH, which misses a gh installed beside the user's other tools, though the
 // panes' login shell finds it; the usual install folders are asked as well.
-// claudeBinary is the local Claude Code CLI, used for a commit message. An
-// app opened from Finder has launchd's short PATH, so the usual install
-// folders are asked as well.
-var claudeBinary = sync.OnceValue(func() string {
-	if path, err := exec.LookPath("claude"); err == nil {
-		return path
-	}
-	home, _ := os.UserHomeDir()
-	for _, path := range []string{
-		filepath.Join(home, ".local", "bin", "claude"),
-		filepath.Join(home, ".claude", "local", "claude"),
-		"/opt/homebrew/bin/claude",
-		"/usr/local/bin/claude",
-	} {
-		if info, err := os.Stat(path); err == nil && !info.IsDir() {
-			return path
-		}
-	}
-	return ""
-})
-
 var ghBinary = sync.OnceValue(func() string {
 	if path, err := exec.LookPath("gh"); err == nil {
 		return path
@@ -473,10 +454,10 @@ func applyPRStatus(wt *paneWorktree, info prInfo) {
 	wt.mergeState = info.MergeState
 }
 
-// createPR pushes the worktree branch and opens its pull request. When one is
-// already open, it returns that instead. The branch is read from git, since
-// the agent may have renamed it since the last turn ended.
-func createPR(wt *paneWorktree) (prInfo, string, error) {
+// createPR pushes the worktree branch and opens its pull request. When one
+// is already open, it returns that instead. message commits the pending
+// changes under it; an empty one there is an error.
+func createPR(wt *paneWorktree, message string) (prInfo, string, error) {
 	branch := currentBranch(wt.Path)
 	if branch == "" {
 		branch = wt.Branch
@@ -492,7 +473,13 @@ func createPR(wt *paneWorktree) (prInfo, string, error) {
 		return prInfo{}, branch, err
 	}
 	if !clean {
-		if err := commitWorktree(wt); err != nil {
+		if strings.TrimSpace(message) == "" {
+			return prInfo{}, branch, errors.New("a commit message is needed")
+		}
+		if _, err := worktreeGit(wt.Path, "add", "-A"); err != nil {
+			return prInfo{}, branch, err
+		}
+		if err := commitStaged(wt, message); err != nil {
 			return prInfo{}, branch, err
 		}
 	}
@@ -518,23 +505,6 @@ func createPR(wt *paneWorktree) (prInfo, string, error) {
 	return info, branch, err
 }
 
-// commitWorktree saves everything the working tree has, so opening a pull
-// request never leaves changes behind. Unresolved conflicts stop it: staging
-// those would commit the markers.
-func commitWorktree(wt *paneWorktree) error {
-	if out, err := worktreeGit(wt.Path, "diff", "--name-only", "--diff-filter=U"); err == nil && strings.TrimSpace(out) != "" {
-		return errors.New("resolve the merge conflicts first")
-	}
-	if _, err := worktreeGit(wt.Path, "add", "-A"); err != nil {
-		return err
-	}
-	msg := aiCommitMessage(wt)
-	if msg == "" {
-		msg = "Update from Gexi"
-	}
-	return commitStaged(wt, msg)
-}
-
 func commitStaged(wt *paneWorktree, msg string) error {
 	if _, err := worktreeGit(wt.Path, "commit", "-m", msg); err != nil {
 		if clean, _ := worktreeIsClean(wt); clean {
@@ -545,47 +515,12 @@ func commitStaged(wt *paneWorktree, msg string) error {
 	return nil
 }
 
-// aiCommitMessage asks the local claude for a one-line message from the
-// staged diff. If claude is missing, slow, rate limited, or unhappy, it gives
-// up and the caller uses the plain fallback.
-func aiCommitMessage(wt *paneWorktree) string {
-	diff, err := worktreeGit(wt.Path, "diff", "--cached", "--no-color", "--unified=1")
-	if err != nil || strings.TrimSpace(diff) == "" {
-		return ""
-	}
-	if len(diff) > 12000 {
-		diff = diff[:12000] + "\n… (truncated)"
-	}
-	bin := claudeBinary()
-	if bin == "" {
-		return ""
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-	defer cancel()
-	prompt := "Write one git commit message for the staged diff below. " +
+// commitPrompt asks for one line, the shape DeepSeek and the manual prompt
+// both use.
+func commitPrompt(diff string) string {
+	return "Write one git commit message for the staged diff below. " +
 		"Use the imperative mood, keep it under 72 characters, write it in English, " +
 		"and output only the message, with no quotes or markdown.\n\n" + diff
-	cmd := exec.CommandContext(ctx, bin, "-p", prompt)
-	cmd.Dir = wt.Path
-	cmd.Env = helperEnv()
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	return cleanCommitMessage(string(out))
-}
-
-// helperEnv keeps the helper from looking like a Gexi pane or a nested Claude
-// Code session.
-func helperEnv() []string {
-	var env []string
-	for _, kv := range cleanEnvironment(os.Environ()) {
-		if strings.HasPrefix(kv, "GEXI_") {
-			continue
-		}
-		env = append(env, kv)
-	}
-	return append(env, "GEXI_PANE=")
 }
 
 func cleanCommitMessage(s string) string {
@@ -605,6 +540,79 @@ func cleanCommitMessage(s string) string {
 		s = strings.TrimSpace(string(r[:100]))
 	}
 	return s
+}
+
+// deepseekCommitMessage asks DeepSeek for a one-line message. The base URL
+// and model can be overridden for other OpenAI-compatible providers.
+func deepseekCommitMessage(key, prompt string) (string, error) {
+	base := strings.TrimSpace(os.Getenv("DEEPSEEK_BASE_URL"))
+	if base == "" {
+		base = "https://api.deepseek.com"
+	}
+	base = strings.TrimRight(base, "/")
+	if !strings.HasSuffix(base, "/chat/completions") {
+		base += "/chat/completions"
+	}
+	model := strings.TrimSpace(os.Getenv("DEEPSEEK_MODEL"))
+	if model == "" {
+		model = "deepseek-chat"
+	}
+	body, err := json.Marshal(map[string]any{
+		"model": model,
+		"messages": []map[string]string{
+			{"role": "system", "content": "You write terse git commit messages."},
+			{"role": "user", "content": prompt},
+		},
+		"temperature": 0.2,
+		"max_tokens":  60,
+		"stream":      false,
+	})
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		msg := strings.TrimSpace(string(data))
+		if len(msg) > 200 {
+			msg = msg[:200]
+		}
+		if msg == "" {
+			msg = resp.Status
+		}
+		return "", fmt.Errorf("DeepSeek: %s", msg)
+	}
+	var out struct {
+		Choices []struct {
+			Message struct{ Content string }
+		}
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return "", err
+	}
+	if len(out.Choices) == 0 {
+		return "", errors.New("DeepSeek returned no choices")
+	}
+	msg := cleanCommitMessage(out.Choices[0].Message.Content)
+	if msg == "" {
+		return "", errors.New("DeepSeek returned an empty message")
+	}
+	return msg, nil
 }
 
 func mergePR(wt *paneWorktree) error {
@@ -688,22 +696,133 @@ func (w *workspace) createPullRequest(p *pane) {
 	wt.busy = worktreeBusyPR
 	w.invalidate()
 	snapshot := *wt
+	key := w.deepseekKey()
 	go func() {
-		info, branch, err := createPR(&snapshot)
-		w.onMain(func() {
-			wt.busy = ""
-			if err != nil {
-				w.worktreeFailed(err)
+		msg, hint := "", ""
+		clean, err := worktreeIsClean(&snapshot)
+		if err != nil {
+			w.onMain(func() { w.finishPullRequest(wt, p, prInfo{}, "", err) })
+			return
+		}
+		if !clean {
+			if key == "" {
+				hint = locales.CommitMessageNoKey()
 			} else {
-				applyPRStatus(wt, info)
-				wt.Branch = branch
-				w.flash(locales.WorktreePROpened())
-				w.schedulePRRefresh(p)
+				// Stage first, so the diff includes untracked files.
+				if _, err := worktreeGit(snapshot.Path, "add", "-A"); err != nil {
+					w.onMain(func() { w.finishPullRequest(wt, p, prInfo{}, "", err) })
+					return
+				}
+				diff, _ := worktreeGit(snapshot.Path, "diff", "--cached", "--no-color", "--unified=1")
+				if len(diff) > 12000 {
+					diff = diff[:12000] + "\n… (truncated)"
+				}
+				msg, err = deepseekCommitMessage(key, commitPrompt(diff))
+				if err != nil {
+					hint = locales.CommitMessageDeepSeekFailed(err.Error())
+					msg = ""
+				}
 			}
-			w.invalidate()
-			w.scheduleSave()
-		})
+			if msg == "" {
+				w.onMain(func() {
+					wt.busy = ""
+					w.commitTarget = p
+					w.commitText = "Update from Gexi"
+					w.commitHint = hint
+					w.commitErr = ""
+					w.commitOpen = true
+					w.invalidate()
+				})
+				return
+			}
+		}
+		info, branch, err := createPR(&snapshot, msg)
+		w.onMain(func() { w.finishPullRequest(wt, p, info, branch, err) })
 	}()
+}
+
+func (w *workspace) createPullRequestWithMessage(p *pane, message string) {
+	wt := p.Worktree
+	if wt == nil || wt.busy != "" || wt.PR != 0 || wt.State == worktreeMerged || w.paneByID(p.ID) != p {
+		return
+	}
+	wt.busy = worktreeBusyPR
+	w.invalidate()
+	snapshot := *wt
+	go func() {
+		info, branch, err := createPR(&snapshot, message)
+		w.onMain(func() { w.finishPullRequest(wt, p, info, branch, err) })
+	}()
+}
+
+func (w *workspace) finishPullRequest(wt *paneWorktree, p *pane, info prInfo, branch string, err error) {
+	wt.busy = ""
+	if err != nil {
+		w.worktreeFailed(err)
+	} else {
+		applyPRStatus(wt, info)
+		wt.Branch = branch
+		w.flash(locales.WorktreePROpened())
+		w.schedulePRRefresh(p)
+	}
+	w.invalidate()
+	w.scheduleSave()
+}
+
+func (w *workspace) deepseekKey() string {
+	if k := strings.TrimSpace(w.settings.DeepSeekKey); k != "" {
+		return k
+	}
+	return strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY"))
+}
+
+func (w *workspace) submitCommitMessage() {
+	p := w.commitTarget
+	message := strings.TrimSpace(w.commitText)
+	if p == nil || w.paneByID(p.ID) != p {
+		w.cancelCommitMessage()
+		return
+	}
+	if message == "" {
+		w.commitErr = locales.CommitMessageEmpty()
+		w.invalidate()
+		return
+	}
+	w.commitOpen = false
+	w.commitTarget = nil
+	w.commitText = ""
+	w.commitHint = ""
+	w.commitErr = ""
+	w.invalidate()
+	w.createPullRequestWithMessage(p, message)
+}
+
+func (w *workspace) cancelCommitMessage() {
+	w.commitOpen = false
+	w.commitTarget = nil
+	w.commitText = ""
+	w.commitHint = ""
+	w.commitErr = ""
+	w.invalidate()
+}
+
+func (w *workspace) commitDialog(c *ui.Context, tk tokens) {
+	ui.Column(c).Width(440).Padding(20).Gap(8).Children(func() {
+		ui.Text(c, locales.CommitMessageTitle()).FontSize(14).FontWeight(600).TextColor(tk.Foreground)
+		if w.commitHint != "" {
+			ui.Text(c, w.commitHint).FontSize(11).TextColor(tk.MutedForeground)
+		}
+		ui.TextInput(c, &w.commitText).Placeholder(locales.CommitMessagePlaceholder()).
+			Height(28).FontSize(12)
+		if w.commitErr != "" {
+			ui.Text(c, w.commitErr).FontSize(11).TextColor(tk.Waiting)
+		}
+		ui.Row(c).Gap(8).Padding(8, 0, 0, 0).Children(func() {
+			ui.Spacer(c)
+			ui.Button(c, locales.Cancel()).OnClick(func() { w.cancelCommitMessage() })
+			ui.Button(c, locales.CommitMessageConfirm()).OnClick(func() { w.submitCommitMessage() })
+		})
+	})
 }
 
 // mergePullRequest merges the PR on GitHub and fast-forwards the local base

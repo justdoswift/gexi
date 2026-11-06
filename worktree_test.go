@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -408,17 +411,46 @@ func TestCleanCommitMessage(t *testing.T) {
 	}
 }
 
-func TestAIMessageEmptyDiff(t *testing.T) {
-	t.Setenv("GEXI_HOME", t.TempDir())
-	root := initRepoTest(t)
-	wt, err := createWorktree(root)
-	if err != nil || wt == nil {
-		t.Fatalf("create worktree: %v %+v", err, wt)
+func TestDeepSeekCommitMessage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/chat/completions" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer test-key" {
+			t.Errorf("authorization = %q", got)
+		}
+		var body struct {
+			Model    string
+			Messages []struct{ Role, Content string }
+			Stream   bool
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Model != "deepseek-chat" {
+			t.Errorf("model = %q", body.Model)
+		}
+		if body.Stream {
+			t.Error("stream should be false")
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{{"message": map[string]string{"content": "Add login handlers\n"}}},
+		})
+	}))
+	defer srv.Close()
+	t.Setenv("DEEPSEEK_BASE_URL", srv.URL)
+	t.Setenv("DEEPSEEK_MODEL", "")
+	got, err := deepseekCommitMessage("test-key", "prompt")
+	if err != nil || got != "Add login handlers" {
+		t.Fatalf("message = %q, err = %v", got, err)
 	}
-	t.Cleanup(func() {
-		_ = exec.Command("git", "-C", root, "worktree", "remove", "--force", wt.Path).Run()
-	})
-	if got := aiCommitMessage(wt); got != "" {
-		t.Fatalf("empty diff produced %q", got)
+}
+
+func TestDeepSeekCommitMessageError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "invalid key", http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+	t.Setenv("DEEPSEEK_BASE_URL", srv.URL)
+	if _, err := deepseekCommitMessage("bad", "prompt"); err == nil {
+		t.Fatal("expected an error")
 	}
 }

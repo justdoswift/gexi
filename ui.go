@@ -68,6 +68,7 @@ func (w *workspace) view(c *ui.Context) {
 	})
 	ui.Modal(c, &w.relayOpen, func() { w.relayDialog(c, tk) })
 	ui.Modal(c, &w.importOpen, func() { w.importDialog(c, tk) })
+	ui.Modal(c, &w.commitOpen, func() { w.commitDialog(c, tk) })
 	if w.leaveTarget != nil {
 		switch ui.AlertDialog(c, &w.leaveOpen, locales.WorktreeLeaveTitle(), w.leaveMsg,
 			locales.WorktreeLeaveConfirm(), locales.Cancel()) {
