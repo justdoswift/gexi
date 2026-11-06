@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gexi — one window, many agents</title>
-<meta name="description" content="Gexi is a native macOS terminal workspace: projects and sessions in one window, terminals in nested panes, and a CLI that can drive every one of them.">
+<title>gexi — one window, many agents</title>
+<meta name="description" content="gexi is a native macOS terminal workspace: projects and sessions in one window, terminals in nested panes, and a CLI that can drive every one of them.">
 <link rel="canonical" href="https://justdoswift.github.io/gexi/">
 <link rel="alternate" hreflang="en" href="https://justdoswift.github.io/gexi/">
 <link rel="alternate" hreflang="zh-Hans" href="https://justdoswift.github.io/gexi/zh/">
 <link rel="alternate" hreflang="x-default" href="https://justdoswift.github.io/gexi/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Gexi — one window, many agents">
+<meta property="og:title" content="gexi — one window, many agents">
 <meta property="og:description" content="A native macOS terminal workspace. Split panes, grouped sessions, agent events, and a CLI that drives the whole window.">
 <meta property="og:url" content="https://justdoswift.github.io/gexi/">
 <meta property="og:image" content="https://justdoswift.github.io/gexi/assets/og.png">
@@ -24,7 +24,7 @@
 <link rel="stylesheet" href="assets/site.css">
 <script>document.documentElement.classList.add('js');</script>
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Gexi","operatingSystem":"macOS 13 or later","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","url":"https://justdoswift.github.io/gexi/","downloadUrl":"https://github.com/justdoswift/gexi/releases/latest"}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"gexi","operatingSystem":"macOS 13 or later","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","url":"https://justdoswift.github.io/gexi/","downloadUrl":"https://github.com/justdoswift/gexi/releases/latest"}
 </script>
 </head>
 <body>
@@ -32,7 +32,7 @@
 
 <header class="nav">
   <div class="wrap nav-inner">
-    <a class="brand" href="index.html"><img src="assets/gexi-icon-32.png" width="28" height="28" alt=""><span>Gexi</span></a>
+    <a class="brand" href="index.html"><img src="assets/gexi-icon-32.png" width="28" height="28" alt=""><span>gexi</span></a>
     <nav class="nav-links" aria-label="Primary">
       <a href="#canvas">Canvas</a>
       <a href="#sidebar">Sidebar</a>
@@ -52,7 +52,7 @@
     <div class="hero-top">
       <h1 id="title"><span class="line"><span>One window.</span></span><span class="line"><span>Many agents.</span></span></h1>
       <div class="hero-aside">
-        <p class="hero-sub">Gexi is a native macOS terminal workspace. Keep each project’s sessions in one window, split the canvas into panes, and let a CLI drive any pane from the outside.</p>
+        <p class="hero-sub">gexi is a native macOS terminal workspace. Keep each project’s sessions in one window, split the canvas into panes, and let a CLI drive any pane from the outside.</p>
         <div class="hero-cta">
           <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">Download for macOS<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
           <a class="link-arrow" href="https://github.com/justdoswift/gexi">View source on GitHub<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
@@ -63,7 +63,7 @@
 
     <div class="stage">
       <p class="stage-hint">The window below is live: split or close a pane with the buttons in its header.</p>
-      <div class="app hero-window" data-ui aria-label="A Gexi window with three panes">
+      <div class="app hero-window" data-ui aria-label="A gexi window with three panes">
         <div class="app-side">
           <div class="side-chrome">
             <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -239,7 +239,7 @@ no changes added to commit
       </div>
       <div data-reveal style="--d:90ms">
         <div class="panel">
-          <div class="side-card" data-ui aria-label="The Gexi sidebar">
+          <div class="side-card" data-ui aria-label="The gexi sidebar">
             <div class="app-side">
               <div class="side-chrome">
                 <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -282,7 +282,7 @@ no changes added to commit
         <div data-reveal>
           <h2>Drive it from outside.</h2>
           <p class="lead">The window and the CLI speak the same JSON-lines protocol over a Unix socket. Any process in a pane, including the agent running there, can create projects, split panes, type, and read the screen back.</p>
-          <p class="cli-note">Pane arguments take a full id or any unique prefix, and default to <code>$GEXI_PANE</code> or the focused pane. The socket lives at <code>~/Library/Application Support/Gexi/control.sock</code>.</p>
+          <p class="cli-note">Pane arguments take a full id or any unique prefix, and default to <code>$GEXI_PANE</code> or the focused pane. The socket lives at <code>~/Library/Application Support/gexi/control.sock</code>.</p>
         </div>
         <div class="cli-steps" data-reveal style="--d:90ms">
           <div class="cli-step">
@@ -311,11 +311,11 @@ gexi send -e "ls -la"</code></div>
     <div class="split">
       <div class="split-copy" data-reveal>
         <h2>An agent that reports for itself.</h2>
-        <p class="lead">A pane’s screen says what an agent printed, not what it is doing. When Gexi launches Claude Code it layers a settings file of hooks on top of yours, so the pane reports its own lifecycle.</p>
+        <p class="lead">A pane’s screen says what an agent printed, not what it is doing. When gexi launches Claude Code it layers a settings file of hooks on top of yours, so the pane reports its own lifecycle.</p>
         <p class="body"><code>turn.end</code> and <code>needs-input</code> post a notification; the state appears under <code>activity</code> in <code>gexi list --json</code>. Any process can report the same events with <code>gexi event</code>.</p>
         <ul class="feature-points">
           <li>Existing hooks keep firing: the generated file is layered on top of your own.</li>
-          <li>Events cover agents Gexi launched, or that a hook points at. A <code>claude</code> typed into a plain shell stays unset.</li>
+          <li>Events cover agents gexi launched, or that a hook points at. A <code>claude</code> typed into a plain shell stays unset.</li>
         </ul>
       </div>
       <div data-reveal style="--d:90ms">
@@ -323,7 +323,7 @@ gexi send -e "ls -la"</code></div>
           <div class="notif" data-ui aria-label="A notification from a pane">
             <img src="assets/gexi-icon-60.png" width="32" height="32" alt="">
             <div>
-              <div class="notif-title">Gexi</div>
+              <div class="notif-title">gexi</div>
               <div class="notif-body">claude in aurora needs your input</div>
             </div>
             <span class="notif-time">now</span>
@@ -420,9 +420,9 @@ gexi send -e "ls -la"</code></div>
   <section class="section wrap" id="install">
     <div class="install-grid">
       <div data-reveal>
-        <img class="install-icon" src="assets/gexi-icon-256.png" width="72" height="72" alt="Gexi app icon">
-        <h2>Install Gexi.</h2>
-        <p class="lead">Early software, version 0.0.15. Free and MIT licensed. Every copy updates itself from signed releases; <em>Gexi → Check for Updates…</em> checks on demand.</p>
+        <img class="install-icon" src="assets/gexi-icon-256.png" width="72" height="72" alt="gexi app icon">
+        <h2>Install gexi.</h2>
+        <p class="lead">Early software, version 0.0.15. Free and MIT licensed. Every copy updates itself from signed releases; <em>gexi → Check for Updates…</em> checks on demand.</p>
         <div class="install-actions">
           <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">Download for macOS<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
           <a class="link-arrow" href="https://github.com/justdoswift/gexi/releases">All releases<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
@@ -475,11 +475,11 @@ go build -o gexi ./cmd/gexi</code></div>
           </details>
           <details class="qa" name="faq">
             <summary>Does a remote agent report activity?<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">Not yet. Gexi sees the ssh process, not the agent on the far side, so a remote <code>claude</code> does not report working or waiting. Everything else about a remote pane works as it does locally.</div>
+            <div class="answer">Not yet. gexi sees the ssh process, not the agent on the far side, so a remote <code>claude</code> does not report working or waiting. Everything else about a remote pane works as it does locally.</div>
           </details>
           <details class="qa" name="faq">
             <summary>Is it really free?<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">Yes. Gexi is MIT licensed, and the source is on <a href="https://github.com/justdoswift/gexi">GitHub</a>. There is no account, no telemetry, and no paid tier.</div>
+            <div class="answer">Yes. gexi is MIT licensed, and the source is on <a href="https://github.com/justdoswift/gexi">GitHub</a>. There is no account, no telemetry, and no paid tier.</div>
           </details>
         </div>
       </div>
@@ -491,7 +491,7 @@ go build -o gexi ./cmd/gexi</code></div>
 <footer class="footer">
   <div class="wrap">
     <div class="footer-top">
-      <p class="footer-note"><strong>Gexi</strong> is a native macOS workspace built with Go, <a href="https://mygo.egoist.dev">mygo</a>, and Ghostty’s terminal. It is early, and it is honest about that.</p>
+      <p class="footer-note"><strong>gexi</strong> is a native macOS workspace built with Go, <a href="https://mygo.egoist.dev">mygo</a>, and Ghostty’s terminal. It is early, and it is honest about that.</p>
       <nav class="footer-nav" aria-label="Footer">
         <a href="https://github.com/justdoswift/gexi">GitHub</a>
         <a href="https://github.com/justdoswift/gexi/releases">Releases</a>
@@ -502,8 +502,8 @@ go build -o gexi ./cmd/gexi</code></div>
       </nav>
     </div>
     <div class="footer-mark">
-      <span class="word" aria-hidden="true">Gexi</span>
-      <a class="footer-get" href="https://github.com/justdoswift/gexi/releases/latest">Get Gexi<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 18 18 6M9 6h9v9"/></svg></a>
+      <span class="word" aria-hidden="true">gexi</span>
+      <a class="footer-get" href="https://github.com/justdoswift/gexi/releases/latest">Get gexi<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 18 18 6M9 6h9v9"/></svg></a>
     </div>
     <div class="footer-bottom">
       <span>© 2026 Peng Ge. MIT licensed.</span>

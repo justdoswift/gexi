@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gexi — 一个窗口，多个智能体</title>
-<meta name="description" content="Gexi 是原生 macOS 终端工作区：把项目与会话收在一个窗口里，终端任意嵌套分屏，CLI 可以从外部驱动每一个窗格。">
+<title>gexi — 一个窗口，多个智能体</title>
+<meta name="description" content="gexi 是原生 macOS 终端工作区：把项目与会话收在一个窗口里，终端任意嵌套分屏，CLI 可以从外部驱动每一个窗格。">
 <link rel="canonical" href="https://justdoswift.github.io/gexi/zh/">
 <link rel="alternate" hreflang="en" href="https://justdoswift.github.io/gexi/">
 <link rel="alternate" hreflang="zh-Hans" href="https://justdoswift.github.io/gexi/zh/">
 <link rel="alternate" hreflang="x-default" href="https://justdoswift.github.io/gexi/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Gexi — 一个窗口，多个智能体">
+<meta property="og:title" content="gexi — 一个窗口，多个智能体">
 <meta property="og:description" content="原生 macOS 终端工作区。分屏、按项目分组的会话、agent 事件，以及一个能驱动整个窗口的 CLI。">
 <meta property="og:url" content="https://justdoswift.github.io/gexi/zh/">
 <meta property="og:image" content="https://justdoswift.github.io/gexi/assets/og.png">
@@ -24,7 +24,7 @@
 <link rel="stylesheet" href="../assets/site.css">
 <script>document.documentElement.classList.add('js');</script>
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Gexi","operatingSystem":"macOS 13 or later","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","url":"https://justdoswift.github.io/gexi/zh/","downloadUrl":"https://github.com/justdoswift/gexi/releases/latest"}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"gexi","operatingSystem":"macOS 13 or later","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","url":"https://justdoswift.github.io/gexi/zh/","downloadUrl":"https://github.com/justdoswift/gexi/releases/latest"}
 </script>
 </head>
 <body>
@@ -32,7 +32,7 @@
 
 <header class="nav">
   <div class="wrap nav-inner">
-    <a class="brand" href="../index.html"><img src="../assets/gexi-icon-32.png" width="28" height="28" alt=""><span>Gexi</span></a>
+    <a class="brand" href="../index.html"><img src="../assets/gexi-icon-32.png" width="28" height="28" alt=""><span>gexi</span></a>
     <nav class="nav-links" aria-label="主导航">
       <a href="#canvas">画布</a>
       <a href="#sidebar">侧栏</a>
@@ -52,7 +52,7 @@
     <div class="hero-top">
       <h1 id="title"><span class="line"><span>一个窗口。</span></span><span class="line"><span>多个智能体。</span></span></h1>
       <div class="hero-aside">
-        <p class="hero-sub">Gexi 是原生 macOS 终端工作区。把每个项目的会话收在一个窗口里，把画布切成窗格，再用 CLI 从外部驱动任何一个窗格。</p>
+        <p class="hero-sub">gexi 是原生 macOS 终端工作区。把每个项目的会话收在一个窗口里，把画布切成窗格，再用 CLI 从外部驱动任何一个窗格。</p>
         <div class="hero-cta">
           <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">下载 macOS 版<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
           <a class="link-arrow" href="https://github.com/justdoswift/gexi">在 GitHub 上看源码<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
@@ -63,7 +63,7 @@
 
     <div class="stage">
       <p class="stage-hint">下面这个窗口是活的：用窗格标题栏里的按钮分屏或关闭。</p>
-      <div class="app hero-window" data-ui aria-label="一个 Gexi 窗口，里面有三个窗格">
+      <div class="app hero-window" data-ui aria-label="一个 gexi 窗口，里面有三个窗格">
         <div class="app-side">
           <div class="side-chrome">
             <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -239,7 +239,7 @@ no changes added to commit
       </div>
       <div data-reveal style="--d:90ms">
         <div class="panel">
-          <div class="side-card" data-ui aria-label="Gexi 的侧栏">
+          <div class="side-card" data-ui aria-label="gexi 的侧栏">
             <div class="app-side">
               <div class="side-chrome">
                 <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -282,7 +282,7 @@ no changes added to commit
         <div data-reveal>
           <h2>从外面驱动它。</h2>
           <p class="lead">窗口和 CLI 通过 Unix socket 说同一套 JSON-lines 协议。窗格里的任何进程（包括正在那里跑的 agent）都能建项目、分窗格、输入文字、把屏幕读回来。</p>
-          <p class="cli-note">窗格参数接受完整 id 或任意唯一前缀，默认取 <code>$GEXI_PANE</code> 或当前窗格。socket 在 <code>~/Library/Application Support/Gexi/control.sock</code>。</p>
+          <p class="cli-note">窗格参数接受完整 id 或任意唯一前缀，默认取 <code>$GEXI_PANE</code> 或当前窗格。socket 在 <code>~/Library/Application Support/gexi/control.sock</code>。</p>
         </div>
         <div class="cli-steps" data-reveal style="--d:90ms">
           <div class="cli-step">
@@ -311,11 +311,11 @@ gexi send -e "ls -la"</code></div>
     <div class="split">
       <div class="split-copy" data-reveal>
         <h2>会自己汇报的 agent。</h2>
-        <p class="lead">窗格屏幕只说明 agent 打印了什么，不说明它在做什么。Gexi 启动 Claude Code 时，会在你自己的设置之上叠一份 hooks 文件，让窗格汇报自己的生命周期。</p>
+        <p class="lead">窗格屏幕只说明 agent 打印了什么，不说明它在做什么。gexi 启动 Claude Code 时，会在你自己的设置之上叠一份 hooks 文件，让窗格汇报自己的生命周期。</p>
         <p class="body"><code>turn.end</code> 和 <code>needs-input</code> 会发通知；状态出现在 <code>gexi list --json</code> 的 <code>activity</code> 字段。任何进程都能用 <code>gexi event</code> 汇报同样的事件。</p>
         <ul class="feature-points">
           <li>你原有的 hooks 照常触发：生成的文件只是叠在上面。</li>
-          <li>只覆盖 Gexi 启动的 agent，或 hooks 指向的进程。在普通 shell 里手敲的 <code>claude</code>，状态保持未设置。</li>
+          <li>只覆盖 gexi 启动的 agent，或 hooks 指向的进程。在普通 shell 里手敲的 <code>claude</code>，状态保持未设置。</li>
         </ul>
       </div>
       <div data-reveal style="--d:90ms">
@@ -323,7 +323,7 @@ gexi send -e "ls -la"</code></div>
           <div class="notif" data-ui aria-label="来自窗格的一条通知">
             <img src="../assets/gexi-icon-60.png" width="32" height="32" alt="">
             <div>
-              <div class="notif-title">Gexi</div>
+              <div class="notif-title">gexi</div>
               <div class="notif-body">aurora 里的 claude 需要你输入</div>
             </div>
             <span class="notif-time">刚刚</span>
@@ -420,9 +420,9 @@ gexi send -e "ls -la"</code></div>
   <section class="section wrap" id="install">
     <div class="install-grid">
       <div data-reveal>
-        <img class="install-icon" src="../assets/gexi-icon-256.png" width="72" height="72" alt="Gexi 应用图标">
-        <h2>安装 Gexi。</h2>
-        <p class="lead">早期软件，版本 0.0.15。免费，MIT 许可。每个副本都从签名发布自动更新；<em>Gexi → 检查更新…</em> 也可以随时手动检查。</p>
+        <img class="install-icon" src="../assets/gexi-icon-256.png" width="72" height="72" alt="gexi 应用图标">
+        <h2>安装 gexi。</h2>
+        <p class="lead">早期软件，版本 0.0.15。免费，MIT 许可。每个副本都从签名发布自动更新；<em>gexi → 检查更新…</em> 也可以随时手动检查。</p>
         <div class="install-actions">
           <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">下载 macOS 版<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
           <a class="link-arrow" href="https://github.com/justdoswift/gexi/releases">全部发布<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
@@ -475,11 +475,11 @@ go build -o gexi ./cmd/gexi</code></div>
           </details>
           <details class="qa" name="faq">
             <summary>远程 agent 会汇报状态吗？<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">还不会。Gexi 看到的是 ssh 进程，不是远端的 agent，所以远程 <code>claude</code> 不会汇报工作或等待。远程窗格的其他部分和本地一样。</div>
+            <div class="answer">还不会。gexi 看到的是 ssh 进程，不是远端的 agent，所以远程 <code>claude</code> 不会汇报工作或等待。远程窗格的其他部分和本地一样。</div>
           </details>
           <details class="qa" name="faq">
             <summary>真的免费吗？<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">是的。Gexi 是 MIT 许可，源码在 <a href="https://github.com/justdoswift/gexi">GitHub</a>。没有账号、没有遥测、没有付费版。</div>
+            <div class="answer">是的。gexi 是 MIT 许可，源码在 <a href="https://github.com/justdoswift/gexi">GitHub</a>。没有账号、没有遥测、没有付费版。</div>
           </details>
         </div>
       </div>
@@ -491,7 +491,7 @@ go build -o gexi ./cmd/gexi</code></div>
 <footer class="footer">
   <div class="wrap">
     <div class="footer-top">
-      <p class="footer-note"><strong>Gexi</strong> 是用 Go、<a href="https://mygo.egoist.dev">mygo</a> 和 Ghostty 终端做的原生 macOS 工作区。它还很早期，并且对此很诚实。</p>
+      <p class="footer-note"><strong>gexi</strong> 是用 Go、<a href="https://mygo.egoist.dev">mygo</a> 和 Ghostty 终端做的原生 macOS 工作区。它还很早期，并且对此很诚实。</p>
       <nav class="footer-nav" aria-label="页脚">
         <a href="https://github.com/justdoswift/gexi">GitHub</a>
         <a href="https://github.com/justdoswift/gexi/releases">发布</a>
@@ -502,8 +502,8 @@ go build -o gexi ./cmd/gexi</code></div>
       </nav>
     </div>
     <div class="footer-mark">
-      <span class="word" aria-hidden="true">Gexi</span>
-      <a class="footer-get" href="https://github.com/justdoswift/gexi/releases/latest">下载 Gexi<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 18 18 6M9 6h9v9"/></svg></a>
+      <span class="word" aria-hidden="true">gexi</span>
+      <a class="footer-get" href="https://github.com/justdoswift/gexi/releases/latest">下载 gexi<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 18 18 6M9 6h9v9"/></svg></a>
     </div>
     <div class="footer-bottom">
       <span>© 2026 Peng Ge。MIT 许可。</span>
