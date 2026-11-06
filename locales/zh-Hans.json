@@ -68,7 +68,7 @@
   "worktreeError": "Git：{error}",
   "settingsAI": "AI",
   "settingsDeepSeekKey": "DeepSeek API 密钥",
-  "settingsDeepSeekKeyDetail": "用于生成 PR 的提交说明。保存在应用配置文件中，也可以使用 DEEPSEEK_API_KEY。",
+  "settingsDeepSeekKeyDetail": "自动生成 PR 的提交说明。",
   "settingsSave": "保存",
   "settingsSaved": "已保存",
   "commitMessageTitle": "提交说明",

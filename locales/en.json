@@ -68,7 +68,7 @@
   "worktreeError": "Git: {error}",
   "settingsAI": "AI",
   "settingsDeepSeekKey": "DeepSeek API key",
-  "settingsDeepSeekKeyDetail": "Writes commit messages for pull requests. Stored in the app's config file; DEEPSEEK_API_KEY also works.",
+  "settingsDeepSeekKeyDetail": "Writes commit messages for pull requests.",
   "settingsSave": "Save",
   "settingsSaved": "Saved",
   "commitMessageTitle": "Commit message",
