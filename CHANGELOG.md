@@ -1,15 +1,24 @@
 # Changelog
 
-## Unreleased
+## 0.0.16
 
 - Pressing PR commits any uncommitted changes in the worktree first, with a
   message DeepSeek writes from the diff when a key is set in Settings →
   Advanced. Without a key, or when DeepSeek fails, a dialog asks for the
   message. Unresolved merge conflicts still stop it rather than committing
   the markers.
-- Merge no longer asks for confirmation: a green button merges on the press,
-  since the status is re-read at that moment and a blocker that appeared
-  since the last look is still said rather than merged.
+- Leaving a worktree moves into the worktree chip's pull-down menu: the label
+  keeps its action, and the chevron opens Leave.
+- Settings → Archived restores an archived worktree's branch and session, or
+  deletes it for good.
+- Merge merges on the press when GitHub would merge; the colour already says
+  so, and a blocker that appeared since the last look is flashed instead.
+- The sidebar stays at full strength when focus dims the other panes.
+- A branch with changes Git counts no lines for takes the amber colour on its
+  name rather than a separate dot.
+- The app is `gexi` everywhere, with `gexi.app` as the bundle; the Application
+  Support folder keeps its `Gexi` spelling, so existing data stays.
+- The official site is at https://justdoswift.github.io/gexi/.
 
 ## 0.0.15
 
