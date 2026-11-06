@@ -100,10 +100,21 @@ type pane struct {
 	// outlives its turn, which is what keeps the session visibly busy after
 	// the prompt has returned.
 	subagents map[string]paneSubagent
-	// stagePeek is the tail of the screen the pane last showed, which its
-	// card in the stage rail draws while the pane is off stage. The terminal
-	// is read at the moments the rail looks, not for every frame.
-	stagePeek []string
+	// stageMirror is the live preview a stage rail card shows while this
+	// pane is off stage: a sink terminal fed by a Mirror of this pane's.
+	stageMirror *stageMirror
+	// viewW and viewH are the terminal view's last layout size, which the
+	// mirror is laid out at before it is scaled into its card.
+	viewW, viewH float32
+	// stageEnter asks the next frame to bring this pane onto the stage with
+	// a grow and fade, as a card comes forward.
+	stageEnter bool
+	// stageCardShown is false until a rail card has drawn once, so a card
+	// that has just joined the rail animates in.
+	stageCardShown bool
+	// stageCardShrink asks the card that has just left the stage to start
+	// large and shrink into the rail.
+	stageCardShrink bool
 	// Worktree is the checkout this pane was moved into by its W button, or
 	// one its folder was found in. worktreeBusy is the operation it waits
 	// on: "create".
@@ -388,6 +399,9 @@ func (p *pane) send(text string) { p.term.Send([]byte(text)) }
 func (p *pane) text() string { return p.term.Text() }
 
 func (p *pane) close() {
+	if p.ws != nil {
+		p.ws.stopStageMirror(p)
+	}
 	if p.cmd != nil && p.cmd.Process != nil {
 		_ = p.cmd.Process.Signal(syscall.SIGHUP)
 	}

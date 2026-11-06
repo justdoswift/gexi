@@ -112,41 +112,23 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 			pose = ui.Pose{Scale: 0.93}
 			c.After(time.Millisecond)
 		}
-		// inRow gives the stage what the rail leaves in a row; alone it fills
-		// the canvas on both axes, as it always has.
-		stageCol := func(inRow bool) {
-			var stage ui.Element
-			if inRow {
-				stage = ui.Column(c).Grow(1).FillHeight()
-			} else {
-				stage = ui.Column(c).Fill()
+		stage := ui.Column(c).Fill()
+		stage = stage.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
+		stage.Children(func() {
+			if p := w.zoomedIn(tb); p != nil {
+				w.paneView(c, tk, p, true)
+				return
 			}
-			stage = stage.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
-			stage.Children(func() {
-				if p := w.zoomedIn(tb); p != nil {
-					w.paneView(c, tk, p, true)
-					return
-				}
-				w.splitView(c, tk, tb.Root, true)
-			})
+			w.splitView(c, tk, tb.Root, true)
+		})
+		// The panes the zoom hides float over the stage's right edge, each
+		// showing a live mirror of its terminal. They take no layout: the
+		// stage keeps its size and the cards draw over its last columns.
+		b := stage.LayoutBounds()
+		w.stageW = b.W
+		if w.zoomedIn(tb) != nil && w.stageRailVisible(tb) {
+			w.stageOverlay(c, tk, tb, b.H)
 		}
-		// A zoomed pane gets a row of its own: the stage, and the rail the
-		// panes it hides wait in. The rail is left out when the stage would be
-		// too narrow to work in; the row stays either way.
-		if p := w.zoomedIn(tb); p != nil {
-			row := ui.Row(c).Fill()
-			width := row.Bounds().W
-			rail := w.stageRailVisible(tb) &&
-				(width == 0 || width >= stageRailWidth+stageRailMinStage)
-			row.Children(func() {
-				stageCol(true)
-				if rail {
-					w.stageRail(c, tk, tb)
-				}
-			})
-			return
-		}
-		stageCol(false)
 		return
 	}
 	// The empty workspace is a session's card with nothing in it: no
@@ -607,6 +589,13 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			p.shown = true
 			pose = ui.Pose{Fade: 1, Scale: 0.97}
 			c.After(time.Millisecond)
+		} else if p.stageEnter {
+			// A card clicked forward grows from its card's size and place
+			// into the stage; the pane it replaces shrinks back into the
+			// rail the same way.
+			p.stageEnter = false
+			pose = ui.Pose{Scale: 0.22, X: w.stageCardOffset(), Fade: 1}
+			c.After(time.Millisecond)
 		}
 		col = col.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
 		if card {
@@ -843,6 +832,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			header.Background(header.AnimateColor("paneLiftBg", panelBg, blend))
 
 			el := terminal.View(c, p.term).Fill()
+			// The size the pane's terminal is laid out at is what its
+			// mirror is laid out at too, before the card scales it down.
+			if b := el.LayoutBounds(); b.W > 0 && b.H > 0 {
+				p.viewW, p.viewH = b.W, b.H
+			}
 			if el.Focused() && w.FocusedPane != p.ID {
 				w.FocusedPane = p.ID
 			}

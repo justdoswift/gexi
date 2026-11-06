@@ -96,6 +96,9 @@ type workspace struct {
 	// stageRailShown tells that the off-stage panes' rail has drawn once since
 	// the zoom began, so its cards slide in only on entry.
 	stageRailShown bool
+	// stageW is the stage's last layout width; a narrow stage leaves the
+	// rail off rather than cover most of the terminal with it.
+	stageW float32
 
 	win         *mygo.Window
 	settingsWin *mygo.Window
@@ -353,6 +356,7 @@ func (w *workspace) newSession(pr *project, command []string, dir string) (*sess
 	pr.Sessions = append(pr.Sessions, s)
 	w.SelectedSession = s.ID
 	w.zoomedPane = ""
+	w.syncStageMirrors()
 	delete(w.collapsed, pr.ID)
 	w.FocusedPane = p.ID
 	w.focusReq = p.ID
@@ -404,6 +408,7 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 	// A split made while zoomed has to be visible, so the session comes
 	// back to showing all its panes.
 	w.zoomedPane = ""
+	w.syncStageMirrors()
 	w.FocusedPane = np.ID
 	w.focusReq = np.ID
 	w.invalidate()
@@ -482,6 +487,7 @@ func (w *workspace) closePane(p *pane) {
 	p.close()
 	if w.zoomedPane == p.ID {
 		w.zoomedPane = ""
+		w.syncStageMirrors()
 	}
 outer:
 	for _, pr := range w.Projects {
@@ -580,6 +586,7 @@ func (w *workspace) selectSession(id string) {
 	}
 	w.SelectedSession = s.ID
 	w.zoomedPane = ""
+	w.syncStageMirrors()
 	if s.Root != nil {
 		for _, p := range s.Root.panes() {
 			if p.Worktree != nil {
@@ -634,11 +641,9 @@ func (w *workspace) toggleZoom(p *pane) {
 		w.zoomedPane = p.ID
 		w.FocusedPane = p.ID
 		w.focusReq = p.ID
-		// The panes the zoom hides were on screen a frame ago: their cards
-		// start with the lines they were showing.
-		w.captureStagePeeks(p)
 		w.stageRailShown = false
 	}
+	w.syncStageMirrors()
 	w.zoomSettling = true
 	w.invalidate()
 }
@@ -774,6 +779,7 @@ func (w *workspace) cyclePane(delta int) {
 	// Moving between panes brings the whole layout back, so the pane the
 	// focus lands on is visible.
 	w.zoomedPane = ""
+	w.syncStageMirrors()
 	index := 0
 	for i, p := range panes {
 		if p.ID == w.FocusedPane {
