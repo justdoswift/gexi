@@ -21,6 +21,10 @@ func main() {
 		return
 	}
 
+	// Panes start their shells with the interactive shell's PATH; look it up
+	// off the UI thread so the first restored pane does not wait on it.
+	go interactivePath()
+
 	// Daily background checks in the manner of Sparkle; the menu item below
 	// opens the same window on demand.
 	mygo.Use(updater.Plugin)
