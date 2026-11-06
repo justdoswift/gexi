@@ -110,7 +110,7 @@ first prompt asks Claude Code to rename it to the task. The header then shows **
 pushes the branch and opens a pull request with `gh`. Once it exists, **PR #N**
 opens the pull request on GitHub, and **Merge** reports the state by its
 colour: green when GitHub would merge, amber while checks or reviews are still
-pending, red when something blocks it. Merge asks before merging, and a blocked
+pending, red when something blocks it. Merge merges on the press, and a blocked
 press says why. Merging fast-forwards your local base branch and leaves the
 pane in the worktree. The button then becomes **Archive**, which closes the
 pane and clears the checkout away when you press it. The branch is kept, so

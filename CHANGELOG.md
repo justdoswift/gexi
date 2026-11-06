@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Merge no longer asks for confirmation: a green button merges on the press,
+  since the status is re-read at that moment and a blocker that appeared
+  since the last look is still said rather than merged.
+
 ## 0.0.15
 
 - A worktree pane's pull request and merge are separate: #N opens the pull

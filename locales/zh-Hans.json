@@ -67,8 +67,6 @@
   "worktreeMergedLocalFailed": "已在 GitHub 上合并，但本地 {base} 未能更新：{error}",
   "worktreeError": "Git：{error}",
   "worktreeCheckingPR": "正在检查 PR",
-  "worktreeMergeTitle": "合并 PR？",
-  "worktreeMergeConfirm": "把 #{number} 合并到 {base}？",
   "worktreeMergeBlocked": "暂时不能合并：{reason}",
   "worktreeBlockedMerged": "PR 已经合并",
   "worktreeBlockedClosed": "PR 已关闭",
