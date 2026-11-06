@@ -696,6 +696,50 @@ func (msgs Messages) WorktreeMergedLocalFailed(base string, error string) string
 	return Catalog.Format(msgs.locale, "worktreeMergedLocalFailed", map[string]any{"base": base, "error": error})
 }
 
+// WorktreeResolving says "Resolving conflicts"
+// in the language the app shows.
+func WorktreeResolving() string { return In(i18n.Locale()).WorktreeResolving() }
+
+// WorktreeResolving says "Resolving conflicts"
+// in the language of msgs.
+func (msgs Messages) WorktreeResolving() string {
+	return Catalog.Format(msgs.locale, "worktreeResolving", nil)
+}
+
+// WorktreeResolveConflicts says "Ask {agent} to resolve the conflicts, then merge"
+// in the language the app shows.
+func WorktreeResolveConflicts(agent string) string {
+	return In(i18n.Locale()).WorktreeResolveConflicts(agent)
+}
+
+// WorktreeResolveConflicts says "Ask {agent} to resolve the conflicts, then merge"
+// in the language of msgs.
+func (msgs Messages) WorktreeResolveConflicts(agent string) string {
+	return Catalog.Format(msgs.locale, "worktreeResolveConflicts", map[string]any{"agent": agent})
+}
+
+// WorktreeResolveFailed says "Could not resolve the conflicts: {error}"
+// in the language the app shows.
+func WorktreeResolveFailed(error string) string {
+	return In(i18n.Locale()).WorktreeResolveFailed(error)
+}
+
+// WorktreeResolveFailed says "Could not resolve the conflicts: {error}"
+// in the language of msgs.
+func (msgs Messages) WorktreeResolveFailed(error string) string {
+	return Catalog.Format(msgs.locale, "worktreeResolveFailed", map[string]any{"error": error})
+}
+
+// WorktreeResolvePending says "Conflicts resolved and pushed; GitHub has not caught up yet. Press Merge again."
+// in the language the app shows.
+func WorktreeResolvePending() string { return In(i18n.Locale()).WorktreeResolvePending() }
+
+// WorktreeResolvePending says "Conflicts resolved and pushed; GitHub has not caught up yet. Press Merge again."
+// in the language of msgs.
+func (msgs Messages) WorktreeResolvePending() string {
+	return Catalog.Format(msgs.locale, "worktreeResolvePending", nil)
+}
+
 // WorktreeError says "Git: {error}"
 // in the language the app shows.
 func WorktreeError(error string) string { return In(i18n.Locale()).WorktreeError(error) }

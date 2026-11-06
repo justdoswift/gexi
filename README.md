@@ -118,8 +118,10 @@ it cannot answer, a small dialog asks for the message.
 Once it exists, **PR #N**
 opens the pull request on GitHub, and **Merge** reports the state by its
 colour: green when GitHub would merge, amber while checks or reviews are still
-pending, red when something blocks it. Merge merges on the press, and a blocked
-press says why. Merging fast-forwards your local base branch and leaves the
+pending, red when something blocks it. Merge merges on the press; a red button
+whose blocker is a conflict asks the pane's agent to settle the files, pushes
+the merge commit, and merges once GitHub sees it. Any other blocked press says
+why. Merging fast-forwards your local base branch and leaves the
 pane in the worktree. The button then becomes **Archive**, which closes the
 pane and clears the checkout away when you press it. The branch is kept, so
 **Settings → Archived** lists it until you restore it (the checkout comes
