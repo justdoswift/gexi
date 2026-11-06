@@ -88,6 +88,18 @@ func resolveAgentCommand(command []string) resolvedCommand {
 	return resolvedCommand{command, command}
 }
 
+// withShellFallback keeps a pane alive after the agent it runs exits: the raw
+// command ends by replacing itself with an interactive login shell, so the
+// pane comes back to a prompt instead of closing with the agent. A pane is a
+// shell first; the agent is only what runs on top of it.
+func withShellFallback(command []string) []string {
+	raw, ok := rawCommand(command)
+	if !ok || len(command) < 3 || strings.TrimSpace(raw) == "" {
+		return command
+	}
+	return replaceRaw(raw+" ; exec "+shellQuote(loginShell())+" -l", command)
+}
+
 func resolveClaude(raw string, command []string) resolvedCommand {
 	// The user's own settings carry the hooks after installGlobalClaudeHooks,
 	// so every claude in a pane reports events — one gexi launched and one the
