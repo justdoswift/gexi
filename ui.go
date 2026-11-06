@@ -321,17 +321,9 @@ func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
 	}, locales.ShortcutToggleSidebar()+" (⌘B)")
 }
 
-// projectIcon marks where a project runs: a folder on this machine, or a
-// server when it is a remote host.
-func projectIcon(pr *project) string {
-	if pr.RemoteHost != "" {
-		return "server"
-	}
-	return "folder"
-}
-
 // projectRow is a folder header: it folds its sessions in and out, and offers
-// another session or closing the project on hover.
+// another session or closing the project on hover. A remote project keeps a
+// server mark; a local one needs no folder glyph, the header being a folder.
 func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 	open := !w.collapsed[pr.ID] || strings.TrimSpace(w.searchQuery) != ""
 	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(6).Radius(chromeRadius)
@@ -352,8 +344,10 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 		if src := iconSource(chevron, colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(15).Height(15).OnClick(toggle)
 		}
-		if src := iconSource(projectIcon(pr), colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(16).Height(16).OnClick(toggle)
+		if pr.RemoteHost != "" {
+			if src := iconSource("server", colorHex(tk.MutedForeground)); src != nil {
+				ui.Image(c, src).Width(16).Height(16).OnClick(toggle)
+			}
 		}
 		ui.Text(c, pr.name()).FontSize(12).FontWeight(500).SingleLine().TextColor(color).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
