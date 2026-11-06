@@ -706,28 +706,6 @@ func (msgs Messages) WorktreeCheckingPR() string {
 	return Catalog.Format(msgs.locale, "worktreeCheckingPR", nil)
 }
 
-// WorktreeMergeTitle says "Merge pull request?"
-// in the language the app shows.
-func WorktreeMergeTitle() string { return In(i18n.Locale()).WorktreeMergeTitle() }
-
-// WorktreeMergeTitle says "Merge pull request?"
-// in the language of msgs.
-func (msgs Messages) WorktreeMergeTitle() string {
-	return Catalog.Format(msgs.locale, "worktreeMergeTitle", nil)
-}
-
-// WorktreeMergeConfirm says "Merge #{number} into {base}?"
-// in the language the app shows.
-func WorktreeMergeConfirm(number string, base string) string {
-	return In(i18n.Locale()).WorktreeMergeConfirm(number, base)
-}
-
-// WorktreeMergeConfirm says "Merge #{number} into {base}?"
-// in the language of msgs.
-func (msgs Messages) WorktreeMergeConfirm(number string, base string) string {
-	return Catalog.Format(msgs.locale, "worktreeMergeConfirm", map[string]any{"number": number, "base": base})
-}
-
 // WorktreeMergeBlocked says "Cannot merge: {reason}"
 // in the language the app shows.
 func WorktreeMergeBlocked(reason string) string {

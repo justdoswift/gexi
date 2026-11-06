@@ -3,6 +3,9 @@
 A macOS terminal workspace: projects, sessions, split panes, and a CLI that
 drives the whole thing from outside the app.
 
+The site lives at <https://justdoswift.github.io/gexi/> and is built from
+`docs/` on `main`; open `docs/index.html` to work on it locally.
+
 Built on [mygo](https://mygo.egoist.dev) — native UI rendered by mygo,
 terminals by Ghostty's `libghostty-vt`, no cgo, no Xcode.
 The window and the CLI speak the same JSON-lines protocol over a Unix socket,
@@ -109,7 +112,7 @@ committed first as `Update from Gexi`, so the pull request carries them.
 Once it exists, **PR #N**
 opens the pull request on GitHub, and **Merge** reports the state by its
 colour: green when GitHub would merge, amber while checks or reviews are still
-pending, red when something blocks it. Merge asks before merging, and a blocked
+pending, red when something blocks it. Merge merges on the press, and a blocked
 press says why. Merging fast-forwards your local base branch and leaves the
 pane in the worktree. The button then becomes **Archive**, which closes the
 pane and clears the checkout away when you press it. The branch is kept, so

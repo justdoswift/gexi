@@ -67,8 +67,6 @@
   "worktreeMergedLocalFailed": "Merged on GitHub, but local {base} could not be updated: {error}",
   "worktreeError": "Git: {error}",
   "worktreeCheckingPR": "Checking pull request",
-  "worktreeMergeTitle": "Merge pull request?",
-  "worktreeMergeConfirm": "Merge #{number} into {base}?",
   "worktreeMergeBlocked": "Cannot merge: {reason}",
   "worktreeBlockedMerged": "the pull request is already merged",
   "worktreeBlockedClosed": "the pull request is closed",
