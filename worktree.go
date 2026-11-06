@@ -66,12 +66,13 @@ type paneWorktree struct {
 }
 
 const (
-	worktreeBusyCreate = "create"
-	worktreeBusyLeave  = "leave"
-	worktreeBusyCheck  = "check"
-	worktreeBusyPR     = "pr"
-	worktreeBusyMerge  = "merge"
-	worktreeMerged     = "merged"
+	worktreeBusyCreate  = "create"
+	worktreeBusyLeave   = "leave"
+	worktreeBusyCheck   = "check"
+	worktreeBusyPR      = "pr"
+	worktreeBusyMerge   = "merge"
+	worktreeBusyResolve = "resolve"
+	worktreeMerged      = "merged"
 )
 
 // reopenCheckInterval is how often a merged checkout is looked at for work
@@ -601,11 +602,38 @@ func agentCommitMessage(kind agentKind, dir, prompt string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("%s cannot write one automatically", kind.name())
 	}
+	answer, err := runAgent(kind, command, dir, prompt, 90*time.Second)
+	if err != nil {
+		return "", err
+	}
+	msg := cleanCommitMessage(answer)
+	if kind == agentClaude {
+		var result struct {
+			Result  string `json:"result"`
+			IsError bool   `json:"is_error"`
+		}
+		if err := json.Unmarshal([]byte(answer), &result); err == nil {
+			if result.IsError {
+				return "", fmt.Errorf("%s: %s", kind.name(), cleanCommitMessage(result.Result))
+			}
+			msg = cleanCommitMessage(result.Result)
+		}
+	}
+	if msg == "" {
+		return "", fmt.Errorf("%s returned nothing", kind.name())
+	}
+	return msg, nil
+}
+
+// runAgent runs one agent command with prompt on stdin, in dir, and returns
+// its stdout. A headless agent has no one to answer a permission prompt, so
+// the caller passes the flags its task needs.
+func runAgent(kind agentKind, command []string, dir, prompt string, timeout time.Duration) (string, error) {
 	path := agentBinary(command[0])
 	if path == "" {
 		return "", fmt.Errorf("%s is not on the PATH", kind.name())
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, path, command[1:]...)
 	cmd.Dir = dir
@@ -628,23 +656,40 @@ func agentCommitMessage(kind agentKind, dir, prompt string) (string, error) {
 		}
 		return "", fmt.Errorf("%s: %s", kind.name(), message)
 	}
-	msg := cleanCommitMessage(out.String())
-	if kind == agentClaude {
-		var result struct {
-			Result  string `json:"result"`
-			IsError bool   `json:"is_error"`
-		}
-		if err := json.Unmarshal(out.Bytes(), &result); err == nil {
-			if result.IsError {
-				return "", fmt.Errorf("%s: %s", kind.name(), cleanCommitMessage(result.Result))
-			}
-			msg = cleanCommitMessage(result.Result)
-		}
+	return out.String(), nil
+}
+
+// agentResolveCommand is what runs kind's agent with permission to edit the
+// working tree, for a task no permission prompt can interrupt.
+func agentResolveCommand(kind agentKind) ([]string, bool) {
+	switch kind {
+	case agentClaude:
+		return []string{
+			"claude", "-p", "--output-format", "json",
+			"--permission-mode", "acceptEdits",
+			"--allowedTools", "Read,Edit,Write,Grep,Glob",
+		}, true
+	case agentCodex:
+		return []string{"codex", "exec", "-s", "workspace-write", "-"}, true
 	}
-	if msg == "" {
-		return "", fmt.Errorf("%s returned nothing", kind.name())
+	return nil, false
+}
+
+// agentResolveConflicts asks the pane's agent to settle the files git left in
+// conflict. gexi does the git work around it; the agent only edits the files,
+// so nothing it does can commit, push, or touch another branch.
+func agentResolveConflicts(kind agentKind, dir string, files []string) error {
+	command, ok := agentResolveCommand(kind)
+	if !ok {
+		return fmt.Errorf("%s cannot resolve conflicts automatically", kind.name())
 	}
-	return msg, nil
+	prompt := "This git working tree has unresolved merge conflicts in these files:\n\n" +
+		strings.Join(files, "\n") +
+		"\n\nEdit only these files. Remove every conflict marker (<<<<<<<, =======, >>>>>>>) " +
+		"and combine both sides so the result is coherent. Do not run git commands, do not commit, " +
+		"and do not change unrelated files. When done, reply with one short line saying what you combined."
+	_, err := runAgent(kind, command, dir, prompt, 5*time.Minute)
+	return err
 }
 
 // agentBinary finds an agent the way the panes do: the login shell's PATH
@@ -673,6 +718,194 @@ func mergePR(wt *paneWorktree) error {
 	}
 	_, err = ghOutput(wt.Path, "pr", "merge", strconv.Itoa(wt.PR), "--merge")
 	return err
+}
+
+// mergeConflicting reports whether GitHub refuses the merge because the
+// branch and its base changed the same lines.
+func mergeConflicting(mergeable, state string) bool {
+	return strings.EqualFold(mergeable, "CONFLICTING") || strings.EqualFold(state, "DIRTY")
+}
+
+func mergeConflicts(wt *paneWorktree) bool {
+	return wt != nil && mergeConflicting(wt.mergeable, wt.mergeState)
+}
+
+// canResolveConflicts reports a pane whose agent can settle the conflict.
+func canResolveConflicts(p *pane) bool {
+	if p == nil || p.agent == nil {
+		return false
+	}
+	_, ok := agentResolveCommand(p.agent.Kind)
+	return ok
+}
+
+// resolveConflictsAndMerge settles the conflict in the checkout with the
+// pane's own agent, pushes the result, and merges once GitHub sees it.
+func (w *workspace) resolveConflictsAndMerge(p *pane) {
+	wt := p.Worktree
+	if wt == nil || wt.busy != "" || wt.PR == 0 || wt.State != "open" ||
+		!canResolveConflicts(p) || w.paneByID(p.ID) != p {
+		return
+	}
+	stopPRTimer(wt)
+	wt.busy = worktreeBusyResolve
+	w.invalidate()
+	snapshot := *wt
+	kind := p.agent.Kind
+	go func() {
+		if err := resolveConflicts(&snapshot, kind); err != nil {
+			w.onMain(func() {
+				wt.busy = ""
+				w.flash(locales.WorktreeResolveFailed(err.Error()))
+				w.invalidate()
+				w.scheduleSave()
+			})
+			return
+		}
+		info, err := waitMergeable(snapshot.Path, snapshot.Branch)
+		w.onMain(func() {
+			wt.busy = ""
+			if err != nil {
+				w.worktreeFailed(err)
+				w.invalidate()
+				w.scheduleSave()
+				return
+			}
+			applyPRStatus(wt, info)
+			if mergeConflicts(wt) {
+				// GitHub had yet to recompute when the wait ran out; the
+				// conflict is resolved, so another press can go through.
+				w.flash(locales.WorktreeResolvePending())
+				w.schedulePRRefresh(p)
+			} else if reason := w.mergeBlocker(wt); reason != "" {
+				w.flash(locales.WorktreeMergeBlocked(reason))
+				w.schedulePRRefresh(p)
+			} else {
+				w.mergePullRequest(p)
+			}
+			w.invalidate()
+			w.scheduleSave()
+		})
+	}()
+}
+
+// resolveConflicts brings the base into the branch, lets the agent settle what
+// git could not, commits the merge, and pushes it. A failed resolution aborts
+// the merge, so the checkout goes back to how it was.
+func resolveConflicts(wt *paneWorktree, kind agentKind) error {
+	clean, err := worktreeIsClean(wt)
+	if err != nil {
+		return err
+	}
+	if !clean {
+		return errors.New("commit the changes first")
+	}
+	if _, err := worktreeGit(wt.Path, "fetch", "--quiet", "origin", wt.Base); err != nil {
+		return err
+	}
+	base := "origin/" + wt.Base
+	var files []string
+	if _, mergeErr := worktreeGit(wt.Path, "merge", "--no-edit", base); mergeErr == nil {
+		return pushBranch(wt)
+	} else if files, err = conflictedFiles(wt.Path); err != nil {
+		return err
+	} else if len(files) == 0 {
+		return mergeErr
+	} else if err = agentResolveConflicts(kind, wt.Path, files); err != nil {
+		abortMerge(wt)
+		return err
+	}
+	left, err := conflictedFiles(wt.Path)
+	if err != nil {
+		abortMerge(wt)
+		return err
+	}
+	if len(left) > 0 {
+		abortMerge(wt)
+		return fmt.Errorf("%s left %d file(s) in conflict", kind.name(), len(left))
+	}
+	if markers := conflictMarkers(wt.Path, files); len(markers) > 0 {
+		abortMerge(wt)
+		return fmt.Errorf("%s left conflict markers in %s", kind.name(), strings.Join(markers, ", "))
+	}
+	if _, err := worktreeGit(wt.Path, "add", "-A"); err != nil {
+		abortMerge(wt)
+		return err
+	}
+	if _, err := worktreeGit(wt.Path, "commit", "-m", "Merge "+base+" into "+wt.Branch); err != nil {
+		abortMerge(wt)
+		return err
+	}
+	return pushBranch(wt)
+}
+
+func pushBranch(wt *paneWorktree) error {
+	_, err := worktreeGit(wt.Path, "push", "origin", wt.Branch)
+	return err
+}
+
+func abortMerge(wt *paneWorktree) {
+	_, _ = worktreeGit(wt.Path, "merge", "--abort")
+}
+
+// conflictedFiles lists what git still cannot merge, by path from the
+// checkout's root.
+func conflictedFiles(dir string) ([]string, error) {
+	out, err := worktreeGit(dir, "diff", "--name-only", "--diff-filter=U", "-z")
+	if err != nil {
+		return nil, err
+	}
+	raw := strings.TrimRight(out, "\x00")
+	if raw == "" {
+		return nil, nil
+	}
+	return strings.Split(raw, "\x00"), nil
+}
+
+// conflictMarkers names the conflicted files that still hold git's markers,
+// in case the agent adds them back without finishing the job.
+func conflictMarkers(dir string, files []string) []string {
+	var found []string
+	for _, name := range files {
+		data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			if strings.HasPrefix(line, "<<<<<<< ") ||
+				strings.HasPrefix(line, ">>>>>>> ") || line == "=======" {
+				found = append(found, name)
+				break
+			}
+		}
+	}
+	return found
+}
+
+// waitMergeable gives GitHub the moment it takes to recompute a branch after
+// a push, so the merge that follows sees the resolved tree.
+func waitMergeable(path, branch string) (prInfo, error) {
+	deadline := time.Now().Add(45 * time.Second)
+	var last prInfo
+	var lastErr error
+	for {
+		info, err := lookupPR(path, branch)
+		if err == nil {
+			last = info
+			if !mergeConflicting(info.Mergeable, info.MergeState) {
+				return info, nil
+			}
+		} else {
+			lastErr = err
+		}
+		if time.Now().After(deadline) {
+			if last.Number == 0 && lastErr != nil {
+				return prInfo{}, lastErr
+			}
+			return last, nil
+		}
+		time.Sleep(2 * time.Second)
+	}
 }
 
 // syncLocalBase brings the user's checkout of the base branch up to date after
@@ -962,15 +1195,13 @@ func (w *workspace) mergeBlocker(wt *paneWorktree) string {
 	case "closed":
 		return locales.WorktreeBlockedClosed()
 	}
-	switch strings.ToUpper(wt.mergeState) {
-	case "BEHIND":
+	if strings.EqualFold(wt.mergeState, "BEHIND") {
 		return locales.WorktreeBlockedBehind()
-	case "DIRTY":
+	}
+	if mergeConflicts(wt) {
 		return locales.WorktreeBlockedConflicts()
 	}
 	switch strings.ToUpper(wt.mergeable) {
-	case "CONFLICTING":
-		return locales.WorktreeBlockedConflicts()
 	case "", "UNKNOWN":
 		return locales.WorktreeBlockedChecking()
 	}
@@ -1017,6 +1248,12 @@ func (w *workspace) requestMerge(p *pane) {
 			}
 			applyPRStatus(wt, info)
 			if reason := w.mergeBlocker(wt); reason != "" {
+				// A conflict the agent can settle is worth a try before the
+				// press is refused: it edits the files, gexi does the git.
+				if mergeConflicts(wt) && canResolveConflicts(p) {
+					w.resolveConflictsAndMerge(p)
+					return
+				}
 				w.flash(locales.WorktreeMergeBlocked(reason))
 				w.schedulePRRefresh(p)
 				w.invalidate()
@@ -1993,6 +2230,8 @@ func worktreeBusyLabel(wt *paneWorktree) string {
 		return locales.WorktreeCheckingPR()
 	case worktreeBusyMerge:
 		return locales.WorktreeMerging()
+	case worktreeBusyResolve:
+		return locales.WorktreeResolving()
 	}
 	return ""
 }
@@ -2033,7 +2272,7 @@ func (w *workspace) mergeStatus(wt *paneWorktree) (label string, ready, danger b
 	switch {
 	case strings.EqualFold(wt.mergeState, "BEHIND"):
 		return locales.WorktreeStatusBehind(), false, false
-	case strings.EqualFold(wt.mergeable, "CONFLICTING") || strings.EqualFold(wt.mergeState, "DIRTY"):
+	case mergeConflicts(wt):
 		return locales.WorktreeStatusConflicts(), false, true
 	case strings.EqualFold(wt.review, "CHANGES_REQUESTED"):
 		return locales.WorktreeStatusChanges(), false, true
@@ -2076,6 +2315,9 @@ func (w *workspace) mergeChip(c *ui.Context, tk tokens, p *pane) {
 	hint := label
 	if blocker != "" {
 		hint = locales.WorktreeMergeBlocked(blocker)
+		if mergeConflicts(wt) && canResolveConflicts(p) {
+			hint = locales.WorktreeResolveConflicts(p.agent.Kind.name())
+		}
 	}
 	action := func() { w.requestMerge(p) }
 	w.worktreeActionChip(c, tk, p, bg, fg, hint, action, func() {

@@ -643,3 +643,30 @@ func TestAgentHeadless(t *testing.T) {
 		t.Error("omp should not claim a headless command")
 	}
 }
+
+// TestMergeConflicting reads GitHub's two ways of saying the branch and its
+// base conflict.
+func TestMergeConflicting(t *testing.T) {
+	if !mergeConflicting("CONFLICTING", "CLEAN") || !mergeConflicting("MERGEABLE", "DIRTY") {
+		t.Error("conflicts not detected")
+	}
+	if mergeConflicting("MERGEABLE", "CLEAN") {
+		t.Error("clean merge called a conflict")
+	}
+}
+
+// TestConflictMarkers names the files an agent left markers in.
+func TestConflictMarkers(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "clean.txt"), []byte("a\nb\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	marked := "a\n<<<<<<< HEAD\nb\n=======\nc\n>>>>>>> origin/main\n"
+	if err := os.WriteFile(filepath.Join(dir, "marked.txt"), []byte(marked), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := conflictMarkers(dir, []string{"clean.txt", "marked.txt"})
+	if len(got) != 1 || got[0] != "marked.txt" {
+		t.Fatalf("conflictMarkers = %q", got)
+	}
+}
