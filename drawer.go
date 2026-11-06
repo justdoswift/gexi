@@ -131,13 +131,20 @@ func (w *workspace) drawerDir() string {
 	return pr.Dir
 }
 
-// branchPill is the pane header's Git badge: the branch the project is on,
-// what the working tree changes, and, on a click, their diff. It follows the
-// title as Rex's does, and is the drawer's everyday way in.
-func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
+// branchPillInfo is what the branch pill has to show. It holds the guards the
+// pill draws by, so the header can measure the pill before deciding what fits.
+type branchPillInfo struct {
+	dir     string
+	branch  string
+	added   int
+	deleted int
+	changed bool
+}
+
+func (w *workspace) branchPillInfo(p *pane) (branchPillInfo, bool) {
 	pr := w.projectOf(w.sessionOf(p))
 	if pr == nil || pr.RemoteHost != "" {
-		return
+		return branchPillInfo{}, false
 	}
 	dir := pr.Dir
 	if p.Worktree != nil {
@@ -146,16 +153,55 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 	s, ok := w.gitInfo[dir]
 	if !ok {
 		w.refreshGitDir(dir)
-		return
+		return branchPillInfo{}, false
 	}
 	if !s.OK || s.Branch == "" {
+		return branchPillInfo{}, false
+	}
+	return branchPillInfo{
+		dir:     dir,
+		branch:  s.Branch,
+		added:   s.Added,
+		deleted: s.Deleted,
+		changed: s.Changed,
+	}, true
+}
+
+// branchPillWidth measures the pill before it is drawn, so the header fits it
+// beside the title instead of deciding by a fixed pane width.
+func (w *workspace) branchPillWidth(c *ui.Context, p *pane) float32 {
+	info, ok := w.branchPillInfo(p)
+	if !ok {
+		return 0
+	}
+	textW := func(text string, size float32) float32 {
+		tw, _ := c.MeasureText(0, ui.Span{Text: text, Size: size})
+		return tw
+	}
+	// The pill's padding a side, the branch mark, and the gap after each.
+	width := float32(16 + 12 + 5 + textW(shortBranch(info.branch), 11))
+	if info.added > 0 {
+		width += 5 + textW("+"+strconv.Itoa(info.added), 10)
+	}
+	if info.deleted > 0 {
+		width += 5 + textW("−"+strconv.Itoa(info.deleted), 10)
+	}
+	return width
+}
+
+// branchPill is the pane header's Git badge: the branch the project is on,
+// what the working tree changes, and, on a click, their diff. It follows the
+// title as Rex's does, and is the drawer's everyday way in.
+func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
+	info, ok := w.branchPillInfo(p)
+	if !ok {
 		return
 	}
 	d := &w.drawer
-	showing := d.open && d.tab == drawerTabChanges && d.dir == dir
+	showing := d.open && d.tab == drawerTabChanges && d.dir == info.dir
 	// A change Git counts no lines for has no +N or −N to show, so the
 	// branch name itself carries the colour.
-	unmeasured := s.Changed && s.Added+s.Deleted == 0
+	unmeasured := info.changed && info.added+info.deleted == 0
 	bg := tk.Active
 	color := tk.MutedForeground
 	if showing {
@@ -166,7 +212,7 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 	if el.Hovered() {
 		bg, color = tk.Control, tk.Foreground
 	}
-	pick := func() { w.toggleChangesDrawer(dir) }
+	pick := func() { w.toggleChangesDrawer(info.dir) }
 	el.Background(bg).Tooltip(locales.DrawerOpenChanges()).OnClick(pick).Children(func() {
 		if src := iconSource("branch", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(12).Height(12).IgnoreInput(true)
@@ -175,14 +221,14 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 		if unmeasured {
 			textColor = tk.Waiting
 		}
-		ui.Text(c, shortBranch(s.Branch)).FontSize(11).SingleLine().
+		ui.Text(c, shortBranch(info.branch)).FontSize(11).SingleLine().
 			Shrink(1).TextColor(textColor).OnClick(pick)
-		if s.Added > 0 {
-			ui.Text(c, "+"+strconv.Itoa(s.Added)).FontSize(10).Shrink(0).
+		if info.added > 0 {
+			ui.Text(c, "+"+strconv.Itoa(info.added)).FontSize(10).Shrink(0).
 				TextColor(tk.Working).OnClick(pick)
 		}
-		if s.Deleted > 0 {
-			ui.Text(c, "−"+strconv.Itoa(s.Deleted)).FontSize(10).Shrink(0).
+		if info.deleted > 0 {
+			ui.Text(c, "−"+strconv.Itoa(info.deleted)).FontSize(10).Shrink(0).
 				TextColor(tk.Danger).OnClick(pick)
 		}
 	})

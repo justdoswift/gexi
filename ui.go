@@ -573,29 +573,84 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 
 			header.Children(func() {
 				line := ui.Row(c).FillWidth().Height(chromeLine(bar)).AlignItems(ui.Center).Gap(4)
-				// The header drops what a narrow pane cannot show before it
-				// lets anything overlap: the folder first, then the branch
-				// pill. The width is the one it had in the frame before this,
-				// which is exact until the pane or its split is resized and
-				// settles one frame later.
+				// The header keeps the title and the pane's buttons; the branch
+				// pill and the path fit around them by what each one measures,
+				// so a narrowing pane gives them up in that order and a wide
+				// one shows them all. The line's width is the one it had in the
+				// frame before, which is exact until the pane or its split is
+				// resized and settles a frame later.
 				width := line.Bounds().W
-				line.Children(func() {
-					// The title picks the pane up once there is a second pane
-					// to trade with. Alone in the window it keeps dragging the
-					// window, as a title bar does, since there is nowhere to
-					// put it.
-					// The pill sits inside the header band rather than filling
-					// it, so hovering reads as a chip and not as a second bar.
-					movable := len(w.visiblePanes()) > 1
-					// The title gives way before the branch pill does: its
-					// texts end in an ellipsis rather than wrapping, and the
-					// pill keeps its width.
-					// A sliver of a pane spends nothing on padding it does
-					// not need: a couple of points buy its title back.
-					stripPad := float32(6)
-					if width > 0 && width < 200 {
-						stripPad = 3
+				// The title picks the pane up once there is a second pane
+				// to trade with. Alone in the window it keeps dragging the
+				// window, as a title bar does, since there is nowhere to
+				// put it.
+				movable := len(w.visiblePanes()) > 1
+				// A sliver of a pane spends nothing on padding it does not
+				// need: a couple of points buy its title back.
+				stripPad := float32(6)
+				if width > 0 && width < 200 {
+					stripPad = 3
+				}
+				// A detected agent wears its own mark and name, in place
+				// of the terminal title with the agent's spinner glyph.
+				// The directory stays: it is the one thing the brand
+				// does not say, which checkout the agent works in.
+				agent := p.agent
+				title := p.title()
+				if agent != nil {
+					title = agent.Kind.name()
+				}
+				if p.exited {
+					title += " · exited"
+				}
+				// The title matters more than its mark once the pane
+				// is a sliver: the name stays, the glyph goes.
+				showMark := width == 0 || width >= 160
+				markW := float32(0)
+				if showMark {
+					markW = 16
+					if agent != nil {
+						markW = 13
 					}
+					markW += 4 // the gap before the title
+				}
+				titleW, _ := c.MeasureText(0, ui.Span{Text: title, Size: 12, Weight: 500})
+				actionsW := p.headerActionsW
+				if actionsW == 0 {
+					// The first frame has no row to read yet; guess at what
+					// the buttons take from the width they have.
+					actionsW = 120
+					if width > 0 && width < 380 {
+						actionsW = 56
+					}
+				}
+				// The strip's padding and the line's gaps: one between the
+				// strip, the pill, the drag area and the actions.
+				kept := 2*stripPad + markW + titleW + actionsW + 3*4
+				pillW := w.branchPillWidth(c, p)
+				showPill := pillW > 0 && (width == 0 || kept+pillW <= width)
+				pillSpace := float32(0)
+				if showPill {
+					pillSpace = pillW + 4
+				}
+				// The path takes what is left, the line's gap before it
+				// included, and never more than 40% of the line: the title
+				// stays the header's subject. Below a hundred points even a
+				// folder name is noise, so the path goes.
+				pathRoom := width - kept - pillSpace - 4
+				if capRoom := width * 0.4; pathRoom > capRoom {
+					pathRoom = capRoom
+				}
+				path := ""
+				if width == 0 {
+					path = abbreviate(p.dir())
+				} else if pathRoom >= 100 {
+					path = fitPath(abbreviate(p.dir()), pathRoom, func(text string) float32 {
+						tw, _ := c.MeasureText(0, ui.Span{Text: text, Size: 11})
+						return tw
+					})
+				}
+				line.Children(func() {
 					strip := ui.Row(c).Height(24).AlignItems(ui.Center).Shrink(1).
 						Gap(4).Padding(0, stripPad).Radius(chromeRadius)
 					if movable {
@@ -609,26 +664,12 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						strip = strip.Background(tk.Active)
 					}
 					strip.Children(func() {
-						// A detected agent wears its own mark and name. The
-						// terminal title carries the agent's spinner glyph, and
-						// the directory after it is noise beside the brand.
-						agent := p.agent
-						// The title matters more than its mark once the pane
-						// is a sliver: the name stays, the glyph goes.
-						showMark := width == 0 || width >= 160
 						if agent != nil {
 							if src := agentLogoSource(agent.Kind, tk); src != nil && showMark {
 								ui.Image(c, src).Width(13).Height(13)
 							}
 						} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil && showMark {
 							ui.Image(c, src).Width(16).Height(16)
-						}
-						title := p.title()
-						if agent != nil {
-							title = agent.Kind.name()
-						}
-						if p.exited {
-							title += " · exited"
 						}
 						// The title gives way only when the close button
 						// would otherwise be clipped.
@@ -643,16 +684,18 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 							ui.Text(c, title).FontSize(12).SingleLine().
 								Shrink(titleShrink).TextColor(tk.MutedForeground)
 						}
-						if agent == nil && (width == 0 || width >= 540) {
-							ui.Text(c, abbreviate(p.dir())).FontSize(11).SingleLine().
+						if path != "" {
+							ui.Text(c, path).FontSize(11).SingleLine().
 								Shrink(1).TextColor(tk.MutedForeground)
 						}
 					})
 					// The branch pill follows the title: it names the branch
 					// the project is on, counts the working tree's changes,
-					// and opens their diff. A pane too narrow for it keeps
-					// only its title; the drawer still opens from the menu.
-					if width == 0 || width >= 320 {
+					// and opens their diff. It sits inside the header band
+					// rather than filling it, so hovering reads as a chip and
+					// not as a second bar. The drawer still opens from the
+					// menu when the header has no room for it.
+					if showPill {
 						w.branchPill(c, tk, p)
 					}
 					w.dragArea(c, tk)
@@ -688,6 +731,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						iconButton(c, tk, "x", func() { w.requestClose(p) },
 							locales.MenuClosePane()+" (⌘W)")
 					})
+					// The row's width follows the buttons it holds, so the
+					// next frame sets the path and the pill beside it.
+					if actionsW := actions.Bounds().W; actionsW > 0 {
+						p.headerActionsW = actionsW
+					}
 				})
 			})
 			// A raised pane takes the canvas colour, so the slot reads as
@@ -784,6 +832,33 @@ func abbreviate(path string) string {
 		return "…/" + strings.Join(parts[len(parts)-3:], "/")
 	}
 	return path
+}
+
+// fitPath keeps the longest tail of an abbreviated path that fits room, since
+// the folder names the checkout and the segments above it can go first. It
+// returns "" when even the last segment does not fit.
+func fitPath(path string, room float32, widthOf func(string) float32) string {
+	parts := strings.Split(path, string(filepath.Separator))
+	rooted := len(parts) > 0 && parts[0] == ""
+	if rooted {
+		parts = parts[1:]
+	}
+	best := ""
+	for n := 1; n <= len(parts); n++ {
+		start := len(parts) - n
+		tail := strings.Join(parts[start:], "/")
+		switch {
+		case start > 0:
+			tail = "…/" + tail
+		case rooted:
+			tail = "/" + tail
+		}
+		if widthOf(tail) > room {
+			break
+		}
+		best = tail
+	}
+	return best
 }
 
 // chromeLine is the height of the window controls' row: titles and buttons
