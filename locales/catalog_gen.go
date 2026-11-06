@@ -940,6 +940,16 @@ func (msgs Messages) WorktreeStatusClosed() string {
 	return Catalog.Format(msgs.locale, "worktreeStatusClosed", nil)
 }
 
+// WorktreeLeave says "Leave worktree"
+// in the language the app shows.
+func WorktreeLeave() string { return In(i18n.Locale()).WorktreeLeave() }
+
+// WorktreeLeave says "Leave worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeLeave() string {
+	return Catalog.Format(msgs.locale, "worktreeLeave", nil)
+}
+
 // WorktreeLeaveHint says "Leave this worktree and return to the project"
 // in the language the app shows.
 func WorktreeLeaveHint() string { return In(i18n.Locale()).WorktreeLeaveHint() }
