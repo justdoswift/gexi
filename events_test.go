@@ -55,16 +55,12 @@ func TestNotificationCopyUsesTheReplyLine(t *testing.T) {
 	}
 }
 
-// TestSubagentCountKeepsASessionWorking covers what the sidebar is for: a
-// background subagent still running after its turn ended. The pane is idle,
-// but the session is not.
+// TestSubagentCountKeepsASessionWorking covers a background subagent still
+// running after its turn ended. The pane is idle, but the session is not.
 func TestSubagentCountKeepsASessionWorking(t *testing.T) {
 	p := &pane{Worktree: &paneWorktree{Branch: "dark-willow"}}
 	s := &session{ID: "s", Root: leaf(p)}
 
-	if got := sessionLabelText(s); got != "dark-willow" {
-		t.Fatalf("label before any subagent: %q", got)
-	}
 	if got := sessionActivityState(s); got != "" {
 		t.Fatalf("idle session reports %q", got)
 	}
@@ -72,35 +68,26 @@ func TestSubagentCountKeepsASessionWorking(t *testing.T) {
 	p.activity = &agentActivity{State: activityIdle}
 	p.startSubagent("a1", "Explore")
 	p.startSubagent("a2", "Plan")
-	if got := sessionSubagentCount(s); got != 2 {
+	if got := p.subagentCount(); got != 2 {
 		t.Fatalf("subagents = %d, want 2", got)
-	}
-	if got := sessionLabelText(s); got != "dark-willow · 2" {
-		t.Fatalf("label with subagents: %q", got)
 	}
 	if got := sessionActivityState(s); got != activityWorking {
 		t.Fatalf("state with a background subagent = %q, want working", got)
 	}
 
 	// A prompt that needs the user outranks the count: the label stops its
-	// shimmer but keeps the count.
+	// shimmer.
 	p.activity = &agentActivity{State: activityWaiting}
 	if got := sessionActivityState(s); got != activityWaiting {
 		t.Fatalf("state = %q, want waiting", got)
 	}
-	if got := sessionLabelText(s); got != "dark-willow · 2" {
-		t.Fatalf("waiting label = %q", got)
-	}
 
 	p.endSubagent("a1", "Explore")
-	if got := sessionSubagentCount(s); got != 1 {
+	if got := p.subagentCount(); got != 1 {
 		t.Fatalf("after one stop: %d, want 1", got)
 	}
 	p.endSubagent("a2", "Plan")
 	p.activity = &agentActivity{State: activityIdle}
-	if got := sessionLabelText(s); got != "dark-willow" {
-		t.Fatalf("label after all stop: %q", got)
-	}
 	if got := sessionActivityState(s); got != "" {
 		t.Fatalf("state after all stop = %q, want idle", got)
 	}
@@ -109,7 +96,7 @@ func TestSubagentCountKeepsASessionWorking(t *testing.T) {
 	// leave a count that never goes away.
 	p.startSubagent("", "Explore")
 	p.endSubagent("", "Explore")
-	if got := sessionSubagentCount(s); got != 0 {
+	if got := p.subagentCount(); got != 0 {
 		t.Fatalf("id-less start and stop left %d", got)
 	}
 }
