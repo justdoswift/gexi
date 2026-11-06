@@ -104,7 +104,9 @@ worktree, branched from the latest `origin` base branch and kept under the
 app's data folder. The pane moves into the worktree with a fresh shell. The
 branch starts with a placeholder Dota 2 name — a hero, item, or ability; the
 first prompt asks Claude Code to rename it to the task. The header then shows **PR**, which
-pushes the branch and opens a pull request with `gh`. Once it exists, **PR #N**
+pushes the branch and opens a pull request with `gh`; any pending changes are
+committed first as `Update from Gexi`, so the pull request carries them.
+Once it exists, **PR #N**
 opens the pull request on GitHub, and **Merge** reports the state by its
 colour: green when GitHub would merge, amber while checks or reviews are still
 pending, red when something blocks it. Merge asks before merging, and a blocked

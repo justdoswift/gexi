@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Pressing PR commits any uncommitted changes in the worktree first, as
+  `Update from Gexi`, then pushes and opens the pull request. Unresolved merge
+  conflicts still stop it rather than committing the markers.
+
 ## 0.0.15
 
 - A worktree pane's pull request and merge are separate: #N opens the pull

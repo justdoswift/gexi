@@ -471,7 +471,9 @@ func createPR(wt *paneWorktree) (prInfo, string, error) {
 		return prInfo{}, branch, err
 	}
 	if !clean {
-		return prInfo{}, branch, errors.New("commit the changes first")
+		if err := commitWorktree(wt); err != nil {
+			return prInfo{}, branch, err
+		}
 	}
 	ahead, err := commitsAhead(wt)
 	if err != nil {
@@ -493,6 +495,25 @@ func createPR(wt *paneWorktree) (prInfo, string, error) {
 	}
 	info, err := lookupPR(wt.Path, branch)
 	return info, branch, err
+}
+
+// commitWorktree saves everything the working tree has, so opening a pull
+// request never leaves changes behind. Unresolved conflicts stop it: staging
+// those would commit the markers.
+func commitWorktree(wt *paneWorktree) error {
+	if out, err := worktreeGit(wt.Path, "diff", "--name-only", "--diff-filter=U"); err == nil && strings.TrimSpace(out) != "" {
+		return errors.New("resolve the merge conflicts first")
+	}
+	if _, err := worktreeGit(wt.Path, "add", "-A"); err != nil {
+		return err
+	}
+	if _, err := worktreeGit(wt.Path, "commit", "-m", "Update from Gexi"); err != nil {
+		if clean, _ := worktreeIsClean(wt); clean {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func mergePR(wt *paneWorktree) error {

@@ -279,3 +279,34 @@ func TestMergeBlocker(t *testing.T) {
 		}
 	}
 }
+
+func TestCommitWorktree(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %v %+v", err, wt)
+	}
+	t.Cleanup(func() {
+		_ = exec.Command("git", "-C", root, "worktree", "remove", "--force", wt.Path).Run()
+	})
+
+	if err := os.WriteFile(filepath.Join(wt.Path, "note.txt"), []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if clean, err := worktreeIsClean(wt); err != nil || clean {
+		t.Fatalf("worktree should start dirty: clean=%v err=%v", clean, err)
+	}
+	if err := commitWorktree(wt); err != nil {
+		t.Fatalf("commit worktree: %v", err)
+	}
+	if clean, err := worktreeIsClean(wt); err != nil || !clean {
+		t.Fatalf("worktree should be clean: clean=%v err=%v", clean, err)
+	}
+	if got := runGitTest(t, wt.Path, "log", "-1", "--format=%s"); got != "Update from Gexi" {
+		t.Fatalf("commit subject = %q", got)
+	}
+	if files := runGitTest(t, wt.Path, "show", "--name-only", "--format=", "HEAD"); files != "note.txt" {
+		t.Fatalf("commit files = %q", files)
+	}
+}
