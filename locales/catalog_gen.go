@@ -706,56 +706,6 @@ func (msgs Messages) WorktreeError(error string) string {
 	return Catalog.Format(msgs.locale, "worktreeError", map[string]any{"error": error})
 }
 
-// SettingsAI says "AI"
-// in the language the app shows.
-func SettingsAI() string { return In(i18n.Locale()).SettingsAI() }
-
-// SettingsAI says "AI"
-// in the language of msgs.
-func (msgs Messages) SettingsAI() string {
-	return Catalog.Format(msgs.locale, "settingsAI", nil)
-}
-
-// SettingsDeepSeekKey says "DeepSeek API key"
-// in the language the app shows.
-func SettingsDeepSeekKey() string { return In(i18n.Locale()).SettingsDeepSeekKey() }
-
-// SettingsDeepSeekKey says "DeepSeek API key"
-// in the language of msgs.
-func (msgs Messages) SettingsDeepSeekKey() string {
-	return Catalog.Format(msgs.locale, "settingsDeepSeekKey", nil)
-}
-
-// SettingsDeepSeekKeyDetail says "Writes commit messages for pull requests."
-// in the language the app shows.
-func SettingsDeepSeekKeyDetail() string { return In(i18n.Locale()).SettingsDeepSeekKeyDetail() }
-
-// SettingsDeepSeekKeyDetail says "Writes commit messages for pull requests."
-// in the language of msgs.
-func (msgs Messages) SettingsDeepSeekKeyDetail() string {
-	return Catalog.Format(msgs.locale, "settingsDeepSeekKeyDetail", nil)
-}
-
-// SettingsSave says "Save"
-// in the language the app shows.
-func SettingsSave() string { return In(i18n.Locale()).SettingsSave() }
-
-// SettingsSave says "Save"
-// in the language of msgs.
-func (msgs Messages) SettingsSave() string {
-	return Catalog.Format(msgs.locale, "settingsSave", nil)
-}
-
-// SettingsSaved says "Saved"
-// in the language the app shows.
-func SettingsSaved() string { return In(i18n.Locale()).SettingsSaved() }
-
-// SettingsSaved says "Saved"
-// in the language of msgs.
-func (msgs Messages) SettingsSaved() string {
-	return Catalog.Format(msgs.locale, "settingsSaved", nil)
-}
-
 // CommitMessageTitle says "Commit message"
 // in the language the app shows.
 func CommitMessageTitle() string { return In(i18n.Locale()).CommitMessageTitle() }
@@ -766,26 +716,26 @@ func (msgs Messages) CommitMessageTitle() string {
 	return Catalog.Format(msgs.locale, "commitMessageTitle", nil)
 }
 
-// CommitMessageNoKey says "Set a DeepSeek API key in Settings → Advanced to write this automatically, or type it here."
+// CommitMessageNoAgent says "No agent is running in this pane; type the message here."
 // in the language the app shows.
-func CommitMessageNoKey() string { return In(i18n.Locale()).CommitMessageNoKey() }
+func CommitMessageNoAgent() string { return In(i18n.Locale()).CommitMessageNoAgent() }
 
-// CommitMessageNoKey says "Set a DeepSeek API key in Settings → Advanced to write this automatically, or type it here."
+// CommitMessageNoAgent says "No agent is running in this pane; type the message here."
 // in the language of msgs.
-func (msgs Messages) CommitMessageNoKey() string {
-	return Catalog.Format(msgs.locale, "commitMessageNoKey", nil)
+func (msgs Messages) CommitMessageNoAgent() string {
+	return Catalog.Format(msgs.locale, "commitMessageNoAgent", nil)
 }
 
-// CommitMessageDeepSeekFailed says "DeepSeek could not write a message: {error}"
+// CommitMessageAgentFailed says "Could not ask {agent} for a message: {error}"
 // in the language the app shows.
-func CommitMessageDeepSeekFailed(error string) string {
-	return In(i18n.Locale()).CommitMessageDeepSeekFailed(error)
+func CommitMessageAgentFailed(agent string, error string) string {
+	return In(i18n.Locale()).CommitMessageAgentFailed(agent, error)
 }
 
-// CommitMessageDeepSeekFailed says "DeepSeek could not write a message: {error}"
+// CommitMessageAgentFailed says "Could not ask {agent} for a message: {error}"
 // in the language of msgs.
-func (msgs Messages) CommitMessageDeepSeekFailed(error string) string {
-	return Catalog.Format(msgs.locale, "commitMessageDeepSeekFailed", map[string]any{"error": error})
+func (msgs Messages) CommitMessageAgentFailed(agent string, error string) string {
+	return Catalog.Format(msgs.locale, "commitMessageAgentFailed", map[string]any{"agent": agent, "error": error})
 }
 
 // CommitMessagePlaceholder says "What changed?"

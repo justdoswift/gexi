@@ -112,10 +112,9 @@ from. The conversation itself is not carried over. The branch starts with a
 placeholder Dota 2 name — a hero, item, or ability; the first prompt asks
 Claude Code to rename it to the task. The header then shows **PR**, which
 pushes the branch and opens a pull request with `gh`; any pending changes are
-committed first, with a message DeepSeek writes from the diff when a key is
-set in Settings → Advanced. Without a key, or when DeepSeek fails, a small
-dialog asks for the message. `DEEPSEEK_API_KEY` also supplies the key, and
-`DEEPSEEK_MODEL` and `DEEPSEEK_BASE_URL` override the model and endpoint.
+committed first, with a message the pane's own agent writes from the diff in
+its headless mode (`claude -p`, `codex exec`). When the pane runs no agent, or
+it cannot answer, a small dialog asks for the message.
 Once it exists, **PR #N**
 opens the pull request on GitHub, and **Merge** reports the state by its
 colour: green when GitHub would merge, amber while checks or reviews are still
