@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Pressing PR commits any uncommitted changes in the worktree first, as
-  `Update from Gexi`, then pushes and opens the pull request. Unresolved merge
+- Pressing PR commits any uncommitted changes in the worktree first, with a
+  message the local `claude` writes from the diff (or `Update from Gexi` when
+  it cannot), then pushes and opens the pull request. Unresolved merge
   conflicts still stop it rather than committing the markers.
 - Merge no longer asks for confirmation: a green button merges on the press,
   since the status is re-read at that moment and a blocker that appeared

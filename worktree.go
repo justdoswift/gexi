@@ -281,6 +281,27 @@ func (w *workspace) worktreeFailed(err error) {
 // ghBinary is gh's path. An app opened from Finder inherits launchd's short
 // PATH, which misses a gh installed beside the user's other tools, though the
 // panes' login shell finds it; the usual install folders are asked as well.
+// claudeBinary is the local Claude Code CLI, used for a commit message. An
+// app opened from Finder has launchd's short PATH, so the usual install
+// folders are asked as well.
+var claudeBinary = sync.OnceValue(func() string {
+	if path, err := exec.LookPath("claude"); err == nil {
+		return path
+	}
+	home, _ := os.UserHomeDir()
+	for _, path := range []string{
+		filepath.Join(home, ".local", "bin", "claude"),
+		filepath.Join(home, ".claude", "local", "claude"),
+		"/opt/homebrew/bin/claude",
+		"/usr/local/bin/claude",
+	} {
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			return path
+		}
+	}
+	return ""
+})
+
 var ghBinary = sync.OnceValue(func() string {
 	if path, err := exec.LookPath("gh"); err == nil {
 		return path
@@ -507,13 +528,83 @@ func commitWorktree(wt *paneWorktree) error {
 	if _, err := worktreeGit(wt.Path, "add", "-A"); err != nil {
 		return err
 	}
-	if _, err := worktreeGit(wt.Path, "commit", "-m", "Update from Gexi"); err != nil {
+	msg := aiCommitMessage(wt)
+	if msg == "" {
+		msg = "Update from Gexi"
+	}
+	return commitStaged(wt, msg)
+}
+
+func commitStaged(wt *paneWorktree, msg string) error {
+	if _, err := worktreeGit(wt.Path, "commit", "-m", msg); err != nil {
 		if clean, _ := worktreeIsClean(wt); clean {
 			return nil
 		}
 		return err
 	}
 	return nil
+}
+
+// aiCommitMessage asks the local claude for a one-line message from the
+// staged diff. If claude is missing, slow, rate limited, or unhappy, it gives
+// up and the caller uses the plain fallback.
+func aiCommitMessage(wt *paneWorktree) string {
+	diff, err := worktreeGit(wt.Path, "diff", "--cached", "--no-color", "--unified=1")
+	if err != nil || strings.TrimSpace(diff) == "" {
+		return ""
+	}
+	if len(diff) > 12000 {
+		diff = diff[:12000] + "\n… (truncated)"
+	}
+	bin := claudeBinary()
+	if bin == "" {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	prompt := "Write one git commit message for the staged diff below. " +
+		"Use the imperative mood, keep it under 72 characters, write it in English, " +
+		"and output only the message, with no quotes or markdown.\n\n" + diff
+	cmd := exec.CommandContext(ctx, bin, "-p", prompt)
+	cmd.Dir = wt.Path
+	cmd.Env = helperEnv()
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return cleanCommitMessage(string(out))
+}
+
+// helperEnv keeps the helper from looking like a Gexi pane or a nested Claude
+// Code session.
+func helperEnv() []string {
+	var env []string
+	for _, kv := range cleanEnvironment(os.Environ()) {
+		if strings.HasPrefix(kv, "GEXI_") {
+			continue
+		}
+		env = append(env, kv)
+	}
+	return append(env, "GEXI_PANE=")
+}
+
+func cleanCommitMessage(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	s = strings.TrimSpace(strings.Trim(s, "`\"'"))
+	lower := strings.ToLower(s)
+	for _, prefix := range []string{"commit message:", "message:", "commit:"} {
+		if strings.HasPrefix(lower, prefix) {
+			s = strings.TrimSpace(s[len(prefix):])
+			lower = strings.ToLower(s)
+		}
+	}
+	if r := []rune(s); len(r) > 100 {
+		s = strings.TrimSpace(string(r[:100]))
+	}
+	return s
 }
 
 func mergePR(wt *paneWorktree) error {

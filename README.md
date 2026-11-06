@@ -108,7 +108,9 @@ app's data folder. The pane moves into the worktree with a fresh shell. The
 branch starts with a placeholder Dota 2 name — a hero, item, or ability; the
 first prompt asks Claude Code to rename it to the task. The header then shows **PR**, which
 pushes the branch and opens a pull request with `gh`; any pending changes are
-committed first as `Update from Gexi`, so the pull request carries them.
+committed first, with a message the local `claude` writes from the diff, so the
+pull request carries them. If `claude` is missing or the call fails, the
+message falls back to `Update from Gexi`.
 Once it exists, **PR #N**
 opens the pull request on GitHub, and **Merge** reports the state by its
 colour: green when GitHub would merge, amber while checks or reviews are still

@@ -377,7 +377,8 @@ func TestCommitWorktree(t *testing.T) {
 	if clean, err := worktreeIsClean(wt); err != nil || clean {
 		t.Fatalf("worktree should start dirty: clean=%v err=%v", clean, err)
 	}
-	if err := commitWorktree(wt); err != nil {
+	runGitTest(t, wt.Path, "add", "-A")
+	if err := commitStaged(wt, "Update from Gexi"); err != nil {
 		t.Fatalf("commit worktree: %v", err)
 	}
 	if clean, err := worktreeIsClean(wt); err != nil || !clean {
@@ -388,5 +389,36 @@ func TestCommitWorktree(t *testing.T) {
 	}
 	if files := runGitTest(t, wt.Path, "show", "--name-only", "--format=", "HEAD"); files != "note.txt" {
 		t.Fatalf("commit files = %q", files)
+	}
+}
+
+func TestCleanCommitMessage(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"Update login flow\n", "Update login flow"},
+		{"`fix: names`", "fix: names"},
+		{"\"add tests\"", "add tests"},
+		{"commit message: add tests", "add tests"},
+		{"Commit: tighten copy", "tighten copy"},
+		{"  spaced  ", "spaced"},
+	}
+	for _, c := range cases {
+		if got := cleanCommitMessage(c.in); got != c.want {
+			t.Fatalf("cleanCommitMessage(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestAIMessageEmptyDiff(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %v %+v", err, wt)
+	}
+	t.Cleanup(func() {
+		_ = exec.Command("git", "-C", root, "worktree", "remove", "--force", wt.Path).Run()
+	})
+	if got := aiCommitMessage(wt); got != "" {
+		t.Fatalf("empty diff produced %q", got)
 	}
 }
