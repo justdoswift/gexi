@@ -1,4 +1,4 @@
-# Gexi — logo brief
+# gexi — logo brief
 
 **What it is.** A macOS terminal workspace: projects on the left, sessions in
 panes, a CLI that drives it. Built with Go and mygo.

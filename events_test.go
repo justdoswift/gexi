@@ -129,7 +129,7 @@ func TestGlobalClaudeHooksMerge(t *testing.T) {
 	if err := installGlobalClaudeHooks(); err != nil {
 		t.Fatalf("install: %v", err)
 	}
-	// Installing again must replace Gexi's entries, not stack another set.
+	// Installing again must replace gexi's entries, not stack another set.
 	if err := installGlobalClaudeHooks(); err != nil {
 		t.Fatalf("install again: %v", err)
 	}

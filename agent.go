@@ -79,7 +79,7 @@ func resolveAgentCommand(command []string) resolvedCommand {
 
 func resolveClaude(raw string, command []string) resolvedCommand {
 	// The user's own settings carry the hooks after installGlobalClaudeHooks,
-	// so every claude in a pane reports events — one Gexi launched and one the
+	// so every claude in a pane reports events — one gexi launched and one the
 	// user typed alike. Only when that file could not be written does a
 	// launch fall back to a private settings file.
 	settings := ""
@@ -385,7 +385,7 @@ func newestClaudeSessionID(cwd string) string {
 
 // claudeProjectSlug is the folder Claude Code files a directory's transcripts
 // under: every character that is not a letter, a digit, or a hyphen becomes a
-// hyphen. A path with a space is the one that matters here, since Gexi keeps
+// hyphen. A path with a space is the one that matters here, since gexi keeps
 // its own worktrees under "Application Support", and a missing folder there
 // left the agent undetected, showing a terminal glyph beside the glyph the
 // title already carried.

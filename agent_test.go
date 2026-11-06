@@ -14,7 +14,7 @@ func TestClaudeProjectSlug(t *testing.T) {
 			"/Users/gepeng/Documents/coolweb/JustWrite/.claude/worktrees/writing-loop-v1-54",
 			"-Users-gepeng-Documents-coolweb-JustWrite--claude-worktrees-writing-loop-v1-54",
 		},
-		// Gexi's own worktrees sit under "Application Support": spaces count.
+		// gexi's own worktrees sit under "Application Support": spaces count.
 		{
 			"/Users/gepeng/Library/Application Support/Gexi/worktrees/Gexi-3a77b02a/budapest",
 			"-Users-gepeng-Library-Application-Support-Gexi-worktrees-Gexi-3a77b02a-budapest",

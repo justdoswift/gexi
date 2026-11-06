@@ -58,7 +58,7 @@ func (rc remoteCode) encode() string {
 func parseRemoteCode(s string) (remoteCode, error) {
 	s = strings.TrimSpace(s)
 	if !strings.HasPrefix(s, remoteCodePrefix) {
-		return remoteCode{}, errors.New("That is not a Gexi connection code")
+		return remoteCode{}, errors.New("That is not a gexi connection code")
 	}
 	data, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(s, remoteCodePrefix))
 	if err != nil {

@@ -13,7 +13,7 @@ import (
 	"github.com/egoist/mygo/plugins/terminal"
 )
 
-// ptyConn is the in-memory backend: Gexi owns the PTY, so the terminal
+// ptyConn is the in-memory backend: gexi owns the PTY, so the terminal
 // reads every byte the shell writes. That is also where agent detection gets
 // its master fd.
 type ptyConn struct {
@@ -205,7 +205,7 @@ func (p *pane) start(argv []string, dir string) error {
 	cmd.Env = append(cleanEnvironment(os.Environ()),
 		"TERM=xterm-256color",
 		"COLORTERM=truecolor",
-		"TERM_PROGRAM=Gexi",
+		"TERM_PROGRAM=gexi",
 		"GEXI_PANE="+p.ID,
 		"GEXI_INSTANCE="+p.ws.InstanceID,
 		"GEXI_SOCKET="+socketPath(),
@@ -264,7 +264,7 @@ func (p *pane) title() string {
 	return "Terminal"
 }
 
-// dir prefers the directory the shell reported (OSC 7), as Gexi does.
+// dir prefers the directory the shell reported (OSC 7), as gexi does.
 func (p *pane) dir() string {
 	if d := p.term.Dir(); d != "" {
 		return d

@@ -80,7 +80,7 @@ func (p *project) name() string {
 	return p.Dir
 }
 
-// workspace mirrors Gexi's model: projects, the session each holds, focus,
+// workspace mirrors gexi's model: projects, the session each holds, focus,
 // and the control server that drives it all from outside the process.
 type workspace struct {
 	InstanceID      string

@@ -155,7 +155,7 @@ func notifyUser(title, body string) {
 	script := fmt.Sprintf(
 		"display notification %s with title %s",
 		appleScriptString(body),
-		appleScriptString("Gexi · "+title),
+		appleScriptString("gexi · "+title),
 	)
 	go func() { _ = exec.Command("osascript", "-e", script).Run() }()
 }
@@ -172,7 +172,7 @@ func hookSettingsPath() string {
 	return filepath.Join(supportDir(), "hooks", "claude-settings.json")
 }
 
-// claudeHookKinds pairs each Claude Code hook event with the Gexi event it
+// claudeHookKinds pairs each Claude Code hook event with the gexi event it
 // reports. Only a permission request blocks the agent: Claude Code also
 // fires Notification for idle_prompt sixty seconds after a turn ends, which
 // without the matcher would leave the sidebar loader on for a finished
@@ -185,7 +185,7 @@ var claudeHookKinds = []struct{ event, kind, matcher string }{
 	{"SessionEnd", "session.end", ""},
 }
 
-// installClaudeHooks writes the extra settings file Gexi passes to
+// installClaudeHooks writes the extra settings file gexi passes to
 // `claude --settings`. It is layered on top of the user's own settings, so
 // hooks the user already has (vibe-island, orca, …) keep running.
 func installClaudeHooks() (string, error) {
@@ -217,14 +217,14 @@ func installClaudeHooks() (string, error) {
 var globalHooksInstalled bool
 
 // globalClaudeSettingsPath is the file every `claude` on this Mac reads,
-// whether Gexi launched it or the user typed it into a pane.
+// whether gexi launched it or the user typed it into a pane.
 func globalClaudeSettingsPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".claude", "settings.json")
 }
 
-// installGlobalClaudeHooks merges Gexi's events into the user's own Claude
-// Code settings. A claude Gexi launches gets them through --settings, but one
+// installGlobalClaudeHooks merges gexi's events into the user's own Claude
+// Code settings. A claude gexi launches gets them through --settings, but one
 // the user starts by hand in a pane only reads this file, and without a hook
 // here its sidebar loader would never light. Each command exits at once when
 // GEXI_PANE is unset, so Claude Code running anywhere else on the Mac reports
@@ -259,7 +259,7 @@ func installGlobalClaudeHooks() error {
 				return err
 			}
 		}
-		// Replace Gexi's own entry, which may name an older binary after an
+		// Replace gexi's own entry, which may name an older binary after an
 		// update, and leave every other tool's hooks where they are.
 		kept := groups[:0]
 		for _, g := range groups {
@@ -299,14 +299,14 @@ func installGlobalClaudeHooks() error {
 }
 
 // guardedHookCommand is the hook for the user's settings: it returns at once
-// unless it runs inside a Gexi pane.
+// unless it runs inside a gexi pane.
 func guardedHookCommand(bin, kind string) string {
 	script := `[ -n "${GEXI_PANE-}" ] || exit 0; exec ` +
 		shellQuote(bin) + " event " + kind + " --agent claude"
 	return "/bin/sh -c " + shellQuote(script)
 }
 
-// isGexiHookGroup tells a hook Gexi installed from anyone else's.
+// isGexiHookGroup tells a hook gexi installed from anyone else's.
 func isGexiHookGroup(raw json.RawMessage) bool {
 	var group struct {
 		Hooks []struct {

@@ -1520,11 +1520,11 @@ func (msgs Messages) RelayTitle() string {
 	return Catalog.Format(msgs.locale, "relayTitle", nil)
 }
 
-// RelayBody says "Gexi keeps a tunnel to your relay and gives you one code for the other Mac. The relay only forwards ssh."
+// RelayBody says "gexi keeps a tunnel to your relay and gives you one code for the other Mac. The relay only forwards ssh."
 // in the language the app shows.
 func RelayBody() string { return In(i18n.Locale()).RelayBody() }
 
-// RelayBody says "Gexi keeps a tunnel to your relay and gives you one code for the other Mac. The relay only forwards ssh."
+// RelayBody says "gexi keeps a tunnel to your relay and gives you one code for the other Mac. The relay only forwards ssh."
 // in the language of msgs.
 func (msgs Messages) RelayBody() string {
 	return Catalog.Format(msgs.locale, "relayBody", nil)
@@ -1630,11 +1630,11 @@ func (msgs Messages) NotifyCodeCopiedTitle() string {
 	return Catalog.Format(msgs.locale, "notifyCodeCopiedTitle", nil)
 }
 
-// NotifyCodeCopiedBody says "Paste it in Gexi on the other Mac."
+// NotifyCodeCopiedBody says "Paste it in gexi on the other Mac."
 // in the language the app shows.
 func NotifyCodeCopiedBody() string { return In(i18n.Locale()).NotifyCodeCopiedBody() }
 
-// NotifyCodeCopiedBody says "Paste it in Gexi on the other Mac."
+// NotifyCodeCopiedBody says "Paste it in gexi on the other Mac."
 // in the language of msgs.
 func (msgs Messages) NotifyCodeCopiedBody() string {
 	return Catalog.Format(msgs.locale, "notifyCodeCopiedBody", nil)

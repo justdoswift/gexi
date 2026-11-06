@@ -476,7 +476,7 @@ func sessionActivityState(s *session) string {
 	return state
 }
 
-// splitView mirrors Gexi's recursive split tree. leading marks the child
+// splitView mirrors gexi's recursive split tree. leading marks the child
 // that touches the content's top-left corner: when the sidebar is collapsed,
 // that one pane header makes room for the traffic lights and the toggle.
 func (w *workspace) splitView(c *ui.Context, tk tokens, n *splitNode, leading bool) {
