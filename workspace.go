@@ -147,15 +147,13 @@ type workspace struct {
 	leaveTarget *pane
 	leaveMsg    string
 
-	// commitOpen is the manual commit-message prompt, shown when DeepSeek
-	// is not configured or could not answer.
-	commitOpen    bool
-	commitTarget  *pane
-	commitText    string
-	commitHint    string
-	commitErr     string
-	deepseekDraft string
-	deepseekSaved bool
+	// commitOpen is the manual commit-message prompt, shown when the pane
+	// has no agent that can write one or the agent could not answer.
+	commitOpen   bool
+	commitTarget *pane
+	commitText   string
+	commitHint   string
+	commitErr    string
 }
 
 func newWorkspace() *workspace {
@@ -167,7 +165,6 @@ func newWorkspace() *workspace {
 		gitBusy:    map[string]bool{},
 		gitGen:     map[string]int{},
 	}
-	w.deepseekDraft = w.settings.DeepSeekKey
 	// A Mac that was left reachable comes back reachable without a click.
 	w.startRemoteTunnel()
 	return w
