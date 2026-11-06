@@ -713,9 +713,10 @@ func (w *workspace) requestMerge(p *pane) {
 }
 
 // archiveMergedWorktree hangs up the pane and any split that shares its
-// checkout, then removes the checkout. The branch is already merged, so
-// nothing is lost. The header offers this once the PR is merged instead of
-// running it on its own.
+// checkout, then clears the checkout away. The branch is already merged, so
+// nothing is lost; the branch is kept so Settings › Archived can restore the
+// worktree until the user deletes it for good. The header offers this once
+// the PR is merged instead of running it on its own.
 func (w *workspace) archiveMergedWorktree(p *pane) {
 	wt := p.Worktree
 	if wt == nil || wt.busy != "" || wt.State != worktreeMerged {
@@ -723,6 +724,10 @@ func (w *workspace) archiveMergedWorktree(p *pane) {
 	}
 	stopPRTimer(wt)
 	s := w.sessionOf(p)
+	projectDir := ""
+	if pr := w.projectOf(s); pr != nil {
+		projectDir = pr.Dir
+	}
 	if s != nil && s.Root != nil {
 		for _, other := range s.Root.panes() {
 			if !inWorktree(other, wt) {
@@ -735,11 +740,8 @@ func (w *workspace) archiveMergedWorktree(p *pane) {
 	} else if w.paneByID(p.ID) != nil {
 		w.closePane(p)
 	}
-	go func() {
-		if err := removeWorktree(wt); err != nil {
-			w.onMain(func() { w.flash(locales.WorktreeError(err.Error())) })
-		}
-	}()
+	w.archiveWorktree(wt, projectDir)
+	w.flash(locales.WorktreeArchived(wt.Branch))
 }
 
 func inWorktree(p *pane, wt *paneWorktree) bool {

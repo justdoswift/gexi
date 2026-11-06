@@ -110,9 +110,11 @@ colour: green when GitHub would merge, amber while checks or reviews are still
 pending, red when something blocks it. Merge asks before merging, and a blocked
 press says why. Merging fast-forwards your local base branch and leaves the
 pane in the worktree. The button then becomes **Archive**, which closes the
-pane and removes the checkout when you press it. Panes that never press W work
-exactly as before. Opening and merging pull requests needs the GitHub CLI,
-authenticated.
+pane and clears the checkout away when you press it. The branch is kept, so
+**Settings → Archived** lists it until you restore it (the checkout comes
+back and its session opens again) or delete it (the branch goes too). Panes
+that never press W work exactly as before. Opening and merging pull requests
+needs the GitHub CLI, authenticated.
 
 **↩** beside PR leaves the checkout: it returns the pane to the project
 folder and deletes the worktree. A branch with unmerged commits is kept, and
