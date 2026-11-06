@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -202,7 +204,7 @@ func resumesAgent(command []string) bool {
 func (p *pane) start(argv []string, dir string) error {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Dir = dir
-	cmd.Env = append(cleanEnvironment(os.Environ()),
+	cmd.Env = append(withInteractivePath(cleanEnvironment(os.Environ())),
 		"TERM=xterm-256color",
 		"COLORTERM=truecolor",
 		"TERM_PROGRAM=gexi",
@@ -349,4 +351,84 @@ func cleanEnvironment(env []string) []string {
 		out = append(out, kv)
 	}
 	return out
+}
+
+// A pane runs `zsh -lc`, a login shell: it reads profile files but not
+// ~/.zshrc, where many tools (claude among them) add their directory to
+// PATH. Opened from Finder, gexi also inherits launchd's short PATH, so
+// those tools vanish from every pane. The user's interactive shell knows
+// the real PATH; ask it once, with a deadline, and keep the inherited PATH
+// if it does not answer.
+
+const (
+	pathProbeStart = "__GEXI_PATH__"
+	pathProbeEnd   = "__GEXI_PATH_END__"
+)
+
+var interactivePathOnce struct {
+	sync.Once
+	path string
+}
+
+func interactivePath() string {
+	interactivePathOnce.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		probe := "printf '" + pathProbeStart + "%s" + pathProbeEnd + "' \"$PATH\""
+		cmd := exec.CommandContext(ctx, loginShell(), "-ilc", probe)
+		cmd.Env = cleanEnvironment(os.Environ())
+		cmd.WaitDelay = time.Second
+		cmd.Stderr = io.Discard
+		out, _ := cmd.Output()
+
+		s := string(out)
+		start := strings.Index(s, pathProbeStart)
+		end := strings.Index(s, pathProbeEnd)
+		if start < 0 || end <= start {
+			return
+		}
+		if v := s[start+len(pathProbeStart) : end]; strings.Contains(v, "/") {
+			interactivePathOnce.path = v
+		}
+	})
+	return interactivePathOnce.path
+}
+
+// mergePaths puts the shell's directories first, then any the inherited
+// environment has and the shell did not, so a probe that came back short
+// never removes what already worked.
+func mergePaths(shell, inherited string) string {
+	if shell == "" {
+		return inherited
+	}
+	seen := make(map[string]bool)
+	out := make([]string, 0, strings.Count(shell, ":")+1)
+	for _, path := range []string{shell, inherited} {
+		for _, dir := range strings.Split(path, ":") {
+			if dir == "" || seen[dir] {
+				continue
+			}
+			seen[dir] = true
+			out = append(out, dir)
+		}
+	}
+	return strings.Join(out, ":")
+}
+
+// withPath rewrites env's PATH to what the interactive shell sets up.
+func withPath(shellPath string, env []string) []string {
+	if shellPath == "" {
+		return env
+	}
+	for i, kv := range env {
+		if key, value, ok := strings.Cut(kv, "="); ok && key == "PATH" {
+			env[i] = "PATH=" + mergePaths(shellPath, value)
+			return env
+		}
+	}
+	return append(env, "PATH="+mergePaths(shellPath, ""))
+}
+
+func withInteractivePath(env []string) []string {
+	return withPath(interactivePath(), env)
 }

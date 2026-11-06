@@ -29,6 +29,46 @@ func TestSavedCommandKeepsAgentResume(t *testing.T) {
 	}
 }
 
+// A pane's `zsh -lc` never reads ~/.zshrc, so the PATH the interactive
+// shell builds is what keeps a tool installed in ~/.local/bin — claude —
+// startable from a gexi opened in Finder.
+func TestMergePaths(t *testing.T) {
+	cases := []struct{ shell, inherited, want string }{
+		{"", "/usr/bin", "/usr/bin"},
+		{"/Users/me/.local/bin:/usr/bin", "/usr/bin:/bin", "/Users/me/.local/bin:/usr/bin:/bin"},
+		{"/usr/bin::/usr/bin", "/bin", "/usr/bin:/bin"},
+		{"/opt/homebrew/bin", "", "/opt/homebrew/bin"},
+	}
+	for _, c := range cases {
+		if got := mergePaths(c.shell, c.inherited); got != c.want {
+			t.Errorf("mergePaths(%q, %q) = %q, want %q", c.shell, c.inherited, got, c.want)
+		}
+	}
+}
+
+func TestWithPath(t *testing.T) {
+	env := []string{"HOME=/Users/me", "PATH=/usr/bin:/bin", "TERM=dumb"}
+	got := withPath("/Users/me/.local/bin:/usr/bin", env)
+	if want := "PATH=/Users/me/.local/bin:/usr/bin:/bin"; got[1] != want {
+		t.Fatalf("PATH = %q, want %q", got[1], want)
+	}
+	if got[0] != "HOME=/Users/me" || got[2] != "TERM=dumb" {
+		t.Fatalf("other variables changed: %q", got)
+	}
+
+	// No PATH at all: the shell's is added.
+	got = withPath("/usr/bin", []string{"HOME=/Users/me"})
+	if want := []string{"HOME=/Users/me", "PATH=/usr/bin"}; !slices.Equal(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+
+	// A failed probe leaves the environment alone.
+	env = []string{"PATH=/usr/bin"}
+	if got := withPath("", env); !slices.Equal(got, env) {
+		t.Fatalf("empty shell path changed env: %q", got)
+	}
+}
+
 func TestResumesAgent(t *testing.T) {
 	cases := []struct {
 		command []string
