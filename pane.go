@@ -111,7 +111,11 @@ type pane struct {
 	closing             bool
 	closingAt           time.Time
 	exited              bool
-	ws                  *workspace
+	// headerActionsW is the width the pane's action buttons took in the
+	// frame before, so a header can set its path and branch pill beside the
+	// room they leave rather than by fixed thresholds.
+	headerActionsW float32
+	ws             *workspace
 }
 
 func newPane(ws *workspace, id string, command []string, dir string, snapshot string) (*pane, error) {
