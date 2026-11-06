@@ -11,7 +11,7 @@ import (
 )
 
 // The app binary answers `event KIND` itself, the same subcommand the gexi CLI
-// offers. A Claude Code hook runs `Gexi event turn.start --agent claude` from
+// offers. A Claude Code hook runs `gexi event turn.start --agent claude` from
 // inside a pane, so a packaged app needs no separate CLI next to it.
 func runEventCommand(args []string) bool {
 	if len(args) == 0 || args[0] != "event" {
@@ -58,7 +58,7 @@ func runEventCommand(args []string) bool {
 }
 
 // sendEvent hands one event to the running window and never fails loudly: a
-// hook may fire while Gexi is closed, and that must not disturb the agent.
+// hook may fire while gexi is closed, and that must not disturb the agent.
 func sendEvent(params map[string]any) map[string]any {
 	socket := os.Getenv("GEXI_SOCKET")
 	if socket == "" {

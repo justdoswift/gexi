@@ -1,4 +1,4 @@
-// Command gexi drives a running Gexi window over its Unix socket:
+// Command gexi drives a running gexi window over its Unix socket:
 // one JSON request per connection, one JSON response back.
 package main
 
@@ -97,7 +97,7 @@ func fail(format string, args ...any) {
 }
 
 func usage() {
-	fmt.Print(`gexi — control a running Gexi workspace
+	fmt.Print(`gexi — control a running gexi workspace
 
 Usage:
   gexi ping
@@ -307,7 +307,7 @@ func main() {
 		if f, ok := m["pid"].(float64); ok {
 			pid = strconv.Itoa(int(f))
 		}
-		fmt.Printf("Gexi %s pid %s\n", str(m, "version"), pid)
+		fmt.Printf("gexi %s pid %s\n", str(m, "version"), pid)
 
 	case "info":
 		result := call("workspace.info", nil)

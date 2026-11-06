@@ -15,7 +15,7 @@ import (
 const Version = "0.0.15"
 
 func main() {
-	// Hooks call back into this same binary (`Gexi event turn.start`), so it
+	// Hooks call back into this same binary (`gexi event turn.start`), so it
 	// has to answer that before any window is built.
 	if runEventCommand(os.Args[1:]) {
 		return
@@ -51,7 +51,7 @@ func main() {
 		mygo.App.SetLocale(w.settings.Language)
 
 		win = mygo.NewWindow(mygo.WindowOptions{
-			Title:     "Gexi",
+			Title:     "gexi",
 			Width:     1180,
 			Height:    760,
 			MinWidth:  760,
@@ -67,7 +67,7 @@ func main() {
 		w.win = win
 		win.OnShow(func() { win.Invalidate() })
 
-		// Gexi: closing the window hides it; shells keep running.
+		// gexi: closing the window hides it; shells keep running.
 		win.OnClose(func(e *mygo.CloseEvent) {
 			if w.quitting {
 				return
@@ -126,7 +126,7 @@ func mainMenu(w *workspace) *mygo.Menu {
 		w.pickProject()
 	}
 	return mygo.NewMenu([]*mygo.MenuItem{
-		{Label: "Gexi", Submenu: []*mygo.MenuItem{
+		{Label: "gexi", Submenu: []*mygo.MenuItem{
 			{Role: mygo.RoleAbout},
 			updater.MenuItem(),
 			mygo.Separator(),

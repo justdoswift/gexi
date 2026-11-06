@@ -1,4 +1,4 @@
-# Gexi
+# gexi
 
 A macOS terminal workspace: projects, sessions, split panes, and a CLI that
 drives the whole thing from outside the app.
@@ -51,7 +51,7 @@ go build -o gexi ./cmd/gexi
 
 Installed copies update themselves from signed releases on GitHub
 (`justdoswift/gexi`), configured by `updates` in `mygo.json`. The app checks
-once a day in the background, and **Gexi → Check for Updates…** checks on
+once a day in the background, and **gexi → Check for Updates…** checks on
 demand.
 
 Build a release with the update signing key, which also writes the update
@@ -127,7 +127,7 @@ The **Remote** row at the bottom of the sidebar is the whole feature.
 
 **Reaching another Mac.** On that Mac, open Remote → *Allow this Mac to be
 reached…*, enter the relay (`user@host`, any ssh account you already have),
-and confirm. Gexi writes a key, keeps a reverse tunnel
+and confirm. gexi writes a key, keeps a reverse tunnel
 (`ssh -R 127.0.0.1:<port>:localhost:22`) to the relay, and copies a
 connection code. On this Mac, Remote → *Connect to another Mac…*, paste the
 code, and the Mac appears in the menu from then on. The code carries the
@@ -186,7 +186,7 @@ title.
 ### Agent events and notifications
 
 A pane's screen says what the agent printed, not what it is doing. When a
-Claude Code pane is launched (`gexi run -- claude`, or a new session), Gexi
+Claude Code pane is launched (`gexi run -- claude`, or a new session), gexi
 passes an extra `--settings` file of hooks, so the agent reports its own
 lifecycle over the socket:
 
@@ -209,7 +209,7 @@ gexi event needs-input --agent codex -p 3f2a
 echo '{"session_id":"…"}' | gexi event turn.end --agent claude
 ```
 
-Events only cover agents Gexi launched or that a hook points at. A `claude`
+Events only cover agents gexi launched or that a hook points at. A `claude`
 typed into a plain shell has no hooks, and there `activity` stays unset.
 
 ### Socket and storage

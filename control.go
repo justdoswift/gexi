@@ -13,7 +13,7 @@ import (
 	"github.com/egoist/mygo"
 )
 
-// The wire format is Gexi's: one JSON request line per connection, one
+// The wire format is gexi's: one JSON request line per connection, one
 // JSON response line back, then the connection closes.
 
 type controlRequest struct {
@@ -353,7 +353,7 @@ func (w *workspace) resolveProject(raw string) (*project, error) {
 	}
 }
 
-// commandParam turns "command" into the login-shell invocation Gexi uses,
+// commandParam turns "command" into the login-shell invocation gexi uses,
 // so PATH, aliases, and shell init apply.
 func (w *workspace) commandParam(p map[string]json.RawMessage) []string {
 	if raw := str(p, "command"); raw != "" {

@@ -10,7 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-app="${1:-build/darwin-arm64/Gexi.app}"
+app="${1:-build/darwin-arm64/gexi.app}"
 src="${2:-brand/icon-product/final/png/gexi-icon-1024.png}"
 
 [ -d "$app" ] || { echo "fix-app-icon: no app bundle at $app" >&2; exit 1; }

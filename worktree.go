@@ -752,7 +752,7 @@ func inWorktree(p *pane, wt *paneWorktree) bool {
 }
 
 // refreshWorktree picks up a branch the agent renamed and, now and then, a PR
-// state that changed outside Gexi.
+// state that changed outside gexi.
 func (w *workspace) refreshWorktree(p *pane) {
 	wt := p.Worktree
 	if wt == nil {
@@ -1200,7 +1200,7 @@ func (w *workspace) worktreeNamingContext(p *pane) string {
 	wt.Naming = false
 	w.scheduleSave()
 	return fmt.Sprintf(
-		"Gexi workspace: this session runs in the git worktree %s on branch %q. "+
+		"gexi workspace: this session runs in the git worktree %s on branch %q. "+
 			"The branch name is a placeholder. Once the request is clear, rename it once "+
 			"with `git branch -m <new-name>` to a short kebab-case name for this task "+
 			"(for example `fix-login-redirect`), then continue; leave the worktree path unchanged.",

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <title>Gexi — Snake head</title>
+  <title>gexi — Snake head</title>
   <g transform="translate(-9 -8)"><g transform="translate(128 128) rotate(-26) scale(1.32) translate(-128 -118)">
     <path d="M36 180 C 36 140, 68 112, 104 106" fill="none" stroke="#000000" stroke-width="40" stroke-linecap="round"/>
     <ellipse cx="140" cy="104" rx="56" ry="44" transform="rotate(-14 140 104)" fill="#000000"/>

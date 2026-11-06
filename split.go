@@ -1,6 +1,6 @@
 package main
 
-// splitNode mirrors Gexi's binary split tree: leaves are panes, every
+// splitNode mirrors gexi's binary split tree: leaves are panes, every
 // split keeps its axis and ratio so layout survives edits.
 type splitNode struct {
 	pane          *pane

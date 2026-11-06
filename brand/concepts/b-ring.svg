@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
   <g transform="translate(128 128) scale(1.08) translate(-128 -128)"><g transform="translate(128 128) scale(1.05) translate(-128 -128)"><g transform="translate(128 128) scale(1.08) translate(-128 -128)"><g transform="translate(-4 11)">
-  <title>Gexi — Ouroboros</title>
+  <title>gexi — Ouroboros</title>
   <circle cx="128" cy="134" r="76" fill="none" stroke="#000000" stroke-width="26" stroke-dasharray="392 86" stroke-linecap="round"/>
   <ellipse cx="160" cy="62" rx="38" ry="29" transform="rotate(-32 160 62)" fill="#000000"/>
   <circle cx="171" cy="55" r="10" fill="#ffffff"/>
