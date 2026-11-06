@@ -91,4 +91,5 @@ const canvasInset float32 = 3
 const (
 	sidebarMotion = 200 * time.Millisecond
 	paneMotion    = 240 * time.Millisecond
+	focusMotion   = 150 * time.Millisecond
 )
