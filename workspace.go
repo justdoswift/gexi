@@ -106,6 +106,11 @@ type workspace struct {
 	collapsed   map[string]bool
 	searchQuery string
 
+	// archived holds the merged worktrees cleared away with Archive. They
+	// are listed in Settings › Archived, where they can be restored or
+	// deleted for good.
+	archived []archivedWorktree
+
 	// The files drawer: the right-hand column of changes and files.
 	drawer drawerState
 

@@ -31,6 +31,11 @@ type workspaceState struct {
 	DrawerTab       string  `json:"drawerTab,omitempty"`
 	DrawerListWidth float32 `json:"drawerListWidth,omitempty"`
 	DrawerFileWidth float32 `json:"drawerFileWidth,omitempty"`
+
+	// Merged worktrees the user cleared away with Archive. Their checkouts
+	// are gone but their branches are kept, so Settings › Archived can put
+	// them back.
+	ArchivedWorktrees []archivedWorktree `json:"archivedWorktrees,omitempty"`
 }
 
 type savedProject struct {
@@ -135,13 +140,14 @@ func (n *savedNode) dropMissingWorktrees(fallback string) {
 
 func (w *workspace) savedState() workspaceState {
 	state := workspaceState{
-		Version:         2,
-		SelectedSession: w.SelectedSession,
-		FocusedPane:     w.FocusedPane,
-		DrawerOpen:      w.drawer.open,
-		DrawerTab:       "changes",
-		DrawerListWidth: w.drawer.listWidth,
-		DrawerFileWidth: w.drawer.fileWidth,
+		Version:           2,
+		SelectedSession:   w.SelectedSession,
+		FocusedPane:       w.FocusedPane,
+		DrawerOpen:        w.drawer.open,
+		DrawerTab:         "changes",
+		DrawerListWidth:   w.drawer.listWidth,
+		DrawerFileWidth:   w.drawer.fileWidth,
+		ArchivedWorktrees: w.archived,
 	}
 	if w.drawer.tab == drawerTabFiles {
 		state.DrawerTab = "files"
@@ -271,6 +277,8 @@ func (w *workspace) restoreOrCreate() {
 		_, _, _ = w.openProject("")
 		return
 	}
+
+	w.archived = state.ArchivedWorktrees
 
 	for _, sp := range state.Projects {
 		pr := &project{ID: sp.ID, Dir: sp.Dir, Label: sp.Label, RemoteHost: sp.RemoteHost}
