@@ -294,6 +294,26 @@ func (msgs Messages) PaneDragHint() string {
 	return Catalog.Format(msgs.locale, "paneDragHint", nil)
 }
 
+// PaneSubagents says "{count} subagents running"
+// in the language the app shows.
+func PaneSubagents(count string) string { return In(i18n.Locale()).PaneSubagents(count) }
+
+// PaneSubagents says "{count} subagents running"
+// in the language of msgs.
+func (msgs Messages) PaneSubagents(count string) string {
+	return Catalog.Format(msgs.locale, "paneSubagents", map[string]any{"count": count})
+}
+
+// PaneSubagentsBackground says "background, still running after the turn"
+// in the language the app shows.
+func PaneSubagentsBackground() string { return In(i18n.Locale()).PaneSubagentsBackground() }
+
+// PaneSubagentsBackground says "background, still running after the turn"
+// in the language of msgs.
+func (msgs Messages) PaneSubagentsBackground() string {
+	return Catalog.Format(msgs.locale, "paneSubagentsBackground", nil)
+}
+
 // SettingsTitle says "Settings"
 // in the language the app shows.
 func SettingsTitle() string { return In(i18n.Locale()).SettingsTitle() }

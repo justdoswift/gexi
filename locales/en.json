@@ -26,6 +26,8 @@
   "dropSplitDown": "Split down",
   "dropSwapPanes": "Swap panes",
   "paneDragHint": "Drag to move this pane",
+  "paneSubagents": "{count} subagents running",
+  "paneSubagentsBackground": "background, still running after the turn",
   "settingsTitle": "Settings",
   "settingsGeneral": "General",
   "settingsGeneralSessions": "Sessions",

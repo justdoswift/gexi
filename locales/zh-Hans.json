@@ -26,6 +26,8 @@
   "dropSplitDown": "向下拆分",
   "dropSwapPanes": "交换窗格",
   "paneDragHint": "拖移以移动此窗格",
+  "paneSubagents": "{count} 个 subagent 在运行",
+  "paneSubagentsBackground": "后台运行中，回合结束后仍未停止",
   "settingsTitle": "设置",
   "settingsGeneral": "通用",
   "settingsGeneralSessions": "会话",

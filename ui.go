@@ -494,27 +494,64 @@ func sessionActivityState(s *session) string {
 	return ""
 }
 
-// sessionSubagentCount is how many subagents the session's panes report
-// running.
-func sessionSubagentCount(s *session) int {
-	n := 0
-	if s.Root == nil {
-		return n
+// subagentPillWidth measures the running-subagent chip before it is drawn, so
+// the header can give it room beside the branch pill.
+func (w *workspace) subagentPillWidth(c *ui.Context, p *pane) float32 {
+	n := p.subagentCount()
+	if n <= 0 {
+		return 0
 	}
-	for _, p := range s.Root.panes() {
-		n += p.subagentCount()
-	}
-	return n
+	tw, _ := c.MeasureText(0, ui.Span{Text: fmt.Sprint(n), Size: 10})
+	return 12 + 6 + 4 + tw
 }
 
-// sessionLabelText is the sidebar's name for a session: the label, and how
-// many subagents run under it while any do.
-func sessionLabelText(s *session) string {
-	label := sessionLabel(s)
-	if n := sessionSubagentCount(s); n > 0 {
-		return fmt.Sprintf("%s · %d", label, n)
+// subagentPill is the pane header's running-subagent count, after the branch
+// pill: the dot is the activity colour, so a child still running after its
+// turn ended reads as work even when the pane itself is idle.
+func (w *workspace) subagentPill(c *ui.Context, tk tokens, p *pane) {
+	n := p.subagentCount()
+	if n <= 0 {
+		return
 	}
-	return label
+	el := ui.Row(c).Height(22).Radius(chromeRadius).Padding(0, 6).Gap(4).
+		AlignItems(ui.Center)
+	bg := tk.Active
+	if el.Hovered() {
+		bg = tk.Control
+	}
+	dot := tk.Working
+	if p.activity == nil || p.activity.State != activityWorking {
+		// The turn is over but a child still runs: amber says the work
+		// continued past the prompt that started it.
+		dot = tk.Waiting
+	}
+	el.Background(bg).Tooltip(subagentHint(p)).Children(func() {
+		ui.Box(c).Width(6).Height(6).Radius(3).Background(dot)
+		ui.Text(c, fmt.Sprint(n)).FontSize(10).FontWeight(500).
+			TextColor(tk.MutedForeground)
+	})
+}
+
+// subagentHint names what the chip counts and whether any of it outlived the
+// turn, which is the only "background" the header can see.
+func subagentHint(p *pane) string {
+	kinds := []string{}
+	seen := map[string]bool{}
+	for _, a := range p.subagentsJSON() {
+		kind, _ := a["type"].(string)
+		if kind != "" && !seen[kind] {
+			seen[kind] = true
+			kinds = append(kinds, kind)
+		}
+	}
+	hint := locales.PaneSubagents(fmt.Sprint(p.subagentCount()))
+	if len(kinds) > 0 {
+		hint += " · " + strings.Join(kinds, ", ")
+	}
+	if p.activity == nil || p.activity.State != activityWorking {
+		hint += " · " + locales.PaneSubagentsBackground()
+	}
+	return hint
 }
 
 // splitView mirrors gexi's recursive split tree. leading marks the child
@@ -685,7 +722,8 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					}
 				}
 				// The strip's padding and the line's gaps: one between the
-				// strip, the pill, the drag area and the actions.
+				// strip, the pill, the subagent count, the drag area and the
+				// actions.
 				kept := 2*stripPad + markW + titleW + actionsW + 3*4
 				pillW := w.branchPillWidth(c, p)
 				showPill := pillW > 0 && (width == 0 || kept+pillW <= width)
@@ -693,11 +731,17 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				if showPill {
 					pillSpace = pillW + 4
 				}
+				subW := w.subagentPillWidth(c, p)
+				showSub := subW > 0 && (width == 0 || kept+pillSpace+subW <= width)
+				subSpace := float32(0)
+				if showSub {
+					subSpace = subW + 4
+				}
 				// The path takes what is left, the line's gap before it
 				// included, and never more than 40% of the line: the title
 				// stays the header's subject. A path needs a hundred points
 				// to say anything; a worktree's own name needs less.
-				pathRoom := width - kept - pillSpace - 4
+				pathRoom := width - kept - pillSpace - subSpace - 4
 				if capRoom := width * 0.4; pathRoom > capRoom {
 					pathRoom = capRoom
 				}
@@ -794,6 +838,12 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					// menu when the header has no room for it.
 					if showPill {
 						w.branchPill(c, tk, p)
+					}
+					// Running subagents sit beside the branch they work on:
+					// the panel says where the work is, and how much of it
+					// is still going.
+					if showSub {
+						w.subagentPill(c, tk, p)
 					}
 					w.dragArea(c, tk)
 					// The buttons keep their room and fade, so the row does
