@@ -66,7 +66,7 @@ func shimmerAlpha(k float64) uint8 {
 // after its turn — a band of light sweeps the label; while the agent waits
 // for you the label holds full ink; otherwise it keeps the row's colour.
 func sessionLabelElement(c *ui.Context, tk tokens, s *session, color ui.Color, pick func()) ui.Element {
-	label := sessionLabelText(s)
+	label := sessionLabel(s)
 	switch sessionActivityState(s) {
 	case activityWorking:
 		// The band reaches full ink on every row, so it reads the same in the
