@@ -209,10 +209,16 @@ lifecycle over the socket:
 | `Stop` | `turn.end` | `idle` |
 | `Notification` | `needs-input` | `waiting` |
 | `SessionStart` / `SessionEnd` | `session.start` / `session.end` | `idle` |
+| `SubagentStart` / `SubagentStop` | `subagent.start` / `subagent.end` | running count |
 
 The state is in `gexi list --json` under `activity`. `turn.end` and
 `needs-input` also post a notification. The settings file is layered on top of
 the user's own, so existing hooks keep firing.
+
+A subagent is counted rather than folded into the turn state: a background one
+outlives the turn that launched it, so the sidebar keeps shimmering (and shows
+`· 2` beside the session name) while it runs. The live set is in `gexi list
+--json` under `subagents`, and a session start or end clears it.
 
 Any process in a pane can report the same events:
 

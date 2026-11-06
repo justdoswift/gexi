@@ -313,6 +313,7 @@ gexi send -e "ls -la"</code></div>
         <h2>An agent that reports for itself.</h2>
         <p class="lead">A pane’s screen says what an agent printed, not what it is doing. When gexi launches Claude Code it layers a settings file of hooks on top of yours, so the pane reports its own lifecycle.</p>
         <p class="body"><code>turn.end</code> and <code>needs-input</code> post a notification; the state appears under <code>activity</code> in <code>gexi list --json</code>. Any process can report the same events with <code>gexi event</code>.</p>
+        <p class="body">Subagents are counted, not folded into the turn: <code>SubagentStart</code> / <code>SubagentStop</code> keep a live set, so a background agent that outlives its turn keeps the sidebar shimmering and its name showing <code>· 2</code>.</p>
         <ul class="feature-points">
           <li>Existing hooks keep firing: the generated file is layered on top of your own.</li>
           <li>Events cover agents gexi launched, or that a hook points at. A <code>claude</code> typed into a plain shell stays unset.</li>
@@ -341,6 +342,7 @@ gexi send -e "ls -la"</code></div>
               <tr><td><code>Stop</code></td><td>turn.end</td><td class="state state--idle"><i></i>idle</td></tr>
               <tr><td><code>Notification</code></td><td>needs-input</td><td class="state state--wait"><i></i>waiting</td></tr>
               <tr><td><code>SessionStart / SessionEnd</code></td><td>session.start / end</td><td class="state state--idle"><i></i>idle</td></tr>
+              <tr><td><code>SubagentStart / SubagentStop</code></td><td>subagent.start / end</td><td class="state state--work"><i></i>working</td></tr>
             </tbody>
           </table>
         </div>

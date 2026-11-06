@@ -27,6 +27,14 @@ const (
 	activityWaiting = "waiting"
 )
 
+// Subagents are their own pair of events rather than a turn state: a
+// background one outlives the turn that launched it, so the pane can be idle
+// while an agent it spawned still works.
+const (
+	eventSubagentStart = "subagent.start"
+	eventSubagentEnd   = "subagent.end"
+)
+
 // eventState is the pane state an event puts the agent in.
 var eventState = map[string]string{
 	"session.start": activityIdle,
@@ -62,6 +70,12 @@ type agentEvent struct {
 	// Claude Code's final reply on Stop, and the prompt it waits on for a
 	// Notification. A banner shows its first line instead of only the place.
 	Message string `json:"message,omitempty"`
+	// Subagent is the id of one Task/Agent call: Claude Code's SubagentStart
+	// and SubagentStop hooks carry it, so the pane can pair a start with the
+	// stop that ends the same run. SubagentType is the agent definition it
+	// runs (Explore, Plan, a plugin's agent, …).
+	Subagent     string `json:"subagent,omitempty"`
+	SubagentType string `json:"subagentType,omitempty"`
 }
 
 // handleEvent records one hook event on its pane. Main thread.
@@ -70,7 +84,8 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		return nil, fmt.Errorf("event needs a kind")
 	}
 	state, known := eventState[ev.Kind]
-	if !known {
+	subagent := ev.Kind == eventSubagentStart || ev.Kind == eventSubagentEnd
+	if !known && !subagent {
 		return nil, fmt.Errorf("unknown event kind: %s", ev.Kind)
 	}
 
@@ -81,6 +96,23 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 			return nil, err
 		}
 		p = resolved
+	}
+
+	// A subagent only changes the pane's set of running agents: the turn it
+	// belongs to keeps its own state, because a background subagent can still
+	// run after that turn ended.
+	if subagent {
+		if p == nil {
+			return map[string]any{}, nil
+		}
+		switch ev.Kind {
+		case eventSubagentStart:
+			p.startSubagent(ev.Subagent, ev.SubagentType)
+		case eventSubagentEnd:
+			p.endSubagent(ev.Subagent, ev.SubagentType)
+		}
+		w.invalidate()
+		return map[string]any{"pane": p.ID, "subagents": p.subagentCount()}, nil
 	}
 
 	result := map[string]any{"state": state}
@@ -98,6 +130,10 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		if p.Worktree != nil {
 			w.refreshWorktree(p)
 		}
+	case "session.start", "session.end":
+		// A fresh session has no running subagents, and a finished one leaves
+		// none behind even if a stop hook was missed.
+		p.clearSubagents()
 	}
 
 	p.activity = &agentActivity{
@@ -272,6 +308,8 @@ var claudeHookKinds = []struct{ event, kind, matcher string }{
 	{"Stop", "turn.end", ""},
 	{"Notification", "needs-input", "permission_prompt"},
 	{"SessionEnd", "session.end", ""},
+	{"SubagentStart", eventSubagentStart, ""},
+	{"SubagentStop", eventSubagentEnd, ""},
 }
 
 // installClaudeHooks writes the extra settings file gexi passes to
