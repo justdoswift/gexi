@@ -1,11 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.0.15
 
-- Merge carries the pull request's state as its colour instead of a status
-  label: green ready, amber while checking, red blocked. A new pull request is
-  re-read after five and twenty seconds, so checks that appear after creation
-  update the button without reselecting.
+- A worktree pane's pull request and merge are separate: #N opens the pull
+  request, and Merge refreshes GitHub's checks, review, and mergeability,
+  asks before merging, and carries the state as its colour — green ready,
+  amber while checking, red blocked. A new pull request is re-read after five
+  and twenty seconds, so checks that appear after creation update the button.
+- A pane restores with the agent's last resume command across restarts,
+  instead of dropping back to the shell.
 
 ## 0.0.14
 
