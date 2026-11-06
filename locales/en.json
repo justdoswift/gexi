@@ -48,6 +48,7 @@
   "worktreeCreateHint": "Create a worktree for this pane",
   "worktreeNotRepo": "This project is not a git repository.",
   "worktreeAgentRunning": "Stop the agent in this pane first.",
+  "worktreeAgentStuck": "Could not stop the agent in this pane.",
   "worktreeGhMissing": "GitHub CLI (gh) is not installed.",
   "worktreeGhInstall": "Install",
   "worktreeCreated": "Worktree created",

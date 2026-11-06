@@ -104,9 +104,13 @@ back.
 
 Open a pane and press **W** in its header to give that pane its own git
 worktree, branched from the latest `origin` base branch and kept under the
-app's data folder. The pane moves into the worktree with a fresh shell. The
-branch starts with a placeholder Dota 2 name — a hero, item, or ability; the
-first prompt asks Claude Code to rename it to the task. The header then shows **PR**, which
+app's data folder. The pane moves into the worktree with a fresh shell. When
+an agent is running in the pane, W stops it first, moves the project's
+uncommitted changes into the new checkout, and opens a fresh session of the
+same agent there; Claude Code's first prompt is told where the changes came
+from. The conversation itself is not carried over. The branch starts with a
+placeholder Dota 2 name — a hero, item, or ability; the first prompt asks
+Claude Code to rename it to the task. The header then shows **PR**, which
 pushes the branch and opens a pull request with `gh`; any pending changes are
 committed first, with a message DeepSeek writes from the diff when a key is
 set in Settings → Advanced. Without a key, or when DeepSeek fails, a small

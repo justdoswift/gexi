@@ -48,6 +48,7 @@
   "worktreeCreateHint": "为此窗格创建 worktree",
   "worktreeNotRepo": "这个项目不是 git 仓库。",
   "worktreeAgentRunning": "请先停掉这个窗格里的 agent。",
+  "worktreeAgentStuck": "停不掉这个窗格里的 agent。",
   "worktreeGhMissing": "未安装 GitHub CLI（gh）。",
   "worktreeGhInstall": "安装",
   "worktreeCreated": "已创建 worktree",

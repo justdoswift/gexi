@@ -52,6 +52,17 @@ func (k agentKind) name() string {
 	return string(k)
 }
 
+// launch is the command that opens a fresh conversation with the agent, for
+// a pane that moves into a worktree while the agent runs. Its flags, such as
+// a model or permission mode, are not carried: only the kind is known here.
+func (k agentKind) launch() []string {
+	switch k {
+	case agentClaude, agentCodex, agentOmp, agentDevin, agentGrok, agentDroid:
+		return shellCommand(string(k))
+	}
+	return nil
+}
+
 type resolvedCommand struct {
 	launch  []string
 	restore []string
@@ -121,6 +132,52 @@ func resolveContinuing(raw string, command []string, add string, already ...stri
 	}
 	restore := strings.TrimSpace(raw + " " + add)
 	return resolvedCommand{command, replaceRaw(restore, command)}
+}
+
+// paneRunsAgent reports whether the pane's own command is an agent, rather
+// than a shell an agent runs inside.
+func paneRunsAgent(command []string) bool {
+	raw, ok := rawCommand(command)
+	if !ok {
+		return false
+	}
+	return agentNamed(filepath.Base(firstToken(raw))) != ""
+}
+
+// stopAgentGroup ends the process group an agent runs in, so git can move
+// the files it was working on. SIGINT is what Ctrl-C sends; the escalation
+// covers a turn that ignores it and an agent that ignores both.
+func stopAgentGroup(group int) bool {
+	if group <= 0 {
+		return true
+	}
+	for _, sig := range []unix.Signal{unix.SIGINT, unix.SIGINT, unix.SIGHUP, unix.SIGKILL} {
+		if err := unix.Kill(-group, sig); err != nil {
+			// ESRCH: the group is already gone.
+			return true
+		}
+		if waitGroupGone(group, 700*time.Millisecond) {
+			return true
+		}
+	}
+	return !groupAlive(group)
+}
+
+func groupAlive(group int) bool {
+	return unix.Kill(-group, 0) == nil
+}
+
+func waitGroupGone(group int, d time.Duration) bool {
+	deadline := time.Now().Add(d)
+	for {
+		if !groupAlive(group) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 // rawCommand is the raw string of a `shell -lc "..."` wrapper.

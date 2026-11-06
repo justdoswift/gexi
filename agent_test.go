@@ -1,6 +1,38 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestAgentLaunch(t *testing.T) {
+	got := strings.Join(agentClaude.launch(), "\x00")
+	want := strings.Join(shellCommand("claude"), "\x00")
+	if got != want {
+		t.Fatalf("claude launch = %q, want %q", got, want)
+	}
+	if unknown := agentKind("unknown").launch(); unknown != nil {
+		t.Fatalf("unknown agent launch = %v, want nil", unknown)
+	}
+}
+
+func TestPaneRunsAgent(t *testing.T) {
+	cases := []struct {
+		command []string
+		want    bool
+	}{
+		{shellCommand("claude --resume 11111111-1111-4111-8111-111111111111"), true},
+		{shellCommand("codex resume --last"), true},
+		{[]string{"claude"}, true},
+		{shellCommand("npm test"), false},
+		{[]string{"/bin/zsh", "-l"}, false},
+	}
+	for _, c := range cases {
+		if got := paneRunsAgent(c.command); got != c.want {
+			t.Errorf("paneRunsAgent(%v) = %v, want %v", c.command, got, c.want)
+		}
+	}
+}
 
 func TestClaudeProjectSlug(t *testing.T) {
 	cases := []struct {

@@ -67,6 +67,122 @@ func TestCreateWorktree(t *testing.T) {
 	}
 }
 
+func TestMoveChangesToWorktree(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitTest(t, root, "add", "a.txt")
+	runGitTest(t, root, "commit", "-m", "a")
+
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %v %+v", err, wt)
+	}
+	t.Cleanup(func() {
+		_ = exec.Command("git", "-C", root, "worktree", "remove", "--force", wt.Path).Run()
+	})
+
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "staged.txt"), []byte("s\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitTest(t, root, "add", "staged.txt")
+	if err := os.WriteFile(filepath.Join(root, "new.txt"), []byte("n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	moved, err := moveChangesToWorktree(root, wt.Path)
+	if err != nil {
+		t.Fatalf("move changes: %v", err)
+	}
+	if !moved {
+		t.Fatal("changes were not reported as moved")
+	}
+	if files, err := gitChanges(root); err != nil || len(files) != 0 {
+		t.Fatalf("project still has changes: %v %v", files, err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(wt.Path, "a.txt")); string(got) != "two\n" {
+		t.Fatalf("worktree a.txt = %q", got)
+	}
+	if got, _ := os.ReadFile(filepath.Join(wt.Path, "new.txt")); string(got) != "n\n" {
+		t.Fatalf("worktree new.txt = %q", got)
+	}
+	// The staged change arrives staged, not as an unstaged edit.
+	if got := runGitTest(t, wt.Path, "diff", "--cached", "--name-only"); got != "staged.txt" {
+		t.Fatalf("staged file in the worktree = %q", got)
+	}
+	if got := runGitTest(t, root, "stash", "list"); got != "" {
+		t.Fatalf("stash left behind: %q", got)
+	}
+}
+
+func TestMoveChangesToWorktreeConflictRestoresProject(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	file := filepath.Join(root, "a.txt")
+	if err := os.WriteFile(file, []byte("one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitTest(t, root, "add", "a.txt")
+	runGitTest(t, root, "commit", "-m", "a")
+
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %v %+v", err, wt)
+	}
+	t.Cleanup(func() {
+		_ = exec.Command("git", "-C", root, "worktree", "remove", "--force", wt.Path).Run()
+	})
+
+	// Both sides change the same line, so the pop cannot apply.
+	if err := os.WriteFile(filepath.Join(wt.Path, "a.txt"), []byte("worktree\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitTest(t, wt.Path, "commit", "-am", "worktree")
+	if err := os.WriteFile(file, []byte("project\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	moved, err := moveChangesToWorktree(root, wt.Path)
+	if err == nil || moved {
+		t.Fatalf("conflicting changes moved: %v %v", moved, err)
+	}
+	if got, _ := os.ReadFile(file); string(got) != "project\n" {
+		t.Fatalf("project file = %q, want its change back", got)
+	}
+	if got := runGitTest(t, root, "stash", "list"); got != "" {
+		t.Fatalf("stash left behind: %q", got)
+	}
+	if got := runGitTest(t, wt.Path, "status", "--porcelain"); got != "" {
+		t.Fatalf("worktree still dirty: %q", got)
+	}
+}
+
+func TestWorktreeCarriedContextIsOneShot(t *testing.T) {
+	p := &pane{
+		ID: "p",
+		Worktree: &paneWorktree{
+			Path:    "/tmp/wt",
+			Branch:  "juggernaut",
+			Carried: "/tmp/project",
+		},
+	}
+	s := &session{ID: "s", Root: leaf(p)}
+	w := &workspace{Projects: []*project{{ID: "pr", Dir: "/tmp", Sessions: []*session{s}}}}
+
+	ctx := w.worktreeNamingContext(p)
+	if !strings.Contains(ctx, "/tmp/project") {
+		t.Fatalf("carried context = %q", ctx)
+	}
+	if again := w.worktreeNamingContext(p); again != "" {
+		t.Fatalf("carried context repeated: %q", again)
+	}
+}
+
 func TestSyncLocalBase(t *testing.T) {
 	t.Setenv("GEXI_HOME", t.TempDir())
 	remote := filepath.Join(t.TempDir(), "remote.git")

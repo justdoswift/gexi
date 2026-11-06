@@ -718,6 +718,14 @@ func (w *workspace) paneExited(p *pane) {
 		if w.quitting || w.paneByID(p.ID) != p {
 			return
 		}
+		// The worktree button stops the agent before it moves the pane, so
+		// the program can exit mid-flow. The slot stays until the flow
+		// replaces the pane or brings it back in the project folder.
+		if p.worktreeBusy == worktreeBusyCreate {
+			p.exited = true
+			w.invalidate()
+			return
+		}
 		// A restored pane whose resume never came up keeps its place: a
 		// failed resume must not take the session with it.
 		if p.restored && !p.sawAgent && len(p.lastAgentRestore) > 0 {

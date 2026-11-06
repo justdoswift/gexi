@@ -354,6 +354,7 @@ gexi send -e "ls -la"</code></div>
         <h2>From a branch to a merged PR.</h2>
         <p class="lead">Press <kbd>W</kbd> in a pane’s header and the pane moves into its own git worktree, branched from the latest <code>origin</code> base. The header carries the branch, its diff, and the pull request that follows.</p>
         <p class="body">Merge carries GitHub’s answer as its colour: green when it would merge, amber while checks or reviews are pending, red when something blocks it. Merging fast-forwards your base and leaves the pane in the worktree; Archive closes it and removes the checkout.</p>
+        <p class="body">With an agent running, <kbd>W</kbd> stops it, moves the pane’s uncommitted changes into the new checkout, and opens a fresh session of the same agent there. Claude Code’s first prompt is told where the changes came from; the conversation itself starts over.</p>
         <ul class="feature-points">
           <li>Branches start with a Dota 2 placeholder name; the first prompt renames them to the task.</li>
           <li>Opening and merging pull requests uses the GitHub CLI, authenticated. Merge asks first.</li>
