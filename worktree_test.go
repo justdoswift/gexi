@@ -657,3 +657,23 @@ func TestDeepSeekCommitMessageError(t *testing.T) {
 		t.Fatal("expected an error")
 	}
 }
+
+// TestWorktreePaneName shortens only the checkouts gexi made itself: the
+// folder exactly one level under worktrees/<repo>/.
+func TestWorktreePaneName(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GEXI_HOME", home)
+	root := filepath.Join(home, "worktrees", "Gexi-3a77b02a", "weaver")
+	if name, ok := worktreePaneName(root); !ok || name != "weaver" {
+		t.Fatalf("worktreePaneName(%q) = %q, %v", root, name, ok)
+	}
+	for _, dir := range []string{
+		filepath.Join(home, "worktrees", "Gexi-3a77b02a"),
+		filepath.Join(root, "src"),
+		t.TempDir(),
+	} {
+		if name, ok := worktreePaneName(dir); ok {
+			t.Errorf("worktreePaneName(%q) = %q, true", dir, name)
+		}
+	}
+}

@@ -129,6 +129,24 @@ func worktreesRoot() string {
 	return filepath.Join(supportDir(), "worktrees")
 }
 
+// worktreePaneName reports the name of a checkout gexi made itself, as the
+// pane header shows it. gexi puts its worktrees at
+// <support>/worktrees/<repo>/<name>, so only a folder exactly that deep
+// counts: a checkout found elsewhere, or a folder inside one, keeps its path.
+func worktreePaneName(dir string) (string, bool) {
+	root := filepath.Clean(worktreesRoot())
+	rel, err := filepath.Rel(root, filepath.Clean(dir))
+	if err != nil || rel == "." || rel == ".." ||
+		strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", false
+	}
+	return parts[1], true
+}
+
 // worktreeCreateMu serializes naming and adding worktrees, so two panes
 // clicked at once cannot pick the same city and race for the same branch.
 var worktreeCreateMu sync.Mutex
