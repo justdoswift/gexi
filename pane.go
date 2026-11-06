@@ -94,18 +94,24 @@ type pane struct {
 	restored bool
 	sawAgent bool           // an agent was detected at some point in this pane
 	activity *agentActivity // last hook event from the agent
-	// Worktree is the checkout this pane was moved into by its W button.
-	// worktreeBusy is the operation it waits on: "create".
+	// Worktree is the checkout this pane was moved into by its W button, or
+	// one its folder was found in. worktreeBusy is the operation it waits
+	// on: "create".
 	Worktree     *paneWorktree
 	worktreeBusy string
-	lastGroup    int
-	lastScan     time.Time
-	openedAt     time.Time
-	shown        bool // the first frame has laid the pane out
-	closing      bool
-	closingAt    time.Time
-	exited       bool
-	ws           *workspace
+	// lastWorktreeDir is the pane folder the worktree monitor last looked
+	// at; lastWorktreeRefresh throttles the pull request lookups that keep
+	// a detected checkout's chip current.
+	lastWorktreeDir     string
+	lastWorktreeRefresh time.Time
+	lastGroup           int
+	lastScan            time.Time
+	openedAt            time.Time
+	shown               bool // the first frame has laid the pane out
+	closing             bool
+	closingAt           time.Time
+	exited              bool
+	ws                  *workspace
 }
 
 func newPane(ws *workspace, id string, command []string, dir string, snapshot string) (*pane, error) {
