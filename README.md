@@ -181,6 +181,12 @@ agent on the far side, so a remote `claude` does not report activity.
 | Settings | ⌘, |
 | Quit (kills processes) | ⌘Q |
 
+Zooming a pane gathers the panes it hides into a rail on the right, Stage
+Manager style: each card carries the pane's mark, name, folder, and the last
+lines it showed, and a click puts that pane on stage. The rail stays out of
+the way when the session has one pane, the drawer is open, or the stage would
+be left too narrow.
+
 The window follows Rex's chrome: no title bar, the traffic lights over the
 top-left corner, and a sidebar toggle that never moves. With the sidebar
 hidden, the top-left pane's header makes room for them; the other panes keep
