@@ -191,6 +191,7 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 			Agent:   str(p, "agent"),
 			Pane:    str(p, "pane"),
 			Session: str(p, "session"),
+			Message: str(p, "message"),
 		}
 		ev.Detail = p["detail"]
 		return w.handleEvent(ev)

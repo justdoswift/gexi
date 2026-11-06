@@ -116,7 +116,7 @@ func mainMenu(w *workspace) *mygo.Menu {
 			if err != nil {
 				return
 			}
-			_, _ = w.splitPane(p, ax, nil, p.dir())
+			_, _ = w.splitPane(p, ax, nil, "")
 		}
 	}
 	// A session needs a project: the one being worked in, or a folder the

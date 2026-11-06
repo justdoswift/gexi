@@ -6,7 +6,54 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/justdoswift/gexi/locales"
 )
+
+// TestNotificationLine reads the agent's own words on a banner: the first
+// line worth showing, with markdown markers gone, and a long reply cut.
+func TestNotificationLine(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"## 结论\n\n细节", "结论"},
+		{"\n\n- 修好了 splitPane\n更多", "修好了 splitPane"},
+		{"```\ncode()\n```", "code()"},
+		{"  \n\t\n", ""},
+	}
+	for _, c := range cases {
+		if got := notificationLine(c.in); got != c.want {
+			t.Fatalf("notificationLine(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+
+	long := strings.Repeat("长", notificationLineMax+20)
+	got := notificationLine(long)
+	if runes := []rune(got); len(runes) != notificationLineMax || runes[len(runes)-1] != '…' {
+		t.Fatalf("a long line became %d runes (%q), want %d ending in an ellipsis", len(runes), got, notificationLineMax)
+	}
+}
+
+// TestNotificationCopyUsesTheReplyLine puts the reply in the body and keeps
+// the agent and place in the subtitle, so two banners stay distinguishable.
+func TestNotificationCopyUsesTheReplyLine(t *testing.T) {
+	title, subtitle, body := notificationCopy(agentEvent{
+		Kind: "turn.end", Agent: "claude", Message: "第一行\n第二行",
+	}, "Gexi · branch")
+	if title != locales.NotifyTurnFinished() {
+		t.Fatalf("title %q", title)
+	}
+	if subtitle != "Claude Code · Gexi · branch" {
+		t.Fatalf("subtitle %q", subtitle)
+	}
+	if body != "第一行" {
+		t.Fatalf("body %q, want the reply's first line", body)
+	}
+
+	// A hook without the agent's words keeps the place as the body.
+	_, _, body = notificationCopy(agentEvent{Kind: "turn.end", Agent: "claude"}, "Gexi")
+	if body != "Gexi" {
+		t.Fatalf("fallback body %q, want the place", body)
+	}
+}
 
 func TestClaudeLaunchInjectsHooks(t *testing.T) {
 	t.Setenv("GEXI_HOME", t.TempDir())

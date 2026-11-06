@@ -715,9 +715,9 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						// out: splitting and zooming are in the View menu, and
 						// a clipped button is worse than an absent one.
 						if width == 0 || width >= 380 {
-							iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, p.dir()) },
+							iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, "") },
 								locales.MenuSplitRight()+" (⌘D)")
-							iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, p.dir()) },
+							iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, "") },
 								locales.MenuSplitDown()+" (⌘⇧D)")
 							// A pane with nowhere to go has nothing to zoom to.
 							if len(w.visiblePanes()) > 1 || w.zoomedPane == p.ID {

@@ -362,11 +362,34 @@ func (w *workspace) newSession(pr *project, command []string, dir string) (*sess
 	return s, nil
 }
 
+// splitDir is where a split beside p starts. A worktree gexi made belongs to
+// p alone: another pane there would share its branch and index, so the new
+// pane starts in the project folder. A checkout the pane's shell moved into
+// itself is followed, since that is the folder the user is working in.
+func (w *workspace) splitDir(p *pane) string {
+	projectDir := ""
+	if pr := w.projectOf(w.sessionOf(p)); pr != nil {
+		projectDir = pr.Dir
+	}
+	return splitDirFor(p, projectDir, p.dir())
+}
+
+// splitDirFor decides between the folder the pane is in now and the project
+// folder. It is apart from the workspace so the rule can be read and tested
+// on its own.
+func splitDirFor(p *pane, projectDir, current string) string {
+	wt := p.Worktree
+	if wt == nil || wt.Detected || projectDir == "" || !dirWithin(current, wt.Path) {
+		return current
+	}
+	return projectDir
+}
+
 // splitPane puts a new pane beside p. On a remote project the new pane opens
 // another session to the same host. Main thread.
 func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*pane, error) {
 	if dir == "" {
-		dir = p.dir()
+		dir = w.splitDir(p)
 	}
 	command = w.projectCommand(w.projectOf(w.sessionOf(p)), command)
 	np, err := newPane(w, "", command, dir, "")

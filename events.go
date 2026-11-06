@@ -58,6 +58,10 @@ type agentEvent struct {
 	Pane    string          `json:"pane,omitempty"`
 	Session string          `json:"session,omitempty"`
 	Detail  json.RawMessage `json:"detail,omitempty"`
+	// Message is what the hook's payload said in the agent's own words:
+	// Claude Code's final reply on Stop, and the prompt it waits on for a
+	// Notification. A banner shows its first line instead of only the place.
+	Message string `json:"message,omitempty"`
 }
 
 // handleEvent records one hook event on its pane. Main thread.
@@ -107,9 +111,52 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 	w.invalidate()
 
 	if w.settings.Notifications && eventNotifies[ev.Kind] && w.shouldNotify(p, ev.Kind) {
-		notifyUser(eventTitle(ev.Kind), agentName(ev.Agent), w.panePlace(p))
+		title, subtitle, body := notificationCopy(ev, w.panePlace(p))
+		notifyUser(title, subtitle, body)
 	}
 	return result, nil
+}
+
+// notificationCopy is what a banner says. The agent's own words head the
+// body when the hook carried them; the place stays in the subtitle, so two
+// agents finishing at once are still told apart.
+func notificationCopy(ev agentEvent, place string) (title, subtitle, body string) {
+	title = eventTitle(ev.Kind)
+	subtitle = agentName(ev.Agent)
+	body = place
+	if line := notificationLine(ev.Message); line != "" {
+		body = line
+		switch {
+		case subtitle == "":
+			subtitle = place
+		case place != "":
+			subtitle += " · " + place
+		}
+	}
+	return title, subtitle, body
+}
+
+// notificationLineMax is how much of a reply a banner holds. Anything longer
+// is cut with an ellipsis; the notification is a pointer, not the reply.
+const notificationLineMax = 120
+
+// notificationLine is the first line of the agent's own words that reads on a
+// banner: markdown markers dropped, whitespace collapsed, long lines cut. A
+// reply that opens with a code block shows its first line of code rather than
+// the fence.
+func notificationLine(text string) string {
+	for _, raw := range strings.Split(text, "\n") {
+		line := strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(raw), "#>-*+|"))
+		if line == "" || strings.HasPrefix(line, "```") {
+			continue
+		}
+		line = strings.Join(strings.Fields(line), " ")
+		if runes := []rune(line); len(runes) > notificationLineMax {
+			line = strings.TrimSpace(string(runes[:notificationLineMax-1])) + "…"
+		}
+		return line
+	}
+	return ""
 }
 
 // shouldNotify throttles repeats, so a burst of Notifications from the same
