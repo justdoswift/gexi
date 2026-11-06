@@ -655,6 +655,62 @@ func TestMergeConflicting(t *testing.T) {
 	}
 }
 
+// TestStageResolutionAfterAgent: git keeps a file listed as conflicted until
+// what replaced the markers is staged. The agent edits only, so the markers
+// are the signal that it finished, and the add has to come before the check.
+func TestStageResolutionAfterAgent(t *testing.T) {
+	dir := initRepoTest(t)
+	write := func(s string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("one\ntwo\n")
+	runGitTest(t, dir, "add", "-A")
+	runGitTest(t, dir, "commit", "-m", "base")
+
+	runGitTest(t, dir, "checkout", "-b", "other")
+	write("one\nTHEIRS\n")
+	runGitTest(t, dir, "commit", "-am", "theirs")
+	runGitTest(t, dir, "checkout", "main")
+	write("one\nOURS\n")
+	runGitTest(t, dir, "commit", "-am", "ours")
+
+	if _, err := worktreeGit(dir, "merge", "other"); err == nil {
+		t.Fatal("the merge did not conflict")
+	}
+	files, err := conflictedFiles(dir)
+	if err != nil || len(files) != 1 {
+		t.Fatalf("conflicted files: %v %v", files, err)
+	}
+
+	// What the agent does: write the combined result, no git commands.
+	write("one\nBOTH\n")
+	if err := stageResolution(dir, agentClaude, files); err != nil {
+		t.Fatalf("staging the agent's edit: %v", err)
+	}
+	if left, err := conflictedFiles(dir); err != nil || len(left) != 0 {
+		t.Fatalf("still conflicted: %v %v", left, err)
+	}
+	if got := runGitTest(t, dir, "status", "--porcelain"); got != "M  f.txt" {
+		t.Fatalf("staged state: %q", got)
+	}
+}
+
+// TestStageResolutionRefusesMarkers: an agent that stopped midway leaves
+// markers, which must not be committed.
+func TestStageResolutionRefusesMarkers(t *testing.T) {
+	dir := initRepoTest(t)
+	marked := "a\n<<<<<<< HEAD\nb\n=======\nc\n>>>>>>> other\n"
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte(marked), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := stageResolution(dir, agentClaude, []string{"f.txt"}); err == nil {
+		t.Fatal("a file with conflict markers was staged")
+	}
+}
+
 // TestConflictMarkers names the files an agent left markers in.
 func TestConflictMarkers(t *testing.T) {
 	dir := t.TempDir()
