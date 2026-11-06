@@ -177,7 +177,7 @@
   "importTitle": "Connect to another Mac",
   "importBody": "Paste the code the other Mac copied. It works once per Mac and can be revoked there.",
   "notifyTurnFinished": "Turn finished",
-  "notifyWaiting": "Waiting for you",
+  "notifyWaiting": "Needs your approval",
   "notifyAgent": "Agent",
   "notifyCodeCopiedTitle": "Connection code copied",
   "notifyCodeCopiedBody": "Paste it in gexi on the other Mac.",

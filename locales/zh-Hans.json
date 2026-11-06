@@ -177,7 +177,7 @@
   "importTitle": "连接到另一台 Mac",
   "importBody": "粘贴另一台 Mac 复制的代码。每台 Mac 只能使用一次，可以在那台 Mac 上撤销。",
   "notifyTurnFinished": "本轮完成",
-  "notifyWaiting": "等你输入",
+  "notifyWaiting": "需要你确认",
   "notifyAgent": "代理",
   "notifyCodeCopiedTitle": "连接码已复制",
   "notifyCodeCopiedBody": "在另一台 Mac 的 gexi 里粘贴。",

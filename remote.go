@@ -493,7 +493,7 @@ func (w *workspace) submitRelay() {
 			writeClipboard(code)
 			w.relayOpen = false
 			w.invalidate()
-			notifyUser(locales.NotifyCodeCopiedTitle(), locales.NotifyCodeCopiedBody())
+			notifyUser(locales.NotifyCodeCopiedTitle(), "", locales.NotifyCodeCopiedBody())
 		})
 	}()
 }
