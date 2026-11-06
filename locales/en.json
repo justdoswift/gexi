@@ -89,6 +89,7 @@
   "worktreeStatusChecking": "Checking…",
   "worktreeStatusBlocked": "Blocked",
   "worktreeStatusClosed": "Closed",
+  "worktreeLeave": "Leave worktree",
   "worktreeLeaveHint": "Leave this worktree and return to the project",
   "worktreeLeaveTitle": "Leave worktree?",
   "worktreeLeaveUnmerged": "There are {count} commits that are not merged. The branch {branch} will be kept.",

@@ -89,6 +89,7 @@
   "worktreeStatusChecking": "检查中…",
   "worktreeStatusBlocked": "被阻止",
   "worktreeStatusClosed": "已关闭",
+  "worktreeLeave": "离开工作树",
   "worktreeLeaveHint": "离开此工作树并回到项目目录",
   "worktreeLeaveTitle": "离开工作树？",
   "worktreeLeaveUnmerged": "有 {count} 个未合并的提交，分支 {branch} 会保留。",
