@@ -153,6 +153,9 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 	}
 	d := &w.drawer
 	showing := d.open && d.tab == drawerTabChanges && d.dir == dir
+	// A change Git counts no lines for has no +N or −N to show, so the
+	// branch name itself carries the colour.
+	unmeasured := s.Changed && s.Added+s.Deleted == 0
 	bg := tk.Active
 	color := tk.MutedForeground
 	if showing {
@@ -168,8 +171,12 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 		if src := iconSource("branch", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(12).Height(12).IgnoreInput(true)
 		}
+		textColor := color
+		if unmeasured {
+			textColor = tk.Waiting
+		}
 		ui.Text(c, shortBranch(s.Branch)).FontSize(11).SingleLine().
-			Shrink(1).TextColor(color).OnClick(pick)
+			Shrink(1).TextColor(textColor).OnClick(pick)
 		if s.Added > 0 {
 			ui.Text(c, "+"+strconv.Itoa(s.Added)).FontSize(10).Shrink(0).
 				TextColor(tk.Working).OnClick(pick)
@@ -177,11 +184,6 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 		if s.Deleted > 0 {
 			ui.Text(c, "−"+strconv.Itoa(s.Deleted)).FontSize(10).Shrink(0).
 				TextColor(tk.Danger).OnClick(pick)
-		}
-		if s.Changed && s.Added+s.Deleted == 0 {
-			// A change Git counts no lines for: a new file, a rename, a
-			// binary.
-			ui.Text(c, "•").FontSize(10).Shrink(0).TextColor(tk.Waiting).OnClick(pick)
 		}
 	})
 }
