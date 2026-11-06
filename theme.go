@@ -26,6 +26,9 @@ type tokens struct {
 	Waiting ui.Color
 	// Danger marks what is gone or in conflict, as a deleted file.
 	Danger ui.Color
+	// SystemAccent is the system's accent colour, kept for the one place a
+	// hint of colour helps: the chip that names a gexi worktree.
+	SystemAccent ui.Color
 }
 
 func themeTokens(t *ui.Theme) tokens {
@@ -48,6 +51,7 @@ func themeTokens(t *ui.Theme) tokens {
 			Working:         ui.RGB(0x22, 0xc5, 0x5e),
 			Waiting:         ui.RGB(0xf5, 0x9e, 0x0b),
 			Danger:          ui.RGB(0xf8, 0x71, 0x71),
+			SystemAccent:    t.Accent,
 		}
 	}
 	return tokens{
@@ -64,6 +68,7 @@ func themeTokens(t *ui.Theme) tokens {
 		Working:         ui.RGB(0x16, 0xa3, 0x4a),
 		Waiting:         ui.RGB(0xd9, 0x77, 0x06),
 		Danger:          ui.RGB(0xdc, 0x26, 0x26),
+		SystemAccent:    t.Accent,
 	}
 }
 

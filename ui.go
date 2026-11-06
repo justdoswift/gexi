@@ -638,20 +638,40 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				}
 				// The path takes what is left, the line's gap before it
 				// included, and never more than 40% of the line: the title
-				// stays the header's subject. Below a hundred points even a
-				// folder name is noise, so the path goes.
+				// stays the header's subject. A path needs a hundred points
+				// to say anything; a worktree's own name needs less.
 				pathRoom := width - kept - pillSpace - 4
 				if capRoom := width * 0.4; pathRoom > capRoom {
 					pathRoom = capRoom
 				}
+				dir := p.dir()
+				short, managed := worktreePaneName(dir)
 				path := ""
 				if width == 0 {
-					path = abbreviate(p.dir())
-				} else if pathRoom >= 100 {
-					path = fitPath(abbreviate(p.dir()), pathRoom, func(text string) float32 {
-						tw, _ := c.MeasureText(0, ui.Span{Text: text, Size: 11})
-						return tw
-					})
+					if managed {
+						path = short
+					} else {
+						path = abbreviate(dir)
+					}
+				} else {
+					room := pathRoom
+					text := abbreviate(dir)
+					if managed {
+						text = short
+						room -= 10 // the chip's padding
+					}
+					// A gexi worktree needs less room than a path: its name
+					// is one short folder, so it survives a narrower header.
+					least := float32(100)
+					if managed {
+						least = 60
+					}
+					if room >= least {
+						path = fitPath(text, room, func(text string) float32 {
+							tw, _ := c.MeasureText(0, ui.Span{Text: text, Size: 11})
+							return tw
+						})
+					}
 				}
 				line.Children(func() {
 					strip := ui.Row(c).Height(24).AlignItems(ui.Center).Shrink(1).
@@ -688,8 +708,25 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 								Shrink(titleShrink).TextColor(tk.MutedForeground)
 						}
 						if path != "" {
-							ui.Text(c, path).FontSize(11).SingleLine().
-								Shrink(1).TextColor(tk.MutedForeground)
+							if managed {
+								// A gexi worktree shows only the name it was
+								// given; the pointer brings the checkout's full
+								// path, and the tint keeps the name legible as a
+								// place rather than another title.
+								bg := tk.SystemAccent.Alpha(0.10)
+								chip := ui.Row(c).Height(18).Radius(4).Padding(0, 5).
+									AlignItems(ui.Center).Shrink(1)
+								if chip.Hovered() {
+									bg = tk.SystemAccent.Alpha(0.18)
+								}
+								chip.Background(bg).Tooltip(dir).Children(func() {
+									ui.Text(c, path).FontSize(11).SingleLine().
+										Shrink(1).TextColor(tk.MutedForeground)
+								})
+							} else {
+								ui.Text(c, path).FontSize(11).SingleLine().
+									Shrink(1).TextColor(tk.MutedForeground)
+							}
 						}
 					})
 					// The branch pill follows the title: it names the branch
