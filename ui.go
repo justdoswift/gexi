@@ -535,7 +535,6 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	}
 	outer.Children(func() {
 		col := ui.Column(c).Fill()
-		dim := col.Animate("focusDim", w.focusAmount(focused), focusMotion)
 		// The card fades and grows in as it opens, and shrinks out before it
 		// closes: a fade alone is easy to miss on a white card over a light
 		// canvas. Poses run in frames that only paint, without building the
@@ -770,7 +769,6 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			col = col.Scale(s, s)
 		}
 		col = col.Background(col.AnimateColor("paneLiftBg", panelBg, blend))
-		col = col.Opacity(dim)
 	})
 }
 
@@ -787,39 +785,6 @@ func fade(c *ui.Context, tk tokens, el ui.Element, active, hovered bool) ui.Colo
 		target = tk.Active
 	}
 	return el.AnimateColor("bg", target, ui.Animation{Duration: 150 * time.Millisecond})
-}
-
-// focusDim is how far the other panes recede once a tab is split, so the pane
-// being typed into is the only one that reads at full strength. The sidebar
-// keeps its own strength: it is navigation, not a peer of the panes.
-const focusDim float32 = 0.55
-
-// dimming reports whether the selected tab holds focus in one of several
-// panes, which is when the other panes step back.
-func (w *workspace) dimming() bool {
-	tb := w.selected()
-	if tb == nil {
-		return false
-	}
-	panes := tb.Root.panes()
-	if len(panes) < 2 {
-		return false
-	}
-	for _, p := range panes {
-		if p.ID == w.FocusedPane {
-			return true
-		}
-	}
-	return false
-}
-
-// focusAmount is a part of a pane's opacity: full unless another pane holds
-// focus in a split.
-func (w *workspace) focusAmount(focused bool) float32 {
-	if focused || !w.dimming() {
-		return 1
-	}
-	return focusDim
 }
 
 func abbreviate(path string) string {
