@@ -514,6 +514,16 @@ func (msgs Messages) WorktreeAgentRunning() string {
 	return Catalog.Format(msgs.locale, "worktreeAgentRunning", nil)
 }
 
+// WorktreeAgentStuck says "Could not stop the agent in this pane."
+// in the language the app shows.
+func WorktreeAgentStuck() string { return In(i18n.Locale()).WorktreeAgentStuck() }
+
+// WorktreeAgentStuck says "Could not stop the agent in this pane."
+// in the language of msgs.
+func (msgs Messages) WorktreeAgentStuck() string {
+	return Catalog.Format(msgs.locale, "worktreeAgentStuck", nil)
+}
+
 // WorktreeGhMissing says "GitHub CLI (gh) is not installed."
 // in the language the app shows.
 func WorktreeGhMissing() string { return In(i18n.Locale()).WorktreeGhMissing() }

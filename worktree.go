@@ -40,6 +40,10 @@ type paneWorktree struct {
 	// Naming is true until the first prompt has been used to rename the
 	// placeholder branch.
 	Naming bool `json:"naming,omitempty"`
+	// Carried is the project folder whose uncommitted changes moved here
+	// when the pane's agent was stopped for the move. The first prompt
+	// mentions it once, then it is cleared.
+	Carried string `json:"carried,omitempty"`
 
 	// busy is the operation the header button waits on: "pr", "check", or
 	// "merge". checked throttles the gh lookups when a session is selected.
@@ -1073,7 +1077,9 @@ func stopPRTimer(wt *paneWorktree) {
 }
 
 // createPaneWorktree makes the worktree the W button asks for, then restarts
-// the pane in it. Git runs off the UI thread.
+// the pane in it. An agent running in the pane is stopped first: the changes
+// it made move with the pane, and a fresh conversation of the same agent
+// opens in the worktree. Git and the stop run off the UI thread.
 func (w *workspace) createPaneWorktree(p *pane) {
 	if p.Worktree != nil || p.worktreeBusy != "" {
 		return
@@ -1083,31 +1089,106 @@ func (w *workspace) createPaneWorktree(p *pane) {
 	if pr == nil || pr.RemoteHost != "" {
 		return
 	}
-	if p.agent != nil {
-		w.flash(locales.WorktreeAgentRunning())
-		return
-	}
 	p.worktreeBusy = worktreeBusyCreate
 	w.invalidate()
 	dir := pr.Dir
 	go func() {
+		// The checkout is made while the agent still runs: creating a
+		// worktree never reads the project's working tree. Only a project
+		// that cannot have one leaves the agent untouched.
 		wt, err := createWorktree(dir)
+		if err != nil || wt == nil {
+			w.onMain(func() {
+				if w.paneByID(p.ID) != p {
+					return
+				}
+				p.worktreeBusy = ""
+				if err != nil {
+					w.flash(locales.WorktreeError(err.Error()))
+				} else {
+					w.flash(locales.WorktreeNotRepo())
+				}
+				w.invalidate()
+			})
+			return
+		}
+		// The pane may have closed while git worked. Moving its project's
+		// changes now would surprise the user, and the new checkout has
+		// nothing to keep.
+		open := false
+		group := 0
+		initialDir := ""
 		w.onMain(func() {
 			if w.paneByID(p.ID) != p {
-				// The pane closed while git worked.
-				if wt != nil {
+				return
+			}
+			open = true
+			group = p.foregroundGroup()
+			initialDir = p.initialDir
+		})
+		if !open {
+			go func() { _ = removeWorktree(wt) }()
+			return
+		}
+		// What opens in the worktree is decided from the agent the pane is
+		// running now, not from the monitor's last look, which may be
+		// seconds old.
+		var det *agentDetection
+		if group > 0 {
+			det = detectAgent(group, initialDir)
+		}
+		launch := []string(nil)
+		if det != nil {
+			launch = det.Kind.launch()
+		}
+		if det != nil && !stopAgentGroup(group) {
+			go func() { _ = removeWorktree(wt) }()
+			w.onMain(func() {
+				if w.paneByID(p.ID) != p {
+					return
+				}
+				p.worktreeBusy = ""
+				w.flash(locales.WorktreeAgentStuck())
+				w.invalidate()
+			})
+			return
+		}
+		carried, err := moveChangesToWorktree(dir, wt.Path)
+		if err != nil {
+			// The changes are back in the project folder, or in a stash
+			// when even that failed; the fresh checkout has nothing to
+			// keep.
+			go func() { _ = removeWorktree(wt) }()
+			wt = nil
+		}
+		w.onMain(func() {
+			if w.paneByID(p.ID) != p {
+				// The pane closed while git worked. A checkout that now
+				// holds the project's changes is kept, so the work is not
+				// lost with it; an empty one goes.
+				if wt != nil && !carried {
 					go func() { _ = removeWorktree(wt) }()
 				}
 				return
 			}
 			p.worktreeBusy = ""
+			// The agent's process is gone now. Forgetting it here lets the
+			// pane restart either way, without waiting for the monitor.
+			if p.agent != nil {
+				p.applyAgent(nil)
+			}
 			switch {
 			case err != nil:
 				w.flash(locales.WorktreeError(err.Error()))
+				w.recoverPaneAfterWorktreeMove(p, dir, det != nil)
 			case wt == nil:
 				w.flash(locales.WorktreeNotRepo())
+				w.recoverPaneAfterWorktreeMove(p, dir, det != nil)
 			default:
-				w.restartPaneInWorktree(p, wt)
+				if carried && det != nil && det.Kind == agentClaude {
+					wt.Carried = dir
+				}
+				w.restartPaneInWorktree(p, wt, launch, carried)
 				return
 			}
 			w.invalidate()
@@ -1115,18 +1196,74 @@ func (w *workspace) createPaneWorktree(p *pane) {
 	}()
 }
 
-// restartPaneInWorktree swaps the pane's terminal for a fresh shell in the
-// worktree, keeping its slot, id, and focus.
-func (w *workspace) restartPaneInWorktree(p *pane, wt *paneWorktree) {
-	if w.restartPaneInDir(p, wt.Path, wt, locales.WorktreeCreated()) {
+// worktreeMoveMu keeps two panes from pushing and popping each other's
+// stash while the working tree's changes move into a checkout.
+var worktreeMoveMu sync.Mutex
+
+// moveChangesToWorktree moves the project folder's uncommitted changes into
+// a fresh worktree. Stashes live in the repository rather than in a
+// checkout, so the push made here pops there. It reports whether there was
+// anything to move; on failure the changes go back to the project folder,
+// or stay in a stash when even that fails.
+func moveChangesToWorktree(projectDir, worktreeDir string) (bool, error) {
+	worktreeMoveMu.Lock()
+	defer worktreeMoveMu.Unlock()
+	files, err := gitChanges(projectDir)
+	if err != nil {
+		return false, err
+	}
+	if len(files) == 0 {
+		return false, nil
+	}
+	if _, err := worktreeGit(projectDir, "stash", "push", "-u", "-m", "gexi worktree"); err != nil {
+		return false, err
+	}
+	if _, err := worktreeGit(worktreeDir, "stash", "pop", "--index"); err != nil {
+		// A failed pop keeps the stash entry. Clear the half-applied
+		// checkout and put the changes back where they came from.
+		_, _ = worktreeGit(worktreeDir, "reset", "--hard", "--quiet")
+		_, _ = worktreeGit(worktreeDir, "clean", "-fd", "--quiet")
+		if _, back := worktreeGit(projectDir, "stash", "pop", "--index"); back != nil {
+			return false, fmt.Errorf("%w (the changes are in git stash)", err)
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// recoverPaneAfterWorktreeMove gives back a pane whose own program the stop
+// ended when the worktree could not take it, so the move does not leave a
+// dead terminal behind. It resumes the conversation the pane had: the fresh
+// start is for the worktree, which the failed move never reached. stopped
+// says an agent was signalled, so a shell the agent merely ran inside is
+// left alone.
+func (w *workspace) recoverPaneAfterWorktreeMove(p *pane, dir string, stopped bool) {
+	if !stopped {
+		return
+	}
+	if !p.exited && !paneRunsAgent(p.command) {
+		return
+	}
+	w.restartPaneInDir(p, dir, nil, p.lastAgentRestore, "")
+}
+
+// restartPaneInWorktree swaps the pane's terminal for command (a shell when
+// nil) in the worktree, keeping its slot, id, and focus. keep says the
+// checkout holds changes that a failed restart must not throw away.
+func (w *workspace) restartPaneInWorktree(p *pane, wt *paneWorktree, command []string, keep bool) {
+	if w.restartPaneInDir(p, wt.Path, wt, command, locales.WorktreeCreated()) {
+		return
+	}
+	if keep {
+		w.flash(locales.WorktreeKeptClose(wt.Path))
 		return
 	}
 	go func() { _ = removeWorktree(wt) }()
 }
 
-// restartPaneInDir swaps the pane's terminal for a fresh shell in dir,
-// keeping its slot, id, and focus. It reports whether the pane restarted.
-func (w *workspace) restartPaneInDir(p *pane, dir string, wt *paneWorktree, message string) bool {
+// restartPaneInDir swaps the pane's terminal for command in dir, keeping its
+// slot, id, and focus. It reports whether the pane restarted.
+func (w *workspace) restartPaneInDir(p *pane, dir string, wt *paneWorktree, command []string, message string) bool {
 	s := w.sessionOf(p)
 	if s == nil || s.Root == nil || w.paneByID(p.ID) != p {
 		return false
@@ -1135,7 +1272,7 @@ func (w *workspace) restartPaneInDir(p *pane, dir string, wt *paneWorktree, mess
 		w.flash(locales.WorktreeAgentRunning())
 		return false
 	}
-	np, err := newPane(w, p.ID, nil, dir, "")
+	np, err := newPane(w, p.ID, command, dir, "")
 	if err != nil {
 		w.flash(locales.WorktreeError(err.Error()))
 		return false
@@ -1221,7 +1358,7 @@ func (w *workspace) leaveWorktree(p *pane) {
 				return
 			}
 			p.worktreeBusy = ""
-			if !w.restartPaneInDir(p, dir, nil, locales.WorktreeLeft()) {
+			if !w.restartPaneInDir(p, dir, nil, nil, locales.WorktreeLeft()) {
 				w.invalidate()
 				return
 			}
@@ -1463,17 +1600,31 @@ func removeOrphanWorktree(path string) error {
 // prompt, so this reaches the model with the first request.
 func (w *workspace) worktreeNamingContext(p *pane) string {
 	wt := p.Worktree
-	if wt == nil || !wt.Naming {
+	if wt == nil {
 		return ""
 	}
-	wt.Naming = false
+	var notes []string
+	if wt.Carried != "" {
+		notes = append(notes, fmt.Sprintf(
+			"gexi workspace: the uncommitted changes that were in %s moved into this worktree "+
+				"before this session started, so the project folder is clean and the work is here.",
+			wt.Carried))
+		wt.Carried = ""
+	}
+	if wt.Naming {
+		wt.Naming = false
+		notes = append(notes, fmt.Sprintf(
+			"gexi workspace: this session runs in the git worktree %s on branch %q. "+
+				"The branch name is a placeholder. Once the request is clear, rename it once "+
+				"with `git branch -m <new-name>` to a short kebab-case name for this task "+
+				"(for example `fix-login-redirect`), then continue; leave the worktree path unchanged.",
+			wt.Path, wt.Branch))
+	}
+	if len(notes) == 0 {
+		return ""
+	}
 	w.scheduleSave()
-	return fmt.Sprintf(
-		"gexi workspace: this session runs in the git worktree %s on branch %q. "+
-			"The branch name is a placeholder. Once the request is clear, rename it once "+
-			"with `git branch -m <new-name>` to a short kebab-case name for this task "+
-			"(for example `fix-login-redirect`), then continue; leave the worktree path unchanged.",
-		wt.Path, wt.Branch)
+	return strings.Join(notes, "\n\n")
 }
 
 // paneWorktreeButton is the W control in the pane header. W makes a worktree
