@@ -74,6 +74,50 @@ func TestDetectWorktreeAt(t *testing.T) {
 	}
 }
 
+// TestWorktreeHasNewWork tells a merged checkout with nothing new from one
+// that has uncommitted changes or commits made after the merge: the header
+// waits on this to offer the next pull request instead of Archive.
+func TestWorktreeHasNewWork(t *testing.T) {
+	root := initRepoTest(t)
+	path := filepath.Join(t.TempDir(), "checkout")
+	runGitTest(t, root, "worktree", "add", "-b", "feature", path)
+	t.Cleanup(func() {
+		_ = exec.Command("git", "-C", root, "worktree", "remove", "--force", path).Run()
+	})
+
+	wt := &paneWorktree{Root: root, Path: path, Branch: "feature", Base: "main"}
+	mergedHead := runGitTest(t, path, "rev-parse", "HEAD")
+	wt.MergedHead = mergedHead
+	if got, err := worktreeHasNewWork(wt); err != nil || got {
+		t.Fatalf("a clean checkout at the merged commit reports new work: %v, %v", got, err)
+	}
+
+	// A merge recorded without the commit falls back to the branch being
+	// ahead of its base; this one is not.
+	wt.MergedHead = ""
+	if got, err := worktreeHasNewWork(wt); err != nil || got {
+		t.Fatalf("a branch level with its base reports new work: %v, %v", got, err)
+	}
+	wt.MergedHead = mergedHead
+
+	if err := os.WriteFile(filepath.Join(path, "later.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := worktreeHasNewWork(wt); err != nil || !got {
+		t.Fatalf("an uncommitted change is not new work: %v, %v", got, err)
+	}
+
+	runGitTest(t, path, "add", "-A")
+	runGitTest(t, path, "commit", "-m", "more")
+	if got, err := worktreeHasNewWork(wt); err != nil || !got {
+		t.Fatalf("a commit after the merge is not new work: %v, %v", got, err)
+	}
+	wt.MergedHead = ""
+	if got, err := worktreeHasNewWork(wt); err != nil || !got {
+		t.Fatalf("a branch ahead of its base is not new work: %v, %v", got, err)
+	}
+}
+
 func TestCreateWorktree(t *testing.T) {
 	t.Setenv("GEXI_HOME", t.TempDir())
 	root := initRepoTest(t)
