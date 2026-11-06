@@ -163,46 +163,45 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 	}
 	bar := c.TitleBar()
 	side := ui.Column(c).Width(width).FillHeight().Clip().Background(w.backdrop(tk))
-	side.Opacity(side.Animate("focusDim", w.focusAmount(false), focusMotion)).
-		Children(func() {
-			ui.Row(c).Height(headerHeight).Padding(11, 8, 0, bar.Left+6+iconSize+8).
-				DragWindow().Children(func() {
-				ui.Row(c).FillWidth().Height(iconSize).AlignItems(ui.Center).Children(func() {
-					w.dragArea(c, tk)
-				})
-			})
-			// The search field and the new-project button share the first row
-			// under the header, so the title bar keeps only the drag area.
-			ui.Row(c).Height(searchHeight).Padding(8, 8, 0, 8).Gap(6).Children(func() {
-				w.projectSearch(c, tk)
-				iconButtonSized(c, tk, "plus", 24, 19, func() { w.pickProject() },
-					locales.ShortcutNewProject()+" (⌘⇧N)")
-			})
-			ui.Column(c).Fill().Padding(8).Gap(1).Children(func() {
-				shown := false
-				for _, pr := range w.Projects {
-					if !w.projectVisible(pr) {
-						continue
-					}
-					shown = true
-					w.projectRow(c, tk, pr)
-				}
-				if !shown {
-					ui.Text(c, locales.NoProjects()).FontSize(12).
-						TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
-				}
-				ui.Spacer(c)
-				// The footer holds the sidebar's two menus: remote Macs on
-				// the left, settings on the right, off the search row so the
-				// field can run nearly as wide as the sessions.
-				ui.Row(c).Height(iconSize).Gap(2).Children(func() {
-					iconMenuButton(c, tk, "server", w.remoteMenu, locales.RemoteMenuHint())
-					ui.Spacer(c)
-					iconButton(c, tk, "setting", func() { w.openSettings() },
-						locales.ShortcutSettings()+" (⌘,)")
-				})
+	side.Children(func() {
+		ui.Row(c).Height(headerHeight).Padding(11, 8, 0, bar.Left+6+iconSize+8).
+			DragWindow().Children(func() {
+			ui.Row(c).FillWidth().Height(iconSize).AlignItems(ui.Center).Children(func() {
+				w.dragArea(c, tk)
 			})
 		})
+		// The search field and the new-project button share the first row
+		// under the header, so the title bar keeps only the drag area.
+		ui.Row(c).Height(searchHeight).Padding(8, 8, 0, 8).Gap(6).Children(func() {
+			w.projectSearch(c, tk)
+			iconButtonSized(c, tk, "plus", 24, 19, func() { w.pickProject() },
+				locales.ShortcutNewProject()+" (⌘⇧N)")
+		})
+		ui.Column(c).Fill().Padding(8).Gap(1).Children(func() {
+			shown := false
+			for _, pr := range w.Projects {
+				if !w.projectVisible(pr) {
+					continue
+				}
+				shown = true
+				w.projectRow(c, tk, pr)
+			}
+			if !shown {
+				ui.Text(c, locales.NoProjects()).FontSize(12).
+					TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
+			}
+			ui.Spacer(c)
+			// The footer holds the sidebar's two menus: remote Macs on
+			// the left, settings on the right, off the search row so the
+			// field can run nearly as wide as the sessions.
+			ui.Row(c).Height(iconSize).Gap(2).Children(func() {
+				iconMenuButton(c, tk, "server", w.remoteMenu, locales.RemoteMenuHint())
+				ui.Spacer(c)
+				iconButton(c, tk, "setting", func() { w.openSettings() },
+					locales.ShortcutSettings()+" (⌘,)")
+			})
+		})
+	})
 }
 
 // projectSearch is the field that filters the project list. It is a pill of
@@ -758,13 +757,13 @@ func fade(c *ui.Context, tk tokens, el ui.Element, active, hovered bool) ui.Colo
 	return el.AnimateColor("bg", target, ui.Animation{Duration: 150 * time.Millisecond})
 }
 
-// focusDim is how far everything but the focused pane recedes once a tab is
-// split: other panes and the sidebar fall back so the pane being typed into
-// is the only thing that reads at full strength.
+// focusDim is how far the other panes recede once a tab is split, so the pane
+// being typed into is the only one that reads at full strength. The sidebar
+// keeps its own strength: it is navigation, not a peer of the panes.
 const focusDim float32 = 0.55
 
 // dimming reports whether the selected tab holds focus in one of several
-// panes, which is when the rest of the window steps back.
+// panes, which is when the other panes step back.
 func (w *workspace) dimming() bool {
 	tb := w.selected()
 	if tb == nil {
@@ -782,8 +781,8 @@ func (w *workspace) dimming() bool {
 	return false
 }
 
-// focusAmount is a part of the window's opacity: full unless another pane
-// holds focus.
+// focusAmount is a part of a pane's opacity: full unless another pane holds
+// focus in a split.
 func (w *workspace) focusAmount(focused bool) float32 {
 	if focused || !w.dimming() {
 		return 1
