@@ -634,14 +634,24 @@ func (msgs Messages) WorktreeArchive() string {
 	return Catalog.Format(msgs.locale, "worktreeArchive", nil)
 }
 
-// WorktreeArchiveHint says "Archive this worktree and remove its checkout"
+// WorktreeArchiveHint says "Archive this worktree; restore it from Settings"
 // in the language the app shows.
 func WorktreeArchiveHint() string { return In(i18n.Locale()).WorktreeArchiveHint() }
 
-// WorktreeArchiveHint says "Archive this worktree and remove its checkout"
+// WorktreeArchiveHint says "Archive this worktree; restore it from Settings"
 // in the language of msgs.
 func (msgs Messages) WorktreeArchiveHint() string {
 	return Catalog.Format(msgs.locale, "worktreeArchiveHint", nil)
+}
+
+// WorktreeArchived says "Archived {branch}; restore it in Settings › Archived"
+// in the language the app shows.
+func WorktreeArchived(branch string) string { return In(i18n.Locale()).WorktreeArchived(branch) }
+
+// WorktreeArchived says "Archived {branch}; restore it in Settings › Archived"
+// in the language of msgs.
+func (msgs Messages) WorktreeArchived(branch string) string {
+	return Catalog.Format(msgs.locale, "worktreeArchived", map[string]any{"branch": branch})
 }
 
 // WorktreePROpened says "Pull request created"
@@ -930,6 +940,16 @@ func (msgs Messages) WorktreeStatusClosed() string {
 	return Catalog.Format(msgs.locale, "worktreeStatusClosed", nil)
 }
 
+// WorktreeLeave says "Leave worktree"
+// in the language the app shows.
+func WorktreeLeave() string { return In(i18n.Locale()).WorktreeLeave() }
+
+// WorktreeLeave says "Leave worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeLeave() string {
+	return Catalog.Format(msgs.locale, "worktreeLeave", nil)
+}
+
 // WorktreeLeaveHint says "Leave this worktree and return to the project"
 // in the language the app shows.
 func WorktreeLeaveHint() string { return In(i18n.Locale()).WorktreeLeaveHint() }
@@ -1064,6 +1084,120 @@ func WorktreeCleanupNothing() string { return In(i18n.Locale()).WorktreeCleanupN
 // in the language of msgs.
 func (msgs Messages) WorktreeCleanupNothing() string {
 	return Catalog.Format(msgs.locale, "worktreeCleanupNothing", nil)
+}
+
+// SettingsArchived says "Archived"
+// in the language the app shows.
+func SettingsArchived() string { return In(i18n.Locale()).SettingsArchived() }
+
+// SettingsArchived says "Archived"
+// in the language of msgs.
+func (msgs Messages) SettingsArchived() string {
+	return Catalog.Format(msgs.locale, "settingsArchived", nil)
+}
+
+// SettingsArchivedWorktrees says "Archived worktrees"
+// in the language the app shows.
+func SettingsArchivedWorktrees() string { return In(i18n.Locale()).SettingsArchivedWorktrees() }
+
+// SettingsArchivedWorktrees says "Archived worktrees"
+// in the language of msgs.
+func (msgs Messages) SettingsArchivedWorktrees() string {
+	return Catalog.Format(msgs.locale, "settingsArchivedWorktrees", nil)
+}
+
+// ArchiveEmpty says "No archived worktrees."
+// in the language the app shows.
+func ArchiveEmpty() string { return In(i18n.Locale()).ArchiveEmpty() }
+
+// ArchiveEmpty says "No archived worktrees."
+// in the language of msgs.
+func (msgs Messages) ArchiveEmpty() string {
+	return Catalog.Format(msgs.locale, "archiveEmpty", nil)
+}
+
+// ArchiveRestore says "Restore"
+// in the language the app shows.
+func ArchiveRestore() string { return In(i18n.Locale()).ArchiveRestore() }
+
+// ArchiveRestore says "Restore"
+// in the language of msgs.
+func (msgs Messages) ArchiveRestore() string {
+	return Catalog.Format(msgs.locale, "archiveRestore", nil)
+}
+
+// ArchiveDelete says "Delete"
+// in the language the app shows.
+func ArchiveDelete() string { return In(i18n.Locale()).ArchiveDelete() }
+
+// ArchiveDelete says "Delete"
+// in the language of msgs.
+func (msgs Messages) ArchiveDelete() string {
+	return Catalog.Format(msgs.locale, "archiveDelete", nil)
+}
+
+// ArchiveRestored says "Restored {branch}"
+// in the language the app shows.
+func ArchiveRestored(branch string) string { return In(i18n.Locale()).ArchiveRestored(branch) }
+
+// ArchiveRestored says "Restored {branch}"
+// in the language of msgs.
+func (msgs Messages) ArchiveRestored(branch string) string {
+	return Catalog.Format(msgs.locale, "archiveRestored", map[string]any{"branch": branch})
+}
+
+// ArchiveRestoreFailed says "Could not restore {branch}: {error}"
+// in the language the app shows.
+func ArchiveRestoreFailed(branch string, error string) string {
+	return In(i18n.Locale()).ArchiveRestoreFailed(branch, error)
+}
+
+// ArchiveRestoreFailed says "Could not restore {branch}: {error}"
+// in the language of msgs.
+func (msgs Messages) ArchiveRestoreFailed(branch string, error string) string {
+	return Catalog.Format(msgs.locale, "archiveRestoreFailed", map[string]any{"branch": branch, "error": error})
+}
+
+// ArchiveDeleted says "Deleted {branch}"
+// in the language the app shows.
+func ArchiveDeleted(branch string) string { return In(i18n.Locale()).ArchiveDeleted(branch) }
+
+// ArchiveDeleted says "Deleted {branch}"
+// in the language of msgs.
+func (msgs Messages) ArchiveDeleted(branch string) string {
+	return Catalog.Format(msgs.locale, "archiveDeleted", map[string]any{"branch": branch})
+}
+
+// ArchiveDeleteFailed says "Could not delete {branch}: {error}"
+// in the language the app shows.
+func ArchiveDeleteFailed(branch string, error string) string {
+	return In(i18n.Locale()).ArchiveDeleteFailed(branch, error)
+}
+
+// ArchiveDeleteFailed says "Could not delete {branch}: {error}"
+// in the language of msgs.
+func (msgs Messages) ArchiveDeleteFailed(branch string, error string) string {
+	return Catalog.Format(msgs.locale, "archiveDeleteFailed", map[string]any{"branch": branch, "error": error})
+}
+
+// ArchiveDeleteTitle says "Delete archived worktree?"
+// in the language the app shows.
+func ArchiveDeleteTitle() string { return In(i18n.Locale()).ArchiveDeleteTitle() }
+
+// ArchiveDeleteTitle says "Delete archived worktree?"
+// in the language of msgs.
+func (msgs Messages) ArchiveDeleteTitle() string {
+	return Catalog.Format(msgs.locale, "archiveDeleteTitle", nil)
+}
+
+// ArchiveDeleteBody says "Branch {branch} and its checkout will be deleted. This cannot be undone."
+// in the language the app shows.
+func ArchiveDeleteBody(branch string) string { return In(i18n.Locale()).ArchiveDeleteBody(branch) }
+
+// ArchiveDeleteBody says "Branch {branch} and its checkout will be deleted. This cannot be undone."
+// in the language of msgs.
+func (msgs Messages) ArchiveDeleteBody(branch string) string {
+	return Catalog.Format(msgs.locale, "archiveDeleteBody", map[string]any{"branch": branch})
 }
 
 // SettingsRemote says "Remote"

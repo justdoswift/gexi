@@ -280,6 +280,86 @@ func TestMergeBlocker(t *testing.T) {
 	}
 }
 
+// clearCheckout is what Archive does to the repository: the checkout goes,
+// the branch stays, so the archived entry can be restored.
+func clearCheckout(t *testing.T, wt *paneWorktree) {
+	t.Helper()
+	runGitTest(t, wt.Root, "worktree", "remove", "--force", wt.Path)
+	runGitTest(t, wt.Root, "worktree", "prune")
+}
+
+func TestRestoreArchivedWorktree(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %v %+v", err, wt)
+	}
+	clearCheckout(t, wt)
+	if _, err := os.Stat(wt.Path); !os.IsNotExist(err) {
+		t.Fatalf("checkout still there: %v", err)
+	}
+
+	a := &archivedWorktree{ID: "a", Root: wt.Root, Path: wt.Path, Branch: wt.Branch, Base: wt.Base}
+	if err := restoreWorktree(a); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = exec.Command("git", "-C", root, "worktree", "remove", "--force", wt.Path).Run()
+	})
+	if info, err := os.Stat(wt.Path); err != nil || !info.IsDir() {
+		t.Fatalf("restored checkout missing: %v", err)
+	}
+	if got := currentBranch(wt.Path); got != wt.Branch {
+		t.Fatalf("branch = %q, want %q", got, wt.Branch)
+	}
+}
+
+func TestRestoreArchivedWorktreeKeepsExistingCheckout(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %v %+v", err, wt)
+	}
+	t.Cleanup(func() {
+		_ = exec.Command("git", "-C", root, "worktree", "remove", "--force", wt.Path).Run()
+	})
+	a := &archivedWorktree{ID: "a", Root: wt.Root, Path: wt.Path, Branch: wt.Branch, Base: wt.Base}
+	if err := restoreWorktree(a); err != nil {
+		t.Fatalf("restore over an existing checkout: %v", err)
+	}
+}
+
+func TestDeleteArchivedWorktree(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %v %+v", err, wt)
+	}
+	clearCheckout(t, wt)
+
+	a := &archivedWorktree{ID: "a", Root: wt.Root, Path: wt.Path, Branch: wt.Branch, Base: wt.Base}
+	if err := deleteArchived(a); err != nil {
+		t.Fatalf("delete archived: %v", err)
+	}
+	if _, err := exec.Command("git", "-C", root, "rev-parse", "--verify", "--quiet", "refs/heads/"+wt.Branch).CombinedOutput(); err == nil {
+		t.Fatalf("branch %s still exists", wt.Branch)
+	}
+	// Deleting again has nothing left to remove, which is still success.
+	if err := deleteArchived(a); err != nil {
+		t.Fatalf("delete archived twice: %v", err)
+	}
+}
+
+func TestDeleteArchivedWorktreeMissingRepo(t *testing.T) {
+	a := &archivedWorktree{ID: "a", Root: filepath.Join(t.TempDir(), "gone"), Path: "/tmp/none", Branch: "x"}
+	if err := deleteArchived(a); err != nil {
+		t.Fatalf("delete with a missing repository: %v", err)
+	}
+}
+
 func TestCommitWorktree(t *testing.T) {
 	t.Setenv("GEXI_HOME", t.TempDir())
 	root := initRepoTest(t)

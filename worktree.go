@@ -734,9 +734,10 @@ func (w *workspace) requestMerge(p *pane) {
 }
 
 // archiveMergedWorktree hangs up the pane and any split that shares its
-// checkout, then removes the checkout. The branch is already merged, so
-// nothing is lost. The header offers this once the PR is merged instead of
-// running it on its own.
+// checkout, then clears the checkout away. The branch is already merged, so
+// nothing is lost; the branch is kept so Settings › Archived can restore the
+// worktree until the user deletes it for good. The header offers this once
+// the PR is merged instead of running it on its own.
 func (w *workspace) archiveMergedWorktree(p *pane) {
 	wt := p.Worktree
 	if wt == nil || wt.busy != "" || wt.State != worktreeMerged {
@@ -744,6 +745,10 @@ func (w *workspace) archiveMergedWorktree(p *pane) {
 	}
 	stopPRTimer(wt)
 	s := w.sessionOf(p)
+	projectDir := ""
+	if pr := w.projectOf(s); pr != nil {
+		projectDir = pr.Dir
+	}
 	if s != nil && s.Root != nil {
 		for _, other := range s.Root.panes() {
 			if !inWorktree(other, wt) {
@@ -756,11 +761,8 @@ func (w *workspace) archiveMergedWorktree(p *pane) {
 	} else if w.paneByID(p.ID) != nil {
 		w.closePane(p)
 	}
-	go func() {
-		if err := removeWorktree(wt); err != nil {
-			w.onMain(func() { w.flash(locales.WorktreeError(err.Error())) })
-		}
-	}()
+	w.archiveWorktree(wt, projectDir)
+	w.flash(locales.WorktreeArchived(wt.Branch))
 }
 
 func inWorktree(p *pane, wt *paneWorktree) bool {
@@ -1038,25 +1040,63 @@ func (w *workspace) leaveWorktree(p *pane) {
 	}()
 }
 
-// worktreeLeaveButton returns the pane to the project folder.
-func (w *workspace) worktreeLeaveButton(c *ui.Context, tk tokens, p *pane) {
-	if p.Worktree == nil {
+// worktreeActionChip draws the pane header's worktree control as one chip
+// split in two: the label runs action on the left, a chevron on the right
+// opens the worktree menu, where leaving the checkout sits. Leaving is
+// rare, so it shares the chip instead of holding a button of its own. bg
+// is the chip's fill, ui.Transparent for the quiet chip that tints as the
+// pointer crosses it, and fg colours its label and chevron.
+func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg ui.Color,
+	hint string, action func(), label func()) {
+	quiet := bg == ui.Transparent
+	group := ui.Row(c).Height(22).Radius(chromeRadius).Center()
+	switch {
+	case !quiet:
+		group = group.Background(bg)
+	case group.Hovered():
+		group = group.Background(tk.Control)
+	}
+	group.Children(func() {
+		main := ui.Row(c).Height(22).Padding(0, 6, 0, 8).
+			Radius(chromeRadius, 0, 0, chromeRadius).
+			Center().Cursor(ui.CursorPointer).Tooltip(hint).OnClick(action)
+		main.Children(label)
+		// The rule separates the two presses: each half does its own
+		// thing, and the chip still reads as one control.
+		rule := tk.Control
+		if !quiet {
+			rule = fg.Alpha(0.28)
+		}
+		ui.Box(c).Width(1).Height(12).Background(rule)
+		chevron := fg
+		if quiet {
+			// The chevron is a secondary press: it stays quieter than
+			// the label it follows.
+			chevron = tk.MutedForeground
+		}
+		w.worktreeMenuSegment(c, tk, p, chevron)
+	})
+}
+
+// worktreeMenuSegment is the chevron half of worktreeActionChip.
+func (w *workspace) worktreeMenuSegment(c *ui.Context, tk tokens, p *pane, fg ui.Color) {
+	seg := ui.Row(c).Width(18).Height(22).Radius(0, chromeRadius, chromeRadius, 0).
+		Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeLeaveHint())
+	if p.worktreeBusy == worktreeBusyLeave {
+		seg.Children(func() { worktreeSpinner(c, tk, locales.WorktreeLeaving()) })
 		return
 	}
-	action := func() { w.promptLeaveWorktree(p) }
-	hint := locales.WorktreeLeaveHint()
-	el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
-		Center().Cursor(ui.CursorPointer).Tooltip(hint)
-	if el.Hovered() {
-		el = el.Background(tk.Control)
-	}
-	el.OnClick(action).Children(func() {
-		if p.worktreeBusy == worktreeBusyLeave {
-			worktreeSpinner(c, tk, locales.WorktreeLeaving())
-			return
+	wt := p.Worktree
+	seg.PopoverMenuButton(func(m *ui.Menu) {
+		if m.Item(locales.WorktreeLeave()).Disabled(wt == nil || wt.busy != "").Chosen() {
+			w.promptLeaveWorktree(p)
 		}
-		ui.Text(c, "↩").FontSize(12).
-			TextColor(tk.MutedForeground).OnClick(action)
+	}).Children(func() {
+		if src := iconSource("chevron-down", colorHex(fg)); src != nil {
+			// The glyph sits inside the button: the press has to reach
+			// the segment so its menu opens.
+			ui.Image(c, src).Width(10).Height(10).IgnoreInput(true)
+		}
 	})
 }
 
@@ -1261,22 +1301,23 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 		return
 	}
 	w.worktreeButton(c, tk, p)
-	w.worktreeLeaveButton(c, tk, p)
 }
 
 // worktreeButton is the PR control in the pane header, left of the pane
 // actions. The first press opens a pull request. Once one exists, PR opens
 // the page and a separate Merge button appears; Merge asks first and is muted
 // while GitHub would not merge it. After the merge it becomes Archive, which
-// clears the pane and its checkout away.
+// clears the pane and its checkout away. Each form carries the worktree menu
+// on its right, where leaving the checkout sits.
 func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	wt := p.Worktree
 	if wt.State == worktreeMerged {
 		action := func() { w.archiveMergedWorktree(p) }
-		worktreeChip(c, tk).Tooltip(locales.WorktreeArchiveHint()).OnClick(action).Children(func() {
-			ui.Text(c, locales.WorktreeArchive()).FontSize(11).FontWeight(600).
-				TextColor(tk.Foreground).OnClick(action)
-		})
+		w.worktreeActionChip(c, tk, p, ui.Transparent, tk.Foreground,
+			locales.WorktreeArchiveHint(), action, func() {
+				ui.Text(c, locales.WorktreeArchive()).FontSize(11).FontWeight(600).
+					TextColor(tk.Foreground).OnClick(action)
+			})
 		return
 	}
 	if busy := worktreeBusyLabel(wt); busy != "" {
@@ -1287,13 +1328,16 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	}
 	if wt.PR == 0 {
 		action := func() { w.createPullRequest(p) }
-		worktreeChip(c, tk).Tooltip(wt.Branch + " → " + wt.Base).OnClick(action).Children(func() {
-			ui.Text(c, locales.WorktreePR()).FontSize(11).FontWeight(600).
-				TextColor(tk.Foreground).OnClick(action)
-		})
+		w.worktreeActionChip(c, tk, p, ui.Transparent, tk.Foreground,
+			wt.Branch+" → "+wt.Base, action, func() {
+				ui.Text(c, locales.WorktreePR()).FontSize(11).FontWeight(600).
+					TextColor(tk.Foreground).OnClick(action)
+			})
 		return
 	}
-	w.pullRequestChip(c, tk, p)
+	// The menu sits on the chip farthest right: Merge while it shows, the
+	// pull request itself otherwise.
+	w.pullRequestChip(c, tk, p, wt.State != "open")
 	if wt.State == "open" {
 		w.mergeChip(c, tk, p)
 	}
@@ -1321,7 +1365,9 @@ func worktreeBusyLabel(wt *paneWorktree) string {
 }
 
 // pullRequestChip shows the number and opens the page, as Conductor's #8376 ↗.
-func (w *workspace) pullRequestChip(c *ui.Context, tk tokens, p *pane) {
+// onItsOwn says no Merge button follows it, so the chip carries the
+// worktree menu itself.
+func (w *workspace) pullRequestChip(c *ui.Context, tk tokens, p *pane, onItsOwn bool) {
 	wt := p.Worktree
 	action := func() {
 		w.refreshWorktree(p)
@@ -1329,12 +1375,17 @@ func (w *workspace) pullRequestChip(c *ui.Context, tk tokens, p *pane) {
 			openPath(wt.URL)
 		}
 	}
-	el := worktreeChip(c, tk).Tooltip(prStatusHint(wt)).OnClick(action)
-	el.Children(func() {
+	content := func() {
 		ui.Text(c, "#"+strconv.Itoa(wt.PR)).FontSize(11).FontWeight(600).
 			TextColor(tk.Foreground).OnClick(action)
 		ui.Text(c, "↗").FontSize(10).TextColor(tk.MutedForeground).OnClick(action)
-	})
+	}
+	if onItsOwn {
+		w.worktreeActionChip(c, tk, p, ui.Transparent, tk.Foreground,
+			prStatusHint(wt), action, content)
+		return
+	}
+	worktreeChip(c, tk).Tooltip(prStatusHint(wt)).OnClick(action).Children(content)
 }
 
 // mergeStatus is the short label Conductor puts beside the pull request:
@@ -1393,9 +1444,7 @@ func (w *workspace) mergeChip(c *ui.Context, tk tokens, p *pane) {
 		hint = locales.WorktreeMergeBlocked(blocker)
 	}
 	action := func() { w.requestMerge(p) }
-	el := ui.Row(c).Height(22).Padding(0, 9, 0, 9).Radius(6).
-		Center().Background(bg).Cursor(ui.CursorPointer).Tooltip(hint)
-	el.OnClick(action).Children(func() {
+	w.worktreeActionChip(c, tk, p, bg, fg, hint, action, func() {
 		ui.Text(c, locales.WorktreeMerge()).FontSize(11).FontWeight(600).
 			TextColor(fg).OnClick(action)
 	})

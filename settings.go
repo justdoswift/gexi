@@ -98,6 +98,7 @@ const (
 	settingsNotifications
 	settingsRemote
 	settingsKeyboard
+	settingsArchived
 	settingsAdvanced
 )
 
@@ -109,6 +110,7 @@ var settingsTabs = []struct {
 	{"bell", locales.SettingsNotifications},
 	{"server", locales.SettingsRemote},
 	{"keyboard", locales.SettingsKeyboard},
+	{"branch", locales.SettingsArchived},
 	{"sliders", locales.SettingsAdvanced},
 }
 
@@ -220,6 +222,8 @@ func (w *workspace) settingsPage(c *ui.Context, tk tokens) {
 		w.remotePage(c, tk)
 	case settingsKeyboard:
 		w.keyboardPage(c, tk)
+	case settingsArchived:
+		w.archivedPage(c, tk)
 	case settingsAdvanced:
 		w.advancedPage(c, tk)
 	default:
@@ -362,6 +366,62 @@ func (w *workspace) keyboardPage(c *ui.Context, tk tokens) {
 			})
 		}
 	})
+}
+
+// archivedPage lists the worktrees cleared away with Archive: merged
+// checkouts whose branches are kept until the user restores or deletes them.
+func (w *workspace) archivedPage(c *ui.Context, tk tokens) {
+	sectionLabel(c, tk, locales.SettingsArchivedWorktrees())
+	settingsCard(c, tk, func() {
+		if len(w.archived) == 0 {
+			ui.Row(c).Padding(12, 16, 12, 16).Children(func() {
+				ui.Text(c, locales.ArchiveEmpty()).FontSize(12).
+					TextColor(tk.MutedForeground)
+			})
+			return
+		}
+		for i, a := range w.archived {
+			if i > 0 {
+				cardDivider(c, tk)
+			}
+			ui.Row(c).Padding(12, 16, 12, 16).Gap(8).Children(func() {
+				ui.Column(c).Gap(2).Children(func() {
+					ui.Text(c, a.Branch).FontSize(13).TextColor(tk.Foreground)
+					ui.Text(c, archivedDetail(a)).FontSize(11).
+						TextColor(tk.MutedForeground).SingleLine()
+				})
+				ui.Spacer(c)
+				outlineButton(c, tk, locales.ArchiveRestore(), func() {
+					w.restoreArchivedWorktree(a)
+				})
+				outlineButton(c, tk, locales.ArchiveDelete(), func() {
+					w.confirmDeleteArchived(a)
+				})
+			})
+		}
+	})
+}
+
+// confirmDeleteArchived asks before a branch and its checkout go for good.
+// The native alert blocks, so it runs off the UI thread and comes back.
+func (w *workspace) confirmDeleteArchived(a archivedWorktree) {
+	parent := w.settingsWin
+	go func() {
+		res, err := mygo.Dialog.Message(mygo.MessageOptions{
+			Parent:             parent,
+			Type:               mygo.MessageWarning,
+			Title:              locales.ArchiveDeleteTitle(),
+			Message:            locales.ArchiveDeleteBody(a.Branch),
+			Buttons:            []string{locales.ArchiveDelete(), locales.Cancel()},
+			DefaultButton:      1,
+			CancelButton:       1,
+			DestructiveButtons: []int{0},
+		})
+		if err != nil || res.Button != 0 {
+			return
+		}
+		w.onMain(func() { w.deleteArchivedWorktree(a) })
+	}()
 }
 
 func (w *workspace) advancedPage(c *ui.Context, tk tokens) {
