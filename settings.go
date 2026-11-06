@@ -628,8 +628,9 @@ func (w *workspace) settingActionView(c *ui.Context, tk tokens, title, detail, l
 }
 
 // outlineButton is shadcn's outline button, sized to sit beside a switch.
+// It keeps its size when the row is tight, so the label never wraps.
 func outlineButton(c *ui.Context, tk tokens, label string, action func()) {
-	el := ui.Row(c).Height(28).Padding(0, 10, 0, 10).Radius(6).
+	el := ui.Row(c).Height(28).Shrink(0).Padding(0, 10, 0, 10).Radius(6).
 		Border(1, tk.Border).Cursor(ui.CursorPointer)
 	bg := tk.Background
 	if el.Hovered() {
@@ -637,7 +638,7 @@ func outlineButton(c *ui.Context, tk tokens, label string, action func()) {
 	}
 	el.Background(bg).OnClick(action).Children(func() {
 		ui.Text(c, label).FontSize(12).FontWeight(500).
-			TextColor(tk.Foreground).OnClick(action)
+			TextColor(tk.Foreground).SingleLine().OnClick(action)
 	})
 }
 

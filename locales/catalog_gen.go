@@ -716,11 +716,11 @@ func (msgs Messages) SettingsDeepSeekKey() string {
 	return Catalog.Format(msgs.locale, "settingsDeepSeekKey", nil)
 }
 
-// SettingsDeepSeekKeyDetail says "Writes commit messages for pull requests. Stored in the app's config file; DEEPSEEK_API_KEY also works."
+// SettingsDeepSeekKeyDetail says "Writes commit messages for pull requests."
 // in the language the app shows.
 func SettingsDeepSeekKeyDetail() string { return In(i18n.Locale()).SettingsDeepSeekKeyDetail() }
 
-// SettingsDeepSeekKeyDetail says "Writes commit messages for pull requests. Stored in the app's config file; DEEPSEEK_API_KEY also works."
+// SettingsDeepSeekKeyDetail says "Writes commit messages for pull requests."
 // in the language of msgs.
 func (msgs Messages) SettingsDeepSeekKeyDetail() string {
 	return Catalog.Format(msgs.locale, "settingsDeepSeekKeyDetail", nil)
