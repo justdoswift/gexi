@@ -676,9 +676,10 @@ func (w *workspace) mergeBlocker(wt *paneWorktree) string {
 	return ""
 }
 
-// requestMerge refreshes the pull request, then asks before merging. The
-// button is muted while GitHub would refuse it, and a press re-reads the
-// status, so a check that finished since the last look still lets it through.
+// requestMerge refreshes the pull request, then merges it. The button is muted
+// while GitHub would refuse it, and a press re-reads the status, so a check
+// that finished since the last look still lets it through; a blocker that
+// appeared since then is said in a flash instead of merging.
 func (w *workspace) requestMerge(p *pane) {
 	wt := p.Worktree
 	if wt == nil || wt.busy != "" || wt.PR == 0 || wt.State != "open" {
@@ -704,10 +705,7 @@ func (w *workspace) requestMerge(p *pane) {
 				w.scheduleSave()
 				return
 			}
-			w.mergeTarget = p
-			w.mergeMsg = locales.WorktreeMergeConfirm(strconv.Itoa(wt.PR), wt.Base)
-			w.mergeOpen = true
-			w.invalidate()
+			w.mergePullRequest(p)
 		})
 	}()
 }
@@ -1284,10 +1282,10 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 
 // worktreeButton is the PR control in the pane header, left of the pane
 // actions. The first press opens a pull request. Once one exists, PR opens
-// the page and a separate Merge button appears; Merge asks first and is muted
-// while GitHub would not merge it. After the merge it becomes Archive, which
-// clears the pane and its checkout away. Each form carries the worktree menu
-// on its right, where leaving the checkout sits.
+// the page and a separate Merge button appears; Merge is muted while GitHub
+// would not merge it, and otherwise merges on the press. After the merge it
+// becomes Archive, which clears the pane and its checkout away. Each form
+// carries the worktree menu on its right, where leaving the checkout sits.
 func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	wt := p.Worktree
 	if wt.State == worktreeMerged {
@@ -1402,9 +1400,10 @@ func (w *workspace) mergeStatus(wt *paneWorktree) (label string, ready, danger b
 	return locales.WorktreeStatusReady(), true, false
 }
 
-// mergeChip is Conductor's filled Merge button: it asks first, and stays
-// disabled while GitHub would refuse the merge. A press refreshes the status
-// first, so a check that finished since the last look still lets it through.
+// mergeChip is Conductor's filled Merge button: it merges on the press, and
+// stays disabled while GitHub would refuse the merge. A press refreshes the
+// status first, so a check that finished since the last look still lets it
+// through, and one that started failing is said in a flash instead.
 func (w *workspace) mergeChip(c *ui.Context, tk tokens, p *pane) {
 	wt := p.Worktree
 	label, ready, danger := w.mergeStatus(wt)
