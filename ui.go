@@ -112,15 +112,41 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 			pose = ui.Pose{Scale: 0.93}
 			c.After(time.Millisecond)
 		}
-		stage := ui.Column(c).Fill()
-		stage = stage.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
-		stage.Children(func() {
-			if p := w.zoomedIn(tb); p != nil {
-				w.paneView(c, tk, p, true)
-				return
+		// inRow gives the stage what the rail leaves in a row; alone it fills
+		// the canvas on both axes, as it always has.
+		stageCol := func(inRow bool) {
+			var stage ui.Element
+			if inRow {
+				stage = ui.Column(c).Grow(1).FillHeight()
+			} else {
+				stage = ui.Column(c).Fill()
 			}
-			w.splitView(c, tk, tb.Root, true)
-		})
+			stage = stage.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
+			stage.Children(func() {
+				if p := w.zoomedIn(tb); p != nil {
+					w.paneView(c, tk, p, true)
+					return
+				}
+				w.splitView(c, tk, tb.Root, true)
+			})
+		}
+		// A zoomed pane gets a row of its own: the stage, and the rail the
+		// panes it hides wait in. The rail is left out when the stage would be
+		// too narrow to work in; the row stays either way.
+		if p := w.zoomedIn(tb); p != nil {
+			row := ui.Row(c).Fill()
+			width := row.Bounds().W
+			rail := w.stageRailVisible(tb) &&
+				(width == 0 || width >= stageRailWidth+stageRailMinStage)
+			row.Children(func() {
+				stageCol(true)
+				if rail {
+					w.stageRail(c, tk, tb)
+				}
+			})
+			return
+		}
+		stageCol(false)
 		return
 	}
 	// The empty workspace is a session's card with nothing in it: no

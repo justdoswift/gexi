@@ -93,6 +93,9 @@ type workspace struct {
 	// to fade and grow the layout in after a zoom changes.
 	zoomedPane   string
 	zoomSettling bool
+	// stageRailShown tells that the off-stage panes' rail has drawn once since
+	// the zoom began, so its cards slide in only on entry.
+	stageRailShown bool
 
 	win         *mygo.Window
 	settingsWin *mygo.Window
@@ -631,6 +634,10 @@ func (w *workspace) toggleZoom(p *pane) {
 		w.zoomedPane = p.ID
 		w.FocusedPane = p.ID
 		w.focusReq = p.ID
+		// The panes the zoom hides were on screen a frame ago: their cards
+		// start with the lines they were showing.
+		w.captureStagePeeks(p)
+		w.stageRailShown = false
 	}
 	w.zoomSettling = true
 	w.invalidate()

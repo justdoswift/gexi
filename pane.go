@@ -100,6 +100,10 @@ type pane struct {
 	// outlives its turn, which is what keeps the session visibly busy after
 	// the prompt has returned.
 	subagents map[string]paneSubagent
+	// stagePeek is the tail of the screen the pane last showed, which its
+	// card in the stage rail draws while the pane is off stage. The terminal
+	// is read at the moments the rail looks, not for every frame.
+	stagePeek []string
 	// Worktree is the checkout this pane was moved into by its W button, or
 	// one its folder was found in. worktreeBusy is the operation it waits
 	// on: "create".
