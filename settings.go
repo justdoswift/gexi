@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -27,9 +26,6 @@ type appSettings struct {
 	// Appearance is the light/dark the app draws: "" follows the system,
 	// "light" and "dark" pin one.
 	Appearance string `json:"appearance"`
-	// DeepSeekKey writes commit messages. An empty key asks the user for
-	// the message instead.
-	DeepSeekKey string `json:"deepSeekKey,omitempty"`
 
 	// Remote access: either this Mac is reachable through a relay, or it
 	// keeps codes imported from other Macs.
@@ -430,28 +426,6 @@ func (w *workspace) confirmDeleteArchived(a archivedWorktree) {
 }
 
 func (w *workspace) advancedPage(c *ui.Context, tk tokens) {
-	sectionLabel(c, tk, locales.SettingsAI())
-	settingsCard(c, tk, func() {
-		ui.Row(c).Padding(12, 16, 12, 16).Gap(12).Children(func() {
-			ui.Column(c).Gap(2).Children(func() {
-				ui.Text(c, locales.SettingsDeepSeekKey()).FontSize(13).TextColor(tk.Foreground)
-				ui.Text(c, locales.SettingsDeepSeekKeyDetail()).FontSize(11).TextColor(tk.MutedForeground)
-				if w.deepseekSaved {
-					ui.Text(c, locales.SettingsSaved()).FontSize(11).TextColor(tk.Working)
-				}
-			})
-			ui.Spacer(c)
-			ui.TextInput(c, &w.deepseekDraft).Password().Placeholder("sk-…").
-				Width(200).Height(28).FontSize(12)
-			outlineButton(c, tk, locales.SettingsSave(), func() {
-				w.settings.DeepSeekKey = strings.TrimSpace(w.deepseekDraft)
-				w.settings.save()
-				w.deepseekSaved = true
-				w.invalidateSettings()
-			})
-		})
-	})
-
 	sectionLabel(c, tk, locales.SettingsStorage())
 	settingsCard(c, tk, func() {
 		w.pathRow(c, tk, locales.SettingsSocketPath(), socketPath())

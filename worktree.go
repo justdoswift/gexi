@@ -7,9 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"io"
 	"math/rand/v2"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -553,7 +551,7 @@ func commitStaged(wt *paneWorktree, msg string) error {
 	return nil
 }
 
-// commitPrompt asks for one line, the shape DeepSeek and the manual prompt
+// commitPrompt asks for one line, the shape the agent and the manual prompt
 // both use.
 func commitPrompt(diff string) string {
 	return "Write one git commit message for the staged diff below. " +
@@ -580,77 +578,86 @@ func cleanCommitMessage(s string) string {
 	return s
 }
 
-// deepseekCommitMessage asks DeepSeek for a one-line message. The base URL
-// and model can be overridden for other OpenAI-compatible providers.
-func deepseekCommitMessage(key, prompt string) (string, error) {
-	base := strings.TrimSpace(os.Getenv("DEEPSEEK_BASE_URL"))
-	if base == "" {
-		base = "https://api.deepseek.com"
+// agentHeadless is the command that runs kind's agent once, reading the
+// prompt from stdin and printing only its answer. The agents without a print
+// mode gexi knows keep the manual dialog.
+func agentHeadless(kind agentKind) ([]string, bool) {
+	switch kind {
+	case agentClaude:
+		// JSON keeps the answer separate from anything Claude Code prints
+		// around it, so a warning cannot become the commit message.
+		return []string{"claude", "-p", "--output-format", "json"}, true
+	case agentCodex:
+		return []string{"codex", "exec", "-"}, true
 	}
-	base = strings.TrimRight(base, "/")
-	if !strings.HasSuffix(base, "/chat/completions") {
-		base += "/chat/completions"
+	return nil, false
+}
+
+// agentCommitMessage asks the same agent the pane already runs for one line,
+// through its own binary rather than a service of gexi's: the user's login
+// and model write the message, and gexi stores no provider key.
+func agentCommitMessage(kind agentKind, dir, prompt string) (string, error) {
+	command, ok := agentHeadless(kind)
+	if !ok {
+		return "", fmt.Errorf("%s cannot write one automatically", kind.name())
 	}
-	model := strings.TrimSpace(os.Getenv("DEEPSEEK_MODEL"))
-	if model == "" {
-		model = "deepseek-chat"
+	path := agentBinary(command[0])
+	if path == "" {
+		return "", fmt.Errorf("%s is not on the PATH", kind.name())
 	}
-	body, err := json.Marshal(map[string]any{
-		"model": model,
-		"messages": []map[string]string{
-			{"role": "system", "content": "You write terse git commit messages."},
-			{"role": "user", "content": prompt},
-		},
-		"temperature": 0.2,
-		"max_tokens":  60,
-		"stream":      false,
-	})
-	if err != nil {
-		return "", err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base, bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Authorization", "Bearer "+key)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return "", err
-	}
-	if resp.StatusCode != http.StatusOK {
-		msg := strings.TrimSpace(string(data))
-		if len(msg) > 200 {
-			msg = msg[:200]
+	cmd := exec.CommandContext(ctx, path, command[1:]...)
+	cmd.Dir = dir
+	cmd.Env = withPath(interactivePath(), cleanEnvironment(os.Environ()))
+	cmd.Stdin = strings.NewReader(prompt)
+	var out, stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	cmd.WaitDelay = 2 * time.Second
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("%s timed out", kind.name())
 		}
-		if msg == "" {
-			msg = resp.Status
+		message := strings.TrimSpace(stderr.String())
+		if message == "" {
+			message = err.Error()
 		}
-		return "", fmt.Errorf("DeepSeek: %s", msg)
+		if line, _, _ := strings.Cut(message, "\n"); line != "" {
+			message = line
+		}
+		return "", fmt.Errorf("%s: %s", kind.name(), message)
 	}
-	var out struct {
-		Choices []struct {
-			Message struct{ Content string }
+	msg := cleanCommitMessage(out.String())
+	if kind == agentClaude {
+		var result struct {
+			Result  string `json:"result"`
+			IsError bool   `json:"is_error"`
+		}
+		if err := json.Unmarshal(out.Bytes(), &result); err == nil {
+			if result.IsError {
+				return "", fmt.Errorf("%s: %s", kind.name(), cleanCommitMessage(result.Result))
+			}
+			msg = cleanCommitMessage(result.Result)
 		}
 	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return "", err
-	}
-	if len(out.Choices) == 0 {
-		return "", errors.New("DeepSeek returned no choices")
-	}
-	msg := cleanCommitMessage(out.Choices[0].Message.Content)
 	if msg == "" {
-		return "", errors.New("DeepSeek returned an empty message")
+		return "", fmt.Errorf("%s returned nothing", kind.name())
 	}
 	return msg, nil
+}
+
+// agentBinary finds an agent the way the panes do: the login shell's PATH
+// first, then launchd's, since an app opened from Finder cannot see a tool
+// installed under the user's home.
+func agentBinary(name string) string {
+	for _, dir := range filepath.SplitList(mergePaths(interactivePath(), os.Getenv("PATH"))) {
+		path := filepath.Join(dir, name)
+		if info, err := os.Stat(path); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			return path
+		}
+	}
+	return ""
 }
 
 func mergePR(wt *paneWorktree) error {
@@ -775,7 +782,10 @@ func (w *workspace) createPullRequest(p *pane) {
 	wt.busy = worktreeBusyPR
 	w.invalidate()
 	snapshot := *wt
-	key := w.deepseekKey()
+	kind := agentKind("")
+	if p.agent != nil {
+		kind = p.agent.Kind
+	}
 	go func() {
 		msg, hint := "", ""
 		clean, err := worktreeIsClean(&snapshot)
@@ -784,8 +794,8 @@ func (w *workspace) createPullRequest(p *pane) {
 			return
 		}
 		if !clean {
-			if key == "" {
-				hint = locales.CommitMessageNoKey()
+			if kind == "" {
+				hint = locales.CommitMessageNoAgent()
 			} else {
 				// Stage first, so the diff includes untracked files.
 				if _, err := worktreeGit(snapshot.Path, "add", "-A"); err != nil {
@@ -796,9 +806,9 @@ func (w *workspace) createPullRequest(p *pane) {
 				if len(diff) > 12000 {
 					diff = diff[:12000] + "\n… (truncated)"
 				}
-				msg, err = deepseekCommitMessage(key, commitPrompt(diff))
+				msg, err = agentCommitMessage(kind, snapshot.Path, commitPrompt(diff))
 				if err != nil {
-					hint = locales.CommitMessageDeepSeekFailed(err.Error())
+					hint = locales.CommitMessageAgentFailed(kind.name(), err.Error())
 					msg = ""
 				}
 			}
@@ -846,13 +856,6 @@ func (w *workspace) finishPullRequest(wt *paneWorktree, p *pane, info prInfo, br
 	}
 	w.invalidate()
 	w.scheduleSave()
-}
-
-func (w *workspace) deepseekKey() string {
-	if k := strings.TrimSpace(w.settings.DeepSeekKey); k != "" {
-		return k
-	}
-	return strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY"))
 }
 
 func (w *workspace) submitCommitMessage() {
