@@ -44,6 +44,34 @@ func TestSplitTree(t *testing.T) {
 	}
 }
 
+// TestSplitDirLeavesAWorktreeToItsPane pins the rule that a split beside a
+// pane in a worktree gexi made starts in the project folder: two panes in
+// one checkout would share a branch and index.
+func TestSplitDirLeavesAWorktreeToItsPane(t *testing.T) {
+	owned := &pane{ID: "owner", Worktree: &paneWorktree{
+		Root: "/repo", Path: "/repo-checkout", Branch: "feature",
+	}}
+	if got := splitDirFor(owned, "/repo", "/repo-checkout/sub"); got != "/repo" {
+		t.Fatalf("split beside a worktree started in %q, want the project folder /repo", got)
+	}
+
+	// A checkout the pane's own shell moved into is followed: that is where
+	// the user is working.
+	found := &pane{ID: "found", Worktree: &paneWorktree{Path: "/other", Detected: true}}
+	if got := splitDirFor(found, "/repo", "/other"); got != "/other" {
+		t.Fatalf("split beside a found checkout started in %q, want its own folder", got)
+	}
+
+	// No worktree, or a pane that left it, keeps the current folder.
+	plain := &pane{ID: "plain"}
+	if got := splitDirFor(plain, "/repo", "/repo/sub"); got != "/repo/sub" {
+		t.Fatalf("split in a project folder started in %q, want its current folder", got)
+	}
+	if got := splitDirFor(owned, "/repo", "/tmp"); got != "/tmp" {
+		t.Fatalf("split beside a pane that left its worktree started in %q, want its current folder", got)
+	}
+}
+
 func TestMovePane(t *testing.T) {
 	a := &pane{ID: "a"}
 	b := &pane{ID: "b"}

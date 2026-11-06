@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
@@ -48,6 +49,9 @@ func runEventCommand(args []string) bool {
 	if pane != "" {
 		params["pane"] = pane
 	}
+	if msg := hookMessage(); msg != "" {
+		params["message"] = msg
+	}
 	if result := sendEvent(params); result != nil {
 		// Claude Code adds a UserPromptSubmit hook's stdout to the prompt.
 		if ctx, _ := result["context"].(string); ctx != "" {
@@ -55,6 +59,32 @@ func runEventCommand(args []string) bool {
 		}
 	}
 	return true
+}
+
+// hookMessage is what the agent said, from the hook payload Claude Code
+// writes to stdin: the final reply for Stop, and the prompt it waits on for
+// Notification. A manual `gexi event` has a terminal on stdin, and is left
+// alone so it does not sit waiting for a line that will never come.
+func hookMessage() string {
+	info, err := os.Stdin.Stat()
+	if err != nil || info.Mode()&os.ModeCharDevice != 0 {
+		return ""
+	}
+	data, err := io.ReadAll(io.LimitReader(os.Stdin, 1<<20))
+	if err != nil {
+		return ""
+	}
+	var in struct {
+		LastAssistantMessage string `json:"last_assistant_message"`
+		Message              string `json:"message"`
+	}
+	if json.Unmarshal(data, &in) != nil {
+		return ""
+	}
+	if in.LastAssistantMessage != "" {
+		return in.LastAssistantMessage
+	}
+	return in.Message
 }
 
 // sendEvent hands one event to the running window and never fails loudly: a
