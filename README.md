@@ -107,7 +107,12 @@ worktree, branched from the latest `origin` base branch and kept under the
 app's data folder. The pane moves into the worktree with a fresh shell. The
 branch starts with a placeholder Dota 2 name — a hero, item, or ability; the
 first prompt asks Claude Code to rename it to the task. The header then shows **PR**, which
-pushes the branch and opens a pull request with `gh`. Once it exists, **PR #N**
+pushes the branch and opens a pull request with `gh`; any pending changes are
+committed first, with a message DeepSeek writes from the diff when a key is
+set in Settings → Advanced. Without a key, or when DeepSeek fails, a small
+dialog asks for the message. `DEEPSEEK_API_KEY` also supplies the key, and
+`DEEPSEEK_MODEL` and `DEEPSEEK_BASE_URL` override the model and endpoint.
+Once it exists, **PR #N**
 opens the pull request on GitHub, and **Merge** reports the state by its
 colour: green when GitHub would merge, amber while checks or reviews are still
 pending, red when something blocks it. Merge merges on the press, and a blocked

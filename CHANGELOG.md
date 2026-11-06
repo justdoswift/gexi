@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Pressing PR commits any uncommitted changes in the worktree first, with a
+  message DeepSeek writes from the diff when a key is set in Settings →
+  Advanced. Without a key, or when DeepSeek fails, a dialog asks for the
+  message. Unresolved merge conflicts still stop it rather than committing
+  the markers.
 - Merge no longer asks for confirmation: a green button merges on the press,
   since the status is re-read at that moment and a blocker that appeared
   since the last look is still said rather than merged.

@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -357,5 +360,97 @@ func TestDeleteArchivedWorktreeMissingRepo(t *testing.T) {
 	a := &archivedWorktree{ID: "a", Root: filepath.Join(t.TempDir(), "gone"), Path: "/tmp/none", Branch: "x"}
 	if err := deleteArchived(a); err != nil {
 		t.Fatalf("delete with a missing repository: %v", err)
+	}
+}
+
+func TestCommitWorktree(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %v %+v", err, wt)
+	}
+	t.Cleanup(func() {
+		_ = exec.Command("git", "-C", root, "worktree", "remove", "--force", wt.Path).Run()
+	})
+
+	if err := os.WriteFile(filepath.Join(wt.Path, "note.txt"), []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if clean, err := worktreeIsClean(wt); err != nil || clean {
+		t.Fatalf("worktree should start dirty: clean=%v err=%v", clean, err)
+	}
+	runGitTest(t, wt.Path, "add", "-A")
+	if err := commitStaged(wt, "Update from Gexi"); err != nil {
+		t.Fatalf("commit worktree: %v", err)
+	}
+	if clean, err := worktreeIsClean(wt); err != nil || !clean {
+		t.Fatalf("worktree should be clean: clean=%v err=%v", clean, err)
+	}
+	if got := runGitTest(t, wt.Path, "log", "-1", "--format=%s"); got != "Update from Gexi" {
+		t.Fatalf("commit subject = %q", got)
+	}
+	if files := runGitTest(t, wt.Path, "show", "--name-only", "--format=", "HEAD"); files != "note.txt" {
+		t.Fatalf("commit files = %q", files)
+	}
+}
+
+func TestCleanCommitMessage(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"Update login flow\n", "Update login flow"},
+		{"`fix: names`", "fix: names"},
+		{"\"add tests\"", "add tests"},
+		{"commit message: add tests", "add tests"},
+		{"Commit: tighten copy", "tighten copy"},
+		{"  spaced  ", "spaced"},
+	}
+	for _, c := range cases {
+		if got := cleanCommitMessage(c.in); got != c.want {
+			t.Fatalf("cleanCommitMessage(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestDeepSeekCommitMessage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/chat/completions" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer test-key" {
+			t.Errorf("authorization = %q", got)
+		}
+		var body struct {
+			Model    string
+			Messages []struct{ Role, Content string }
+			Stream   bool
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Model != "deepseek-chat" {
+			t.Errorf("model = %q", body.Model)
+		}
+		if body.Stream {
+			t.Error("stream should be false")
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{{"message": map[string]string{"content": "Add login handlers\n"}}},
+		})
+	}))
+	defer srv.Close()
+	t.Setenv("DEEPSEEK_BASE_URL", srv.URL)
+	t.Setenv("DEEPSEEK_MODEL", "")
+	got, err := deepseekCommitMessage("test-key", "prompt")
+	if err != nil || got != "Add login handlers" {
+		t.Fatalf("message = %q, err = %v", got, err)
+	}
+}
+
+func TestDeepSeekCommitMessageError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "invalid key", http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+	t.Setenv("DEEPSEEK_BASE_URL", srv.URL)
+	if _, err := deepseekCommitMessage("bad", "prompt"); err == nil {
+		t.Fatal("expected an error")
 	}
 }
