@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.17
+
+- 通知改由 gexi 自己发出，横幅上带应用名和图标，不再是「脚本编辑器」。标题是事件，副标题是代理，正文是项目与工作树分支，一眼看出是哪一处在等。
+- 「等你输入」改为「需要你确认」。
+- 设置 → 高级里的 DeepSeek API 密钥说明只讲密钥的用途，不再提配置文件和 DEEPSEEK_API_KEY。
+- 外框按钮保持单行，说明变长或窗口变窄时标签不再折行。
+
 ## 0.0.16
 
 - Pressing PR commits any uncommitted changes in the worktree first, with a
