@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gexi — 一个窗口，多个智能体</title>
+<meta name="description" content="Gexi 是原生 macOS 终端工作区：把项目与会话收在一个窗口里，终端任意嵌套分屏，CLI 可以从外部驱动每一个窗格。">
+<link rel="canonical" href="https://justdoswift.github.io/gexi/zh/">
+<link rel="alternate" hreflang="en" href="https://justdoswift.github.io/gexi/">
+<link rel="alternate" hreflang="zh-Hans" href="https://justdoswift.github.io/gexi/zh/">
+<link rel="alternate" hreflang="x-default" href="https://justdoswift.github.io/gexi/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Gexi — 一个窗口，多个智能体">
+<meta property="og:description" content="原生 macOS 终端工作区。分屏、按项目分组的会话、agent 事件，以及一个能驱动整个窗口的 CLI。">
+<meta property="og:url" content="https://justdoswift.github.io/gexi/zh/">
+<meta property="og:image" content="https://justdoswift.github.io/gexi/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#f8f6f5">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/gexi-icon-32.png">
+<link rel="apple-touch-icon" href="../assets/gexi-icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+<script>document.documentElement.classList.add('js');</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Gexi","operatingSystem":"macOS 13 or later","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","url":"https://justdoswift.github.io/gexi/zh/","downloadUrl":"https://github.com/justdoswift/gexi/releases/latest"}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="../index.html"><img src="../assets/gexi-icon-32.png" width="28" height="28" alt=""><span>Gexi</span></a>
+    <nav class="nav-links" aria-label="主导航">
+      <a href="#canvas">画布</a>
+      <a href="#sidebar">侧栏</a>
+      <a href="#cli">CLI</a>
+      <a href="#install">安装</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="nav-github" href="https://github.com/justdoswift/gexi">GitHub<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
+      <a class="btn btn--sm" href="https://github.com/justdoswift/gexi/releases/latest">下载</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero wrap" aria-labelledby="title">
+    <div class="hero-top">
+      <h1 id="title"><span class="line"><span>一个窗口。</span></span><span class="line"><span>多个智能体。</span></span></h1>
+      <div class="hero-aside">
+        <p class="hero-sub">Gexi 是原生 macOS 终端工作区。把每个项目的会话收在一个窗口里，把画布切成窗格，再用 CLI 从外部驱动任何一个窗格。</p>
+        <div class="hero-cta">
+          <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">下载 macOS 版<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
+          <a class="link-arrow" href="https://github.com/justdoswift/gexi">在 GitHub 上看源码<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
+        </div>
+        <p class="hero-meta">免费，MIT 许可 · 0.0.15，早期版本 · Apple 芯片</p>
+      </div>
+    </div>
+
+    <div class="stage">
+      <p class="stage-hint">下面这个窗口是活的：用窗格标题栏里的按钮分屏或关闭。</p>
+      <div class="app hero-window" data-ui aria-label="一个 Gexi 窗口，里面有三个窗格">
+        <div class="app-side">
+          <div class="side-chrome">
+            <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></svg>
+          </div>
+          <div class="side-search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.2"/><path d="m10.4 10.4 3 3"/></svg>搜索</div>
+          <div class="side-list">
+            <div class="project">
+              <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>aurora</span></div>
+              <div class="session working"><span class="sess-name">agents</span><span class="dot dot--work"></span></div>
+              <div class="session active"><span class="sess-name">dev server</span></div>
+              <div class="session"><span class="sess-name">pricing</span></div>
+            </div>
+            <div class="project">
+              <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>ledger</span></div>
+              <div class="session"><span class="sess-name">api</span><span class="dot dot--wait"></span></div>
+              <div class="session"><span class="sess-name">pr 128</span></div>
+            </div>
+            <div class="project">
+              <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>site</span></div>
+              <div class="session"><span class="sess-name">homepage</span></div>
+            </div>
+          </div>
+          <div class="side-remote"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg><span>远程</span><span class="plus">+</span></div>
+        </div>
+        <div class="app-main">
+          <div class="panes" data-count="3" data-panes>
+            <section class="pane focused">
+              <header class="pane-head">
+                <span class="pane-title"><span class="agent" aria-hidden="true"></span>claude</span>
+                <span class="branch-pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M6 10.5c3.5 0 5.5-1 5.5-3.5"/></svg>feat/pricing <span class="add">+6</span> <span class="del">−5</span></span>
+                <span class="pane-actions">
+                  <button class="pane-btn" data-act="split" aria-label="向右分屏"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M8 2.5v11"/></svg></button>
+                  <button class="pane-btn" data-act="split" aria-label="向下分屏"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 8h12"/></svg></button>
+                  <button class="pane-btn" data-act="close" aria-label="关闭窗格"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
+                </span>
+              </header>
+              <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> git status
+On branch feat/pricing
+Changes not staged for commit:
+  <span class="red">modified:   src/pricing.ts</span>
+  <span class="red">modified:   src/pricing.test.ts</span>
+
+no changes added to commit
+<span class="dim">~/aurora</span> <span class="dim">$</span> <span class="cursor"></span></pre>
+            </section>
+            <section class="pane">
+              <header class="pane-head">
+                <span class="pane-title">zsh</span>
+                <span class="pane-path">~/aurora</span>
+                <span class="pane-actions">
+                  <button class="pane-btn" data-act="split" aria-label="向右分屏"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M8 2.5v11"/></svg></button>
+                  <button class="pane-btn" data-act="split" aria-label="向下分屏"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 8h12"/></svg></button>
+                  <button class="pane-btn" data-act="close" aria-label="关闭窗格"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
+                </span>
+              </header>
+              <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> npm test -- pricing
+
+ <span class="green">PASS</span> src/pricing.test.ts <span class="dim">(4)</span>
+ <span class="green">PASS</span> src/checkout.test.ts <span class="dim">(2)</span>
+
+ <span class="green">Test Files</span>  2 passed (2)
+ <span class="green">Tests</span>       6 passed (6)
+ <span class="dim">Duration    0.94s</span></pre>
+            </section>
+            <section class="pane">
+              <header class="pane-head">
+                <span class="pane-title">zsh</span>
+                <span class="pane-path">~/aurora</span>
+                <span class="pane-actions">
+                  <button class="pane-btn" data-act="split" aria-label="向右分屏"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M8 2.5v11"/></svg></button>
+                  <button class="pane-btn" data-act="split" aria-label="向下分屏"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 8h12"/></svg></button>
+                  <button class="pane-btn" data-act="close" aria-label="关闭窗格"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
+                </span>
+              </header>
+              <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> gh pr list
+
+<span class="purple">#128</span>  Fix tax rounding  feat/pricing  <span class="green">checks ok</span>
+<span class="purple">#124</span>  Add invoice PDF   feat/invoice  <span class="yellow">● pending</span></pre>
+            </section>
+          </div>
+        </div>
+        <p class="visually-hidden" role="status" data-pane-status>3 个窗格</p>
+      </div>
+      <template id="pane-template">
+        <section class="pane">
+          <header class="pane-head">
+            <span class="pane-title">zsh</span>
+            <span class="pane-path">~/aurora</span>
+            <span class="pane-actions">
+              <button class="pane-btn" data-act="split" aria-label="向右分屏"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M8 2.5v11"/></svg></button>
+              <button class="pane-btn" data-act="split" aria-label="向下分屏"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 8h12"/></svg></button>
+              <button class="pane-btn" data-act="close" aria-label="关闭窗格"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
+            </span>
+          </header>
+          <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> npm run dev
+
+  <span class="green">VITE v6.2.1</span>  ready in 312 ms
+
+  Local:   http://localhost:5173/
+
+<span class="dim">10:42:18  hmr update /src/pricing.ts</span></pre>
+        </section>
+      </template>
+    </div>
+  </section>
+
+  <section class="section wrap" id="canvas">
+    <div class="split">
+      <div class="split-copy" data-reveal>
+        <h2>想分就分。</h2>
+        <p class="lead">每个窗格都是一个真正的终端，有自己的 shell。向右或向下分，分到够用为止，再用手把窗格挪到想要的位置。</p>
+        <ul class="feature-points">
+          <li>把窗格标题拖到另一个窗格的边上，就朝那一侧分；拖到中间，两个窗格对调。</li>
+          <li><span><kbd>⌘⇧↩</kbd> 让一个窗格铺满会话；再按一次，或点向内的箭头，全部回来。</span></li>
+          <li>舒适卡片或无缝终端，浅色或深色，都在设置里选。</li>
+        </ul>
+      </div>
+      <div data-reveal style="--d:90ms">
+        <div class="panel">
+          <div class="app app--canvas" data-ui aria-label="画布上四个分屏的窗格">
+            <div class="app-main">
+              <div class="panes" data-count="4">
+                <section class="pane focused">
+                  <header class="pane-head">
+                    <span class="pane-title"><span class="agent" aria-hidden="true"></span>claude</span>
+                    <span class="branch-pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M6 10.5c3.5 0 5.5-1 5.5-3.5"/></svg>feat/pricing <span class="add">+6</span> <span class="del">−5</span></span>
+                  </header>
+                  <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> git diff --stat
+ src/pricing.ts       <span class="green">+4</span> <span class="red">−2</span>
+ src/pricing.test.ts  <span class="green">+2</span> <span class="red">−3</span>
+ 2 files changed, 6 insertions(+), 5 deletions(−)
+
+<span class="dim">~/aurora</span> <span class="dim">$</span> <span class="cursor"></span></pre>
+                </section>
+                <section class="pane">
+                  <header class="pane-head"><span class="pane-title">zsh</span><span class="pane-path">~/aurora</span></header>
+                  <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> npm test
+
+ <span class="green">6 tests passed</span>
+ <span class="dim">Duration 0.94s</span></pre>
+                </section>
+                <section class="pane">
+                  <header class="pane-head"><span class="pane-title">zsh</span><span class="pane-path">~/ledger</span></header>
+                  <pre class="term"><span class="dir">~/ledger</span> <span class="dim">$</span> go test ./...
+<span class="green">ok</span>   example.com/ledger  <span class="dim">0.41s</span></pre>
+                </section>
+                <section class="pane">
+                  <header class="pane-head"><span class="pane-title">zsh</span><span class="pane-path">~/site</span></header>
+                  <pre class="term"><span class="dir">~/site</span> <span class="dim">$</span> npm run build
+
+<span class="green">vite</span> building for production...
+<span class="green">built</span> in 1.28s</pre>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" id="sidebar">
+    <div class="split split--flip">
+      <div class="split-copy" data-reveal>
+        <h2>是项目，不是标签页。</h2>
+        <p class="lead">会话按所在文件夹分组，关掉窗口也会继续跑。点 Dock 图标就把工作区叫回来；<kbd>⌘Q</kbd> 才是真的退出。</p>
+        <p class="body">退出时布局会保存，下次启动在每个新 shell 之上重绘上次的屏幕。agent 窗格会在自己的目录里恢复最近的会话：Claude Code 用 <code>--resume</code>，Codex 用 <code>codex resume --last</code>，omp、Devin 和 Grok 用 <code>--continue</code>。</p>
+        <ul class="feature-points">
+          <li>标题说明正在跑什么；识别到 agent 时，会显示它自己的名字和标记。</li>
+          <li>工作中的会话名字会呼吸，等待输入的带一个琥珀色圆点。都不吵。</li>
+        </ul>
+      </div>
+      <div data-reveal style="--d:90ms">
+        <div class="panel">
+          <div class="side-card" data-ui aria-label="Gexi 的侧栏">
+            <div class="app-side">
+              <div class="side-chrome">
+                <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></svg>
+              </div>
+              <div class="side-search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.2"/><path d="m10.4 10.4 3 3"/></svg>搜索</div>
+              <div class="side-list">
+                <div class="project">
+                  <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>aurora</span></div>
+                  <div class="session working"><span class="sess-name">agents</span><span class="dot dot--work"></span></div>
+                  <div class="session active"><span class="sess-name">dev server</span></div>
+                  <div class="session"><span class="sess-name">pricing</span></div>
+                  <div class="session"><span class="sess-name">release</span></div>
+                </div>
+                <div class="project">
+                  <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>ledger</span></div>
+                  <div class="session"><span class="sess-name">api</span><span class="dot dot--wait"></span></div>
+                  <div class="session"><span class="sess-name">pr 128</span></div>
+                </div>
+                <div class="project">
+                  <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>site</span></div>
+                  <div class="session"><span class="sess-name">homepage</span></div>
+                </div>
+                <div class="project">
+                  <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>infra</span></div>
+                  <div class="session"><span class="sess-name">staging</span></div>
+                </div>
+              </div>
+              <div class="side-remote"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg><span>远程</span><span class="plus">+</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="cli" id="cli">
+    <div class="wrap">
+      <div class="cli-grid">
+        <div data-reveal>
+          <h2>从外面驱动它。</h2>
+          <p class="lead">窗口和 CLI 通过 Unix socket 说同一套 JSON-lines 协议。窗格里的任何进程（包括正在那里跑的 agent）都能建项目、分窗格、输入文字、把屏幕读回来。</p>
+          <p class="cli-note">窗格参数接受完整 id 或任意唯一前缀，默认取 <code>$GEXI_PANE</code> 或当前窗格。socket 在 <code>~/Library/Application Support/Gexi/control.sock</code>。</p>
+        </div>
+        <div class="cli-steps" data-reveal style="--d:90ms">
+          <div class="cli-step">
+            <p><strong>分出一个窗格，顺便把命令跑起来。</strong></p>
+            <div class="code"><button class="copy" type="button" data-copy aria-label="复制命令"><svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 11h1"/></svg><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg></button><code>gexi split --vertical -- "npm run dev"</code></div>
+          </div>
+          <div class="cli-step">
+            <p><strong>启动一个 agent，或者和已经在跑的对话。</strong></p>
+            <div class="code"><button class="copy" type="button" data-copy aria-label="复制命令"><svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 11h1"/></svg><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg></button><code>gexi run -- claude
+gexi send -e "ls -la"</code></div>
+          </div>
+          <div class="cli-step">
+            <p><strong>把窗格的屏幕读成文本。</strong></p>
+            <div class="code"><button class="copy" type="button" data-copy aria-label="复制命令"><svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 11h1"/></svg><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg></button><code>gexi capture -p 3f2a --scrollback --lines 40</code></div>
+            <pre class="capture" aria-label="gexi list 的示例输出"><code><span class="h">$ gexi list</span>
+<span class="n">3f2a</span>  * claude     ~/aurora   <span class="w">working</span>
+<span class="h">9b71</span>    zsh        ~/aurora
+<span class="h">c204</span>    zsh        ~/ledger   <span class="w">waiting</span></code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="section wrap" id="agents">
+    <div class="split">
+      <div class="split-copy" data-reveal>
+        <h2>会自己汇报的 agent。</h2>
+        <p class="lead">窗格屏幕只说明 agent 打印了什么，不说明它在做什么。Gexi 启动 Claude Code 时，会在你自己的设置之上叠一份 hooks 文件，让窗格汇报自己的生命周期。</p>
+        <p class="body"><code>turn.end</code> 和 <code>needs-input</code> 会发通知；状态出现在 <code>gexi list --json</code> 的 <code>activity</code> 字段。任何进程都能用 <code>gexi event</code> 汇报同样的事件。</p>
+        <ul class="feature-points">
+          <li>你原有的 hooks 照常触发：生成的文件只是叠在上面。</li>
+          <li>只覆盖 Gexi 启动的 agent，或 hooks 指向的进程。在普通 shell 里手敲的 <code>claude</code>，状态保持未设置。</li>
+        </ul>
+      </div>
+      <div data-reveal style="--d:90ms">
+        <div class="panel">
+          <div class="notif" data-ui aria-label="来自窗格的一条通知">
+            <img src="../assets/gexi-icon-60.png" width="32" height="32" alt="">
+            <div>
+              <div class="notif-title">Gexi</div>
+              <div class="notif-body">aurora 里的 claude 需要你输入</div>
+            </div>
+            <span class="notif-time">刚刚</span>
+          </div>
+          <div class="activity" data-ui aria-label="三个窗格里的 agent 状态">
+            <div class="activity-row working"><span class="agent"></span><span class="name">claude</span><span class="dir">~/aurora</span><span class="st">工作中</span></div>
+            <div class="activity-row"><span class="agent agent--wait"></span><span class="name">claude</span><span class="dir">~/ledger</span><span class="st">等待输入</span></div>
+            <div class="activity-row"><span class="agent agent--idle"></span><span class="name">codex</span><span class="dir">~/site</span><span class="st">空闲</span></div>
+          </div>
+          <table class="hooks" data-ui>
+            <caption class="visually-hidden">Claude Code 的 hooks 和它们设置的窗格状态</caption>
+            <thead><tr><th scope="col">Hook</th><th scope="col">事件</th><th scope="col">状态</th></tr></thead>
+            <tbody>
+              <tr><td><code>UserPromptSubmit</code></td><td>turn.start</td><td class="state state--work"><i></i>工作中</td></tr>
+              <tr><td><code>Stop</code></td><td>turn.end</td><td class="state state--idle"><i></i>空闲</td></tr>
+              <tr><td><code>Notification</code></td><td>needs-input</td><td class="state state--wait"><i></i>等待输入</td></tr>
+              <tr><td><code>SessionStart / SessionEnd</code></td><td>session.start / end</td><td class="state state--idle"><i></i>空闲</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" id="worktrees">
+    <div class="split split--flip">
+      <div class="split-copy" data-reveal>
+        <h2>从一个分支，到合并的 PR。</h2>
+        <p class="lead">在窗格标题栏按 <kbd>W</kbd>：这个窗格会搬进自己的 git worktree，从最新的 <code>origin</code> 基分支切出，放在应用数据目录里。标题栏一路带着分支、改动和随后的 pull request。</p>
+        <p class="body">Merge 用颜色给出 GitHub 的答案：绿色可以合并，琥珀色表示检查或评审还没完，红色表示有东西挡着。合并会把本地基分支快进，窗格留在 worktree 里；Archive 关掉窗格并删除检出。</p>
+        <ul class="feature-points">
+          <li>分支先用一个 Dota 2 占位名；第一次提示会把它改成任务名。</li>
+          <li>开 PR 和合并需要已登录的 GitHub CLI。合并前会先问。</li>
+        </ul>
+      </div>
+      <div data-reveal style="--d:90ms">
+        <div class="panel">
+          <div class="pr-card" data-ui aria-label="worktree 和 pull request 控件">
+            <div class="pr-row">
+              <span class="branch-pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M6 10.5c3.5 0 5.5-1 5.5-3.5"/></svg>feat/pricing <span class="add">+6</span> <span class="del">−5</span></span>
+              <span class="pr-btn pr-btn--outline">PR #128</span>
+              <span class="pr-note">从窗格打开</span>
+            </div>
+            <div class="pr-row">
+              <span class="pr-label">Merge</span>
+              <span class="pr-btn pr-btn--green">可以合并</span>
+              <span class="pr-note">检查通过 · 已批准</span>
+            </div>
+            <div class="pr-row">
+              <span class="pr-label">Merge</span>
+              <span class="pr-btn pr-btn--amber">检查中</span>
+              <span class="pr-note">3 项完成 2 项</span>
+            </div>
+            <div class="pr-row">
+              <span class="pr-label">Merge</span>
+              <span class="pr-btn pr-btn--red">被挡住</span>
+              <span class="pr-note">还在等评审</span>
+            </div>
+            <div class="pr-row">
+              <span class="pr-label">Archive</span>
+              <span class="pr-btn pr-btn--violet">已合并 · 归档</span>
+              <span class="pr-note">关掉窗格，删除检出</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" id="remote">
+    <div class="split">
+      <div class="split-copy" data-reveal>
+        <h2>另一台 Mac，同一个窗口。</h2>
+        <p class="lead">用一次性连接码，通过中继连上另一台 Mac；或者直接选 <code>~/.ssh/config</code> 里的主机。窗格跑你自己的 ssh 配置，ProxyJump、密钥这些照旧。</p>
+        <p class="body">同一台主机的所有窗格共用一条连接。打开「保留远程会话」后，每个窗格有自己的 tmux 会话，掉线再连还是同一个 shell；没有 tmux 的主机也能拿到登录 shell。留在本地的是 agent 检测：远程 agent 目前不汇报状态。</p>
+      </div>
+      <div data-reveal style="--d:90ms">
+        <div class="panel">
+          <div class="menu" data-ui aria-label="远程菜单">
+            <div class="menu-head">远程</div>
+            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg>连接到另一台 Mac…<span class="sub">连接码</span></div>
+            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 2.5v11M3 7.5 8 2.5l5 5"/></svg>允许这台 Mac 被连接…<span class="sub">中继</span></div>
+            <div class="menu-sep"></div>
+            <div class="menu-head">~/.ssh/config 里的主机</div>
+            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg>studio-mac<span class="sub">隧道</span></div>
+            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg>build-mini<span class="sub">ssh</span></div>
+            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg>staging<span class="sub">ProxyJump</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" id="install">
+    <div class="install-grid">
+      <div data-reveal>
+        <img class="install-icon" src="../assets/gexi-icon-256.png" width="72" height="72" alt="Gexi 应用图标">
+        <h2>安装 Gexi。</h2>
+        <p class="lead">早期软件，版本 0.0.15。免费，MIT 许可。每个副本都从签名发布自动更新；<em>Gexi → 检查更新…</em> 也可以随时手动检查。</p>
+        <div class="install-actions">
+          <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">下载 macOS 版<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
+          <a class="link-arrow" href="https://github.com/justdoswift/gexi/releases">全部发布<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
+        </div>
+      </div>
+      <div class="req-card" data-reveal style="--d:90ms">
+        <h3>环境要求</h3>
+        <ul class="req-list">
+          <li>macOS 13 或更高</li>
+          <li>签名版本支持 Apple 芯片，Intel 从源码构建</li>
+          <li>构建需要 Go 1.27+，不需要 Xcode</li>
+          <li>PR 需要 GitHub CLI</li>
+        </ul>
+        <h3>从源码构建</h3>
+        <div class="build-code"><code>git clone https://github.com/justdoswift/gexi
+cd gexi
+go tool mygo build      # .app 和 .dmg 在 build/
+go build -o gexi ./cmd/gexi</code></div>
+        <p class="fine"><code>go tool mygo dev</code> 启动带热重载的开发版本。</p>
+      </div>
+    </div>
+
+    <div class="install-command" data-reveal>
+  <div class="code install-code"><button class="copy" type="button" data-copy aria-label="复制安装命令"><svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 11h1"/></svg><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg></button><code>curl -fsSL https://github.com/justdoswift/gexi/releases/latest/download/install.sh | sh</code></div>
+          <p class="fine">把最新的签名版本装进 /Applications，写不进去时用 ~/Applications。Apple 芯片，macOS 13 或更高。Intel 请从源码构建。</p>
+    </div>
+
+    <div class="section" id="faq">
+      <div class="faq-grid">
+        <div class="faq-head" data-reveal>
+          <h2>常见问题。</h2>
+          <p class="body">README 里最常被问到的几件事。这里没有的，去仓库问最合适。</p>
+        </div>
+        <div class="faq-list" data-reveal style="--d:90ms">
+          <details class="qa" name="faq">
+            <summary>需要 Xcode 或 cgo 吗？<span class="sign" aria-hidden="true"></span></summary>
+            <div class="answer">不需要。窗口是 mygo 原生 UI，终端是 Ghostty 的 <code>libghostty-vt</code>；没有 cgo，也不需要 Xcode。构建需要 Go 1.27+ 和 macOS 13+。</div>
+          </details>
+          <details class="qa" name="faq">
+            <summary>支持哪些 agent？<span class="sign" aria-hidden="true"></span></summary>
+            <div class="answer">任何命令行 agent 都能在窗格里跑。Claude Code 有随附的生命周期 hooks；任何进程也能用 <code>gexi event</code> 汇报。重启时，Claude Code、Codex、omp、Devin、Grok 和 Droid 会恢复最近的会话；其他 agent 回到 shell。</div>
+          </details>
+          <details class="qa" name="faq">
+            <summary>关掉窗口，shell 会怎样？<span class="sign" aria-hidden="true"></span></summary>
+            <div class="answer">继续跑。关窗口只是把窗口藏起来，点 Dock 图标就回来。<kbd>⌘Q</kbd> 才是真正退出，会结束进程。</div>
+          </details>
+          <details class="qa" name="faq">
+            <summary>能在 Intel Mac 上跑吗？<span class="sign" aria-hidden="true"></span></summary>
+            <div class="answer">从源码构建可以，代码同时支持 Apple 芯片和 Intel。签名公证的下载目前只有 Apple 芯片版。</div>
+          </details>
+          <details class="qa" name="faq">
+            <summary>远程 agent 会汇报状态吗？<span class="sign" aria-hidden="true"></span></summary>
+            <div class="answer">还不会。Gexi 看到的是 ssh 进程，不是远端的 agent，所以远程 <code>claude</code> 不会汇报工作或等待。远程窗格的其他部分和本地一样。</div>
+          </details>
+          <details class="qa" name="faq">
+            <summary>真的免费吗？<span class="sign" aria-hidden="true"></span></summary>
+            <div class="answer">是的。Gexi 是 MIT 许可，源码在 <a href="https://github.com/justdoswift/gexi">GitHub</a>。没有账号、没有遥测、没有付费版。</div>
+          </details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-top">
+      <p class="footer-note"><strong>Gexi</strong> 是用 Go、<a href="https://mygo.egoist.dev">mygo</a> 和 Ghostty 终端做的原生 macOS 工作区。它还很早期，并且对此很诚实。</p>
+      <nav class="footer-nav" aria-label="页脚">
+        <a href="https://github.com/justdoswift/gexi">GitHub</a>
+        <a href="https://github.com/justdoswift/gexi/releases">发布</a>
+        <a href="https://github.com/justdoswift/gexi/blob/main/CHANGELOG.md">更新日志</a>
+        <a href="https://github.com/justdoswift/gexi/blob/main/LICENSE">MIT 许可</a>
+        <a href="../index.html" lang="en" hreflang="en">English</a>
+        <a href="#install">安装</a>
+      </nav>
+    </div>
+    <div class="footer-mark">
+      <span class="word" aria-hidden="true">Gexi</span>
+      <a class="footer-get" href="https://github.com/justdoswift/gexi/releases/latest">下载 Gexi<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 18 18 6M9 6h9v9"/></svg></a>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Peng Ge。MIT 许可。</span>
+      <span>为 macOS 而做。用 Go、mygo 和 Ghostty 构建。</span>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

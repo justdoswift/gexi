@@ -3,6 +3,9 @@
 A macOS terminal workspace: projects, sessions, split panes, and a CLI that
 drives the whole thing from outside the app.
 
+The site lives at <https://justdoswift.github.io/gexi/> and is built from
+`docs/` on `main`; open `docs/index.html` to work on it locally.
+
 Built on [mygo](https://mygo.egoist.dev) — native UI rendered by mygo,
 terminals by Ghostty's `libghostty-vt`, no cgo, no Xcode.
 The window and the CLI speak the same JSON-lines protocol over a Unix socket,

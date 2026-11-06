@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://justdoswift.github.io/gexi/sitemap.xml
