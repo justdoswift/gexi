@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/justdoswift/gexi/locales"
 )
 
@@ -106,7 +107,7 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 	w.invalidate()
 
 	if w.settings.Notifications && eventNotifies[ev.Kind] && w.shouldNotify(p, ev.Kind) {
-		notifyUser(eventTitle(ev.Kind), paneLabel(p, ev.Agent))
+		notifyUser(eventTitle(ev.Kind), agentName(ev.Agent), w.panePlace(p))
 	}
 	return result, nil
 }
@@ -137,24 +138,65 @@ func eventTitle(kind string) string {
 	}
 }
 
-func paneLabel(p *pane, agent string) string {
-	name := agent
-	if name == "" {
-		name = p.title()
+// agentName is the agent's product name, or the pane's own title when the
+// event did not say which agent it came from.
+func agentName(agent string) string {
+	if agent == "" {
+		return ""
 	}
-	dir := filepath.Base(p.dir())
-	if dir == "" || dir == "." || dir == "/" {
-		return name
-	}
-	return name + " · " + dir
+	return agentKind(agent).name()
 }
 
-// notifyUser posts a banner through osascript. There is no cgo here, so
-// UserNotifications is out of reach; this is the cheap path that works.
-func notifyUser(title, body string) {
+// panePlace is where the pane runs: the project, and the worktree branch
+// when it has one. The branch alone names a checkout but not the project,
+// and the project alone does not say which checkout.
+func (w *workspace) panePlace(p *pane) string {
+	project := ""
+	if s := w.sessionOf(p); s != nil {
+		if pr := w.projectOf(s); pr != nil {
+			project = pr.Label
+			if project == "" {
+				project = filepath.Base(pr.Dir)
+			}
+		}
+	}
+	place := project
+	if p.Worktree != nil && p.Worktree.Branch != "" {
+		if place == "" {
+			place = p.Worktree.Branch
+		} else {
+			place += " · " + p.Worktree.Branch
+		}
+	}
+	if place == "" {
+		place = filepath.Base(p.dir())
+	}
+	return place
+}
+
+// notifyUser posts a banner through the app's notification center, so it
+// carries gexi's name and icon. osascript is the fallback for a build that
+// runs outside a bundle: it works, but the banner shows up as Script
+// Editor, with its icon.
+func notifyUser(title, subtitle, body string) {
+	if mygo.NotificationsSupported() {
+		go func() {
+			n := mygo.NewNotification(mygo.NotificationOptions{
+				Title:    title,
+				Subtitle: subtitle,
+				Body:     body,
+			})
+			_ = n.Show()
+		}()
+		return
+	}
+	line := body
+	if subtitle != "" {
+		line = subtitle + " · " + body
+	}
 	script := fmt.Sprintf(
 		"display notification %s with title %s",
-		appleScriptString(body),
+		appleScriptString(line),
 		appleScriptString("gexi · "+title),
 	)
 	go func() { _ = exec.Command("osascript", "-e", script).Run() }()

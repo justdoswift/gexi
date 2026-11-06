@@ -1824,11 +1824,11 @@ func (msgs Messages) NotifyTurnFinished() string {
 	return Catalog.Format(msgs.locale, "notifyTurnFinished", nil)
 }
 
-// NotifyWaiting says "Waiting for you"
+// NotifyWaiting says "Needs your approval"
 // in the language the app shows.
 func NotifyWaiting() string { return In(i18n.Locale()).NotifyWaiting() }
 
-// NotifyWaiting says "Waiting for you"
+// NotifyWaiting says "Needs your approval"
 // in the language of msgs.
 func (msgs Messages) NotifyWaiting() string {
 	return Catalog.Format(msgs.locale, "notifyWaiting", nil)
