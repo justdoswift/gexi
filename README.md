@@ -181,11 +181,13 @@ agent on the far side, so a remote `claude` does not report activity.
 | Settings | ⌘, |
 | Quit (kills processes) | ⌘Q |
 
-Zooming a pane gathers the panes it hides into a rail on the right, Stage
-Manager style: each card carries the pane's mark, name, folder, and the last
-lines it showed, and a click puts that pane on stage. The rail stays out of
-the way when the session has one pane, the drawer is open, or the stage would
-be left too narrow.
+Zooming a pane floats the panes it hides over the stage's right edge, Stage
+Manager style: each card leans back in perspective and carries a live,
+scaled mirror of its terminal, with the pane's mark inside its lower left.
+Clicking a card grows it into the stage and shrinks the pane it replaces back
+into the rail. When there are more panes than fit, the cards overlap so each
+one's top and mark stay clickable. The rail stays out of the way when the
+session has one pane, the drawer is open, or the stage is too narrow.
 
 The window follows Rex's chrome: no title bar, the traffic lights over the
 top-left corner, and a sidebar toggle that never moves. With the sidebar

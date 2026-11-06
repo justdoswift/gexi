@@ -143,11 +143,6 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		Kind:    ev.Kind,
 		Since:   time.Now().Format(time.RFC3339),
 	}
-	// An off-stage pane's card takes its new lines at the moments the agent
-	// says its screen changed, so the rail does not sit on an old turn.
-	if p.ID != w.zoomedPane {
-		p.captureStagePeek()
-	}
 	result["pane"] = p.ID
 	w.invalidate()
 

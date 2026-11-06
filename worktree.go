@@ -815,20 +815,7 @@ func resolveConflicts(wt *paneWorktree, kind agentKind) error {
 		abortMerge(wt)
 		return err
 	}
-	left, err := conflictedFiles(wt.Path)
-	if err != nil {
-		abortMerge(wt)
-		return err
-	}
-	if len(left) > 0 {
-		abortMerge(wt)
-		return fmt.Errorf("%s left %d file(s) in conflict", kind.name(), len(left))
-	}
-	if markers := conflictMarkers(wt.Path, files); len(markers) > 0 {
-		abortMerge(wt)
-		return fmt.Errorf("%s left conflict markers in %s", kind.name(), strings.Join(markers, ", "))
-	}
-	if _, err := worktreeGit(wt.Path, "add", "-A"); err != nil {
+	if err = stageResolution(wt.Path, kind, files); err != nil {
 		abortMerge(wt)
 		return err
 	}
@@ -837,6 +824,27 @@ func resolveConflicts(wt *paneWorktree, kind agentKind) error {
 		return err
 	}
 	return pushBranch(wt)
+}
+
+// stageResolution checks the agent's edits and stages them. The index keeps
+// showing a file as conflicted until what replaced the markers is staged, so
+// the markers are what tells whether the agent finished; git's unmerged list
+// only clears after the add.
+func stageResolution(dir string, kind agentKind, files []string) error {
+	if markers := conflictMarkers(dir, files); len(markers) > 0 {
+		return fmt.Errorf("%s left conflict markers in %s", kind.name(), strings.Join(markers, ", "))
+	}
+	if _, err := worktreeGit(dir, "add", "-A"); err != nil {
+		return err
+	}
+	left, err := conflictedFiles(dir)
+	if err != nil {
+		return err
+	}
+	if len(left) > 0 {
+		return fmt.Errorf("%s left %d file(s) in conflict", kind.name(), len(left))
+	}
+	return nil
 }
 
 func pushBranch(wt *paneWorktree) error {

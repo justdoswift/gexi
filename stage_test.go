@@ -1,8 +1,12 @@
 package main
 
 import (
+	"io"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/egoist/mygo/plugins/terminal"
 )
 
 func paneIDs(ps []*pane) []string {
@@ -13,26 +17,78 @@ func paneIDs(ps []*pane) []string {
 	return out
 }
 
-// TestStagePeekKeepsTheTail covers what a card shows: the last lines of the
-// screen, trailing blanks gone, and a long wrapped line cut at the end the
-// terminal was showing rather than at its beginning.
-func TestStagePeekKeepsTheTail(t *testing.T) {
-	long := "head" + strings.Repeat("x", 30) + "TAIL"
-	text := "one\ntwo\nthree\nfour\nfive\n" + long + "\n\n\n"
-	got := stagePeekLinesOf(text)
-	if len(got) != stagePeekLines {
-		t.Fatalf("got %d lines: %q", len(got), got)
+// TestMirrorConnQueuesDeltas: frames are deltas and must arrive in order,
+// even when a read takes only part of one.
+func TestMirrorConnQueuesDeltas(t *testing.T) {
+	c := newMirrorConn()
+	c.push([]byte("abc"))
+	c.push([]byte("de"))
+
+	buf := make([]byte, 2)
+	if n, err := c.Read(buf); err != nil || string(buf[:n]) != "ab" {
+		t.Fatalf("first read: %q, %v", buf[:n], err)
 	}
-	if got[0] != "three" || got[1] != "four" || got[2] != "five" {
-		t.Fatalf("tail lines: %q", got)
+	if n, err := c.Read(buf); err != nil || string(buf[:n]) != "c" {
+		t.Fatalf("second read: %q, %v", buf[:n], err)
 	}
-	if runes := []rune(got[3]); len(runes) != stagePeekCols || !strings.HasSuffix(got[3], "TAIL") {
-		t.Fatalf("long line cut from the wrong end: %q", got[3])
+	if n, err := c.Read(buf); err != nil || string(buf[:n]) != "de" {
+		t.Fatalf("third read: %q, %v", buf[:n], err)
 	}
 
-	if got := stagePeekLinesOf("only\n\n\n"); len(got) != 1 || got[0] != "only" {
-		t.Fatalf("blank tail: %q", got)
+	_ = c.Close()
+	if _, err := c.Read(buf); err != io.EOF {
+		t.Fatalf("read after close: %v", err)
 	}
+}
+
+type probeConn struct{ r *io.PipeReader }
+
+func (c *probeConn) Read(p []byte) (int, error)  { return c.r.Read(p) }
+func (c *probeConn) Write(p []byte) (int, error) { return len(p), nil }
+func (c *probeConn) Close() error                { return c.r.Close() }
+
+func probeTerminal(t *testing.T) (*terminal.Terminal, *io.PipeWriter) {
+	t.Helper()
+	r, w := io.Pipe()
+	term, err := terminal.New(terminal.Options{
+		Conn:         &probeConn{r: r},
+		ResizeByConn: true,
+		Font: terminal.Font{
+			Family: "JetBrains Mono Nerd Font Mono, monospace",
+			Size:   12,
+			Weight: 400,
+		},
+	})
+	if err != nil {
+		t.Fatalf("terminal: %v", err)
+	}
+	t.Cleanup(func() { _ = term.Close() })
+	return term, w
+}
+
+// TestStageMirrorShowsThePane is the rail's whole premise: a pane's screen,
+// mirrored into a second terminal, reads the same there.
+func TestStageMirrorShowsThePane(t *testing.T) {
+	src, in := probeTerminal(t)
+	src.Resize(40, 10)
+	if _, err := in.Write([]byte("hello\r\nworld\r\n")); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	p := &pane{ID: "p1", term: src}
+	w := &workspace{}
+	w.startStageMirror(p)
+	t.Cleanup(func() { w.stopStageMirror(p) })
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if p.stageMirror != nil && strings.Contains(p.stageMirror.sink.Text(), "hello") {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("the mirror never showed the pane: %q", p.stageMirror.sink.Text())
 }
 
 // TestStageRailPanesFollowTheSplit keeps the cards in the layout's order and

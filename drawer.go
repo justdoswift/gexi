@@ -277,6 +277,7 @@ func (w *workspace) openDrawer(tab int) {
 	d.shown = false
 	d.tab = tab
 	w.resetDrawer()
+	w.syncStageMirrors()
 	w.invalidate()
 	w.scheduleSave()
 	if tab == drawerTabChanges {
@@ -291,6 +292,7 @@ func (w *workspace) closeDrawer() {
 	}
 	d.open = false
 	d.closing = true
+	w.syncStageMirrors()
 	w.invalidate()
 	w.scheduleSave()
 	time.AfterFunc(sidebarMotion, func() {
@@ -300,6 +302,7 @@ func (w *workspace) closeDrawer() {
 			}
 			w.drawer.closing = false
 			w.drawer.shown = false
+			w.syncStageMirrors()
 			w.invalidate()
 		})
 	})
