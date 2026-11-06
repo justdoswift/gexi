@@ -48,6 +48,10 @@ type paneWorktree struct {
 	// made itself. The header offers its pull request, but nothing here
 	// leaves, archives, or deletes a checkout gexi does not own.
 	Detected bool `json:"detected,omitempty"`
+	// MergedHead is the branch's commit when its pull request merged. A
+	// commit made afterwards is new work, and the header goes back to PR
+	// instead of offering to archive that work away.
+	MergedHead string `json:"mergedHead,omitempty"`
 
 	// busy is the operation the header button waits on: "pr", "check", or
 	// "merge". checked throttles the gh lookups when a session is selected.
@@ -71,6 +75,11 @@ const (
 	worktreeBusyMerge  = "merge"
 	worktreeMerged     = "merged"
 )
+
+// reopenCheckInterval is how often a merged checkout is looked at for work
+// that landed after the merge; the header returns to PR as soon as there is
+// any.
+const reopenCheckInterval = 5 * time.Second
 
 // worktreeNames are the placeholder branch names: Dota 2 heroes, items, and
 // abilities, distinctive enough never to be mistaken for a task.
@@ -499,7 +508,10 @@ func createPR(wt *paneWorktree, message string) (prInfo, string, error) {
 		return prInfo{}, branch, errors.New("there are no commits to open a pull request with")
 	}
 	if hasOriginRemote(wt.Path) {
-		if info, err := lookupPR(wt.Path, branch); err == nil && info.Number != 0 {
+		// A merged pull request still answers for the branch: only one that
+		// is open is reused, or the next press would return the old page
+		// instead of opening the next pull request.
+		if info, err := lookupPR(wt.Path, branch); err == nil && info.Number != 0 && info.State == "open" {
 			return info, branch, nil
 		}
 	}
@@ -694,6 +706,47 @@ func worktreeSafeToDelete(wt *paneWorktree) bool {
 	return err == nil && ahead == 0
 }
 
+// worktreeHasNewWork reports a merged checkout holding work the merge did
+// not include: changes still in the tree, or a commit made after the merge.
+// The header then offers the next pull request instead of Archive, which
+// would throw that work away.
+func worktreeHasNewWork(wt *paneWorktree) (bool, error) {
+	clean, err := worktreeIsClean(wt)
+	if err != nil {
+		return false, err
+	}
+	if !clean {
+		return true, nil
+	}
+	if wt.MergedHead == "" {
+		// A merge recorded before gexi knew the commit: fall back to the
+		// branch being ahead of its base.
+		ahead, err := commitsAhead(wt)
+		return ahead > 0, err
+	}
+	out, err := worktreeGit(wt.Path, "rev-parse", "HEAD")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) != wt.MergedHead, nil
+}
+
+// reopenMergedWorktree puts a merged checkout back in the PR state once it
+// holds work the merge did not include, so the next pull request starts from
+// here rather than from a new worktree.
+func (w *workspace) reopenMergedWorktree(p *pane, wt *paneWorktree) {
+	if w.paneByID(p.ID) != p || p.Worktree != wt || wt.State != worktreeMerged {
+		return
+	}
+	stopPRTimer(wt)
+	wt.PR, wt.URL, wt.State = 0, "", ""
+	wt.mergeable, wt.review, wt.checks, wt.mergeState = "", "", "", ""
+	wt.MergedHead = ""
+	wt.checked = time.Time{}
+	w.invalidate()
+	w.scheduleSave()
+}
+
 // createPullRequest starts the PR in the background; the header button shows
 // the operation while it runs.
 func (w *workspace) createPullRequest(p *pane) {
@@ -860,9 +913,14 @@ func (w *workspace) mergePullRequest(p *pane) {
 			return
 		}
 		syncErr := syncLocalBase(&snapshot)
+		headOut, headErr := worktreeGit(snapshot.Path, "rev-parse", "HEAD")
+		head := strings.TrimSpace(headOut)
 		w.onMain(func() {
 			wt.busy = ""
 			wt.State = worktreeMerged
+			if headErr == nil && head != "" && wt.MergedHead == "" {
+				wt.MergedHead = head
+			}
 			if syncErr != nil {
 				w.flash(locales.WorktreeMergedLocalFailed(wt.Base, syncErr.Error()))
 			} else {
@@ -1013,8 +1071,13 @@ func (w *workspace) startWorktreeMonitor() {
 				p   *pane
 				dir string
 			}
+			type reopen struct {
+				p  *pane
+				wt *paneWorktree
+			}
 			var probes []probe
 			var refreshes []*pane
+			var reopens []reopen
 			now := time.Now()
 			w.onMain(func() {
 				if w.quitting {
@@ -1047,6 +1110,14 @@ func (w *workspace) startWorktreeMonitor() {
 						refreshed[wt.Path] = true
 						refreshes = append(refreshes, p)
 					}
+					// A merged checkout goes back to PR once work lands
+					// after the merge; checking is cheap but not free, so
+					// it waits a few seconds between looks.
+					if wt := p.Worktree; wt != nil && wt.State == worktreeMerged && !wt.Detected &&
+						now.Sub(wt.checked) > reopenCheckInterval {
+						wt.checked = now
+						reopens = append(reopens, reopen{p, wt})
+					}
 				}
 			})
 			for _, pr := range probes {
@@ -1057,6 +1128,11 @@ func (w *workspace) startWorktreeMonitor() {
 			}
 			for _, p := range refreshes {
 				w.onMain(func() { w.refreshWorktree(p) })
+			}
+			for _, re := range reopens {
+				if newWork, err := worktreeHasNewWork(re.wt); err == nil && newWork {
+					w.onMain(func() { w.reopenMergedWorktree(re.p, re.wt) })
+				}
 			}
 		}
 	}()
@@ -1138,11 +1214,20 @@ func (w *workspace) refreshWorktree(p *pane) {
 			if err != nil {
 				return
 			}
+			head := ""
+			if info.State == worktreeMerged {
+				if out, err := worktreeGit(prPath, "rev-parse", "HEAD"); err == nil {
+					head = strings.TrimSpace(out)
+				}
+			}
 			w.onMain(func() {
 				if p.Worktree != wt {
 					return
 				}
 				applyPRStatus(wt, info)
+				if head != "" && wt.MergedHead == "" {
+					wt.MergedHead = head
+				}
 				w.invalidate()
 				w.scheduleSave()
 				w.schedulePRRefresh(p)
