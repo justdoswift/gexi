@@ -49,8 +49,15 @@ func runEventCommand(args []string) bool {
 	if pane != "" {
 		params["pane"] = pane
 	}
-	if msg := hookMessage(); msg != "" {
+	hook := readHookPayload()
+	if msg := hook.message(); msg != "" {
 		params["message"] = msg
+	}
+	if hook.AgentID != "" {
+		params["subagent"] = hook.AgentID
+	}
+	if hook.AgentType != "" {
+		params["subagentType"] = hook.AgentType
 	}
 	if result := sendEvent(params); result != nil {
 		// Claude Code adds a UserPromptSubmit hook's stdout to the prompt.
@@ -61,30 +68,42 @@ func runEventCommand(args []string) bool {
 	return true
 }
 
-// hookMessage is what the agent said, from the hook payload Claude Code
-// writes to stdin: the final reply for Stop, and the prompt it waits on for
-// Notification. A manual `gexi event` has a terminal on stdin, and is left
-// alone so it does not sit waiting for a line that will never come.
-func hookMessage() string {
+// hookPayload is what Claude Code writes to a hook's stdin. Message fields
+// carry the agent's words; the agent fields identify one subagent so a
+// SubagentStart and its SubagentStop name the same run.
+type hookPayload struct {
+	LastAssistantMessage string `json:"last_assistant_message"`
+	Message              string `json:"message"`
+	AgentID              string `json:"agent_id"`
+	AgentType            string `json:"agent_type"`
+}
+
+// message is what the agent said: the final reply for Stop, and the prompt it
+// waits on for Notification.
+func (h hookPayload) message() string {
+	if h.LastAssistantMessage != "" {
+		return h.LastAssistantMessage
+	}
+	return h.Message
+}
+
+// readHookPayload reads the payload from stdin. A manual `gexi event` has a
+// terminal on stdin, and is left alone so it does not sit waiting for a line
+// that will never come.
+func readHookPayload() hookPayload {
 	info, err := os.Stdin.Stat()
 	if err != nil || info.Mode()&os.ModeCharDevice != 0 {
-		return ""
+		return hookPayload{}
 	}
 	data, err := io.ReadAll(io.LimitReader(os.Stdin, 1<<20))
 	if err != nil {
-		return ""
+		return hookPayload{}
 	}
-	var in struct {
-		LastAssistantMessage string `json:"last_assistant_message"`
-		Message              string `json:"message"`
-	}
+	var in hookPayload
 	if json.Unmarshal(data, &in) != nil {
-		return ""
+		return hookPayload{}
 	}
-	if in.LastAssistantMessage != "" {
-		return in.LastAssistantMessage
-	}
-	return in.Message
+	return in
 }
 
 // sendEvent hands one event to the running window and never fails loudly: a

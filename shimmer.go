@@ -61,11 +61,12 @@ func shimmerAlpha(k float64) uint8 {
 	return uint8((shimmerBase + (1-shimmerBase)*k) * 255)
 }
 
-// sessionLabelElement is the session's name. While its agent works a band of
-// light sweeps the label; while the agent waits for you the label holds full
-// ink; otherwise it keeps the row's colour.
+// sessionLabelElement is the session's name, with a running subagent count
+// after it while any run. While the agent works — or a subagent still runs
+// after its turn — a band of light sweeps the label; while the agent waits
+// for you the label holds full ink; otherwise it keeps the row's colour.
 func sessionLabelElement(c *ui.Context, tk tokens, s *session, color ui.Color, pick func()) ui.Element {
-	label := sessionLabel(s)
+	label := sessionLabelText(s)
 	switch sessionActivityState(s) {
 	case activityWorking:
 		// The band reaches full ink on every row, so it reads the same in the

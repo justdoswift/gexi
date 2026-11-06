@@ -55,6 +55,98 @@ func TestNotificationCopyUsesTheReplyLine(t *testing.T) {
 	}
 }
 
+// TestSubagentCountKeepsASessionWorking covers what the sidebar is for: a
+// background subagent still running after its turn ended. The pane is idle,
+// but the session is not.
+func TestSubagentCountKeepsASessionWorking(t *testing.T) {
+	p := &pane{Worktree: &paneWorktree{Branch: "dark-willow"}}
+	s := &session{ID: "s", Root: leaf(p)}
+
+	if got := sessionLabelText(s); got != "dark-willow" {
+		t.Fatalf("label before any subagent: %q", got)
+	}
+	if got := sessionActivityState(s); got != "" {
+		t.Fatalf("idle session reports %q", got)
+	}
+
+	p.activity = &agentActivity{State: activityIdle}
+	p.startSubagent("a1", "Explore")
+	p.startSubagent("a2", "Plan")
+	if got := sessionSubagentCount(s); got != 2 {
+		t.Fatalf("subagents = %d, want 2", got)
+	}
+	if got := sessionLabelText(s); got != "dark-willow · 2" {
+		t.Fatalf("label with subagents: %q", got)
+	}
+	if got := sessionActivityState(s); got != activityWorking {
+		t.Fatalf("state with a background subagent = %q, want working", got)
+	}
+
+	// A prompt that needs the user outranks the count: the label stops its
+	// shimmer but keeps the count.
+	p.activity = &agentActivity{State: activityWaiting}
+	if got := sessionActivityState(s); got != activityWaiting {
+		t.Fatalf("state = %q, want waiting", got)
+	}
+	if got := sessionLabelText(s); got != "dark-willow · 2" {
+		t.Fatalf("waiting label = %q", got)
+	}
+
+	p.endSubagent("a1", "Explore")
+	if got := sessionSubagentCount(s); got != 1 {
+		t.Fatalf("after one stop: %d, want 1", got)
+	}
+	p.endSubagent("a2", "Plan")
+	p.activity = &agentActivity{State: activityIdle}
+	if got := sessionLabelText(s); got != "dark-willow" {
+		t.Fatalf("label after all stop: %q", got)
+	}
+	if got := sessionActivityState(s); got != "" {
+		t.Fatalf("state after all stop = %q, want idle", got)
+	}
+
+	// A payload without ids still pairs by type, so an older hook cannot
+	// leave a count that never goes away.
+	p.startSubagent("", "Explore")
+	p.endSubagent("", "Explore")
+	if got := sessionSubagentCount(s); got != 0 {
+		t.Fatalf("id-less start and stop left %d", got)
+	}
+}
+
+// TestSubagentEventsReachThePane wires the two hook events through the socket
+// handler: a start and its stop pair by id without touching the turn state.
+func TestSubagentEventsReachThePane(t *testing.T) {
+	p := &pane{ID: "ab12"}
+	s := &session{ID: "s1", Root: leaf(p)}
+	w := &workspace{Projects: []*project{{Sessions: []*session{s}}}}
+
+	if _, err := w.handleEvent(agentEvent{
+		Kind: eventSubagentStart, Pane: "ab12", Subagent: "a1", SubagentType: "Explore",
+	}); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if got := p.subagents["a1"].Type; got != "Explore" {
+		t.Fatalf("stored type %q", got)
+	}
+	if p.activity != nil {
+		t.Fatalf("a subagent changed the turn state to %+v", p.activity)
+	}
+
+	if _, err := w.handleEvent(agentEvent{
+		Kind: eventSubagentEnd, Pane: "ab12", Subagent: "a1", SubagentType: "Explore",
+	}); err != nil {
+		t.Fatalf("end: %v", err)
+	}
+	if got := p.subagentCount(); got != 0 {
+		t.Fatalf("after the stop %d subagents remain", got)
+	}
+
+	if _, err := w.handleEvent(agentEvent{Kind: "subagent.bogus"}); err == nil {
+		t.Fatal("an unknown subagent event was accepted")
+	}
+}
+
 func TestClaudeLaunchInjectsHooks(t *testing.T) {
 	t.Setenv("GEXI_HOME", t.TempDir())
 	t.Setenv("GEXI_BIN", "/opt/test/bin/gexi")
@@ -84,7 +176,7 @@ func TestClaudeLaunchInjectsHooks(t *testing.T) {
 	if err := json.Unmarshal(data, &settings); err != nil {
 		t.Fatalf("hook settings are not JSON: %v", err)
 	}
-	for _, name := range []string{"SessionStart", "UserPromptSubmit", "Stop", "Notification", "SessionEnd"} {
+	for _, name := range []string{"SessionStart", "UserPromptSubmit", "Stop", "Notification", "SessionEnd", "SubagentStart", "SubagentStop"} {
 		entries := settings.Hooks[name]
 		if len(entries) == 0 || len(entries[0].Hooks) == 0 {
 			t.Fatalf("hook %s missing", name)
@@ -198,7 +290,7 @@ func TestGlobalClaudeHooksMerge(t *testing.T) {
 	if doc.Model != "opus" {
 		t.Fatalf("unrelated setting lost: %s", data)
 	}
-	for _, name := range []string{"SessionStart", "UserPromptSubmit", "Stop", "Notification", "SessionEnd"} {
+	for _, name := range []string{"SessionStart", "UserPromptSubmit", "Stop", "Notification", "SessionEnd", "SubagentStart", "SubagentStop"} {
 		entries := doc.Hooks[name]
 		var gexi []string
 		for _, e := range entries {

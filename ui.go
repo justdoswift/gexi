@@ -441,23 +441,54 @@ func (w *workspace) projectVisible(pr *project) bool {
 }
 
 // sessionActivityState folds the panes' hook events into one sidebar indicator.
+// A running subagent counts as work even when its pane's turn has ended: a
+// background one is exactly the case where the prompt has returned but the
+// session is still busy.
 func sessionActivityState(s *session) string {
-	state := ""
+	working := false
 	if s.Root == nil {
-		return state
+		return ""
 	}
 	for _, p := range s.Root.panes() {
-		if p.activity == nil {
-			continue
+		if p.activity != nil {
+			switch p.activity.State {
+			case activityWaiting:
+				return activityWaiting
+			case activityWorking:
+				working = true
+			}
 		}
-		switch p.activity.State {
-		case activityWaiting:
-			return activityWaiting
-		case activityWorking:
-			state = activityWorking
+		if p.subagentCount() > 0 {
+			working = true
 		}
 	}
-	return state
+	if working {
+		return activityWorking
+	}
+	return ""
+}
+
+// sessionSubagentCount is how many subagents the session's panes report
+// running.
+func sessionSubagentCount(s *session) int {
+	n := 0
+	if s.Root == nil {
+		return n
+	}
+	for _, p := range s.Root.panes() {
+		n += p.subagentCount()
+	}
+	return n
+}
+
+// sessionLabelText is the sidebar's name for a session: the label, and how
+// many subagents run under it while any do.
+func sessionLabelText(s *session) string {
+	label := sessionLabel(s)
+	if n := sessionSubagentCount(s); n > 0 {
+		return fmt.Sprintf("%s · %d", label, n)
+	}
+	return label
 }
 
 // splitView mirrors gexi's recursive split tree. leading marks the child

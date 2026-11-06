@@ -313,6 +313,7 @@ gexi send -e "ls -la"</code></div>
         <h2>会自己汇报的 agent。</h2>
         <p class="lead">窗格屏幕只说明 agent 打印了什么，不说明它在做什么。gexi 启动 Claude Code 时，会在你自己的设置之上叠一份 hooks 文件，让窗格汇报自己的生命周期。</p>
         <p class="body"><code>turn.end</code> 和 <code>needs-input</code> 会发通知；状态出现在 <code>gexi list --json</code> 的 <code>activity</code> 字段。任何进程都能用 <code>gexi event</code> 汇报同样的事件。</p>
+        <p class="body">子代理单独计数：<code>SubagentStart</code> / <code>SubagentStop</code> 维护运行中的集合，后台子代理活过回合结束后，侧栏会话名会继续流光并带上 <code>· 2</code>。</p>
         <ul class="feature-points">
           <li>你原有的 hooks 照常触发：生成的文件只是叠在上面。</li>
           <li>只覆盖 gexi 启动的 agent，或 hooks 指向的进程。在普通 shell 里手敲的 <code>claude</code>，状态保持未设置。</li>
@@ -341,6 +342,7 @@ gexi send -e "ls -la"</code></div>
               <tr><td><code>Stop</code></td><td>turn.end</td><td class="state state--idle"><i></i>空闲</td></tr>
               <tr><td><code>Notification</code></td><td>needs-input</td><td class="state state--wait"><i></i>等待输入</td></tr>
               <tr><td><code>SessionStart / SessionEnd</code></td><td>session.start / end</td><td class="state state--idle"><i></i>空闲</td></tr>
+              <tr><td><code>SubagentStart / SubagentStop</code></td><td>subagent.start / end</td><td class="state state--work"><i></i>工作中</td></tr>
             </tbody>
           </table>
         </div>
