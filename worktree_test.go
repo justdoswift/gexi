@@ -31,6 +31,49 @@ func initRepoTest(t *testing.T) string {
 	return dir
 }
 
+// TestDetectWorktreeAt finds a linked worktree from a folder inside it, and
+// tells it apart from the repository's main checkout.
+func TestDetectWorktreeAt(t *testing.T) {
+	root := initRepoTest(t)
+	path := filepath.Join(t.TempDir(), "checkout")
+	runGitTest(t, root, "worktree", "add", "-b", "feature", path)
+	t.Cleanup(func() {
+		_ = exec.Command("git", "-C", root, "worktree", "remove", "--force", path).Run()
+	})
+
+	wt, ok := detectWorktreeAt(path)
+	if !ok {
+		t.Fatal("the linked worktree was not detected")
+	}
+	if !wt.Detected {
+		t.Fatal("a detected worktree is not marked as one gexi found")
+	}
+	if wt.Branch != "feature" || wt.Base != "main" {
+		t.Fatalf("branch %q base %q, want feature and main", wt.Branch, wt.Base)
+	}
+	if !sameDir(wt.Path, path) || !sameDir(wt.Root, root) {
+		t.Fatalf("path %q root %q, want %q under %q", wt.Path, wt.Root, path, root)
+	}
+
+	// A folder inside the checkout belongs to the same worktree.
+	sub := filepath.Join(path, "nested")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	inner, ok := detectWorktreeAt(sub)
+	if !ok || !sameDir(inner.Path, wt.Path) {
+		t.Fatalf("nested folder detected %+v, %v", inner, ok)
+	}
+
+	// The main checkout and a folder outside git are not worktrees.
+	if wt, ok := detectWorktreeAt(root); ok {
+		t.Fatalf("main checkout reported as worktree: %+v", wt)
+	}
+	if wt, ok := detectWorktreeAt(t.TempDir()); ok {
+		t.Fatalf("plain folder reported as worktree: %+v", wt)
+	}
+}
+
 func TestCreateWorktree(t *testing.T) {
 	t.Setenv("GEXI_HOME", t.TempDir())
 	root := initRepoTest(t)

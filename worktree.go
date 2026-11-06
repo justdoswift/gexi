@@ -44,6 +44,10 @@ type paneWorktree struct {
 	// when the pane's agent was stopped for the move. The first prompt
 	// mentions it once, then it is cleared.
 	Carried string `json:"carried,omitempty"`
+	// Detected marks a checkout gexi found by its pane's folder rather than
+	// made itself. The header offers its pull request, but nothing here
+	// leaves, archives, or deletes a checkout gexi does not own.
+	Detected bool `json:"detected,omitempty"`
 
 	// busy is the operation the header button waits on: "pr", "check", or
 	// "merge". checked throttles the gh lookups when a session is selected.
@@ -952,7 +956,7 @@ func (w *workspace) requestMerge(p *pane) {
 // the PR is merged instead of running it on its own.
 func (w *workspace) archiveMergedWorktree(p *pane) {
 	wt := p.Worktree
-	if wt == nil || wt.busy != "" || wt.State != worktreeMerged {
+	if wt == nil || wt.Detected || wt.busy != "" || wt.State != worktreeMerged {
 		return
 	}
 	stopPRTimer(wt)
@@ -979,11 +983,121 @@ func (w *workspace) archiveMergedWorktree(p *pane) {
 
 func inWorktree(p *pane, wt *paneWorktree) bool {
 	for _, dir := range []string{p.dir(), p.initialDir} {
-		if dir == wt.Path || strings.HasPrefix(dir, wt.Path+string(os.PathSeparator)) {
+		if dirWithin(dir, wt.Path) {
 			return true
 		}
 	}
 	return false
+}
+
+// dirWithin reports whether dir is path itself or a folder inside it.
+func dirWithin(dir, path string) bool {
+	if dir == "" || path == "" {
+		return false
+	}
+	dir, path = filepath.Clean(dir), filepath.Clean(path)
+	return dir == path || strings.HasPrefix(dir, path+string(os.PathSeparator))
+}
+
+// startWorktreeMonitor follows each pane's folder. A shell moved into a
+// linked git worktree gexi did not make still gets the header's pull request
+// control instead of another W: the checkout is adopted once, marked as
+// found, and dropped again when the pane leaves it. Git runs off the UI
+// thread, and only when a pane's folder changed.
+func (w *workspace) startWorktreeMonitor() {
+	go func() {
+		ticker := time.NewTicker(1500 * time.Millisecond)
+		defer ticker.Stop()
+		for range ticker.C {
+			type probe struct {
+				p   *pane
+				dir string
+			}
+			var probes []probe
+			var refreshes []*pane
+			now := time.Now()
+			w.onMain(func() {
+				if w.quitting {
+					return
+				}
+				visible := map[string]bool{}
+				for _, p := range w.visiblePanes() {
+					visible[p.ID] = true
+				}
+				refreshed := map[string]bool{}
+				for _, p := range w.allPanes() {
+					dir := p.dir()
+					if dir == "" {
+						continue
+					}
+					if dir != p.lastWorktreeDir {
+						p.lastWorktreeDir = dir
+						// A checkout gexi made itself keeps its own chip
+						// and its own lifecycle.
+						if p.Worktree == nil || p.Worktree.Detected {
+							probes = append(probes, probe{p, dir})
+						}
+						continue
+					}
+					// Only the panes on screen need the poll: selecting a
+					// session refreshes the rest.
+					if wt := p.Worktree; wt != nil && wt.Detected && visible[p.ID] &&
+						!refreshed[wt.Path] && now.Sub(p.lastWorktreeRefresh) > 30*time.Second {
+						p.lastWorktreeRefresh = now
+						refreshed[wt.Path] = true
+						refreshes = append(refreshes, p)
+					}
+				}
+			})
+			for _, pr := range probes {
+				wt, ok := detectWorktreeAt(pr.dir)
+				w.onMain(func() {
+					w.applyDetectedWorktree(pr.p, pr.dir, wt, ok)
+				})
+			}
+			for _, p := range refreshes {
+				w.onMain(func() { w.refreshWorktree(p) })
+			}
+		}
+	}()
+}
+
+// applyDetectedWorktree attaches or drops the checkout a pane's shell moved
+// into. The probe ran off the UI thread, so the folder is checked again here:
+// a result that arrived after the pane moved on is dropped.
+func (w *workspace) applyDetectedWorktree(p *pane, dir string, wt *paneWorktree, ok bool) {
+	if w.quitting || w.paneByID(p.ID) != p || p.dir() != dir {
+		return
+	}
+	if p.Worktree != nil && !p.Worktree.Detected {
+		return
+	}
+	if !ok {
+		if p.Worktree != nil && p.Worktree.Detected && !dirWithin(dir, p.Worktree.Path) {
+			stopPRTimer(p.Worktree)
+			p.Worktree = nil
+			p.lastWorktreeRefresh = time.Time{}
+			w.invalidate()
+			w.scheduleSave()
+		}
+		return
+	}
+	if cur := p.Worktree; cur != nil {
+		if cur.Path == wt.Path {
+			if cur.Branch != wt.Branch {
+				cur.Branch = wt.Branch
+				w.invalidate()
+				w.scheduleSave()
+			}
+			return
+		}
+		stopPRTimer(cur)
+	}
+	p.Worktree = wt
+	p.lastWorktreeRefresh = time.Now()
+	w.invalidate()
+	w.scheduleSave()
+	w.refreshWorktree(p)
 }
 
 // refreshWorktree picks up a branch the agent renamed and, now and then, a PR
@@ -1001,16 +1115,22 @@ func (w *workspace) refreshWorktree(p *pane) {
 		}
 		branch := strings.TrimSpace(out)
 		w.onMain(func() {
-			if p.Worktree == nil || branch == "" || branch == "HEAD" || branch == p.Worktree.Branch {
+			if p.Worktree != wt || branch == "" || branch == "HEAD" || branch == wt.Branch {
 				return
 			}
-			p.Worktree.Branch = branch
-			p.Worktree.Naming = false
+			wt.Branch = branch
+			wt.Naming = false
 			w.invalidate()
 			w.scheduleSave()
 		})
 	}()
-	if wt.PR != 0 && wt.State != worktreeMerged && time.Since(wt.checked) > 30*time.Second {
+	// A detected checkout's pull request may appear or change outside gexi,
+	// from the agent or gh itself, so it is looked up even before one exists.
+	interval := 30 * time.Second
+	if wt.Detected && wt.PR == 0 {
+		interval = time.Minute
+	}
+	if wt.State != worktreeMerged && (wt.PR != 0 || wt.Detected) && time.Since(wt.checked) > interval {
 		wt.checked = time.Now()
 		prPath, prBranch := wt.Path, wt.Branch
 		go func() {
@@ -1019,7 +1139,7 @@ func (w *workspace) refreshWorktree(p *pane) {
 				return
 			}
 			w.onMain(func() {
-				if wt.PR == 0 {
+				if p.Worktree != wt {
 					return
 				}
 				applyPRStatus(wt, info)
@@ -1295,7 +1415,7 @@ func (w *workspace) restartPaneInDir(p *pane, dir string, wt *paneWorktree, comm
 // goes straight back to the project.
 func (w *workspace) promptLeaveWorktree(p *pane) {
 	wt := p.Worktree
-	if wt == nil || p.worktreeBusy != "" || wt.busy != "" {
+	if wt == nil || wt.Detected || p.worktreeBusy != "" || wt.busy != "" {
 		return
 	}
 	if p.agent != nil {
@@ -1339,7 +1459,7 @@ func (w *workspace) promptLeaveWorktree(p *pane) {
 // folder. A branch with commits that were never merged is kept.
 func (w *workspace) leaveWorktree(p *pane) {
 	wt := p.Worktree
-	if wt == nil {
+	if wt == nil || wt.Detected {
 		return
 	}
 	s := w.sessionOf(p)
@@ -1402,10 +1522,20 @@ func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg
 		group = group.Background(tk.Control)
 	}
 	group.Children(func() {
+		// A checkout gexi only found has no Leave menu: the chip is one
+		// press, so it takes the whole pill.
+		detected := p.Worktree != nil && p.Worktree.Detected
 		main := ui.Row(c).Height(22).Padding(0, 6, 0, 8).
-			Radius(chromeRadius, 0, 0, chromeRadius).
 			Center().Cursor(ui.CursorPointer).Tooltip(hint).OnClick(action)
+		if detected {
+			main = main.Padding(0, 8, 0, 8).Radius(chromeRadius)
+		} else {
+			main = main.Radius(chromeRadius, 0, 0, chromeRadius)
+		}
 		main.Children(label)
+		if detected {
+			return
+		}
 		// The rule separates the two presses: each half does its own
 		// thing, and the chip still reads as one control.
 		rule := tk.Control
@@ -1449,7 +1579,9 @@ func (w *workspace) worktreeMenuSegment(c *ui.Context, tk tokens, p *pane, fg ui
 // last pane closes. Anything with changes or unmerged commits stays, so
 // closing a pane never loses work.
 func (w *workspace) cleanupClosedWorktree(wt *paneWorktree) {
-	if wt == nil {
+	// A checkout gexi only found belongs to the user, not to this pane;
+	// closing the pane must not delete it.
+	if wt == nil || wt.Detected {
 		return
 	}
 	stopPRTimer(wt)
@@ -1557,6 +1689,36 @@ func worktreeRepoRoot(path string) (string, bool) {
 		return "", false
 	}
 	return root, true
+}
+
+// detectWorktreeAt reports the linked git worktree a folder belongs to. The
+// repository's main checkout is not one: W still makes a worktree from it.
+// A pane that was opened or moved into a worktree this way is shown its pull
+// request instead of another W.
+func detectWorktreeAt(dir string) (*paneWorktree, bool) {
+	top, ok := gitTopLevel(dir)
+	if !ok {
+		return nil, false
+	}
+	root, ok := worktreeRepoRoot(top)
+	if !ok || sameDir(root, top) {
+		return nil, false
+	}
+	branch := currentBranch(top)
+	if branch == "" {
+		return nil, false
+	}
+	base := detectBaseBranch(root)
+	if base == "" {
+		return nil, false
+	}
+	return &paneWorktree{
+		Root:     root,
+		Path:     top,
+		Branch:   branch,
+		Base:     base,
+		Detected: true,
+	}, true
 }
 
 // orphanWorktreeSafe reports a checkout with no session that has nothing to
@@ -1671,6 +1833,12 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	wt := p.Worktree
 	if wt.State == worktreeMerged {
+		if wt.Detected {
+			// gexi does not own this checkout, so there is nothing to
+			// archive; the merged pull request itself stays reachable.
+			w.pullRequestChip(c, tk, p, true)
+			return
+		}
 		action := func() { w.archiveMergedWorktree(p) }
 		w.worktreeActionChip(c, tk, p, ui.Transparent, tk.Foreground,
 			locales.WorktreeArchiveHint(), action, func() {

@@ -84,6 +84,7 @@ func main() {
 		w.restoreOrCreate()
 		w.refreshGit()
 		w.startAgentMonitor()
+		w.startWorktreeMonitor()
 		w.startGitMonitor()
 		stop := startControl(w)
 		mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
