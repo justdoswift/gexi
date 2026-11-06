@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -94,6 +95,11 @@ type pane struct {
 	restored bool
 	sawAgent bool           // an agent was detected at some point in this pane
 	activity *agentActivity // last hook event from the agent
+	// subagents are the Task/Agent calls the agent reports running in this
+	// pane, keyed by the id a start and its stop share. A background one
+	// outlives its turn, which is what keeps the session visibly busy after
+	// the prompt has returned.
+	subagents map[string]paneSubagent
 	// Worktree is the checkout this pane was moved into by its W button, or
 	// one its folder was found in. worktreeBusy is the operation it waits
 	// on: "create".
@@ -116,6 +122,60 @@ type pane struct {
 	// room they leave rather than by fixed thresholds.
 	headerActionsW float32
 	ws             *workspace
+}
+
+// paneSubagent is one Task/Agent call running under the pane's agent. Type is
+// the agent definition it runs, for the CLI to report; the sidebar only needs
+// how many there are.
+type paneSubagent struct {
+	Type  string
+	Since time.Time
+}
+
+// subagentKey pairs a start with its stop. Claude Code always sends the id;
+// the type stands in when an event arrives without one.
+func subagentKey(id, typ string) string {
+	if id != "" {
+		return id
+	}
+	return "type:" + typ
+}
+
+func (p *pane) startSubagent(id, typ string) {
+	if p.subagents == nil {
+		p.subagents = map[string]paneSubagent{}
+	}
+	p.subagents[subagentKey(id, typ)] = paneSubagent{Type: typ, Since: time.Now()}
+}
+
+func (p *pane) endSubagent(id, typ string) {
+	delete(p.subagents, subagentKey(id, typ))
+}
+
+func (p *pane) clearSubagents() {
+	clear(p.subagents)
+}
+
+func (p *pane) subagentCount() int { return len(p.subagents) }
+
+// subagentsJSON lists the running subagents oldest first, so the CLI's output
+// stays stable between calls.
+func (p *pane) subagentsJSON() []map[string]any {
+	out := make([]map[string]any, 0, len(p.subagents))
+	for id, a := range p.subagents {
+		out = append(out, map[string]any{
+			"id":    id,
+			"type":  a.Type,
+			"since": a.Since.Format(time.RFC3339),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i]["since"] != out[j]["since"] {
+			return out[i]["since"].(string) < out[j]["since"].(string)
+		}
+		return out[i]["id"].(string) < out[j]["id"].(string)
+	})
+	return out
 }
 
 func newPane(ws *workspace, id string, command []string, dir string, snapshot string) (*pane, error) {

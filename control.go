@@ -251,6 +251,7 @@ func (w *workspace) paneJSON(p *pane) map[string]any {
 		"restoreCommand": p.restoreCommand,
 		"agent":          agentJSON(p.agent),
 		"activity":       activityJSON(p.activity),
+		"subagents":      p.subagentsJSON(),
 	}
 }
 
