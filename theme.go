@@ -98,6 +98,8 @@ const (
 	searchHeight float32 = 28
 	rowHeightPx  float32 = 30
 	iconSize     float32 = 26
+	// iconSmallSize is a list-row control's hit area, beside 12pt text.
+	iconSmallSize float32 = 20
 )
 
 // canvasInset is the canvas's extra margin to the top, right, and bottom

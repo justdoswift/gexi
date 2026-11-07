@@ -250,7 +250,7 @@ func iconButtonInFrame(c *ui.Context, tk tokens, name string, action func(), hin
 // iconButtonSmall is the list-row size: it sits quieter beside 12pt text.
 // A hint, when given, is the tooltip the pointer shows over it.
 func iconButtonSmall(c *ui.Context, tk tokens, name string, action func(), hint ...string) {
-	iconButtonSized(c, tk, name, 20, 15, iconOnMaterial, action, hint...)
+	iconButtonSized(c, tk, name, iconSmallSize, 15, iconOnMaterial, action, hint...)
 }
 
 // iconMenuButton is iconButton that opens a menu. The menu is built when it
