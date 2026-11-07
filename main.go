@@ -60,11 +60,8 @@ func main() {
 			Height:    760,
 			MinWidth:  760,
 			MinHeight: 440,
-			// A state key of its own while the glass is being tried, so this
-			// build opens as its own window instead of exactly over the
-			// installed gexi the user is working in.
-			StateKey: "gexi-glass",
-			Content:  ui.View(w.view),
+			StateKey:  "gexi",
+			Content:   ui.View(w.view),
 			// Rex chrome: no title bar; the view draws under the traffic
 			// lights, which the layout leaves room for.
 			TitleBarStyle:        mygo.TitleBarHidden,
