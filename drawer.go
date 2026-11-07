@@ -522,7 +522,10 @@ func (w *workspace) drawerView(c *ui.Context, tk tokens) {
 		// glass here rather than a painted background: what it covers shows
 		// through it, frosted and bent along its edge, and the glass's own
 		// shaded left rim is the separator — no hairline is painted on it.
-		el = el.Material(glass.Glass{})
+		// The glass takes the theme's own background, so the drawer reads as
+		// the app's surface over the terminal instead of the system's grey
+		// frost.
+		el = el.Material(glass.Glass{Tint: tk.Background.Alpha(0.6)})
 	} else {
 		el = el.Background(tk.Background).BorderWidth(0, 0, 0, 1).BorderColor(tk.Border)
 	}
