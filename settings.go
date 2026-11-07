@@ -140,7 +140,7 @@ func (w *workspace) openSettings() {
 		// settings pages sit on the app's material instead of a plain fill.
 		Transparent:     true,
 		Vibrancy:        mygo.VibrancyGlass,
-		VibrancyTint:    "light-dark(rgba(245, 245, 245, 0.8), rgba(14, 14, 16, 0.8))",
+		VibrancyTint:    windowTint,
 		TitleBarStyle:   mygo.TitleBarHidden,
 		BackgroundColor: "light-dark(#ffffff, #0e0e10)",
 		Content:         ui.View(w.settingsView),
