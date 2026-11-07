@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/plugins/loading"
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
@@ -436,7 +437,9 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 }
 
 // sessionRow is one piece of work in a project: an agent's mark or a terminal
-// glyph, its name, the activity loader, and a close button on hover.
+// glyph, its name, a loader while its agent works, and a close button on
+// hover. The close button's place is kept while the pointer is away, so the
+// loader does not move as the button comes and goes.
 func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session) {
 	sel := s.ID == w.SelectedSession
 	color := tk.MutedForeground
@@ -455,6 +458,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		row = glassControl(c, row, tk, 0.35, tk.Active)
 	}
 	pick := func() { w.selectSession(s.ID) }
+	activity := sessionActivityState(s)
 	row.OnClick(pick).Children(func() {
 		agent := s.agent()
 		if agent != nil {
@@ -464,10 +468,22 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(16).Height(16).OnClick(pick)
 		}
-		sessionLabelElement(c, tk, s, color, pick)
+		labelColor := color
+		if activity == activityWaiting {
+			labelColor = tk.Foreground
+		}
+		label := sessionLabel(s)
+		ui.Text(c, label).FontSize(12).FontWeight(500).SingleLine().
+			TextColor(labelColor).OnClick(pick)
 		ui.Spacer(c).OnClick(pick)
+		if activity == activityWorking {
+			loading.Gather(c, loading.Options{Size: 14, Color: tk.Foreground}).Label(label)
+		}
 		if hovered {
 			iconButtonSmall(c, tk, "x", func() { w.closeSession(s) }, locales.CloseSession())
+		} else {
+			// Hold the close button's place so the loader beside it stays put.
+			ui.Box(c).Width(iconSmallSize).Height(iconSmallSize).OnClick(pick)
 		}
 	})
 }
