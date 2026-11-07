@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 )
@@ -140,14 +141,37 @@ func colorHex(c ui.Color) string {
 // in Settings keep it current.
 var glassUI = true
 
+// windowFocused is whether the main window has the keyboard. It is the app's
+// own record rather than Context.WindowActive, because the main window is
+// pinned as active (Window.SetActiveAppearance): the system would otherwise
+// fade the native glass views out as the window loses the keyboard, and that
+// fade, running under the solid frame the app draws in their place, is what
+// made opening the settings window flicker. Pinned, the system fades nothing,
+// and the app switches its own surfaces in one frame. Main thread only.
+var windowFocused = true
+
+// setWindowFocused records whether the main window has the keyboard, and has
+// win draw again if that changed: its surfaces switch between glass and the
+// theme's own colours with it.
+func setWindowFocused(win *mygo.Window, on bool) {
+	if windowFocused == on {
+		return
+	}
+	windowFocused = on
+	if win != nil {
+		win.Invalidate()
+	}
+}
+
 // liquid reports whether this window draws the glass look: the setting, a
-// window the system gives a material to, and the window the user is working
+// window the system gives a material to, and a window the user is working
 // in. An inactive window's material is frosted by the system, which lifts
 // every light tint into a grey sheet: the panes, the selected row and the
-// search field turn milky the moment the settings window comes forward. There
-// the app draws its own surfaces instead, the colours it has with the glass
-// turned off, so an inactive window reads as the theme rather than as frost.
-func liquid(c *ui.Context) bool { return glassUI && c.Vibrancy() && c.WindowActive() }
+// search field turn milky the moment the settings window comes forward, or
+// the user switches to another app. There the app draws its own surfaces
+// instead, the colours it has with the glass turned off, so the window reads
+// as the theme rather than as frost.
+func liquid(c *ui.Context) bool { return glassUI && c.Vibrancy() && windowFocused }
 
 // glassControl fills el with the system's glass, tinted toward the theme's
 // raised surface: a button's hover, a selected row or a chip on the window's

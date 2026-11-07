@@ -136,11 +136,10 @@ func (w *workspace) openSettings() {
 		Height:    540,
 		MinWidth:  620,
 		MinHeight: 420,
-		// The window carries the same glass as the main one, so the
-		// settings pages sit on the app's material instead of a plain fill.
-		Transparent:     true,
-		Vibrancy:        mygo.VibrancyGlass,
-		VibrancyTint:    windowTint,
+		// The page fills the window with the theme's own colours, so the
+		// window carries no material of its own: a transparent window would
+		// show the desktop for the frame before the page's first draw, and
+		// the system's material would frost as the window takes the keyboard.
 		TitleBarStyle:   mygo.TitleBarHidden,
 		BackgroundColor: "light-dark(#ffffff, #0e0e10)",
 		Content:         ui.View(w.settingsView),
