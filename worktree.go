@@ -665,6 +665,11 @@ func agentHeadless(kind agentKind) ([]string, bool) {
 		return []string{"claude", "-p", "--output-format", "json"}, true
 	case agentCodex:
 		return []string{"codex", "exec", "-"}, true
+	case agentPerch:
+		// Perch takes the prompt as an argument, not on stdin, so runAgent
+		// appends it. A thread of gexi's own keeps these one-shot questions
+		// out of the conversation the user is having in the pane.
+		return []string{"perch", "run", "--json", "--thread", "gexi-worktree"}, true
 	}
 	return nil, false
 }
@@ -694,6 +699,19 @@ func agentCommitMessage(kind agentKind, dir, prompt string) (string, error) {
 			msg = cleanCommitMessage(result.Result)
 		}
 	}
+	if kind == agentPerch {
+		var result struct {
+			OK            bool   `json:"ok"`
+			AssistantText string `json:"assistantText"`
+			Error         string `json:"error"`
+		}
+		if err := json.Unmarshal([]byte(answer), &result); err == nil {
+			if !result.OK {
+				return "", fmt.Errorf("%s: %s", kind.name(), cleanCommitMessage(result.Error))
+			}
+			msg = cleanCommitMessage(result.AssistantText)
+		}
+	}
 	if msg == "" {
 		return "", fmt.Errorf("%s returned nothing", kind.name())
 	}
@@ -710,10 +728,18 @@ func runAgent(kind agentKind, command []string, dir, prompt string, timeout time
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, path, command[1:]...)
+	args := command[1:]
+	stdin := prompt
+	if kind == agentPerch {
+		// Perch reads the task from its arguments; `perch run -` does not
+		// read stdin. The prompt goes last so the flags stay where they are.
+		args = append(append([]string(nil), args...), prompt)
+		stdin = ""
+	}
+	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = dir
 	cmd.Env = withPath(interactivePath(), cleanEnvironment(os.Environ()))
-	cmd.Stdin = strings.NewReader(prompt)
+	cmd.Stdin = strings.NewReader(stdin)
 	var out, stderr bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
@@ -746,6 +772,11 @@ func agentResolveCommand(kind agentKind) ([]string, bool) {
 		}, true
 	case agentCodex:
 		return []string{"codex", "exec", "-s", "workspace-write", "-"}, true
+	case agentPerch:
+		// take_the_wheel is the mode that edits without stopping to ask, which
+		// is what a conflict resolution needs: nothing is there to answer a
+		// prompt. The prompt itself goes on the command line, as runAgent does.
+		return []string{"perch", "run", "--json", "--thread", "gexi-worktree", "--permission", "take_the_wheel"}, true
 	}
 	return nil, false
 }
@@ -1742,6 +1773,14 @@ func (w *workspace) createPaneWorktree(p *pane) {
 				if carried && det != nil && det.Kind == agentClaude {
 					wt.Carried = dir
 				}
+				// Perch has no hook to answer, so the note it would have got
+				// from one is put in the checkout before Perch starts there.
+				if det != nil && det.Kind == agentPerch {
+					if carried {
+						wt.Carried = dir
+					}
+					seedPerchWorktreeRule(wt)
+				}
 				w.restartPaneInWorktree(p, wt, launch, carried)
 				return
 			}
@@ -2187,9 +2226,30 @@ func removeOrphanWorktree(path string) error {
 
 // worktreeNamingContext is the one-time note that tells the agent its branch
 // is a placeholder. Claude Code adds a UserPromptSubmit hook's stdout to the
-// prompt, so this reaches the model with the first request.
+// prompt, so this reaches the model with the first request. Perch has no hook
+// to answer, so it reads the note from a rule file instead; see
+// writePerchWorktreeRule.
 func (w *workspace) worktreeNamingContext(p *pane) string {
 	wt := p.Worktree
+	if wt == nil {
+		return ""
+	}
+	note := worktreeNamingNote(wt)
+	if note == "" {
+		return ""
+	}
+	// Both flags are one-shot: the note is delivered once, whichever channel
+	// the agent has.
+	wt.Carried = ""
+	wt.Naming = false
+	w.scheduleSave()
+	return note
+}
+
+// worktreeNamingNote is the text both channels carry: the hook's stdout for
+// Claude Code, and the rule file for Perch. Keeping one string means the two
+// agents are told the same thing.
+func worktreeNamingNote(wt *paneWorktree) string {
 	if wt == nil {
 		return ""
 	}
@@ -2199,10 +2259,8 @@ func (w *workspace) worktreeNamingContext(p *pane) string {
 			"gexi workspace: the uncommitted changes that were in %s moved into this worktree "+
 				"before this session started, so the project folder is clean and the work is here.",
 			wt.Carried))
-		wt.Carried = ""
 	}
 	if wt.Naming {
-		wt.Naming = false
 		notes = append(notes, fmt.Sprintf(
 			"gexi workspace: this session runs in the git worktree %s on branch %q. "+
 				"The branch name is a placeholder. Once the request is clear, rename it once "+
@@ -2210,11 +2268,81 @@ func (w *workspace) worktreeNamingContext(p *pane) string {
 				"(for example `fix-login-redirect`), then continue; leave the worktree path unchanged.",
 			wt.Path, wt.Branch))
 	}
-	if len(notes) == 0 {
-		return ""
-	}
-	w.scheduleSave()
 	return strings.Join(notes, "\n\n")
+}
+
+// seedPerchWorktreeRule writes the naming note where Perch will read it. It
+// runs when a pane restarts in a fresh checkout, before Perch has started, so
+// the note is already in place for the first turn.
+func seedPerchWorktreeRule(wt *paneWorktree) {
+	if wt == nil {
+		return
+	}
+	_ = writePerchWorktreeRule(wt, worktreeNamingNote(wt))
+}
+
+// perchRuleName is the rule file gexi writes into a worktree for Perch to
+// read. It is named for gexi so a later run can replace exactly its own file.
+const perchRuleName = "gexi-worktree.md"
+
+// writePerchWorktreeRule hands Perch the note Claude Code gets through a
+// hook. Perch loads .perch/rules/*.md as project instructions before the
+// first turn, so a rule file is the one channel that reaches the model
+// without a hook. The file is written into the checkout's .git/info/exclude
+// so it never shows up as a change of its own.
+func writePerchWorktreeRule(wt *paneWorktree, note string) error {
+	if wt == nil || wt.Path == "" {
+		return nil
+	}
+	dir := filepath.Join(wt.Path, ".perch", "rules")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(dir, perchRuleName)
+	if strings.TrimSpace(note) == "" {
+		_ = os.Remove(path)
+		return nil
+	}
+	body := "# gexi worktree\n\n" + strings.TrimSpace(note) + "\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		return err
+	}
+	excludePerchRule(wt.Path)
+	return nil
+}
+
+// excludePerchRule keeps gexi's own rule file out of the checkout's changes,
+// so the note never becomes part of a commit or a diff the user reviews.
+func excludePerchRule(worktreePath string) {
+	root, ok := worktreeRepoRoot(worktreePath)
+	if !ok {
+		return
+	}
+	// A worktree's own exclude file lives under the common git dir.
+	out, err := worktreeGit(worktreePath, "rev-parse", "--git-common-dir")
+	if err != nil {
+		return
+	}
+	common := strings.TrimSpace(out)
+	if !filepath.IsAbs(common) {
+		common = filepath.Join(root, common)
+	}
+	path := filepath.Join(common, "info", "exclude")
+	entry := ".perch/rules/" + perchRuleName
+	current, _ := os.ReadFile(path)
+	for _, line := range strings.Split(string(current), "\n") {
+		if strings.TrimSpace(line) == entry {
+			return
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return
+	}
+	body := string(current)
+	if body != "" && !strings.HasSuffix(body, "\n") {
+		body += "\n"
+	}
+	_ = os.WriteFile(path, []byte(body+entry+"\n"), 0o644)
 }
 
 // paneWorktreeButton is the W control in the pane header. W makes a worktree

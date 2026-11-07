@@ -376,6 +376,30 @@ func (p *pane) dir() string {
 	return home
 }
 
+// applyPerchTurn records whether a Perch turn is running in this pane. Perch
+// has no hooks, so this is the only source of its working state; the prompt
+// is kept so the sidebar can say what it is working on. It reports whether
+// anything changed.
+func (p *pane) applyPerchTurn(busy bool, prompt string) bool {
+	state := activityIdle
+	if busy {
+		state = activityWorking
+	}
+	if p.activity != nil && p.activity.State == state && p.activity.Agent == agentPerch.name() {
+		return false
+	}
+	p.activity = &agentActivity{
+		State: state,
+		Agent: agentPerch.name(),
+		Kind:  "turn.start",
+		Since: time.Now().Format(time.RFC3339),
+	}
+	if !busy {
+		p.activity.Kind = "turn.end"
+	}
+	return true
+}
+
 // applyAgent records a detection on the main thread and reports whether the
 // restore command changed.
 func (p *pane) applyAgent(det *agentDetection) bool {

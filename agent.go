@@ -24,6 +24,7 @@ const (
 	agentDevin  agentKind = "devin"
 	agentGrok   agentKind = "grok"
 	agentDroid  agentKind = "droid"
+	agentPerch  agentKind = "perch"
 )
 
 type agentDetection struct {
@@ -48,6 +49,8 @@ func (k agentKind) name() string {
 		return "Grok"
 	case agentDroid:
 		return "Droid"
+	case agentPerch:
+		return "Perch"
 	}
 	return string(k)
 }
@@ -57,7 +60,7 @@ func (k agentKind) name() string {
 // a model or permission mode, are not carried: only the kind is known here.
 func (k agentKind) launch() []string {
 	switch k {
-	case agentClaude, agentCodex, agentOmp, agentDevin, agentGrok, agentDroid:
+	case agentClaude, agentCodex, agentOmp, agentDevin, agentGrok, agentDroid, agentPerch:
 		return shellCommand(string(k))
 	}
 	return nil
@@ -343,6 +346,11 @@ func detectAgent(pgid int, fallbackCWD string) *agentDetection {
 			return &agentDetection{Kind: agentGrok, Resume: shellCommand("grok --continue")}
 		case agentDroid:
 			return &agentDetection{Kind: agentDroid, Resume: shellCommand("droid --resume --last")}
+		case agentPerch:
+			// Perch keeps one conversation per directory, keyed by the working
+			// directory itself, so the bare command resumes it: no session id
+			// to carry, and none to go stale.
+			return &agentDetection{Kind: agentPerch, Resume: shellCommand("perch")}
 		}
 	}
 	return nil
@@ -355,7 +363,35 @@ func kindOf(proc processSnapshot) agentKind {
 	// A launcher or symlink may sit in front of the real binary (omp, for
 	// one, runs from a versioned Tern executable), so check argv[0] too.
 	if len(proc.args) > 0 {
-		return agentNamed(filepath.Base(proc.args[0]))
+		if kind := agentNamed(filepath.Base(proc.args[0])); kind != "" {
+			return kind
+		}
+	}
+	// Perch is a Node program: the process is `node .../bin/perch`, so the
+	// binary and argv[0] are both node. The script it runs is the only place
+	// its name appears.
+	if perchScript(proc.args) != "" {
+		return agentPerch
+	}
+	return ""
+}
+
+// perchScript returns the Perch script among a node process's arguments, or
+// "" when the process is not Perch. The npm shim is `bin/perch`, and the
+// package it belongs to is perchai-cli; nothing else is taken for Perch, so a
+// node program that merely mentions the word does not match.
+func perchScript(args []string) string {
+	for i, arg := range args {
+		if i > 3 {
+			break
+		}
+		base := filepath.Base(arg)
+		if base != "perch" && base != "perch.mjs" {
+			continue
+		}
+		if strings.Contains(arg, "perchai-cli") || strings.HasSuffix(filepath.Dir(arg), "bin") {
+			return arg
+		}
 	}
 	return ""
 }
@@ -375,6 +411,8 @@ func agentNamed(name string) agentKind {
 		return agentGrok
 	case name == "droid":
 		return agentDroid
+	case name == "perch":
+		return agentPerch
 	}
 	return ""
 }

@@ -1107,6 +1107,17 @@ func (w *workspace) startAgentMonitor() {
 			for i, j := range jobs {
 				detections[i] = detectAgent(j.group, j.p.initialDir)
 			}
+			// Perch reports no events, so its busy state is read from the
+			// thread file its directory names. This runs off the UI thread
+			// with the process scans above, since it touches the disk.
+			perchBusy := make([]bool, len(jobs))
+			perchPrompts := make([]string, len(jobs))
+			for i, j := range jobs {
+				if detections[i] == nil || detections[i].Kind != agentPerch {
+					continue
+				}
+				perchBusy[i], perchPrompts[i] = perchTurnState(j.p.dir())
+			}
 			w.onMain(func() {
 				if w.quitting {
 					return
@@ -1115,6 +1126,11 @@ func (w *workspace) startAgentMonitor() {
 				for i, j := range jobs {
 					if j.p.applyAgent(detections[i]) {
 						changed = true
+					}
+					if detections[i] != nil && detections[i].Kind == agentPerch {
+						if j.p.applyPerchTurn(perchBusy[i], perchPrompts[i]) {
+							changed = true
+						}
 					}
 				}
 				if changed {
