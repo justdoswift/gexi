@@ -42,6 +42,7 @@ func (w *workspace) archiveWorktree(wt *paneWorktree, projectDir string) {
 		ArchivedAt: time.Now(),
 	}
 	w.archived = append([]archivedWorktree{entry}, w.archived...)
+	w.worktreesScanned = false
 	w.scheduleSave()
 	w.invalidateSettings()
 	go func() {
@@ -75,6 +76,7 @@ func (w *workspace) restoreArchivedWorktree(a archivedWorktree) {
 	go func() {
 		err := restoreWorktree(&a)
 		w.onMain(func() {
+			w.worktreesScanned = false
 			if err != nil {
 				w.flash(locales.ArchiveRestoreFailed(a.Branch, err.Error()))
 				w.invalidateSettings()
@@ -153,6 +155,7 @@ func (w *workspace) deleteArchivedWorktree(a archivedWorktree) {
 	go func() {
 		err := deleteArchived(&a)
 		w.onMain(func() {
+			w.worktreesScanned = false
 			if err != nil {
 				w.flash(locales.ArchiveDeleteFailed(a.Branch, err.Error()))
 			} else {

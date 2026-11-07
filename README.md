@@ -100,6 +100,11 @@ the window has nowhere to go, so its title keeps moving the window.
 pane; the inward arrow it turns into, or the same shortcut, brings every pane
 back.
 
+Closing a pane where an agent has run asks first. **Keep Running** takes the
+pane off the stage without ending its program, and **Settings → Worktrees**
+brings it back with its session intact; **Close** ends it. Closing a session
+or project with an agent in it asks the same way.
+
 ### Worktrees and pull requests
 
 Open a pane and press **W** in its header to give that pane its own git
@@ -124,17 +129,23 @@ the merge commit, and merges once GitHub sees it. Any other blocked press says
 why. Merging fast-forwards your local base branch and leaves the
 pane in the worktree. The button then becomes **Archive**, which closes the
 pane and clears the checkout away when you press it. The branch is kept, so
-**Settings → Archived** lists it until you restore it (the checkout comes
+**Settings → Worktrees** lists it until you restore it (the checkout comes
 back and its session opens again) or delete it (the branch goes too). Panes
 that never press W work exactly as before. Opening and merging pull requests
 needs the GitHub CLI, authenticated.
 
+**Settings → Worktrees** is the one list of every checkout gexi knows about,
+whether it is running in the background, open in a pane, sitting on disk, or
+archived. A row brings it back: **Restore** for a background pane, **Show**
+for one already open, **Open** for a checkout no pane uses, and **Restore** or
+**Delete** for an archived branch. **Clean up** on the same page removes
+unused checkouts that have nothing to lose; nothing is removed on startup.
+
 **↩** beside PR leaves the checkout: it returns the pane to the project
 folder and deletes the worktree. A branch with unmerged commits is kept, and
-uncommitted changes ask first. Closing a pane removes a clean checkout with
-nothing ahead; otherwise the worktree stays. Settings → Advanced → Clean up
-worktrees removes unused ones, and startup does the same for checkouts that
-have nothing to lose.
+uncommitted changes ask first. Closing a pane keeps its checkout on disk for
+the Worktrees page to reopen; closing a pane where an agent has run asks
+first, and can keep the agent running in the background instead.
 
 ### Remote hosts
 
