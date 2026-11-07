@@ -77,6 +77,7 @@ func TestResumesAgent(t *testing.T) {
 		{shellCommand("claude --resume 11111111-1111-4111-8111-111111111111"), true},
 		{shellCommand("codex resume --last"), true},
 		{shellCommand("omp --continue"), true},
+		{shellCommand("pi --continue"), true},
 		{shellCommand("droid --resume --last"), true},
 		{[]string{"/bin/zsh", "-l"}, false},
 		{shellCommand("claude"), false},

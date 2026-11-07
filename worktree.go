@@ -670,6 +670,11 @@ func agentHeadless(kind agentKind) ([]string, bool) {
 		// appends it. A thread of gexi's own keeps these one-shot questions
 		// out of the conversation the user is having in the pane.
 		return []string{"perch", "run", "--json", "--thread", "gexi-worktree"}, true
+	case agentPi:
+		// Print mode puts the piped prompt first and writes only the final
+		// answer to stdout. --no-session keeps the one-shot out of the
+		// conversation --continue would bring back.
+		return []string{"pi", "-p", "--no-session"}, true
 	}
 	return nil, false
 }

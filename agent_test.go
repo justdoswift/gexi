@@ -24,6 +24,7 @@ func TestPaneRunsAgent(t *testing.T) {
 		{shellCommand("claude --resume 11111111-1111-4111-8111-111111111111"), true},
 		{shellCommand("codex resume --last"), true},
 		{[]string{"claude"}, true},
+		{shellCommand("pi --continue"), true},
 		{shellCommand("npm test"), false},
 		{[]string{"/bin/zsh", "-l"}, false},
 	}
