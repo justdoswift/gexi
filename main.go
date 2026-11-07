@@ -81,6 +81,13 @@ func main() {
 		})
 		w.win = win
 		win.OnShow(func() { win.Invalidate() })
+		// The window is pinned as active, so the system never fades its native
+		// glass views out: that fade, running under the solid frame the app
+		// draws in their place, is what made opening the settings window
+		// flicker. The app tracks the keyboard itself instead (windowFocused).
+		win.SetActiveAppearance(true)
+		win.OnFocus(func() { setWindowFocused(win, true) })
+		win.OnBlur(func() { setWindowFocused(win, false) })
 
 		// gexi: closing the window hides it; shells keep running.
 		win.OnClose(func(e *mygo.CloseEvent) {
