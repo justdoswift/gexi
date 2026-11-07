@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.31
+
+- 窗格标题栏的徽章（W / PR / Merge、分支、subagent）改成直角，和旁边的方形图标统一，不再用圆角。
+
 ## 0.0.30
 
 - 窗格里可以跑 Perch 了：它作为 `node .../bin/perch` 启动，进程名和 argv[0] 都是 node，现在按脚本路径认出来，只认 `bin/perch` 和 `perchai-cli`，不会把别的 node 程序当成 agent。
