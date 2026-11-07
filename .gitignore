@@ -6,3 +6,4 @@ mygo-spike/
 *.log
 .claude/skills/
 .claude/worktrees/
+.perch/
