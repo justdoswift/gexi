@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.33
+
+- Perch 窗格标题栏补上它自己的标记（绿色 P 形鸟标），与 Claude Code 等 agent 一样显示品牌图标。
+
 ## 0.0.32
 
 - 窗格标题栏的徽章（W / PR / Merge、分支、subagent）改成圆角矩形，和界面其它控件的圆角一致。
