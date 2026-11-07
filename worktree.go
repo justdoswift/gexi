@@ -1951,7 +1951,7 @@ func (w *workspace) leaveWorktree(p *pane) {
 func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg ui.Color,
 	hint string, action func(), label func()) {
 	quiet := bg == ui.Transparent
-	group := ui.Row(c).Height(22).Radius(chromeRadius).Center().
+	group := ui.Row(c).Height(22).Radius(headerRadius).Center().
 		Border(1, ui.Transparent)
 	switch {
 	case !quiet:
@@ -1966,9 +1966,9 @@ func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg
 		main := ui.Row(c).Height(22).Padding(0, 6, 0, 8).
 			Center().Cursor(ui.CursorPointer).Tooltip(hint).OnClick(action)
 		if detected {
-			main = main.Padding(0, 8, 0, 8).Radius(chromeRadius)
+			main = main.Padding(0, 8, 0, 8).Radius(headerRadius)
 		} else {
-			main = main.Radius(chromeRadius, 0, 0, chromeRadius)
+			main = main.Radius(headerRadius)
 		}
 		main.Children(label)
 		if detected {
@@ -1993,7 +1993,7 @@ func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg
 
 // worktreeMenuSegment is the chevron half of worktreeActionChip.
 func (w *workspace) worktreeMenuSegment(c *ui.Context, tk tokens, p *pane, fg ui.Color) {
-	seg := ui.Row(c).Width(18).Height(22).Radius(0, chromeRadius, chromeRadius, 0).
+	seg := ui.Row(c).Width(18).Height(22).Radius(headerRadius).
 		Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeLeaveHint())
 	if p.worktreeBusy == worktreeBusyLeave {
 		seg.Children(func() { worktreeSpinner(c, tk, locales.WorktreeLeaving()) })
@@ -2234,7 +2234,7 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 			busy = locales.WorktreeCreating()
 			action = func() {}
 		}
-		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
+		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
 			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(hint)
 		if el.Hovered() {
@@ -2265,7 +2265,7 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	// offer then, only a way to clear the binding and find the worktree page.
 	if !worktreeCheckoutExists(wt) {
 		action := func() { w.dropGoneWorktree(p) }
-		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
+		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
 			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeGoneHint())
 		if el.Hovered() {
@@ -2316,7 +2316,7 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 }
 
 func worktreeChip(c *ui.Context, tk tokens) ui.Element {
-	el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
+	el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
 		Border(1, ui.Transparent).
 		Center().Cursor(ui.CursorPointer)
 	if el.Hovered() {
