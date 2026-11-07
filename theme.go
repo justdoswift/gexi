@@ -101,9 +101,9 @@ const canvasInset float32 = 6
 // the card reads as a panel with depth rather than a flat fill. A light window
 // takes the lighter one, as stageShadow does.
 func paneShadow(tk tokens) ui.Color {
-	alpha := float32(0.4)
+	alpha := float32(0.16)
 	if tk.Background.R > 128 {
-		alpha = 0.14
+		alpha = 0.07
 	}
 	return ui.RGB(0, 0, 0).Alpha(alpha)
 }

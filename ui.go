@@ -188,7 +188,7 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 			} else {
 				col = col.Border(1, tk.Border).Background(tk.Background)
 			}
-			col = col.Shadow(0, 2, 12, 0, paneShadow(tk))
+			col = col.Shadow(0, 1, 20, 0, paneShadow(tk))
 		}
 		headerBg := tk.Background
 		if glassCard {
@@ -713,7 +713,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			} else {
 				col = col.Border(1, tk.Border).Background(tk.Background)
 			}
-			col = col.Shadow(0, 2, 12, 0, paneShadow(tk))
+			col = col.Shadow(0, 1, 20, 0, paneShadow(tk))
 		}
 		dragging := false
 		blend := ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut}
