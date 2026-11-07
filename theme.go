@@ -95,7 +95,18 @@ const (
 // canvasInset is the canvas's extra margin to the top, right, and bottom
 // window edges in comfortable, on top of the pane cards' own padding, so a
 // card sits twice as far from the edge as it does from its neighbour.
-const canvasInset float32 = 3
+const canvasInset float32 = 6
+
+// paneShadow lifts a comfortable pane off the canvas: a soft, low shadow, so
+// the card reads as a panel with depth rather than a flat fill. A light window
+// takes the lighter one, as stageShadow does.
+func paneShadow(tk tokens) ui.Color {
+	alpha := float32(0.4)
+	if tk.Background.R > 128 {
+		alpha = 0.14
+	}
+	return ui.RGB(0, 0, 0).Alpha(alpha)
+}
 
 // Motion, as shadcn: short, ease-out, and only on what changes.
 const (

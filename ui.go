@@ -173,7 +173,7 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 	// for work rather than a blank window.
 	outer := ui.Column(c).Fill()
 	if w.settings.PaneStyle == paneComfortable {
-		outer = outer.Padding(3)
+		outer = outer.Padding(6)
 	}
 	outer.Children(func() {
 		col := ui.Column(c).Fill()
@@ -188,6 +188,7 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 			} else {
 				col = col.Border(1, tk.Border).Background(tk.Background)
 			}
+			col = col.Shadow(0, 2, 12, 0, paneShadow(tk))
 		}
 		headerBg := tk.Background
 		if glassCard {
@@ -660,7 +661,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	card := w.settings.PaneStyle == paneComfortable
 	outer := ui.Column(c).Fill()
 	if card {
-		outer = outer.Padding(3)
+		outer = outer.Padding(6)
 	}
 	// A pane takes another pane dropped on it: the side it lands on splits
 	// toward that side, the middle trades the two. The hint is read before
@@ -712,6 +713,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			} else {
 				col = col.Border(1, tk.Border).Background(tk.Background)
 			}
+			col = col.Shadow(0, 2, 12, 0, paneShadow(tk))
 		}
 		dragging := false
 		blend := ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut}
