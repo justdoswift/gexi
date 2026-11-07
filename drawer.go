@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
@@ -512,23 +511,11 @@ func (w *workspace) drawerView(c *ui.Context, tk tokens) {
 	w.syncDrawerDir()
 	el := ui.Column(c).Absolute().Top(0).Bottom(0).Right(0)
 	width := el.Animate("drawerWidth", d.width(), sidebarMotion)
-	// The drawer is the one surface with the terminal under it, so it is
-	// glass here rather than a painted background: what it covers shows
-	// through it, frosted and bent along its edge, as macOS 26 draws a pane
-	// over content.
+	// A drawer is its own surface: the theme's background and a hairline, not
+	// glass. Glass over a terminal in light mode reads as a grey sheet, which
+	// is not what the theme's white is meant to say.
 	el = el.Width(width)
-	if liquid(c) {
-		// The drawer is the one surface with the terminal under it, so it is
-		// glass here rather than a painted background: what it covers shows
-		// through it, frosted and bent along its edge, and the glass's own
-		// shaded left rim is the separator — no hairline is painted on it.
-		// The glass takes the theme's own background, so the drawer reads as
-		// the app's surface over the terminal instead of the system's grey
-		// frost.
-		el = el.Material(glass.Glass{Tint: tk.Background.Alpha(0.6)})
-	} else {
-		el = el.Background(tk.Background).BorderWidth(0, 0, 0, 1).BorderColor(tk.Border)
-	}
+	el = el.Background(tk.Background).BorderWidth(0, 0, 0, 1).BorderColor(tk.Border)
 	el = el.Clip()
 	// A drawer is an overlay, so Escape closes it wherever the keyboard is.
 	if el.OverlayShortcut(0, ui.KeyEscape) {
