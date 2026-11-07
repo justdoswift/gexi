@@ -64,11 +64,14 @@ func (w *workspace) view(c *ui.Context) {
 		// wrapped by it, as Rex wraps them. Elsewhere both take the
 		// backdrop, as before.
 		canvas := ui.Column(c).Fill().Padding(inset, inset, inset, 0)
-		// Comfortable panes are cards on the glass; compact ones are the
-		// canvas itself, and their terminals draw no background of their
-		// own, so the canvas must stay opaque there.
-		if !liquid(c) || w.settings.PaneStyle != paneComfortable {
+		// Comfortable panes are cards on the glass. Compact panes are the
+		// canvas itself and their terminals draw no background of their own,
+		// so the canvas carries the glass there, tinted like a card so both
+		// styles sit on the same surface.
+		if !liquid(c) {
 			canvas = canvas.Background(w.backdrop(tk))
+		} else if w.settings.PaneStyle != paneComfortable {
+			canvas = glassNative(canvas, tk.Background.Alpha(0.72))
 		}
 		canvas.Children(func() {
 			w.canvas(c, tk)
@@ -721,8 +724,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		// it, so the slot it leaves reads as the canvas.
 		// The header is the card's own surface, so it reads as the same
 		// colour as the terminal under it.
+		// Over the window's material the pane draws no fill of its own: a
+		// comfortable card carries the glass, and a compact pane sits on the
+		// canvas's glass, whose header must not paint over it.
 		panelBg := tk.Background
-		if card && liquid(c) {
+		if liquid(c) {
 			panelBg = ui.Transparent
 		}
 		col.Children(func() {
