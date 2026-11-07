@@ -209,6 +209,14 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 		dir, _ = os.UserHomeDir()
 	}
 	resolved := resolveAgentCommand(command)
+	// A pane whose own program is an agent keeps a shell behind it: when the
+	// agent exits, the shell takes the pane over instead of the pane closing
+	// with the process. p.command stays the agent's, so agent detection,
+	// worktree moves, and the control API still see an agent pane.
+	launch := resolved.launch
+	if paneRunsAgent(resolved.launch) {
+		launch = withShellFallback(resolved.launch)
+	}
 
 	p := &pane{
 		ID:             id,
@@ -265,7 +273,7 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 		term.Feed([]byte(strings.ReplaceAll(snapshot, "\n", "\r\n") + "\r\n"))
 	}
 
-	if err := p.start(resolved.launch, dir); err != nil {
+	if err := p.start(launch, dir); err != nil {
 		_ = term.Close()
 		return nil, err
 	}
