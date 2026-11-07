@@ -99,7 +99,7 @@ const (
 	settingsNotifications
 	settingsRemote
 	settingsKeyboard
-	settingsArchived
+	settingsWorktrees
 	settingsAdvanced
 )
 
@@ -111,12 +111,15 @@ var settingsTabs = []struct {
 	{"bell", locales.SettingsNotifications},
 	{"server", locales.SettingsRemote},
 	{"keyboard", locales.SettingsKeyboard},
-	{"branch", locales.SettingsArchived},
+	{"branch", locales.SettingsWorktrees},
 	{"sliders", locales.SettingsAdvanced},
 }
 
 // openSettings shows the settings window, or focuses it when it is open.
 func (w *workspace) openSettings() {
+	// The checkouts on disk change outside this window, so each open reads
+	// them again rather than trusting the last visit.
+	w.worktreesScanned = false
 	if w.settingsWin != nil {
 		w.settingsWin.Show()
 		w.settingsWin.Focus()
@@ -223,8 +226,8 @@ func (w *workspace) settingsPage(c *ui.Context, tk tokens) {
 		w.remotePage(c, tk)
 	case settingsKeyboard:
 		w.keyboardPage(c, tk)
-	case settingsArchived:
-		w.archivedPage(c, tk)
+	case settingsWorktrees:
+		w.worktreesPage(c, tk)
 	case settingsAdvanced:
 		w.advancedPage(c, tk)
 	default:
@@ -369,38 +372,12 @@ func (w *workspace) keyboardPage(c *ui.Context, tk tokens) {
 	})
 }
 
-// archivedPage lists the worktrees cleared away with Archive: merged
-// checkouts whose branches are kept until the user restores or deletes them.
-func (w *workspace) archivedPage(c *ui.Context, tk tokens) {
-	sectionLabel(c, tk, locales.SettingsArchivedWorktrees())
-	settingsCard(c, tk, func() {
-		if len(w.archived) == 0 {
-			ui.Row(c).Padding(12, 16, 12, 16).Children(func() {
-				ui.Text(c, locales.ArchiveEmpty()).FontSize(12).
-					TextColor(tk.MutedForeground)
-			})
-			return
-		}
-		for i, a := range w.archived {
-			if i > 0 {
-				cardDivider(c, tk)
-			}
-			ui.Row(c).Padding(12, 16, 12, 16).Gap(8).Children(func() {
-				ui.Column(c).Gap(2).Children(func() {
-					ui.Text(c, a.Branch).FontSize(13).TextColor(tk.Foreground)
-					ui.Text(c, archivedDetail(a)).FontSize(11).
-						TextColor(tk.MutedForeground).SingleLine()
-				})
-				ui.Spacer(c)
-				outlineButton(c, tk, locales.ArchiveRestore(), func() {
-					w.restoreArchivedWorktree(a)
-				})
-				outlineButton(c, tk, locales.ArchiveDelete(), func() {
-					w.confirmDeleteArchived(a)
-				})
-			})
-		}
-	})
+// dismissSettings closes the settings window after a row's action has put a
+// pane on stage behind it.
+func (w *workspace) dismissSettings() {
+	if w.settingsWin != nil {
+		w.settingsWin.Close()
+	}
 }
 
 // confirmDeleteArchived asks before a branch and its checkout go for good.
@@ -439,13 +416,6 @@ func (w *workspace) advancedPage(c *ui.Context, tk tokens) {
 			ui.Spacer(c)
 			outlineButton(c, tk, locales.SettingsOpenFolder(), func() { openPath(supportDir()) })
 		})
-		cardDivider(c, tk)
-		w.settingActionView(c, tk,
-			locales.SettingsCleanupWorktrees(),
-			locales.SettingsCleanupWorktreesDetail(),
-			locales.SettingsCleanupWorktreesAction(),
-			func() { w.cleanupOrphanWorktrees(true) },
-		)
 		cardDivider(c, tk)
 		ui.Row(c).Padding(11, 16, 11, 16).Children(func() {
 			ui.Text(c, locales.SettingsVersion()).FontSize(13).TextColor(tk.Foreground)

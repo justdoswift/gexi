@@ -137,6 +137,9 @@ type pane struct {
 	// room they leave rather than by fixed thresholds.
 	headerActionsW float32
 	ws             *workspace
+	// bgProject is the project whose session held this pane when it went to
+	// the background, so reattaching lands it in the same place.
+	bgProject *project
 }
 
 // paneSubagent is one Task/Agent call running under the pane's agent. Type is
@@ -361,8 +364,10 @@ func (p *pane) title() string {
 
 // dir prefers the directory the shell reported (OSC 7), as gexi does.
 func (p *pane) dir() string {
-	if d := p.term.Dir(); d != "" {
-		return d
+	if p.term != nil {
+		if d := p.term.Dir(); d != "" {
+			return d
+		}
 	}
 	if p.initialDir != "" {
 		return p.initialDir
