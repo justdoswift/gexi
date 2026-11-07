@@ -174,16 +174,19 @@ func setWindowFocused(win *mygo.Window, on bool) {
 // as the theme rather than as frost.
 func liquid(c *ui.Context) bool { return glassUI && c.Vibrancy() && windowFocused }
 
-// glassControl fills el with the system's glass, tinted toward the theme's
-// raised surface: a button's hover, a selected row or a chip on the window's
-// material reads as a lens over the desktop rather than a flat swatch. Where
-// the system has no Liquid Glass, or the user turned it off, fallback fills
-// it as before. fallback is "" for a transparent control.
-func glassControl(c *ui.Context, el ui.Element, tk tokens, tint float32, fallback ui.Color) ui.Element {
+// controlWash paints el with the theme's own ink: a hovered button, the
+// search field or the selected row reads as the theme's wash on the window's
+// glass. It is not a second glass view. A tinted glass there samples the
+// already-frozen window and its regular style lightens whatever it sits on,
+// so in light mode the wash vanishes into the glass and in dark mode it lifts
+// into a flat, desaturated grey. wash is how much ink: a hover is 0.045, a
+// selection 0.09. Where the window has no material, or the user turned the
+// glass look off, fallback fills it as before.
+func controlWash(c *ui.Context, el ui.Element, tk tokens, wash float32, fallback ui.Color) ui.Element {
 	if !liquid(c) {
 		return el.Background(fallback)
 	}
-	return el.Material(glass.Glass{Native: true, Tint: tk.Raised.Alpha(tint)})
+	return el.Background(tk.Foreground.Alpha(wash))
 }
 
 // glassInFrame is the glass for a surface or control the frame paints, as a
@@ -192,14 +195,6 @@ func glassControl(c *ui.Context, el ui.Element, tk tokens, tint float32, fallbac
 // the window, which would cut a hole through the card rather than sit on it.
 func glassInFrame(el ui.Element, tint ui.Color) ui.Element {
 	return el.Material(glass.Glass{Tint: tint})
-}
-
-// glassNative fills el with the system's glass where the window has it: it
-// samples what is behind the window, so a pane card reads as a glass panel
-// over the desktop, rimmed by the system on all four sides. Elsewhere the
-// shader draws the surface.
-func glassNative(el ui.Element, tint ui.Color) ui.Element {
-	return el.Material(glass.Glass{Native: true, Tint: tint})
 }
 
 // glassChip is glassInFrame for a small control: the glass's own rim is lit
@@ -261,7 +256,7 @@ func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu
 	el := ui.Row(c).Width(size).Height(size).Radius(chromeRadius).
 		Center().Cursor(ui.CursorPointer)
 	if el.Hovered() {
-		el = glassControl(c, el, tk, 0.5, tk.Control)
+		el = controlWash(c, el, tk, 0.06, tk.Control)
 	}
 	if len(hint) > 0 && hint[0] != "" {
 		el = el.Tooltip(hint[0])
@@ -290,7 +285,7 @@ func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32,
 		case iconInFrame:
 			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
 		default:
-			el = glassControl(c, el, tk, 0.5, tk.Control)
+			el = controlWash(c, el, tk, 0.06, tk.Control)
 		}
 	}
 	el = el.OnClick(action)
