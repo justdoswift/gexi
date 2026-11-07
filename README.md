@@ -212,7 +212,7 @@ On quit the layout is saved to `workspace.json` and each pane's last screen is
 snapshotted as plain text; the next launch rebuilds the projects, sessions, and splits and
 paints the old screens above fresh shells. Agent panes resume their newest
 session in the pane's directory: Claude Code with `--resume <session>`,
-Codex with `codex resume --last`, and omp, Devin, and Grok with
+Codex with `codex resume --last`, and Pi, omp, Devin, and Grok with
 `--continue`; Droid with `droid --resume --last`. A detected agent also
 names its pane and sidebar row with its own logo instead of the terminal
 title.
@@ -235,6 +235,14 @@ lifecycle over the socket:
 The state is in `gexi list --json` under `activity`. `turn.end` and
 `needs-input` also post a notification. The settings file is layered on top of
 the user's own, so existing hooks keep firing.
+
+Pi has no hook settings file. gexi passes a small extension with `-e`
+instead, which writes the same events to the control socket directly:
+`input` reports `turn.start`, `agent_settled` reports `turn.end`,
+`ui_prompt_start` and `ui_prompt_end` report `needs-input` and back to
+working, and `session_start` / `session_shutdown` report the session. Pi has
+no built-in subagents and asks for permissions only through extensions, so
+those two rows above mostly stay quiet for it.
 
 A subagent is counted rather than folded into the turn state: a background one
 outlives the turn that launched it, so the sidebar keeps shimmering (and shows

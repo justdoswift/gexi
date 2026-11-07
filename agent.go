@@ -25,6 +25,7 @@ const (
 	agentGrok   agentKind = "grok"
 	agentDroid  agentKind = "droid"
 	agentPerch  agentKind = "perch"
+	agentPi     agentKind = "pi"
 )
 
 type agentDetection struct {
@@ -51,6 +52,8 @@ func (k agentKind) name() string {
 		return "Droid"
 	case agentPerch:
 		return "Perch"
+	case agentPi:
+		return "Pi"
 	}
 	return string(k)
 }
@@ -60,6 +63,8 @@ func (k agentKind) name() string {
 // a model or permission mode, are not carried: only the kind is known here.
 func (k agentKind) launch() []string {
 	switch k {
+	case agentPi:
+		return shellCommand(piLaunchCommand())
 	case agentClaude, agentCodex, agentOmp, agentDevin, agentGrok, agentDroid, agentPerch:
 		return shellCommand(string(k))
 	}
@@ -85,6 +90,8 @@ func resolveAgentCommand(command []string) resolvedCommand {
 		return resolveCodex(raw, command)
 	case "omp", "devin", "grok":
 		return resolveContinuing(raw, command, "--continue", "--continue", "-c")
+	case "pi":
+		return resolvePi(raw, command)
 	case "droid":
 		return resolveContinuing(raw, command, "--resume --last", "--resume", "-r", "resume")
 	}
@@ -132,6 +139,28 @@ func resolveCodex(raw string, command []string) resolvedCommand {
 		return resolvedCommand{command, command}
 	}
 	return resolvedCommand{command, replaceRaw("codex resume --last", command)}
+}
+
+// resolvePi starts Pi with gexi's event extension, and restores it with
+// --continue on top of the same flags. The extension is additive (-e can be
+// repeated), so the user's own extensions stay loaded.
+func resolvePi(raw string, command []string) resolvedCommand {
+	launch := raw
+	if path, err := installPiEvents(); err == nil {
+		launch = strings.TrimSpace(raw + " -e " + shellQuote(path))
+	}
+	restore := launch
+	already := false
+	for _, token := range strings.Fields(raw) {
+		if token == "--continue" || token == "-c" {
+			already = true
+			break
+		}
+	}
+	if !already {
+		restore = strings.TrimSpace(launch + " --continue")
+	}
+	return resolvedCommand{replaceRaw(launch, command), replaceRaw(restore, command)}
 }
 
 // resolveContinuing appends the flags that resume the newest session in the
@@ -351,6 +380,10 @@ func detectAgent(pgid int, fallbackCWD string) *agentDetection {
 			// directory itself, so the bare command resumes it: no session id
 			// to carry, and none to go stale.
 			return &agentDetection{Kind: agentPerch, Resume: shellCommand("perch")}
+		case agentPi:
+			// Pi also keys sessions by directory, and --continue picks the
+			// newest one there.
+			return &agentDetection{Kind: agentPi, Resume: shellCommand(piResumeCommand())}
 		}
 	}
 	return nil
@@ -372,6 +405,11 @@ func kindOf(proc processSnapshot) agentKind {
 	// its name appears.
 	if perchScript(proc.args) != "" {
 		return agentPerch
+	}
+	// Pi is a Node program too, running the package's bundled cli.js through
+	// the bin/pi shim.
+	if piScript(proc.args) != "" {
+		return agentPi
 	}
 	return ""
 }
@@ -396,6 +434,30 @@ func perchScript(args []string) string {
 	return ""
 }
 
+// piScript returns the Pi script among a node process's arguments, or ""
+// when the process is not Pi. The managed install execs the package's
+// bin/pi shim, a symlink to the bundled cli.js; a node program that merely
+// has a file named pi does not match.
+func piScript(args []string) string {
+	for i, arg := range args {
+		if i > 3 {
+			break
+		}
+		base := filepath.Base(arg)
+		if strings.Contains(arg, "pi-coding-agent") && (base == "cli.js" || base == "pi") {
+			return arg
+		}
+		if base != "pi" && base != "pi.mjs" {
+			continue
+		}
+		dir := filepath.Dir(arg)
+		if filepath.Base(dir) == ".bin" || strings.HasSuffix(dir, "/bin") {
+			return arg
+		}
+	}
+	return ""
+}
+
 func agentNamed(name string) agentKind {
 	name = strings.ToLower(name)
 	switch {
@@ -413,6 +475,8 @@ func agentNamed(name string) agentKind {
 		return agentDroid
 	case name == "perch":
 		return agentPerch
+	case name == "pi":
+		return agentPi
 	}
 	return ""
 }
