@@ -221,7 +221,7 @@ func iconButtonSmall(c *ui.Context, tk tokens, name string, action func(), hint 
 // given, is the tooltip the pointer shows over it.
 func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu), hint ...string) {
 	size := iconSize
-	el := ui.Row(c).Width(size).Height(size).Radius(size / 2).
+	el := ui.Row(c).Width(size).Height(size).Radius(chromeRadius).
 		Center().Cursor(ui.CursorPointer)
 	if el.Hovered() {
 		el = glassControl(c, el, tk, 0.5, tk.Control)
@@ -239,7 +239,7 @@ func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu
 }
 
 func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32, glass iconGlass, action func(), hint ...string) {
-	el := ui.Row(c).Width(size).Height(size).Radius(size / 2).
+	el := ui.Row(c).Width(size).Height(size).Radius(chromeRadius).
 		Center().Cursor(ui.CursorPointer)
 	if glass != iconOnMaterial {
 		// The hairline the hover adds is reserved while it is away, so the
