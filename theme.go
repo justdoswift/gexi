@@ -74,10 +74,10 @@ func themeTokens(t *ui.Theme) tokens {
 
 const chromeRadius float32 = 6
 
-// headerRadius is the pane header's chip corner: square, so every control in
-// the row — the W / PR / Merge badges, the branch and subagent pills — reads
-// level with the square icon glyphs beside them.
-const headerRadius float32 = 0
+// headerRadius is the pane header's chip corner: a rounded rectangle, the same
+// corner as the rest of the chrome, for the W / PR / Merge badges and the
+// branch and subagent pills.
+const headerRadius float32 = chromeRadius
 
 // windowRadius is the radius AppKit rounds the window to: a comfortable pane
 // card takes the same one, so the card's corners follow the window's.

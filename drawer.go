@@ -764,7 +764,7 @@ func (w *workspace) drawerFileView(c *ui.Context, tk tokens, file *drawerFile) {
 		ui.Row(c).Height(headerHeight).Shrink(0).FillWidth().Padding(0, 6, 0, 6).
 			Gap(6).BorderWidth(0, 0, 1, 0).BorderColor(tk.Border).Children(func() {
 			back := func() { w.closeDrawerFile() }
-			el := ui.Row(c).Width(iconSize).Height(iconSize).Radius(iconSize/2).
+			el := ui.Row(c).Width(iconSize).Height(iconSize).Radius(chromeRadius).
 				Border(1, ui.Transparent).
 				Center().Cursor(ui.CursorPointer)
 			if el.Hovered() {
