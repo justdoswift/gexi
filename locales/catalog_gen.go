@@ -484,6 +484,26 @@ func (msgs Messages) AppearanceDark() string {
 	return Catalog.Format(msgs.locale, "appearanceDark", nil)
 }
 
+// SettingsLiquidGlass says "Liquid Glass"
+// in the language the app shows.
+func SettingsLiquidGlass() string { return In(i18n.Locale()).SettingsLiquidGlass() }
+
+// SettingsLiquidGlass says "Liquid Glass"
+// in the language of msgs.
+func (msgs Messages) SettingsLiquidGlass() string {
+	return Catalog.Format(msgs.locale, "settingsLiquidGlass", nil)
+}
+
+// SettingsLiquidGlassDetail says "Draw the window, the sidebar and the panes in macOS 26's Liquid Glass. Off, the window keeps the flat look."
+// in the language the app shows.
+func SettingsLiquidGlassDetail() string { return In(i18n.Locale()).SettingsLiquidGlassDetail() }
+
+// SettingsLiquidGlassDetail says "Draw the window, the sidebar and the panes in macOS 26's Liquid Glass. Off, the window keeps the flat look."
+// in the language of msgs.
+func (msgs Messages) SettingsLiquidGlassDetail() string {
+	return Catalog.Format(msgs.locale, "settingsLiquidGlassDetail", nil)
+}
+
 // SettingsRestoreScreen says "Restore last screen"
 // in the language the app shows.
 func SettingsRestoreScreen() string { return In(i18n.Locale()).SettingsRestoreScreen() }

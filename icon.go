@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -127,17 +128,92 @@ func colorHex(c ui.Color) string {
 	return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B)
 }
 
+// glassUI mirrors the user's Liquid Glass choice for the chrome helpers,
+// which build outside the workspace's methods. loadSettings and the switch
+// in Settings keep it current.
+var glassUI = true
+
+// liquid reports whether this window draws the glass look: the setting, and
+// a window the system gives a material to.
+func liquid(c *ui.Context) bool { return glassUI && c.Vibrancy() }
+
+// glassControl fills el with the system's glass, tinted toward the theme's
+// raised surface: a button's hover, a selected row or a chip on the window's
+// material reads as a lens over the desktop rather than a flat swatch. Where
+// the system has no Liquid Glass, or the user turned it off, fallback fills
+// it as before. fallback is "" for a transparent control.
+func glassControl(c *ui.Context, el ui.Element, tk tokens, tint float32, fallback ui.Color) ui.Element {
+	if !liquid(c) {
+		return el.Background(fallback)
+	}
+	return el.Material(glass.Glass{Native: true, Tint: tk.Raised.Alpha(tint)})
+}
+
+// glassInFrame is the glass for a surface or control the frame paints, as a
+// pane's card, its header's chips or the drawer: the shader's glass, which
+// samples what the frame drew under it. The system's samples what is behind
+// the window, which would cut a hole through the card rather than sit on it.
+func glassInFrame(el ui.Element, tint ui.Color) ui.Element {
+	return el.Material(glass.Glass{Tint: tint})
+}
+
+// glassNative fills el with the system's glass where the window has it: it
+// samples what is behind the window, so a pane card reads as a glass panel
+// over the desktop, rimmed by the system on all four sides. Elsewhere the
+// shader draws the surface.
+func glassNative(el ui.Element, tint ui.Color) ui.Element {
+	return el.Material(glass.Glass{Native: true, Tint: tint})
+}
+
+// glassChip is glassInFrame for a small control: the glass's own rim is lit
+// on its top and bottom and shaded on its sides, so against a light surface
+// the top and bottom edges disappear and the chip reads as cut. A hairline
+// in the sides' shade gives all four edges the same weight.
+
+// capsule is a control's own light surface, as a header button's hover or a
+// chip: flat, with a hairline on all four sides, so it keeps one colour over
+// the card's glass and matches the reference controls at this size.
+func capsule(c *ui.Context, el ui.Element, tk tokens, fill, fallback ui.Color) ui.Element {
+	if !glassUI {
+		return el.Background(fallback)
+	}
+	return el.Background(fill).Border(1, tk.Foreground.Alpha(0.06))
+}
+
 // iconButton is a 26pt hit area with an SF Symbol and a quiet hover state,
 // in place of mygo's default button chrome. A hint, when given, is the
 // tooltip the pointer shows over it.
 func iconButton(c *ui.Context, tk tokens, name string, action func(), hint ...string) {
-	iconButtonSized(c, tk, name, iconSize, 17, action, hint...)
+	iconButtonSized(c, tk, name, iconSize, 17, iconOnMaterial, action, hint...)
+}
+
+// iconGlass is what a button's hover glass sits on.
+type iconGlass uint8
+
+const (
+	// iconOnMaterial is the window's material, as a sidebar's.
+	iconOnMaterial iconGlass = iota
+	// iconOnCard is a pane card's own system glass.
+	iconOnCard
+	// iconInFrame is glass the frame paints, as the drawer's.
+	iconInFrame
+)
+
+// iconButtonOnCard is iconButton over a pane card's system glass.
+func iconButtonOnCard(c *ui.Context, tk tokens, name string, action func(), hint ...string) {
+	iconButtonSized(c, tk, name, iconSize, 17, iconOnCard, action, hint...)
+}
+
+// iconButtonInFrame is iconButton over glass the frame paints, as the
+// drawer's.
+func iconButtonInFrame(c *ui.Context, tk tokens, name string, action func(), hint ...string) {
+	iconButtonSized(c, tk, name, iconSize, 17, iconInFrame, action, hint...)
 }
 
 // iconButtonSmall is the list-row size: it sits quieter beside 12pt text.
 // A hint, when given, is the tooltip the pointer shows over it.
 func iconButtonSmall(c *ui.Context, tk tokens, name string, action func(), hint ...string) {
-	iconButtonSized(c, tk, name, 20, 15, action, hint...)
+	iconButtonSized(c, tk, name, 20, 15, iconOnMaterial, action, hint...)
 }
 
 // iconMenuButton is iconButton that opens a menu. The menu is built when it
@@ -148,7 +224,7 @@ func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu
 	el := ui.Row(c).Width(size).Height(size).Radius(size / 2).
 		Center().Cursor(ui.CursorPointer)
 	if el.Hovered() {
-		el = el.Background(tk.Control)
+		el = glassControl(c, el, tk, 0.5, tk.Control)
 	}
 	if len(hint) > 0 && hint[0] != "" {
 		el = el.Tooltip(hint[0])
@@ -162,11 +238,23 @@ func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu
 	})
 }
 
-func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32, action func(), hint ...string) {
+func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32, glass iconGlass, action func(), hint ...string) {
 	el := ui.Row(c).Width(size).Height(size).Radius(size / 2).
 		Center().Cursor(ui.CursorPointer)
+	if glass != iconOnMaterial {
+		// The hairline the hover adds is reserved while it is away, so the
+		// glyph does not move as the pointer comes and goes.
+		el = el.Border(1, ui.Transparent)
+	}
 	if el.Hovered() {
-		el = el.Background(tk.Control)
+		switch glass {
+		case iconOnCard:
+			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
+		case iconInFrame:
+			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
+		default:
+			el = glassControl(c, el, tk, 0.5, tk.Control)
+		}
 	}
 	el = el.OnClick(action)
 	if len(hint) > 0 && hint[0] != "" {

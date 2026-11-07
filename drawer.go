@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
@@ -202,18 +203,25 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 	// A change Git counts no lines for has no +N or −N to show, so the
 	// branch name itself carries the colour.
 	unmeasured := info.changed && info.added+info.deleted == 0
-	bg := tk.Active
 	color := tk.MutedForeground
-	if showing {
-		bg, color = tk.Control, tk.Foreground
-	}
+	lit := showing
 	el := ui.Row(c).Height(22).Radius(chromeRadius).Padding(0, 8).Gap(5).
 		AlignItems(ui.Center).Shrink(1).Cursor(ui.CursorPointer)
 	if el.Hovered() {
-		bg, color = tk.Control, tk.Foreground
+		lit = true
 	}
+	if lit {
+		color = tk.Foreground
+	}
+	bg := tk.Active
+	tint := tk.Control.Alpha(0.15)
+	if lit {
+		bg = tk.Control
+		tint = tk.Control.Alpha(0.3)
+	}
+	el = capsule(c, el, tk, tint, bg)
 	pick := func() { w.toggleChangesDrawer(info.dir) }
-	el.Background(bg).Tooltip(locales.DrawerOpenChanges()).OnClick(pick).Children(func() {
+	el.Tooltip(locales.DrawerOpenChanges()).OnClick(pick).Children(func() {
 		if src := iconSource("branch", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(12).Height(12).IgnoreInput(true)
 		}
@@ -504,8 +512,20 @@ func (w *workspace) drawerView(c *ui.Context, tk tokens) {
 	w.syncDrawerDir()
 	el := ui.Column(c).Absolute().Top(0).Bottom(0).Right(0)
 	width := el.Animate("drawerWidth", d.width(), sidebarMotion)
-	el = el.Width(width).Background(tk.Background).
-		BorderWidth(0, 0, 0, 1).BorderColor(tk.Border).Clip()
+	// The drawer is the one surface with the terminal under it, so it is
+	// glass here rather than a painted background: what it covers shows
+	// through it, frosted and bent along its edge, as macOS 26 draws a pane
+	// over content.
+	el = el.Width(width)
+	if liquid(c) {
+		// The drawer is the one surface with the terminal under it, so it is
+		// glass here rather than a painted background: what it covers shows
+		// through it, frosted and bent along its edge.
+		el = el.Material(glass.Glass{})
+	} else {
+		el = el.Background(tk.Background)
+	}
+	el = el.BorderWidth(0, 0, 0, 1).BorderColor(tk.Border).Clip()
 	// A drawer is an overlay, so Escape closes it wherever the keyboard is.
 	if el.OverlayShortcut(0, ui.KeyEscape) {
 		w.closeDrawer()
@@ -588,7 +608,7 @@ func (w *workspace) drawerHeader(c *ui.Context, tk tokens) {
 			})
 		})
 		ui.Spacer(c)
-		iconButton(c, tk, "x", func() { w.closeDrawer() }, locales.DrawerClose())
+		iconButtonInFrame(c, tk, "x", func() { w.closeDrawer() }, locales.DrawerClose())
 	})
 }
 
@@ -743,10 +763,11 @@ func (w *workspace) drawerFileView(c *ui.Context, tk tokens, file *drawerFile) {
 		ui.Row(c).Height(headerHeight).Shrink(0).FillWidth().Padding(0, 6, 0, 6).
 			Gap(6).BorderWidth(0, 0, 1, 0).BorderColor(tk.Border).Children(func() {
 			back := func() { w.closeDrawerFile() }
-			el := ui.Row(c).Width(iconSize).Height(iconSize).Radius(iconSize / 2).
+			el := ui.Row(c).Width(iconSize).Height(iconSize).Radius(iconSize/2).
+				Border(1, ui.Transparent).
 				Center().Cursor(ui.CursorPointer)
 			if el.Hovered() {
-				el = el.Background(tk.Control)
+				el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
 			}
 			el.OnClick(back).Tooltip(locales.DrawerBack()).Children(func() {
 				if src := iconSource("chevron-right", colorHex(tk.MutedForeground)); src != nil {

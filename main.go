@@ -60,13 +60,27 @@ func main() {
 			Height:    760,
 			MinWidth:  760,
 			MinHeight: 440,
-			StateKey:  "gexi",
-			Content:   ui.View(w.view),
+			// A state key of its own while the glass is being tried, so this
+			// build opens as its own window instead of exactly over the
+			// installed gexi the user is working in.
+			StateKey: "gexi-glass",
+			Content:  ui.View(w.view),
 			// Rex chrome: no title bar; the view draws under the traffic
 			// lights, which the layout leaves room for.
 			TitleBarStyle:        mygo.TitleBarHidden,
 			TrafficLightPosition: &mygo.Point{X: 20, Y: 17},
-			BackgroundColor:      "light-dark(#ffffff, #0e0e10)",
+			// The window is glass: the sidebar and the canvas leave the
+			// surface bare, and macOS draws the system's Liquid Glass under
+			// both, over the desktop. The tint is the canvas's own grey, so
+			// the glass reads as the app's surface rather than the
+			// wallpaper's. Before macOS 26 the same place shows the popover
+			// material instead (see mygo.VibrancyGlass).
+			Transparent:  true,
+			Vibrancy:     mygo.VibrancyGlass,
+			VibrancyTint: "light-dark(rgba(245, 245, 245, 0.8), rgba(14, 14, 16, 0.8))",
+			// Still the window color on the platforms whose material shows
+			// none, where the view paints the same backdrop itself.
+			BackgroundColor: "light-dark(#ffffff, #0e0e10)",
 		})
 		w.win = win
 		win.OnShow(func() { win.Invalidate() })

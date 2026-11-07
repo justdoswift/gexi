@@ -31,9 +31,17 @@ func (w *workspace) view(c *ui.Context) {
 	}
 	tk := themeTokens(c.Theme())
 	bar := c.TitleBar()
-	// The window's own surface is the canvas the panes sit on, so a pane
-	// that fades back fades toward that canvas, not toward its own colour.
-	root := ui.Row(c).Fill().Background(w.backdrop(tk))
+	// The window's own surface is the one the sidebar and the canvas share,
+	// so in comfortable a pane reads as a panel wrapped by it, not as a card
+	// on a separate backdrop. Over the window's material the root is bare
+	// and the glass itself, tinted by the window's VibrancyTint, is that
+	// surface.
+	root := ui.Row(c).Fill()
+	if liquid(c) {
+		root = root.Background(ui.Transparent)
+	} else {
+		root = root.Background(w.backdrop(tk))
+	}
 
 	target := float32(0)
 	if !w.settings.SidebarCollapsed {
@@ -51,10 +59,20 @@ func (w *workspace) view(c *ui.Context) {
 		if w.settings.PaneStyle == paneComfortable {
 			inset = canvasInset
 		}
-		ui.Column(c).Fill().Background(w.backdrop(tk)).Padding(inset, inset, inset, 0).
-			Children(func() {
-				w.canvas(c, tk)
-			})
+		// Over the window's material the canvas is bare too: the sidebar
+		// and the canvas share that one glass, so the pane cards read as
+		// wrapped by it, as Rex wraps them. Elsewhere both take the
+		// backdrop, as before.
+		canvas := ui.Column(c).Fill().Padding(inset, inset, inset, 0)
+		// Comfortable panes are cards on the glass; compact ones are the
+		// canvas itself, and their terminals draw no background of their
+		// own, so the canvas must stay opaque there.
+		if !liquid(c) || w.settings.PaneStyle != paneComfortable {
+			canvas = canvas.Background(w.backdrop(tk))
+		}
+		canvas.Children(func() {
+			w.canvas(c, tk)
+		})
 		// The toggle sits beside the traffic lights and never moves, so
 		// collapsing or showing the sidebar leaves it where the hand expects
 		// it.
@@ -160,7 +178,13 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 		return
 	}
 	bar := c.TitleBar()
-	side := ui.Column(c).Width(width).FillHeight().Clip().Background(w.backdrop(tk))
+	// Over the window's material the sidebar paints no background of its
+	// own, so the glass is what its rows, search field and labels sit on.
+	// Collapsed, it takes no width and the canvas covers the glass.
+	side := ui.Column(c).Width(width).FillHeight().Clip()
+	if !liquid(c) {
+		side = side.Background(w.backdrop(tk))
+	}
 	side.Children(func() {
 		ui.Row(c).Height(headerHeight).Padding(11, 8, 0, bar.Left+6+iconSize+8).
 			DragWindow().Children(func() {
@@ -172,10 +196,10 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 		// under the header, so the title bar keeps only the drag area.
 		ui.Row(c).Height(searchHeight).Padding(8, 8, 0, 8).Gap(6).Children(func() {
 			w.projectSearch(c, tk)
-			iconButtonSized(c, tk, "plus", 24, 19, func() { w.pickProject() },
+			iconButtonSized(c, tk, "plus", 24, 19, iconOnMaterial, func() { w.pickProject() },
 				locales.ShortcutNewProject()+" (⌘⇧N)")
 		})
-		ui.Column(c).Fill().Padding(8).Gap(1).Children(func() {
+		ui.Column(c).Fill().Padding(8).Gap(3).Children(func() {
 			shown := false
 			for _, pr := range w.Projects {
 				if !w.projectVisible(pr) {
@@ -207,7 +231,8 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 func (w *workspace) projectSearch(c *ui.Context, tk tokens) {
 	field := ui.Row(c).Height(searchHeight).FillWidth().AlignItems(ui.Center).Gap(6).
 		PaddingStart(9).PaddingEnd(8).Radius(chromeRadius).
-		Background(tk.Active).Border(1, ui.RGBA(0, 0, 0, 0)).Cursor(ui.CursorText)
+		Border(1, ui.RGBA(0, 0, 0, 0)).Cursor(ui.CursorText)
+	field = glassControl(c, field, tk, 0.45, tk.Active)
 	var in ui.Element
 	field.OnClick(func() { in.Focus() }).Children(func() {
 		if src := iconSource("search", colorHex(tk.MutedForeground)); src != nil {
@@ -334,14 +359,15 @@ func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
 // server mark; a local one needs no folder glyph, the header being a folder.
 func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 	open := !w.collapsed[pr.ID] || strings.TrimSpace(w.searchQuery) != ""
-	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(6).Radius(chromeRadius)
+	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(6).Radius(chromeRadius).
+		MarginX(2)
 	hovered := row.Hovered()
 	color := tk.MutedForeground
 	if pr.sessionsSelected(w) || hovered {
 		color = tk.Foreground
 	}
 	if hovered {
-		row = row.Background(tk.Active)
+		row = glassControl(c, row, tk, 0.35, tk.Active)
 	}
 	toggle := func() { w.toggleProject(pr) }
 	row.OnClick(toggle).Children(func() {
@@ -380,12 +406,18 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	color := tk.MutedForeground
 	// Flush with the project row: the session card reads as its own row, not
 	// as something hanging under an indent.
-	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(8).Radius(chromeRadius)
+	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(8).Radius(chromeRadius).
+		MarginX(2)
 	hovered := row.Hovered()
 	if sel || hovered {
 		color = tk.Foreground
 	}
-	row = row.Background(fade(c, tk, row, sel, hovered))
+	switch {
+	case sel:
+		row = glassControl(c, row, tk, 0.6, tk.Active)
+	case hovered:
+		row = glassControl(c, row, tk, 0.35, tk.Active)
+	}
 	pick := func() { w.selectSession(s.ID) }
 	row.OnClick(pick).Children(func() {
 		agent := s.agent()
@@ -498,8 +530,10 @@ func (w *workspace) subagentPill(c *ui.Context, tk tokens, p *pane) {
 	el := ui.Row(c).Height(22).Radius(chromeRadius).Padding(0, 6).Gap(4).
 		AlignItems(ui.Center)
 	bg := tk.Active
+	tint := tk.Control.Alpha(0.15)
 	if el.Hovered() {
 		bg = tk.Control
+		tint = tk.Control.Alpha(0.3)
 	}
 	dot := tk.Working
 	if p.activity == nil || p.activity.State != activityWorking {
@@ -507,7 +541,8 @@ func (w *workspace) subagentPill(c *ui.Context, tk tokens, p *pane) {
 		// continued past the prompt that started it.
 		dot = tk.Waiting
 	}
-	el.Background(bg).Tooltip(subagentHint(p)).Children(func() {
+	el = capsule(c, el, tk, tint, bg)
+	el.Tooltip(subagentHint(p)).Children(func() {
 		ui.Box(c).Width(6).Height(6).Radius(3).Background(dot)
 		ui.Text(c, fmt.Sprint(n)).FontSize(10).FontWeight(500).
 			TextColor(tk.MutedForeground)
@@ -636,11 +671,26 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		}
 		col = col.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
 		if card {
-			col = col.Radius(windowRadius).Border(1, tk.Border).Background(tk.Background).Clip()
+			col = col.Radius(windowRadius).Clip()
+			if liquid(c) {
+				// The card is glass rather than a bordered white panel: its
+				// lit rim is the edge, and the terminal, which leaves its own
+				// background undrawn, reads on the tinted surface.
+				col = glassNative(col, tk.Background.Alpha(0.72))
+			} else {
+				col = col.Border(1, tk.Border).Background(tk.Background)
+			}
 		}
 		dragging := false
 		blend := ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut}
+		// The header is part of the card's glass; only a lifted pane fills
+		// it, so the slot it leaves reads as the canvas.
+		// The header is the card's own surface, so it reads as the same
+		// colour as the terminal under it.
 		panelBg := tk.Background
+		if card && liquid(c) {
+			panelBg = ui.Transparent
+		}
 		col.Children(func() {
 			left := float32(10)
 			if underChrome {
@@ -764,8 +814,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					}
 				}
 				line.Children(func() {
+					// The hover hairline is reserved while it is away, so the
+					// title does not move as the pointer comes and goes.
 					strip := ui.Row(c).Height(24).AlignItems(ui.Center).Shrink(1).
-						Gap(4).Padding(0, stripPad).Radius(chromeRadius)
+						Gap(4).Padding(0, stripPad).Radius(chromeRadius).
+						Border(1, ui.Transparent)
 					if movable {
 						strip = strip.Drag(paneMoved{Pane: p}).Cursor(ui.CursorGrab).
 							Tooltip(locales.PaneDragHint())
@@ -774,7 +827,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						strip = strip.DragWindow()
 					}
 					if strip.Hovered() {
-						strip = strip.Background(tk.Active)
+						strip = capsule(c, strip, tk, tk.Control.Alpha(0.3), tk.Active)
 					}
 					strip.Children(func() {
 						if agent != nil {
@@ -807,9 +860,10 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 								chip := ui.Row(c).Height(18).Radius(4).Padding(0, 5).
 									AlignItems(ui.Center).Shrink(1)
 								if chip.Hovered() {
-									bg = tk.SystemAccent.Alpha(0.18)
+									bg = tk.SystemAccent.Alpha(0.2)
 								}
-								chip.Background(bg).Tooltip(dir).Children(func() {
+								chip = capsule(c, chip, tk, bg, bg)
+								chip.Tooltip(dir).Children(func() {
 									ui.Text(c, path).FontSize(11).SingleLine().
 										Shrink(1).TextColor(tk.MutedForeground)
 								})
@@ -851,9 +905,9 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						// out: splitting and zooming are in the View menu, and
 						// a clipped button is worse than an absent one.
 						if width == 0 || width >= 380 {
-							iconButton(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, "") },
+							iconButtonOnCard(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, "") },
 								locales.MenuSplitRight()+" (⌘D)")
-							iconButton(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, "") },
+							iconButtonOnCard(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, "") },
 								locales.MenuSplitDown()+" (⌘⇧D)")
 							// A pane with nowhere to go has nothing to zoom to.
 							if len(w.visiblePanes()) > 1 || w.zoomedPane == p.ID {
@@ -861,10 +915,10 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 								if w.zoomedPane == p.ID {
 									name, hint = "collapse", locales.PaneUnzoom()+" ("+zoomShortcut+")"
 								}
-								iconButton(c, tk, name, func() { w.toggleZoom(p) }, hint)
+								iconButtonOnCard(c, tk, name, func() { w.toggleZoom(p) }, hint)
 							}
 						}
-						iconButton(c, tk, "x", func() { w.requestClose(p) },
+						iconButtonOnCard(c, tk, "x", func() { w.requestClose(p) },
 							locales.MenuClosePane()+" (⌘W)")
 					})
 					// The row's width follows the buttons it holds, so the
@@ -875,9 +929,13 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				})
 			})
 			// A raised pane takes the canvas colour, so the slot reads as
-			// empty behind the chip the pointer carries.
+			// empty behind the chip the pointer carries; over the window's
+			// material that colour is none at all.
 			if dragging {
 				panelBg = w.backdrop(tk)
+				if liquid(c) {
+					panelBg = ui.Transparent
+				}
 			}
 			header.Background(header.AnimateColor("paneLiftBg", panelBg, blend))
 
@@ -913,21 +971,6 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		col = col.Background(col.AnimateColor("paneLiftBg", panelBg, blend))
 		col = col.Opacity(dim)
 	})
-}
-
-// fade returns shadcn's 150ms ease-out transition for a row background:
-// filled when selected or hovered (the sidebar's own backdrop is Muted, so a
-// Muted hover would disappear), transparent otherwise.
-func fade(c *ui.Context, tk tokens, el ui.Element, active, hovered bool) ui.Color {
-	target := ui.RGBA(0, 0, 0, 0)
-	switch {
-	case active:
-		target = tk.Active
-	case hovered:
-		// The sidebar sits on tk.Muted, so a Muted hover would be invisible.
-		target = tk.Active
-	}
-	return el.AnimateColor("bg", target, ui.Animation{Duration: 150 * time.Millisecond})
 }
 
 // focusDim is how far the other panes recede once a tab is split, so one pane

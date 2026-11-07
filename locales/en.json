@@ -45,6 +45,8 @@
   "appearanceAutomatic": "Automatic",
   "appearanceLight": "Light",
   "appearanceDark": "Dark",
+  "settingsLiquidGlass": "Liquid Glass",
+  "settingsLiquidGlassDetail": "Draw the window, the sidebar and the panes in macOS 26's Liquid Glass. Off, the window keeps the flat look.",
   "settingsRestoreScreen": "Restore last screen",
   "settingsRestoreScreenDetail": "Paint the previous screen above the new shell.",
   "worktreeCreateHint": "Create a worktree for this pane",

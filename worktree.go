@@ -1865,12 +1865,13 @@ func (w *workspace) leaveWorktree(p *pane) {
 func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg ui.Color,
 	hint string, action func(), label func()) {
 	quiet := bg == ui.Transparent
-	group := ui.Row(c).Height(22).Radius(chromeRadius).Center()
+	group := ui.Row(c).Height(22).Radius(chromeRadius).Center().
+		Border(1, ui.Transparent)
 	switch {
 	case !quiet:
 		group = group.Background(bg)
 	case group.Hovered():
-		group = group.Background(tk.Control)
+		group = capsule(c, group, tk, tk.Control.Alpha(0.3), tk.Control)
 	}
 	group.Children(func() {
 		// A checkout gexi only found has no Leave menu: the chip is one
@@ -2158,9 +2159,10 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 			action = func() {}
 		}
 		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
+			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(hint)
 		if el.Hovered() {
-			el = el.Background(tk.Control)
+			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
 		}
 		el.OnClick(action).Children(func() {
 			if busy != "" {
@@ -2223,9 +2225,10 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 
 func worktreeChip(c *ui.Context, tk tokens) ui.Element {
 	el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
+		Border(1, ui.Transparent).
 		Center().Cursor(ui.CursorPointer)
 	if el.Hovered() {
-		el = el.Background(tk.Control)
+		el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
 	}
 	return el
 }
