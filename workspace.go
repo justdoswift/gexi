@@ -113,9 +113,25 @@ type workspace struct {
 	searchQuery string
 
 	// archived holds the merged worktrees cleared away with Archive. They
-	// are listed in Settings › Archived, where they can be restored or
+	// are listed in Settings › Worktrees, where they can be restored or
 	// deleted for good.
 	archived []archivedWorktree
+
+	// detached are panes whose panel was closed while their program kept
+	// running. Settings › Worktrees lists them, and reattachPane brings one
+	// back into the layout with its live process.
+	detached []*pane
+
+	// closeOpen is the alert asking whether a pane whose agent is running
+	// should end or go on in the background; closeTarget is its pane.
+	closeOpen   bool
+	closeTarget *pane
+	closeMsg    string
+
+	// worktreesScan caches the checkouts under the app's worktree folder for
+	// Settings › Worktrees; worktreesScanned says the cache is current.
+	worktreesScan    []worktreeScanEntry
+	worktreesScanned bool
 
 	// The files drawer: the right-hand column of changes and files.
 	drawer drawerState
@@ -416,10 +432,56 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 	return np, nil
 }
 
-// closeSession closes every pane under the session; the last closePane
+// closeSession closes every pane under the session, asking first when one of
+// them has an agent in it.
+func (w *workspace) closeSession(s *session) {
+	if s == nil || s.Root == nil {
+		return
+	}
+	if panesHaveAgent(s.Root.panes()) {
+		w.confirmClose(locales.PaneCloseSessionTitle(), locales.PaneCloseSessionBody(), func() { w.closeSessionNow(s) })
+		return
+	}
+	w.closeSessionNow(s)
+}
+
+// panesHaveAgent reports whether any of the panes has an agent running or
+// was opened with one, which is what makes closing worth a question.
+func panesHaveAgent(panes []*pane) bool {
+	for _, p := range panes {
+		if p.agent != nil || p.sawAgent || len(p.lastAgentRestore) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// confirmClose asks before a session or project with agents goes. The native
+// alert blocks, so it runs off the UI thread and comes back.
+func (w *workspace) confirmClose(title, message string, action func()) {
+	parent := w.win
+	go func() {
+		res, err := mygo.Dialog.Message(mygo.MessageOptions{
+			Parent:             parent,
+			Type:               mygo.MessageWarning,
+			Title:              title,
+			Message:            message,
+			Buttons:            []string{locales.MenuClosePane(), locales.Cancel()},
+			DefaultButton:      1,
+			CancelButton:       1,
+			DestructiveButtons: []int{0},
+		})
+		if err != nil || res.Button != 0 {
+			return
+		}
+		w.onMain(action)
+	}()
+}
+
+// closeSessionNow closes every pane under the session; the last closePane
 // removes the session itself. Panes fade out first, as closing one from its
 // header does. Main thread.
-func (w *workspace) closeSession(s *session) {
+func (w *workspace) closeSessionNow(s *session) {
 	if s == nil || s.Root == nil {
 		return
 	}
@@ -442,7 +504,7 @@ func (w *workspace) closeSession(s *session) {
 				if w.paneByID(p.ID) != nil {
 					w.closePane(p)
 				}
-				w.cleanupClosedWorktree(p.Worktree)
+				w.keepClosedWorktree(p.Worktree)
 			}
 			// closePane fixes focus, but a session that was selected and is
 			// now gone still needs the selection moved.
@@ -477,19 +539,130 @@ func (w *workspace) requestClose(p *pane) {
 			if w.paneByID(p.ID) != nil {
 				w.closePane(p)
 			}
-			w.cleanupClosedWorktree(p.Worktree)
+			w.keepClosedWorktree(p.Worktree)
 		})
 	})
 }
 
-// closePane hangs up the pane's program and collapses its slot. Main thread.
-func (w *workspace) closePane(p *pane) {
-	p.close()
+// requestCloseByUser closes p from the window. A pane where an agent has run
+// asks first: a mistyped ⌘W should not end a session, and the alert offers to
+// keep it running in the background instead.
+func (w *workspace) requestCloseByUser(p *pane) {
+	if p == nil || p.closing {
+		return
+	}
+	if p.agent != nil || p.sawAgent || len(p.lastAgentRestore) > 0 {
+		w.closeTarget = p
+		if p.agent != nil {
+			w.closeMsg = locales.PaneCloseAgentRunning()
+		} else {
+			w.closeMsg = locales.PaneCloseAgentOpened()
+		}
+		w.closeOpen = true
+		w.invalidate()
+		return
+	}
+	w.requestClose(p)
+}
+
+// detachPane takes p out of the layout without ending its program. The pane
+// keeps reading its PTY, so the agent inside goes on; Settings › Worktrees
+// lists it and reattachPane puts it back.
+func (w *workspace) detachPane(p *pane) {
+	if p == nil || p.closing || w.detachIndex(p) >= 0 {
+		return
+	}
+	// A pane that already left the layout, as one whose program exited while
+	// the alert was open, has nothing to detach.
+	if w.paneByID(p.ID) != p {
+		return
+	}
+	p.bgProject = w.projectOf(w.sessionOf(p))
+	w.stopStageMirror(p)
 	if w.zoomedPane == p.ID {
 		w.zoomedPane = ""
 		w.syncStageMirrors()
 	}
-outer:
+	w.removePaneFromLayout(p)
+	w.detached = append(w.detached, p)
+	w.fixFocusAfterRemoval(p)
+	w.worktreesScanned = false
+	w.flashAction(locales.PaneDetached(), locales.SettingsWorktrees(), func() {
+		w.settingsTab = settingsWorktrees
+		w.openSettings()
+	})
+	w.invalidate()
+	w.scheduleSave()
+}
+
+// reattachPane puts a background pane back in the layout, in a session of its
+// own, and brings it forward.
+func (w *workspace) reattachPane(p *pane) {
+	i := w.detachIndex(p)
+	if i < 0 {
+		return
+	}
+	w.detached = append(w.detached[:i], w.detached[i+1:]...)
+	pr := p.bgProject
+	if pr == nil || !w.hasProject(pr) {
+		pr = w.projectForPane(p)
+	}
+	p.bgProject = nil
+	if pr == nil {
+		w.detached = append(w.detached, p)
+		return
+	}
+	s := &session{ID: newID(), Root: leaf(p)}
+	pr.Sessions = append(pr.Sessions, s)
+	delete(w.collapsed, pr.ID)
+	w.SelectedSession = s.ID
+	w.zoomedPane = ""
+	w.syncStageMirrors()
+	w.FocusedPane = p.ID
+	w.focusReq = p.ID
+	w.worktreesScanned = false
+	w.dismissSettings()
+	w.invalidate()
+	w.scheduleSave()
+	w.refreshGit()
+}
+
+// projectForPane finds the project a pane belongs to: the repository its
+// worktree came from, or the folder it was opened in. Main thread.
+func (w *workspace) projectForPane(p *pane) *project {
+	if p.Worktree != nil && p.Worktree.Root != "" {
+		return w.projectFor(filepath.Clean(p.Worktree.Root))
+	}
+	return w.projectFor(filepath.Clean(p.initialDir))
+}
+
+func (w *workspace) hasProject(pr *project) bool {
+	for _, have := range w.Projects {
+		if have == pr {
+			return true
+		}
+	}
+	return false
+}
+
+func (w *workspace) detachIndex(p *pane) int {
+	for i, d := range w.detached {
+		if d == p {
+			return i
+		}
+	}
+	return -1
+}
+
+// livePanes is every pane with a running program, on stage or in the
+// background.
+func (w *workspace) livePanes() []*pane {
+	return append(w.allPanes(), w.detached...)
+}
+
+// removePaneFromLayout drops p's leaf, and its session when that was the
+// last pane. Main thread.
+func (w *workspace) removePaneFromLayout(p *pane) {
 	for _, pr := range w.Projects {
 		for si, s := range pr.Sessions {
 			if s.Root == nil || s.Root.paneByID(p.ID) == nil {
@@ -499,12 +672,14 @@ outer:
 			if s.Root == nil {
 				pr.Sessions = append(pr.Sessions[:si], pr.Sessions[si+1:]...)
 			}
-			// The project stays when its last session closes: a folder is a
-			// place the user opened, not a side effect of a session. It goes
-			// only when they close it.
-			break outer
+			return
 		}
 	}
+}
+
+// fixFocusAfterRemoval moves the focus and selection off p, now that its leaf
+// is gone. Main thread.
+func (w *workspace) fixFocusAfterRemoval(p *pane) {
 	if w.FocusedPane == p.ID {
 		w.FocusedPane = ""
 		if s := w.selected(); s != nil {
@@ -521,11 +696,41 @@ outer:
 			w.SelectedSession = ""
 		}
 	}
+}
+
+// closePane hangs up the pane's program and collapses its slot. Main thread.
+func (w *workspace) closePane(p *pane) {
+	p.close()
+	if w.zoomedPane == p.ID {
+		w.zoomedPane = ""
+		w.syncStageMirrors()
+	}
+	w.removePaneFromLayout(p)
+	w.fixFocusAfterRemoval(p)
 	w.invalidate()
 	w.scheduleSave()
 }
 
+// closeProject closes every pane under the project, asking first when one of
+// them has an agent in it.
 func (w *workspace) closeProject(pr *project) {
+	if pr == nil {
+		return
+	}
+	panes := []*pane{}
+	for _, s := range pr.Sessions {
+		if s.Root != nil {
+			panes = append(panes, s.Root.panes()...)
+		}
+	}
+	if panesHaveAgent(panes) {
+		w.confirmClose(locales.PaneCloseProjectTitle(), locales.PaneCloseProjectBody(), func() { w.closeProjectNow(pr) })
+		return
+	}
+	w.closeProjectNow(pr)
+}
+
+func (w *workspace) closeProjectNow(pr *project) {
 	if pr == nil {
 		return
 	}
@@ -554,7 +759,7 @@ func (w *workspace) closeProject(pr *project) {
 				if w.paneByID(p.ID) != nil {
 					w.closePane(p)
 				}
-				w.cleanupClosedWorktree(p.Worktree)
+				w.keepClosedWorktree(p.Worktree)
 			}
 			w.removeProject(pr)
 			w.invalidate()
@@ -745,6 +950,17 @@ func (w *workspace) paneExited(p *pane) {
 		return
 	}
 	w.onMain(func() {
+		// A background pane is not in the layout, so paneByID cannot see it;
+		// when its program ends, its entry goes rather than lingering.
+		if i := w.detachIndex(p); i >= 0 {
+			title := p.title()
+			w.detached = append(w.detached[:i], w.detached[i+1:]...)
+			p.close()
+			w.worktreesScanned = false
+			w.flash(locales.PaneBackgroundExited(title))
+			w.invalidate()
+			return
+		}
 		// A pane moved into a worktree is replaced by a new pane with the
 		// same id; the old process exiting must not close its successor.
 		if w.quitting || w.paneByID(p.ID) != p {
@@ -872,7 +1088,7 @@ func (w *workspace) startAgentMonitor() {
 					return
 				}
 				now := time.Now()
-				for _, p := range w.allPanes() {
+				for _, p := range w.livePanes() {
 					group := p.foregroundGroup()
 					if group <= 0 {
 						continue

@@ -137,6 +137,9 @@ type pane struct {
 	// room they leave rather than by fixed thresholds.
 	headerActionsW float32
 	ws             *workspace
+	// bgProject is the project whose session held this pane when it went to
+	// the background, so reattaching lands it in the same place.
+	bgProject *project
 }
 
 // paneSubagent is one Task/Agent call running under the pane's agent. Type is
@@ -209,6 +212,14 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 		dir, _ = os.UserHomeDir()
 	}
 	resolved := resolveAgentCommand(command)
+	// A pane whose own program is an agent keeps a shell behind it: when the
+	// agent exits, the shell takes the pane over instead of the pane closing
+	// with the process. p.command stays the agent's, so agent detection,
+	// worktree moves, and the control API still see an agent pane.
+	launch := resolved.launch
+	if paneRunsAgent(resolved.launch) {
+		launch = withShellFallback(resolved.launch)
+	}
 
 	p := &pane{
 		ID:             id,
@@ -265,7 +276,7 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 		term.Feed([]byte(strings.ReplaceAll(snapshot, "\n", "\r\n") + "\r\n"))
 	}
 
-	if err := p.start(resolved.launch, dir); err != nil {
+	if err := p.start(launch, dir); err != nil {
 		_ = term.Close()
 		return nil, err
 	}
@@ -353,8 +364,10 @@ func (p *pane) title() string {
 
 // dir prefers the directory the shell reported (OSC 7), as gexi does.
 func (p *pane) dir() string {
-	if d := p.term.Dir(); d != "" {
-		return d
+	if p.term != nil {
+		if d := p.term.Dir(); d != "" {
+			return d
+		}
 	}
 	if p.initialDir != "" {
 		return p.initialDir

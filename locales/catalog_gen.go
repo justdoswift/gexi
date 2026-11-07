@@ -314,6 +314,106 @@ func (msgs Messages) PaneSubagentsBackground() string {
 	return Catalog.Format(msgs.locale, "paneSubagentsBackground", nil)
 }
 
+// PaneCloseTitle says "Close pane?"
+// in the language the app shows.
+func PaneCloseTitle() string { return In(i18n.Locale()).PaneCloseTitle() }
+
+// PaneCloseTitle says "Close pane?"
+// in the language of msgs.
+func (msgs Messages) PaneCloseTitle() string {
+	return Catalog.Format(msgs.locale, "paneCloseTitle", nil)
+}
+
+// PaneCloseSessionTitle says "Close session?"
+// in the language the app shows.
+func PaneCloseSessionTitle() string { return In(i18n.Locale()).PaneCloseSessionTitle() }
+
+// PaneCloseSessionTitle says "Close session?"
+// in the language of msgs.
+func (msgs Messages) PaneCloseSessionTitle() string {
+	return Catalog.Format(msgs.locale, "paneCloseSessionTitle", nil)
+}
+
+// PaneCloseProjectTitle says "Close project?"
+// in the language the app shows.
+func PaneCloseProjectTitle() string { return In(i18n.Locale()).PaneCloseProjectTitle() }
+
+// PaneCloseProjectTitle says "Close project?"
+// in the language of msgs.
+func (msgs Messages) PaneCloseProjectTitle() string {
+	return Catalog.Format(msgs.locale, "paneCloseProjectTitle", nil)
+}
+
+// PaneCloseAgentRunning says "An agent is running in this pane. Closing it ends its session."
+// in the language the app shows.
+func PaneCloseAgentRunning() string { return In(i18n.Locale()).PaneCloseAgentRunning() }
+
+// PaneCloseAgentRunning says "An agent is running in this pane. Closing it ends its session."
+// in the language of msgs.
+func (msgs Messages) PaneCloseAgentRunning() string {
+	return Catalog.Format(msgs.locale, "paneCloseAgentRunning", nil)
+}
+
+// PaneCloseAgentOpened says "An agent was opened in this pane. Closing it ends the panel."
+// in the language the app shows.
+func PaneCloseAgentOpened() string { return In(i18n.Locale()).PaneCloseAgentOpened() }
+
+// PaneCloseAgentOpened says "An agent was opened in this pane. Closing it ends the panel."
+// in the language of msgs.
+func (msgs Messages) PaneCloseAgentOpened() string {
+	return Catalog.Format(msgs.locale, "paneCloseAgentOpened", nil)
+}
+
+// PaneCloseSessionBody says "This session has an agent in it. Closing the session ends it."
+// in the language the app shows.
+func PaneCloseSessionBody() string { return In(i18n.Locale()).PaneCloseSessionBody() }
+
+// PaneCloseSessionBody says "This session has an agent in it. Closing the session ends it."
+// in the language of msgs.
+func (msgs Messages) PaneCloseSessionBody() string {
+	return Catalog.Format(msgs.locale, "paneCloseSessionBody", nil)
+}
+
+// PaneCloseProjectBody says "This project has an agent in it. Closing the project ends it."
+// in the language the app shows.
+func PaneCloseProjectBody() string { return In(i18n.Locale()).PaneCloseProjectBody() }
+
+// PaneCloseProjectBody says "This project has an agent in it. Closing the project ends it."
+// in the language of msgs.
+func (msgs Messages) PaneCloseProjectBody() string {
+	return Catalog.Format(msgs.locale, "paneCloseProjectBody", nil)
+}
+
+// PaneCloseBackground says "Keep Running"
+// in the language the app shows.
+func PaneCloseBackground() string { return In(i18n.Locale()).PaneCloseBackground() }
+
+// PaneCloseBackground says "Keep Running"
+// in the language of msgs.
+func (msgs Messages) PaneCloseBackground() string {
+	return Catalog.Format(msgs.locale, "paneCloseBackground", nil)
+}
+
+// PaneDetached says "Moved to the background; restore it in Settings › Worktrees."
+// in the language the app shows.
+func PaneDetached() string { return In(i18n.Locale()).PaneDetached() }
+
+// PaneDetached says "Moved to the background; restore it in Settings › Worktrees."
+// in the language of msgs.
+func (msgs Messages) PaneDetached() string {
+	return Catalog.Format(msgs.locale, "paneDetached", nil)
+}
+
+// PaneBackgroundExited says "Background pane {title} exited."
+// in the language the app shows.
+func PaneBackgroundExited(title string) string { return In(i18n.Locale()).PaneBackgroundExited(title) }
+
+// PaneBackgroundExited says "Background pane {title} exited."
+// in the language of msgs.
+func (msgs Messages) PaneBackgroundExited(title string) string {
+	return Catalog.Format(msgs.locale, "paneBackgroundExited", map[string]any{"title": title})
+}
+
 // SettingsTitle says "Settings"
 // in the language the app shows.
 func SettingsTitle() string { return In(i18n.Locale()).SettingsTitle() }
@@ -694,11 +794,11 @@ func (msgs Messages) WorktreeArchiveHint() string {
 	return Catalog.Format(msgs.locale, "worktreeArchiveHint", nil)
 }
 
-// WorktreeArchived says "Archived {branch}; restore it in Settings › Archived"
+// WorktreeArchived says "Archived {branch}; restore it in Settings › Worktrees"
 // in the language the app shows.
 func WorktreeArchived(branch string) string { return In(i18n.Locale()).WorktreeArchived(branch) }
 
-// WorktreeArchived says "Archived {branch}; restore it in Settings › Archived"
+// WorktreeArchived says "Archived {branch}; restore it in Settings › Worktrees"
 // in the language of msgs.
 func (msgs Messages) WorktreeArchived(branch string) string {
 	return Catalog.Format(msgs.locale, "worktreeArchived", map[string]any{"branch": branch})
@@ -1156,14 +1256,174 @@ func (msgs Messages) WorktreeLeft() string {
 	return Catalog.Format(msgs.locale, "worktreeLeft", nil)
 }
 
-// WorktreeKeptClose says "Worktree kept at {path}."
+// WorktreeKeptClose says "Worktree kept at {path}; find it in Settings › Worktrees."
 // in the language the app shows.
 func WorktreeKeptClose(path string) string { return In(i18n.Locale()).WorktreeKeptClose(path) }
 
-// WorktreeKeptClose says "Worktree kept at {path}."
+// WorktreeKeptClose says "Worktree kept at {path}; find it in Settings › Worktrees."
 // in the language of msgs.
 func (msgs Messages) WorktreeKeptClose(path string) string {
 	return Catalog.Format(msgs.locale, "worktreeKeptClose", map[string]any{"path": path})
+}
+
+// WorktreeGone says "Missing"
+// in the language the app shows.
+func WorktreeGone() string { return In(i18n.Locale()).WorktreeGone() }
+
+// WorktreeGone says "Missing"
+// in the language of msgs.
+func (msgs Messages) WorktreeGone() string {
+	return Catalog.Format(msgs.locale, "worktreeGone", nil)
+}
+
+// WorktreeGoneHint says "This pane's worktree folder is gone. Click to clear it and open Settings › Worktrees."
+// in the language the app shows.
+func WorktreeGoneHint() string { return In(i18n.Locale()).WorktreeGoneHint() }
+
+// WorktreeGoneHint says "This pane's worktree folder is gone. Click to clear it and open Settings › Worktrees."
+// in the language of msgs.
+func (msgs Messages) WorktreeGoneHint() string {
+	return Catalog.Format(msgs.locale, "worktreeGoneHint", nil)
+}
+
+// WorktreeGoneNotice says "The worktree folder {path} is gone; the pane was cleared. See Settings › Worktrees."
+// in the language the app shows.
+func WorktreeGoneNotice(path string) string { return In(i18n.Locale()).WorktreeGoneNotice(path) }
+
+// WorktreeGoneNotice says "The worktree folder {path} is gone; the pane was cleared. See Settings › Worktrees."
+// in the language of msgs.
+func (msgs Messages) WorktreeGoneNotice(path string) string {
+	return Catalog.Format(msgs.locale, "worktreeGoneNotice", map[string]any{"path": path})
+}
+
+// WorktreeGoneFailed says "The worktree folder is gone. See Settings › Worktrees."
+// in the language the app shows.
+func WorktreeGoneFailed() string { return In(i18n.Locale()).WorktreeGoneFailed() }
+
+// WorktreeGoneFailed says "The worktree folder is gone. See Settings › Worktrees."
+// in the language of msgs.
+func (msgs Messages) WorktreeGoneFailed() string {
+	return Catalog.Format(msgs.locale, "worktreeGoneFailed", nil)
+}
+
+// SettingsWorktrees says "Worktrees"
+// in the language the app shows.
+func SettingsWorktrees() string { return In(i18n.Locale()).SettingsWorktrees() }
+
+// SettingsWorktrees says "Worktrees"
+// in the language of msgs.
+func (msgs Messages) SettingsWorktrees() string {
+	return Catalog.Format(msgs.locale, "settingsWorktrees", nil)
+}
+
+// SettingsWorktreesMaintenance says "Maintenance"
+// in the language the app shows.
+func SettingsWorktreesMaintenance() string { return In(i18n.Locale()).SettingsWorktreesMaintenance() }
+
+// SettingsWorktreesMaintenance says "Maintenance"
+// in the language of msgs.
+func (msgs Messages) SettingsWorktreesMaintenance() string {
+	return Catalog.Format(msgs.locale, "settingsWorktreesMaintenance", nil)
+}
+
+// SettingsWorktreesAll says "All worktrees"
+// in the language the app shows.
+func SettingsWorktreesAll() string { return In(i18n.Locale()).SettingsWorktreesAll() }
+
+// SettingsWorktreesAll says "All worktrees"
+// in the language of msgs.
+func (msgs Messages) SettingsWorktreesAll() string {
+	return Catalog.Format(msgs.locale, "settingsWorktreesAll", nil)
+}
+
+// SettingsWorktreesEmpty says "No worktrees yet. Create one with a pane's W button."
+// in the language the app shows.
+func SettingsWorktreesEmpty() string { return In(i18n.Locale()).SettingsWorktreesEmpty() }
+
+// SettingsWorktreesEmpty says "No worktrees yet. Create one with a pane's W button."
+// in the language of msgs.
+func (msgs Messages) SettingsWorktreesEmpty() string {
+	return Catalog.Format(msgs.locale, "settingsWorktreesEmpty", nil)
+}
+
+// WorktreeStatusBackground says "Running in background"
+// in the language the app shows.
+func WorktreeStatusBackground() string { return In(i18n.Locale()).WorktreeStatusBackground() }
+
+// WorktreeStatusBackground says "Running in background"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusBackground() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusBackground", nil)
+}
+
+// WorktreeStatusOpen says "Open"
+// in the language the app shows.
+func WorktreeStatusOpen() string { return In(i18n.Locale()).WorktreeStatusOpen() }
+
+// WorktreeStatusOpen says "Open"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusOpen() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusOpen", nil)
+}
+
+// WorktreeStatusOnDisk says "On disk"
+// in the language the app shows.
+func WorktreeStatusOnDisk() string { return In(i18n.Locale()).WorktreeStatusOnDisk() }
+
+// WorktreeStatusOnDisk says "On disk"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusOnDisk() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusOnDisk", nil)
+}
+
+// WorktreeStatusArchived says "Archived"
+// in the language the app shows.
+func WorktreeStatusArchived() string { return In(i18n.Locale()).WorktreeStatusArchived() }
+
+// WorktreeStatusArchived says "Archived"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusArchived() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusArchived", nil)
+}
+
+// WorktreeRestore says "Restore"
+// in the language the app shows.
+func WorktreeRestore() string { return In(i18n.Locale()).WorktreeRestore() }
+
+// WorktreeRestore says "Restore"
+// in the language of msgs.
+func (msgs Messages) WorktreeRestore() string {
+	return Catalog.Format(msgs.locale, "worktreeRestore", nil)
+}
+
+// WorktreeShow says "Show"
+// in the language the app shows.
+func WorktreeShow() string { return In(i18n.Locale()).WorktreeShow() }
+
+// WorktreeShow says "Show"
+// in the language of msgs.
+func (msgs Messages) WorktreeShow() string {
+	return Catalog.Format(msgs.locale, "worktreeShow", nil)
+}
+
+// WorktreeOpen says "Open"
+// in the language the app shows.
+func WorktreeOpen() string { return In(i18n.Locale()).WorktreeOpen() }
+
+// WorktreeOpen says "Open"
+// in the language of msgs.
+func (msgs Messages) WorktreeOpen() string {
+	return Catalog.Format(msgs.locale, "worktreeOpen", nil)
+}
+
+// WorktreeOpenFailed says "Could not open {path}"
+// in the language the app shows.
+func WorktreeOpenFailed(path string) string { return In(i18n.Locale()).WorktreeOpenFailed(path) }
+
+// WorktreeOpenFailed says "Could not open {path}"
+// in the language of msgs.
+func (msgs Messages) WorktreeOpenFailed(path string) string {
+	return Catalog.Format(msgs.locale, "worktreeOpenFailed", map[string]any{"path": path})
 }
 
 // SettingsCleanupWorktrees says "Clean up worktrees"

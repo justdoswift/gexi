@@ -34,6 +34,26 @@ func TestPaneRunsAgent(t *testing.T) {
 	}
 }
 
+func TestAgentPaneFallsBackToShell(t *testing.T) {
+	launch := withShellFallback(shellCommand("claude --resume abc"))
+	raw, ok := rawCommand(launch)
+	if !ok {
+		t.Fatalf("fallback launch %v is not a shell command", launch)
+	}
+	want := "claude --resume abc ; exec " + shellQuote(loginShell()) + " -l"
+	if raw != want {
+		t.Fatalf("fallback raw = %q, want %q", raw, want)
+	}
+	// The pane still reads as an agent pane: the fallback trails the agent.
+	if !paneRunsAgent(launch) {
+		t.Fatalf("paneRunsAgent(%q) = false, want true", raw)
+	}
+	// A command that is not a shell wrapper cannot take a fallback.
+	if got := withShellFallback([]string{"claude"}); len(got) != 1 || got[0] != "claude" {
+		t.Fatalf("bare command = %v, want unchanged", got)
+	}
+}
+
 func TestClaudeProjectSlug(t *testing.T) {
 	cases := []struct {
 		dir  string

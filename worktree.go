@@ -297,6 +297,11 @@ func worktreeGit(dir string, args ...string) (string, error) {
 // can fix from here.
 var errGhMissing = errors.New("gh is not installed")
 
+// errWorktreeGone says the checkout a pane's worktree names was deleted.
+// Git would only answer with "cannot change to ..." there, so the PR and
+// merge cores stop on this instead.
+var errWorktreeGone = errors.New("the worktree folder is gone")
+
 // ghInstallURL is where GitHub CLI is downloaded, with the command for every
 // package manager that installs it.
 const ghInstallURL = "https://cli.github.com/"
@@ -311,13 +316,64 @@ func (w *workspace) worktreeFailed(err error) {
 		})
 		return
 	}
+	if errors.Is(err, errWorktreeGone) {
+		w.flash(locales.WorktreeGoneFailed())
+		return
+	}
 	w.flash(locales.WorktreeError(err.Error()))
 }
 
-// ghBinary is gh's path. An app opened from Finder inherits launchd's short
-// PATH, which misses a gh installed beside the user's other tools, though the
-// panes' login shell finds it; the usual install folders are asked as well.
-var ghBinary = sync.OnceValue(func() string {
+// worktreeCheckoutExists reports whether the folder a pane's worktree lives
+// in is still on disk. A checkout deleted under the running app leaves the
+// pane pointing at nothing, and every git call there fails with a raw
+// "cannot change to ..." exit status.
+func worktreeCheckoutExists(wt *paneWorktree) bool {
+	if wt == nil || wt.Path == "" {
+		return false
+	}
+	info, err := os.Stat(wt.Path)
+	return err == nil && info.IsDir()
+}
+
+// worktreeReady reports whether a pane's worktree can still run git. A
+// binding whose checkout was deleted while gexi ran is cleared here, so the
+// header stops offering actions that cannot work and the pane can start a
+// new worktree.
+func (w *workspace) worktreeReady(p *pane) bool {
+	if p == nil || p.Worktree == nil {
+		return false
+	}
+	if worktreeCheckoutExists(p.Worktree) {
+		return true
+	}
+	w.dropGoneWorktree(p)
+	return false
+}
+
+// dropGoneWorktree forgets a worktree whose checkout was deleted under the
+// running app, and points the user at Settings › Worktrees.
+func (w *workspace) dropGoneWorktree(p *pane) {
+	wt := p.Worktree
+	if wt == nil {
+		return
+	}
+	stopPRTimer(wt)
+	p.Worktree = nil
+	p.worktreeBusy = ""
+	w.worktreesScanned = false
+	w.scheduleSave()
+	w.invalidate()
+	w.flashAction(locales.WorktreeGoneNotice(abbreviate(wt.Path)), locales.SettingsWorktrees(), func() {
+		w.settingsTab = settingsWorktrees
+		w.openSettings()
+	})
+}
+
+// ghBinaryOnce is gh's path. An app opened from Finder inherits launchd's
+// short PATH, which misses a gh installed beside the user's other tools,
+// though the panes' login shell finds it; the usual install folders are asked
+// as well.
+var ghBinaryOnce = sync.OnceValue(func() string {
 	if path, err := exec.LookPath("gh"); err == nil {
 		return path
 	}
@@ -335,6 +391,19 @@ var ghBinary = sync.OnceValue(func() string {
 	}
 	return ""
 })
+
+// ghBinaryOverride lets a test point gh at a script, or at nothing. It is
+// nil in the app.
+var ghBinaryOverride func() (string, bool)
+
+func ghBinary() string {
+	if ghBinaryOverride != nil {
+		if path, ok := ghBinaryOverride(); ok {
+			return path
+		}
+	}
+	return ghBinaryOnce()
+}
 
 func ghOutput(dir string, args ...string) (string, error) {
 	gh := ghBinary()
@@ -492,9 +561,15 @@ func applyPRStatus(wt *paneWorktree, info prInfo) {
 // is already open, it returns that instead. message commits the pending
 // changes under it; an empty one there is an error.
 func createPR(wt *paneWorktree, message string) (prInfo, string, error) {
+	if wt == nil {
+		return prInfo{}, "", errWorktreeGone
+	}
 	branch := currentBranch(wt.Path)
 	if branch == "" {
 		branch = wt.Branch
+	}
+	if !worktreeCheckoutExists(wt) {
+		return prInfo{}, branch, errWorktreeGone
 	}
 	if ghBinary() == "" {
 		return prInfo{}, branch, errGhMissing
@@ -708,6 +783,9 @@ func agentBinary(name string) string {
 func mergePR(wt *paneWorktree) error {
 	if ghBinary() == "" {
 		return errGhMissing
+	}
+	if !worktreeCheckoutExists(wt) {
+		return errWorktreeGone
 	}
 	clean, err := worktreeIsClean(wt)
 	if err != nil {
@@ -958,20 +1036,6 @@ func removeWorktreeKeeping(wt *paneWorktree, keepBranch bool) error {
 	return nil
 }
 
-// worktreeSafeToDelete reports a checkout with nothing to lose: no
-// uncommitted changes and no commits ahead of the base branch.
-func worktreeSafeToDelete(wt *paneWorktree) bool {
-	if wt == nil || wt.busy != "" {
-		return false
-	}
-	clean, err := worktreeIsClean(wt)
-	if err != nil || !clean {
-		return false
-	}
-	ahead, err := commitsAhead(wt)
-	return err == nil && ahead == 0
-}
-
 // worktreeHasNewWork reports a merged checkout holding work the merge did
 // not include: changes still in the tree, or a commit made after the merge.
 // The header then offers the next pull request instead of Archive, which
@@ -1004,6 +1068,9 @@ func (w *workspace) reopenMergedWorktree(p *pane, wt *paneWorktree) {
 	if w.paneByID(p.ID) != p || p.Worktree != wt || wt.State != worktreeMerged {
 		return
 	}
+	if !w.worktreeReady(p) {
+		return
+	}
 	stopPRTimer(wt)
 	wt.PR, wt.URL, wt.State = 0, "", ""
 	wt.mergeable, wt.review, wt.checks, wt.mergeState = "", "", "", ""
@@ -1018,6 +1085,9 @@ func (w *workspace) reopenMergedWorktree(p *pane, wt *paneWorktree) {
 func (w *workspace) createPullRequest(p *pane) {
 	wt := p.Worktree
 	if wt == nil || wt.busy != "" || wt.State == worktreeMerged || wt.PR != 0 {
+		return
+	}
+	if !w.worktreeReady(p) {
 		return
 	}
 	wt.busy = worktreeBusyPR
@@ -1076,6 +1146,9 @@ func (w *workspace) createPullRequestWithMessage(p *pane, message string) {
 	if wt == nil || wt.busy != "" || wt.PR != 0 || wt.State == worktreeMerged || w.paneByID(p.ID) != p {
 		return
 	}
+	if !w.worktreeReady(p) {
+		return
+	}
 	wt.busy = worktreeBusyPR
 	w.invalidate()
 	snapshot := *wt
@@ -1103,6 +1176,10 @@ func (w *workspace) submitCommitMessage() {
 	p := w.commitTarget
 	message := strings.TrimSpace(w.commitText)
 	if p == nil || w.paneByID(p.ID) != p {
+		w.cancelCommitMessage()
+		return
+	}
+	if !w.worktreeReady(p) {
 		w.cancelCommitMessage()
 		return
 	}
@@ -1155,6 +1232,9 @@ func (w *workspace) commitDialog(c *ui.Context, tk tokens) {
 func (w *workspace) mergePullRequest(p *pane) {
 	wt := p.Worktree
 	if wt == nil || wt.busy != "" || wt.PR == 0 || wt.State == worktreeMerged || w.paneByID(p.ID) != p {
+		return
+	}
+	if !w.worktreeReady(p) {
 		return
 	}
 	if reason := w.mergeBlocker(wt); reason != "" {
@@ -1281,6 +1361,9 @@ func (w *workspace) requestMerge(p *pane) {
 func (w *workspace) archiveMergedWorktree(p *pane) {
 	wt := p.Worktree
 	if wt == nil || wt.Detected || wt.busy != "" || wt.State != worktreeMerged {
+		return
+	}
+	if !w.worktreeReady(p) {
 		return
 	}
 	stopPRTimer(wt)
@@ -1446,7 +1529,7 @@ func (w *workspace) applyDetectedWorktree(p *pane, dir string, wt *paneWorktree,
 // state that changed outside gexi.
 func (w *workspace) refreshWorktree(p *pane) {
 	wt := p.Worktree
-	if wt == nil {
+	if wt == nil || !w.worktreeReady(p) {
 		return
 	}
 	path := wt.Path
@@ -1813,6 +1896,9 @@ func (w *workspace) leaveWorktree(p *pane) {
 	if wt == nil || wt.Detected {
 		return
 	}
+	if !w.worktreeReady(p) {
+		return
+	}
 	s := w.sessionOf(p)
 	pr := w.projectOf(s)
 	if pr == nil {
@@ -1927,33 +2013,25 @@ func (w *workspace) worktreeMenuSegment(c *ui.Context, tk tokens, p *pane, fg ui
 	})
 }
 
-// cleanupClosedWorktree removes a clean checkout with nothing ahead when its
-// last pane closes. Anything with changes or unmerged commits stays, so
-// closing a pane never loses work.
-func (w *workspace) cleanupClosedWorktree(wt *paneWorktree) {
-	// A checkout gexi only found belongs to the user, not to this pane;
-	// closing the pane must not delete it.
+// keepClosedWorktree leaves a pane's checkout on disk when its panel closes.
+// Closing is not deleting: Settings › Worktrees lists the checkout, where it
+// can be opened again, and Clean up is the one action that removes unused
+// ones. Nothing is silently thrown away by a mistyped ⌘W.
+func (w *workspace) keepClosedWorktree(wt *paneWorktree) {
+	// A checkout gexi only found belongs to the user, not to this pane.
 	if wt == nil || wt.Detected {
 		return
 	}
 	stopPRTimer(wt)
-	go func() {
-		if worktreeSafeToDelete(wt) {
-			if err := removeWorktreeKeeping(wt, false); err != nil {
-				w.onMain(func() { w.flash(locales.WorktreeError(err.Error())) })
-			}
-			return
-		}
-		w.onMain(func() { w.flash(locales.WorktreeKeptClose(wt.Path)) })
-	}()
+	w.flash(locales.WorktreeKeptClose(wt.Path))
 }
 
 // cleanupOrphanWorktrees removes checkouts under the app's worktree folder
-// that no pane uses and that have nothing to lose. The manual run reports
-// even when it found nothing.
-func (w *workspace) cleanupOrphanWorktrees(manual bool) {
+// that no pane uses and that have nothing to lose. It runs only from the
+// Worktrees page, since closing a panel keeps its checkout.
+func (w *workspace) cleanupOrphanWorktrees() {
 	referenced := map[string]bool{}
-	for _, p := range w.allPanes() {
+	for _, p := range w.livePanes() {
 		if p.Worktree != nil {
 			referenced[filepath.Clean(p.Worktree.Path)] = true
 		}
@@ -1961,7 +2039,7 @@ func (w *workspace) cleanupOrphanWorktrees(manual bool) {
 	// A split pane inside a checkout has no worktree of its own; its folder
 	// still marks the checkout as used.
 	used := func(path string) bool {
-		for _, p := range w.allPanes() {
+		for _, p := range w.livePanes() {
 			for _, dir := range []string{p.dir(), p.initialDir} {
 				if dir == path || strings.HasPrefix(dir, path+string(os.PathSeparator)) {
 					return true
@@ -1973,9 +2051,7 @@ func (w *workspace) cleanupOrphanWorktrees(manual bool) {
 	root := worktreesRoot()
 	repos, err := os.ReadDir(root)
 	if err != nil {
-		if manual {
-			w.flash(locales.WorktreeCleanupNothing())
-		}
+		w.flash(locales.WorktreeCleanupNothing())
 		return
 	}
 	var candidates []string
@@ -1999,9 +2075,7 @@ func (w *workspace) cleanupOrphanWorktrees(manual bool) {
 		}
 	}
 	if len(candidates) == 0 {
-		if manual {
-			w.flash(locales.WorktreeCleanupNothing())
-		}
+		w.flash(locales.WorktreeCleanupNothing())
 		return
 	}
 	go func() {
@@ -2012,10 +2086,12 @@ func (w *workspace) cleanupOrphanWorktrees(manual bool) {
 			}
 		}
 		w.onMain(func() {
+			w.worktreesScanned = false
+			w.invalidateSettings()
 			switch {
 			case removed > 0:
 				w.flash(locales.WorktreeCleanupDone(strconv.Itoa(removed)))
-			case manual:
+			default:
 				w.flash(locales.WorktreeCleanupNothing())
 			}
 		})
@@ -2185,6 +2261,22 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 // carries the worktree menu on its right, where leaving the checkout sits.
 func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	wt := p.Worktree
+	// The checkout can be deleted while gexi runs. There is no git work to
+	// offer then, only a way to clear the binding and find the worktree page.
+	if !worktreeCheckoutExists(wt) {
+		action := func() { w.dropGoneWorktree(p) }
+		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
+			Border(1, ui.Transparent).
+			Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeGoneHint())
+		if el.Hovered() {
+			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
+		}
+		el.OnClick(action).Children(func() {
+			ui.Text(c, locales.WorktreeGone()).FontSize(11).FontWeight(600).
+				TextColor(tk.MutedForeground).OnClick(action)
+		})
+		return
+	}
 	if wt.State == worktreeMerged {
 		if wt.Detected {
 			// gexi does not own this checkout, so there is nothing to

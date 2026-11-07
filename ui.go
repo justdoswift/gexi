@@ -87,6 +87,25 @@ func (w *workspace) view(c *ui.Context) {
 	ui.Modal(c, &w.relayOpen, func() { w.relayDialog(c, tk) })
 	ui.Modal(c, &w.importOpen, func() { w.importDialog(c, tk) })
 	ui.Modal(c, &w.commitOpen, func() { w.commitDialog(c, tk) })
+	if w.closeTarget != nil {
+		switch ui.AlertDialog(c, &w.closeOpen, locales.PaneCloseTitle(), w.closeMsg,
+			locales.PaneCloseBackground(), locales.MenuClosePane(), locales.Cancel()) {
+		case 0:
+			p := w.closeTarget
+			w.closeTarget = nil
+			if w.paneByID(p.ID) == p {
+				w.detachPane(p)
+			}
+		case 1:
+			p := w.closeTarget
+			w.closeTarget = nil
+			if w.paneByID(p.ID) == p {
+				w.requestClose(p)
+			}
+		case 2, ui.AlertDismissed:
+			w.closeTarget = nil
+		}
+	}
 	if w.leaveTarget != nil {
 		switch ui.AlertDialog(c, &w.leaveOpen, locales.WorktreeLeaveTitle(), w.leaveMsg,
 			locales.WorktreeLeaveConfirm(), locales.Cancel()) {
@@ -918,7 +937,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 								iconButtonOnCard(c, tk, name, func() { w.toggleZoom(p) }, hint)
 							}
 						}
-						iconButtonOnCard(c, tk, "x", func() { w.requestClose(p) },
+						iconButtonOnCard(c, tk, "x", func() { w.requestCloseByUser(p) },
 							locales.MenuClosePane()+" (⌘W)")
 					})
 					// The row's width follows the buttons it holds, so the

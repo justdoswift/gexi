@@ -360,7 +360,6 @@ func (w *workspace) restoreOrCreate() {
 			}
 		}
 	}
-	w.cleanupOrphanWorktrees(false)
 }
 
 func loadSnapshot(id string) string {
