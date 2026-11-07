@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.30
+
+- 窗格里可以跑 Perch 了：它作为 `node .../bin/perch` 启动，进程名和 argv[0] 都是 node，现在按脚本路径认出来，只认 `bin/perch` 和 `perchai-cli`，不会把别的 node 程序当成 agent。
+- Perch 按目录保存会话（`cli-cwd-<sha256(目录)>[:16]`），所以重启后直接跑 `perch` 就接上原来的对话，不用带 session id。
+- W 键建 worktree 对 Perch 和 Claude Code 一样可用：提交信息、冲突解决走 `perch run --json`，用 gexi 自己的 thread，不打断窗格里的对话。
+- 分支改名提示写进 `.perch/rules/gexi-worktree.md`，并加入 `.git/info/exclude`，不会出现在改动里。Perch 没有 hook，规则文件是唯一能送到模型的通道。
+- Perch 窗格的忙碌状态从 thread 文件的 `inFlightTurn` 读取，进程已退出的不算忙。侧栏状态灯因此能亮能灭。
+
 ## 0.0.29
 
 - 液态玻璃下，文件抽屉的左缘不再叠 1px 边框，分隔交给玻璃自身偏暗的 rim，和窗格卡片一致。

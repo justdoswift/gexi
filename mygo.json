@@ -1,7 +1,7 @@
 {
   "name": "gexi",
   "identifier": "dev.gexi.app",
-  "version": "0.0.29",
+  "version": "0.0.30",
   "out": "build",
   "i18n": {
     "dir": "locales",
