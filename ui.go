@@ -559,7 +559,7 @@ func (w *workspace) subagentPill(c *ui.Context, tk tokens, p *pane) {
 	if n <= 0 {
 		return
 	}
-	el := ui.Row(c).Height(22).Radius(chromeRadius).Padding(0, 6).Gap(4).
+	el := ui.Row(c).Height(22).Radius(headerRadius).Padding(0, 6).Gap(4).
 		AlignItems(ui.Center)
 	bg := tk.Active
 	tint := tk.Control.Alpha(0.15)

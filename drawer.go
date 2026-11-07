@@ -205,7 +205,7 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 	unmeasured := info.changed && info.added+info.deleted == 0
 	color := tk.MutedForeground
 	lit := showing
-	el := ui.Row(c).Height(22).Radius(chromeRadius).Padding(0, 8).Gap(5).
+	el := ui.Row(c).Height(22).Radius(headerRadius).Padding(0, 8).Gap(5).
 		AlignItems(ui.Center).Shrink(1).Cursor(ui.CursorPointer)
 	if el.Hovered() {
 		lit = true
