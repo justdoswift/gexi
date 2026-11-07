@@ -26,6 +26,9 @@ type appSettings struct {
 	// Appearance is the light/dark the app draws: "" follows the system,
 	// "light" and "dark" pin one.
 	Appearance string `json:"appearance"`
+	// LiquidGlass draws the window, the sidebar and the panes in macOS 26's
+	// material; off, they keep the flat look.
+	LiquidGlass bool `json:"liquidGlass"`
 
 	// Remote access: either this Mac is reachable through a relay, or it
 	// keeps codes imported from other Macs.
@@ -50,6 +53,7 @@ func defaultSettings() appSettings {
 		PaneStyle:     paneComfortable,
 		RemoteTmux:    true,
 		Notifications: true,
+		LiquidGlass:   true,
 	}
 }
 
@@ -66,6 +70,7 @@ func loadSettings() appSettings {
 	if s.Appearance != appearanceLight && s.Appearance != appearanceDark {
 		s.Appearance = ""
 	}
+	glassUI = s.LiquidGlass
 	return s
 }
 
@@ -255,6 +260,19 @@ func (w *workspace) generalPage(c *ui.Context, tk tokens) {
 		w.paneStyleRow(c, tk)
 		cardDivider(c, tk)
 		w.appearanceRow(c, tk)
+		cardDivider(c, tk)
+		w.settingRowView(c, tk, settingRow{
+			title:  locales.SettingsLiquidGlass(),
+			detail: locales.SettingsLiquidGlassDetail(),
+			on:     w.settings.LiquidGlass,
+			toggle: func() {
+				w.settings.LiquidGlass = !w.settings.LiquidGlass
+				glassUI = w.settings.LiquidGlass
+				w.settings.save()
+				w.invalidate()
+				w.invalidateSettings()
+			},
+		})
 		cardDivider(c, tk)
 		w.settingRowView(c, tk, settingRow{
 			title:  locales.SettingsShowSidebar(),

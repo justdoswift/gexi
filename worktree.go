@@ -677,7 +677,7 @@ func agentCommitMessage(kind agentKind, dir, prompt string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("%s cannot write one automatically", kind.name())
 	}
-	answer, err := runAgent(kind, command, dir, prompt, 90*time.Second)
+	answer, err := runAgent(kind, command, dir, prompt, 4*time.Minute)
 	if err != nil {
 		return "", err
 	}
@@ -1114,8 +1114,8 @@ func (w *workspace) createPullRequest(p *pane) {
 					return
 				}
 				diff, _ := worktreeGit(snapshot.Path, "diff", "--cached", "--no-color", "--unified=1")
-				if len(diff) > 12000 {
-					diff = diff[:12000] + "\n… (truncated)"
+				if len(diff) > 6000 {
+					diff = diff[:6000] + "\n… (truncated)"
 				}
 				msg, err = agentCommitMessage(kind, snapshot.Path, commitPrompt(diff))
 				if err != nil {
@@ -1951,12 +1951,13 @@ func (w *workspace) leaveWorktree(p *pane) {
 func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg ui.Color,
 	hint string, action func(), label func()) {
 	quiet := bg == ui.Transparent
-	group := ui.Row(c).Height(22).Radius(chromeRadius).Center()
+	group := ui.Row(c).Height(22).Radius(chromeRadius).Center().
+		Border(1, ui.Transparent)
 	switch {
 	case !quiet:
 		group = group.Background(bg)
 	case group.Hovered():
-		group = group.Background(tk.Control)
+		group = capsule(c, group, tk, tk.Control.Alpha(0.3), tk.Control)
 	}
 	group.Children(func() {
 		// A checkout gexi only found has no Leave menu: the chip is one
@@ -2234,9 +2235,10 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 			action = func() {}
 		}
 		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
+			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(hint)
 		if el.Hovered() {
-			el = el.Background(tk.Control)
+			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
 		}
 		el.OnClick(action).Children(func() {
 			if busy != "" {
@@ -2264,9 +2266,10 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 	if !worktreeCheckoutExists(wt) {
 		action := func() { w.dropGoneWorktree(p) }
 		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
+			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeGoneHint())
 		if el.Hovered() {
-			el = el.Background(tk.Control)
+			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
 		}
 		el.OnClick(action).Children(func() {
 			ui.Text(c, locales.WorktreeGone()).FontSize(11).FontWeight(600).
@@ -2314,9 +2317,10 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 
 func worktreeChip(c *ui.Context, tk tokens) ui.Element {
 	el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(6).
+		Border(1, ui.Transparent).
 		Center().Cursor(ui.CursorPointer)
 	if el.Hovered() {
-		el = el.Background(tk.Control)
+		el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
 	}
 	return el
 }

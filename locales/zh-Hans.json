@@ -55,6 +55,8 @@
   "appearanceAutomatic": "自动",
   "appearanceLight": "浅色",
   "appearanceDark": "深色",
+  "settingsLiquidGlass": "液态玻璃",
+  "settingsLiquidGlassDetail": "用 macOS 26 的 Liquid Glass 绘制窗口、侧栏和窗格。关闭后保持原来的平面样式。",
   "settingsRestoreScreen": "恢复上次屏幕",
   "settingsRestoreScreenDetail": "在新 shell 上方重绘上一次的屏幕内容。",
   "worktreeCreateHint": "为此窗格创建 worktree",
