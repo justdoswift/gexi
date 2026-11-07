@@ -1301,6 +1301,10 @@ func (w *workspace) mergePullRequest(p *pane) {
 			}
 			w.invalidate()
 			w.scheduleSave()
+			// A merged worktree has nothing left to keep, so the pane goes
+			// back to the project folder instead of leaving the user to
+			// archive it by hand.
+			w.archiveMergedAndReturn(p)
 		})
 	}()
 }
@@ -1417,6 +1421,62 @@ func (w *workspace) archiveMergedWorktree(p *pane) {
 	}
 	w.archiveWorktree(wt, projectDir)
 	w.flash(locales.WorktreeArchived(wt.Branch))
+}
+
+// archiveMergedAndReturn archives a worktree whose pull request just merged
+// and puts the project back in front of the user: a pane in the project
+// folder, on the branch the merge landed on. A project checkout with changes
+// is left on whatever branch it is on, since that checkout is the user's own.
+func (w *workspace) archiveMergedAndReturn(p *pane) {
+	wt := p.Worktree
+	if wt == nil {
+		return
+	}
+	pr := w.projectOf(w.sessionOf(p))
+	if pr == nil {
+		return
+	}
+	root, base, dir := wt.Root, wt.Base, pr.Dir
+	w.archiveMergedWorktree(p)
+	// The merged pane is gone; a project with nothing left to show gets a
+	// fresh shell in its folder, which is where the work continues.
+	if !projectHasPane(pr) {
+		_, _ = w.newSession(pr, nil, dir)
+	}
+	go func() {
+		// Only a clean checkout follows the merge: the user's own changes
+		// outrank a branch switch.
+		if clean, err := checkoutIsClean(root); err != nil || !clean {
+			return
+		}
+		if currentBranch(root) == base {
+			return
+		}
+		if _, err := worktreeGit(root, "checkout", base); err != nil {
+			return
+		}
+		w.onMain(func() {
+			w.invalidate()
+			w.scheduleSave()
+		})
+	}()
+}
+
+func projectHasPane(pr *project) bool {
+	for _, s := range pr.Sessions {
+		if s.Root != nil && len(s.Root.panes()) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func checkoutIsClean(dir string) (bool, error) {
+	out, err := worktreeGit(dir, "status", "--porcelain")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) == "", nil
 }
 
 func inWorktree(p *pane, wt *paneWorktree) bool {
