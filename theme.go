@@ -74,6 +74,14 @@ func themeTokens(t *ui.Theme) tokens {
 
 const chromeRadius float32 = 6
 
+// windowTint is the window's material tint, in the syntax
+// WindowOptions.VibrancyTint takes: the canvas's own grey, so the glass reads
+// as the app's surface rather than the wallpaper's. It only shows while the
+// window is active: an inactive window's material is frosted by the system,
+// which lifts the tint into a grey sheet, so the view draws its own surfaces
+// there instead (see liquid).
+const windowTint = "light-dark(rgba(245, 245, 245, 0.8), rgba(14, 14, 16, 0.8))"
+
 // headerRadius is the pane header's chip corner: a rounded rectangle, the same
 // corner as the rest of the chrome, for the W / PR / Merge badges and the
 // branch and subagent pills.

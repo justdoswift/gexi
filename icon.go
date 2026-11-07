@@ -140,9 +140,14 @@ func colorHex(c ui.Color) string {
 // in Settings keep it current.
 var glassUI = true
 
-// liquid reports whether this window draws the glass look: the setting, and
-// a window the system gives a material to.
-func liquid(c *ui.Context) bool { return glassUI && c.Vibrancy() }
+// liquid reports whether this window draws the glass look: the setting, a
+// window the system gives a material to, and the window the user is working
+// in. An inactive window's material is frosted by the system, which lifts
+// every light tint into a grey sheet: the panes, the selected row and the
+// search field turn milky the moment the settings window comes forward. There
+// the app draws its own surfaces instead, the colours it has with the glass
+// turned off, so an inactive window reads as the theme rather than as frost.
+func liquid(c *ui.Context) bool { return glassUI && c.Vibrancy() && c.WindowActive() }
 
 // glassControl fills el with the system's glass, tinted toward the theme's
 // raised surface: a button's hover, a selected row or a chip on the window's

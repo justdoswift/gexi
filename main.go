@@ -74,7 +74,7 @@ func main() {
 			// material instead (see mygo.VibrancyGlass).
 			Transparent:  true,
 			Vibrancy:     mygo.VibrancyGlass,
-			VibrancyTint: "light-dark(rgba(245, 245, 245, 0.8), rgba(14, 14, 16, 0.8))",
+			VibrancyTint: windowTint,
 			// Still the window color on the platforms whose material shows
 			// none, where the view paints the same backdrop itself.
 			BackgroundColor: "light-dark(#ffffff, #0e0e10)",
