@@ -177,11 +177,24 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 	}
 	outer.Children(func() {
 		col := ui.Column(c).Fill()
+		// An empty session is a pane card like the ones that hold terminals:
+		// over the window's material it is glass too, its rim the edge, with
+		// no border painted over the glass.
+		glassCard := liquid(c) && w.settings.PaneStyle == paneComfortable
 		if w.settings.PaneStyle == paneComfortable {
-			col = col.Radius(windowRadius).Border(1, tk.Border).Background(tk.Background).Clip()
+			col = col.Radius(windowRadius).Clip()
+			if glassCard {
+				col = glassNative(col, tk.Background.Alpha(0.72))
+			} else {
+				col = col.Border(1, tk.Border).Background(tk.Background)
+			}
+		}
+		headerBg := tk.Background
+		if glassCard {
+			headerBg = ui.Transparent
 		}
 		col.Children(func() {
-			ui.Row(c).Height(headerHeight).Background(tk.Background).DragWindow()
+			ui.Row(c).Height(headerHeight).Background(headerBg).DragWindow()
 			ui.Column(c).Fill().Center().Children(func() {
 				ui.Text(c, locales.NoProject()).FontSize(13).TextColor(tk.MutedForeground)
 			})

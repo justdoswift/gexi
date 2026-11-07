@@ -520,12 +520,13 @@ func (w *workspace) drawerView(c *ui.Context, tk tokens) {
 	if liquid(c) {
 		// The drawer is the one surface with the terminal under it, so it is
 		// glass here rather than a painted background: what it covers shows
-		// through it, frosted and bent along its edge.
+		// through it, frosted and bent along its edge, and the glass's own
+		// shaded left rim is the separator — no hairline is painted on it.
 		el = el.Material(glass.Glass{})
 	} else {
-		el = el.Background(tk.Background)
+		el = el.Background(tk.Background).BorderWidth(0, 0, 0, 1).BorderColor(tk.Border)
 	}
-	el = el.BorderWidth(0, 0, 0, 1).BorderColor(tk.Border).Clip()
+	el = el.Clip()
 	// A drawer is an overlay, so Escape closes it wherever the keyboard is.
 	if el.OverlayShortcut(0, ui.KeyEscape) {
 		w.closeDrawer()
