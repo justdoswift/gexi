@@ -602,7 +602,7 @@ func agentCommitMessage(kind agentKind, dir, prompt string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("%s cannot write one automatically", kind.name())
 	}
-	answer, err := runAgent(kind, command, dir, prompt, 90*time.Second)
+	answer, err := runAgent(kind, command, dir, prompt, 4*time.Minute)
 	if err != nil {
 		return "", err
 	}
@@ -1044,8 +1044,8 @@ func (w *workspace) createPullRequest(p *pane) {
 					return
 				}
 				diff, _ := worktreeGit(snapshot.Path, "diff", "--cached", "--no-color", "--unified=1")
-				if len(diff) > 12000 {
-					diff = diff[:12000] + "\n… (truncated)"
+				if len(diff) > 6000 {
+					diff = diff[:6000] + "\n… (truncated)"
 				}
 				msg, err = agentCommitMessage(kind, snapshot.Path, commitPrompt(diff))
 				if err != nil {
