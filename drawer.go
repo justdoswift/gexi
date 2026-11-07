@@ -653,6 +653,35 @@ func (w *workspace) drawerFiles(c *ui.Context, tk tokens) {
 	})
 }
 
+// fileIconName is the mark a drawer row wears for a file, chosen by its
+// extension. Every name here has a PNG in icons/; anything unknown is a plain
+// document.
+func fileIconName(name string) string {
+	base := strings.ToLower(filepath.Base(name))
+	switch base {
+	case "readme", "license", "dockerfile", "makefile",
+		".gitignore", ".gitattributes", ".npmrc", ".editorconfig":
+		return "file-text"
+	}
+	switch filepath.Ext(base) {
+	case ".go", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".rb", ".rs",
+		".c", ".h", ".cc", ".cpp", ".hpp", ".java", ".kt", ".kts", ".swift", ".php",
+		".cs", ".scala", ".m", ".mm", ".lua", ".dart", ".vue", ".svelte":
+		return "file-code"
+	case ".md", ".markdown", ".txt", ".rst", ".log":
+		return "file-text"
+	case ".json", ".jsonc", ".yaml", ".yml", ".toml", ".xml", ".plist", ".conf", ".ini":
+		return "file-braces"
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".tiff", ".heic":
+		return "file-image"
+	case ".lock", ".pem", ".key", ".crt", ".cer":
+		return "file-lock"
+	case ".sh", ".bash", ".zsh", ".fish":
+		return "terminal"
+	}
+	return "file"
+}
+
 // drawerTree adds rel's entries under the rows already drawn for its parent.
 func (w *workspace) drawerTree(c *ui.Context, tk tokens, dir, rel string, depth int) {
 	for _, e := range w.drawerEntries(dir, rel) {
@@ -691,10 +720,13 @@ func (w *workspace) drawerTree(c *ui.Context, tk tokens, dir, rel string, depth 
 		}
 		pick := func() { w.openFile(e.path) }
 		row.OnClick(pick).Children(func() {
-			// A file's row leaves the arrow's and the folder icon's room
-			// empty, so every name starts at one edge. A Box, not a Spacer:
-			// a Spacer would grow and push the name to the middle.
-			ui.Box(c).Width(32).OnClick(pick)
+			// A file leaves the arrow's room empty and wears its own mark,
+			// so every name starts at one edge. A Box, not a Spacer: a
+			// Spacer would grow and push the name to the middle.
+			ui.Box(c).Width(13).OnClick(pick)
+			if src := iconSource(fileIconName(e.name), colorHex(tk.MutedForeground)); src != nil {
+				ui.Image(c, src).Width(14).Height(14).IgnoreInput(true).OnClick(pick)
+			}
 			ui.Text(c, e.name).FontSize(12).SingleLine().
 				TextColor(tk.Foreground).OnClick(pick)
 			ui.Spacer(c).OnClick(pick)

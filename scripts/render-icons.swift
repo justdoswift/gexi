@@ -18,6 +18,12 @@ let symbols: [(String, String)] = [
     ("bell", "bell"),
     ("keyboard", "keyboard"),
     ("slider.horizontal.3", "sliders"),
+    ("doc", "file"),
+    ("doc.text", "file-text"),
+    ("chevron.left.forwardslash.chevron.right", "file-code"),
+    ("curlybraces", "file-braces"),
+    ("photo", "file-image"),
+    ("lock", "file-lock"),
 ]
 
 let pointSize: CGFloat = 128
