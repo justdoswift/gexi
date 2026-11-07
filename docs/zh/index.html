@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>gexi — 一个窗口，多个智能体</title>
-<meta name="description" content="gexi 是原生 macOS 终端工作区：把项目与会话收在一个窗口里，终端任意嵌套分屏，CLI 可以从外部驱动每一个窗格。">
+<meta name="description" content="gexi 是原生 macOS 终端工作区：把项目与会话收在一个窗口里，终端任意嵌套分屏，工作树一路开到 PR，CLI 可以从外部驱动每一个窗格。">
 <link rel="canonical" href="https://justdoswift.github.io/gexi/zh/">
 <link rel="alternate" hreflang="en" href="https://justdoswift.github.io/gexi/">
 <link rel="alternate" hreflang="zh-Hans" href="https://justdoswift.github.io/gexi/zh/">
 <link rel="alternate" hreflang="x-default" href="https://justdoswift.github.io/gexi/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="gexi — 一个窗口，多个智能体">
-<meta property="og:description" content="原生 macOS 终端工作区。分屏、按项目分组的会话、agent 事件，以及一个能驱动整个窗口的 CLI。">
+<meta property="og:description" content="原生 macOS 终端工作区。分屏、按项目分组的会话、一路开到 PR 的工作树、agent 事件，以及一个能驱动整个窗口的 CLI。">
 <meta property="og:url" content="https://justdoswift.github.io/gexi/zh/">
 <meta property="og:image" content="https://justdoswift.github.io/gexi/assets/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -57,7 +57,7 @@
           <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">下载 macOS 版<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
           <a class="link-arrow" href="https://github.com/justdoswift/gexi">在 GitHub 上看源码<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
         </div>
-        <p class="hero-meta">免费，MIT 许可 · 0.0.15，早期版本 · Apple 芯片</p>
+        <p class="hero-meta">免费，MIT 许可 · 0.0.41，早期版本 · Apple 芯片</p>
       </div>
     </div>
 
@@ -179,7 +179,8 @@ no changes added to commit
         <ul class="feature-points">
           <li>把窗格标题拖到另一个窗格的边上，就朝那一侧分；拖到中间，两个窗格对调。</li>
           <li><span><kbd>⌘⇧↩</kbd> 让一个窗格铺满会话；被它挡住的窗格悬浮在右侧，带着透视倾斜和实时终端镜像。点一张卡片，它放大上台，原窗格缩回卡片；窗格多到放不下时互相叠放。再按一次，全部回来。</span></li>
-          <li>舒适卡片或无缝终端，浅色或深色，都在设置里选。</li>
+          <li>右侧的文件抽屉列出项目的改动和文件：改动页打开 diff，文件页浏览目录树并就地读文件。标题栏的分支按钮或 <kbd>⌘⇧E</kbd> 都能打开它，每个文件按类型带图标。</li>
+          <li>舒适卡片或无缝终端，浅色或深色。macOS 26 上窗口、侧栏和窗格共用一块液态玻璃，设置里可以关掉，换回平面样式。</li>
         </ul>
       </div>
       <div data-reveal style="--d:90ms">
@@ -231,10 +232,12 @@ no changes added to commit
       <div class="split-copy" data-reveal>
         <h2>是项目，不是标签页。</h2>
         <p class="lead">会话按所在文件夹分组，关掉窗口也会继续跑。点 Dock 图标就把工作区叫回来；<kbd>⌘Q</kbd> 才是真的退出。</p>
-        <p class="body">退出时布局会保存，下次启动在每个新 shell 之上重绘上次的屏幕。agent 窗格会在自己的目录里恢复最近的会话：Claude Code 用 <code>--resume</code>，Codex 用 <code>codex resume --last</code>，omp、Devin 和 Grok 用 <code>--continue</code>。</p>
+        <p class="body">退出时布局会保存，下次启动在每个新 shell 之上重绘上次的屏幕。agent 窗格会在自己的目录里恢复最近的会话：Claude Code 用 <code>--resume</code>，Codex 用 <code>codex resume --last</code>，omp、Devin 和 Grok 用 <code>--continue</code>，Droid 用 <code>--resume --last</code>，Perch 按目录恢复，直接跑 <code>perch</code> 就接上原来的对话。</p>
+        <p class="body">关掉有 agent 运行过的窗格会先问。<strong>后台运行</strong>把它移出台前但不停进程，之后可在设置 › 工作树里带着会话找回。</p>
         <ul class="feature-points">
           <li>标题说明正在跑什么；识别到 agent 时，会显示它自己的名字和标记。</li>
           <li>工作中的会话名字会呼吸，等待输入的带一个琥珀色圆点。都不吵。</li>
+          <li>界面支持英文和简体中文，可在 显示 › 语言 里切换，或跟随系统。</li>
         </ul>
       </div>
       <div data-reveal style="--d:90ms">
@@ -312,11 +315,12 @@ gexi send -e "ls -la"</code></div>
       <div class="split-copy" data-reveal>
         <h2>会自己汇报的 agent。</h2>
         <p class="lead">窗格屏幕只说明 agent 打印了什么，不说明它在做什么。gexi 启动 Claude Code 时，会在你自己的设置之上叠一份 hooks 文件，让窗格汇报自己的生命周期。</p>
-        <p class="body"><code>turn.end</code> 和 <code>needs-input</code> 会发通知；状态出现在 <code>gexi list --json</code> 的 <code>activity</code> 字段。任何进程都能用 <code>gexi event</code> 汇报同样的事件。</p>
-        <p class="body">子代理单独计数：<code>SubagentStart</code> / <code>SubagentStop</code> 维护运行中的集合，后台子代理活过回合结束后，侧栏会话名会继续流光并带上 <code>· 2</code>。</p>
+        <p class="body"><code>turn.end</code> 和 <code>needs-input</code> 会由 gexi 自己发横幅：标题是事件，副标题是 agent、项目与分支，正文是 agent 最近那句话的第一行；等你确认时写「需要你确认」。状态出现在 <code>gexi list --json</code> 的 <code>activity</code> 字段，任何进程也都能用 <code>gexi event</code> 汇报同样的事件。</p>
+        <p class="body">子代理单独计数：<code>SubagentStart</code> / <code>SubagentStop</code> 维护运行中的集合；后台子代理活过回合结束后，窗格标题栏的分支徽章旁会显示数量和琥珀色圆点，悬停能看到它是什么、还在后台跑。</p>
         <ul class="feature-points">
           <li>你原有的 hooks 照常触发：生成的文件只是叠在上面。</li>
           <li>只覆盖 gexi 启动的 agent，或 hooks 指向的进程。在普通 shell 里手敲的 <code>claude</code>，状态保持未设置。</li>
+          <li>Claude Code、Codex、omp、Devin、Grok、Droid 和 Perch 都按名字和标记识别；Perch 从脚本路径认出，不会把别的 node 程序当成 agent。</li>
         </ul>
       </div>
       <div data-reveal style="--d:90ms">
@@ -355,10 +359,13 @@ gexi send -e "ls -la"</code></div>
       <div class="split-copy" data-reveal>
         <h2>从一个分支，到合并的 PR。</h2>
         <p class="lead">在窗格标题栏按 <kbd>W</kbd>：这个窗格会搬进自己的 git worktree，从最新的 <code>origin</code> 基分支切出，放在应用数据目录里。标题栏一路带着分支、改动和随后的 pull request。</p>
-        <p class="body">Merge 用颜色给出 GitHub 的答案：绿色可以合并，琥珀色表示检查或评审还没完，红色表示有东西挡着。合并会把本地基分支快进，窗格留在 worktree 里；Archive 关掉窗格并删除检出。</p>
+        <p class="body"><strong>PR</strong> 会先提交未提交的改动，提交信息尽量由窗格里的 agent 以无头模式从 diff 写出；它答不上来时，弹出对话框请你填。然后用 <code>gh</code> 推分支、开 PR。</p>
+        <p class="body"><strong>Merge</strong> 用颜色给出 GitHub 的答案：绿色可以合并，琥珀色表示检查或评审还没完，红色表示有东西挡着。合并会把本地基分支快进，并当场归档工作树：关掉窗格、删除检出，项目目录回到眼前；主检出不脏时切到合并的目标分支。分支会保留，可在设置 › 工作树里恢复或彻底删除。</p>
+        <p class="body">合并被冲突挡住、窗格里又有 agent 时，gexi 让它解好文件，提交并推送，GitHub 看到后再合并。<kbd>W</kbd> 也不用先停掉 agent：gexi 会停掉它，把未提交的改动搬进新检出，再用同一种 agent 在那里开新会话；原对话不带走。</p>
         <ul class="feature-points">
           <li>分支先用一个 Dota 2 占位名；第一次提示会把它改成任务名。</li>
-          <li>开 PR 和合并需要已登录的 GitHub CLI。合并前会先问。</li>
+          <li>cd 进任意工作树的窗格也会被认出：标题栏直接给出那个分支的 PR，离开目录后恢复 <kbd>W</kbd>。</li>
+          <li>开 PR 和合并需要已登录的 GitHub CLI。</li>
         </ul>
       </div>
       <div data-reveal style="--d:90ms">
@@ -385,9 +392,14 @@ gexi send -e "ls -la"</code></div>
               <span class="pr-note">还在等评审</span>
             </div>
             <div class="pr-row">
-              <span class="pr-label">Archive</span>
-              <span class="pr-btn pr-btn--violet">已合并 · 归档</span>
-              <span class="pr-note">关掉窗格，删除检出</span>
+              <span class="pr-label">冲突</span>
+              <span class="pr-btn pr-btn--amber">让 claude 解决</span>
+              <span class="pr-note">agent 解好文件后再合并</span>
+            </div>
+            <div class="pr-row">
+              <span class="pr-label">已合并</span>
+              <span class="pr-btn pr-btn--violet">回到项目</span>
+              <span class="pr-note">关掉窗格，保留分支</span>
             </div>
           </div>
         </div>
@@ -424,7 +436,7 @@ gexi send -e "ls -la"</code></div>
       <div data-reveal>
         <img class="install-icon" src="../assets/gexi-icon-256.png" width="72" height="72" alt="gexi 应用图标">
         <h2>安装 gexi。</h2>
-        <p class="lead">早期软件，版本 0.0.15。免费，MIT 许可。每个副本都从签名发布自动更新；<em>gexi → 检查更新…</em> 也可以随时手动检查。</p>
+        <p class="lead">早期软件，版本 0.0.41。免费，MIT 许可。每个副本都从签名发布自动更新；<em>gexi → 检查更新…</em> 也可以随时手动检查。</p>
         <div class="install-actions">
           <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">下载 macOS 版<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
           <a class="link-arrow" href="https://github.com/justdoswift/gexi/releases">全部发布<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
@@ -465,11 +477,15 @@ go build -o gexi ./cmd/gexi</code></div>
           </details>
           <details class="qa" name="faq">
             <summary>支持哪些 agent？<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">任何命令行 agent 都能在窗格里跑。Claude Code 有随附的生命周期 hooks；任何进程也能用 <code>gexi event</code> 汇报。重启时，Claude Code、Codex、omp、Devin、Grok 和 Droid 会恢复最近的会话；其他 agent 回到 shell。</div>
+            <div class="answer">任何命令行 agent 都能在窗格里跑。Claude Code 有随附的生命周期 hooks；任何进程也能用 <code>gexi event</code> 汇报。Claude Code、Codex、omp、Devin、Grok、Droid 和 Perch 都按名字和标记识别。重启时各自在窗格目录里恢复最近的会话；Perch 按目录保存，直接跑 <code>perch</code> 就接上。其他 agent 回到 shell。</div>
           </details>
           <details class="qa" name="faq">
             <summary>关掉窗口，shell 会怎样？<span class="sign" aria-hidden="true"></span></summary>
             <div class="answer">继续跑。关窗口只是把窗口藏起来，点 Dock 图标就回来。<kbd>⌘Q</kbd> 才是真正退出，会结束进程。</div>
+          </details>
+          <details class="qa" name="faq">
+            <summary>关掉有 agent 的窗格会怎样？<span class="sign" aria-hidden="true"></span></summary>
+            <div class="answer">gexi 会先问。<strong>后台运行</strong>把窗格移出台前，不停 agent；之后可在设置 › 工作树里带着会话找回。<strong>关闭</strong>才会结束它。</div>
           </details>
           <details class="qa" name="faq">
             <summary>能在 Intel Mac 上跑吗？<span class="sign" aria-hidden="true"></span></summary>

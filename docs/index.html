@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>gexi — one window, many agents</title>
-<meta name="description" content="gexi is a native macOS terminal workspace: projects and sessions in one window, terminals in nested panes, and a CLI that can drive every one of them.">
+<meta name="description" content="gexi is a native macOS terminal workspace: projects and sessions in one window, terminals in nested panes, git worktrees with pull requests, and a CLI that can drive every one of them.">
 <link rel="canonical" href="https://justdoswift.github.io/gexi/">
 <link rel="alternate" hreflang="en" href="https://justdoswift.github.io/gexi/">
 <link rel="alternate" hreflang="zh-Hans" href="https://justdoswift.github.io/gexi/zh/">
 <link rel="alternate" hreflang="x-default" href="https://justdoswift.github.io/gexi/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="gexi — one window, many agents">
-<meta property="og:description" content="A native macOS terminal workspace. Split panes, grouped sessions, agent events, and a CLI that drives the whole window.">
+<meta property="og:description" content="A native macOS terminal workspace. Split panes, grouped sessions, git worktrees with pull requests, agent events, and a CLI that drives the whole window.">
 <meta property="og:url" content="https://justdoswift.github.io/gexi/">
 <meta property="og:image" content="https://justdoswift.github.io/gexi/assets/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -57,7 +57,7 @@
           <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">Download for macOS<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
           <a class="link-arrow" href="https://github.com/justdoswift/gexi">View source on GitHub<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
         </div>
-        <p class="hero-meta">Free and MIT licensed · 0.0.15, early · Apple silicon</p>
+        <p class="hero-meta">Free and MIT licensed · 0.0.41, early · Apple silicon</p>
       </div>
     </div>
 
@@ -179,7 +179,8 @@ no changes added to commit
         <ul class="feature-points">
           <li>Drag a pane’s title onto a side of another to split that way, or onto its middle to trade places.</li>
           <li><span><kbd>⌘⇧↩</kbd> fills the session with one pane; the panes it hides float over the right edge, leaning back and mirroring their terminals live. Clicking one grows it onto the stage and shrinks the old pane into a card; more panes than fit overlap. The same keys bring every pane back.</span></li>
-          <li>Comfortable cards or edge-to-edge terminals, light or dark, chosen in settings.</li>
+          <li>The files drawer on the right lists the project’s changes and files: the changes tab opens a diff, the files tab walks the tree and reads a file in place. The branch pill or <kbd>⌘⇧E</kbd> opens it, and each file carries a mark for its type.</li>
+          <li>Comfortable cards or edge-to-edge terminals, light or dark. On macOS 26 the window, sidebar and panes share one Liquid Glass; a switch in settings returns the flat look.</li>
         </ul>
       </div>
       <div data-reveal style="--d:90ms">
@@ -231,10 +232,12 @@ no changes added to commit
       <div class="split-copy" data-reveal>
         <h2>Projects, not tabs.</h2>
         <p class="lead">Sessions are grouped by the folder they run in, and keep running when you close the window. The Dock icon brings the workspace back; <kbd>⌘Q</kbd> is the real quit.</p>
-        <p class="body">On quit the layout is saved, and each pane’s last screen is painted above a fresh shell on launch. Agent panes resume their newest session in the pane’s directory: Claude Code with <code>--resume</code>, Codex with <code>codex resume --last</code>, and omp, Devin and Grok with <code>--continue</code>.</p>
+        <p class="body">On quit the layout is saved, and each pane’s last screen is painted above a fresh shell on launch. Agent panes resume their newest session in the pane’s directory: Claude Code with <code>--resume</code>, Codex with <code>codex resume --last</code>, omp, Devin and Grok with <code>--continue</code>, Droid with <code>--resume --last</code>, and Perch with a plain <code>perch</code>, which keeps one conversation per directory.</p>
+        <p class="body">Closing a pane where an agent has run asks first. <strong>Keep Running</strong> takes it off the stage without ending it, and Settings › Worktrees brings it back with its session intact.</p>
         <ul class="feature-points">
           <li>A pane’s title says what is running; a detected agent brings its own name and mark.</li>
           <li>Working sessions breathe, waiting ones carry an amber dot. Nothing shouts.</li>
+          <li>The interface speaks English and Simplified Chinese, from View › Language or the system’s.</li>
         </ul>
       </div>
       <div data-reveal style="--d:90ms">
@@ -312,11 +315,12 @@ gexi send -e "ls -la"</code></div>
       <div class="split-copy" data-reveal>
         <h2>An agent that reports for itself.</h2>
         <p class="lead">A pane’s screen says what an agent printed, not what it is doing. When gexi launches Claude Code it layers a settings file of hooks on top of yours, so the pane reports its own lifecycle.</p>
-        <p class="body"><code>turn.end</code> and <code>needs-input</code> post a notification; the state appears under <code>activity</code> in <code>gexi list --json</code>. Any process can report the same events with <code>gexi event</code>.</p>
-        <p class="body">Subagents are counted, not folded into the turn: <code>SubagentStart</code> / <code>SubagentStop</code> keep a live set, so a background agent that outlives its turn keeps the sidebar shimmering and its name showing <code>· 2</code>.</p>
+        <p class="body"><code>turn.end</code> and <code>needs-input</code> post a banner from gexi itself: the title is the event, the subtitle the agent, project and branch, and the body the first line the agent said. When it waits for you, the banner reads “Needs your approval.” The state appears under <code>activity</code> in <code>gexi list --json</code>, and any process can report the same events with <code>gexi event</code>.</p>
+        <p class="body">Subagents are counted, not folded into the turn: <code>SubagentStart</code> / <code>SubagentStop</code> keep a live set, so a background agent that outlives its turn shows as a count and an amber dot beside the branch badge in the pane’s header; hovering names the agent and says it is still running.</p>
         <ul class="feature-points">
           <li>Existing hooks keep firing: the generated file is layered on top of your own.</li>
           <li>Events cover agents gexi launched, or that a hook points at. A <code>claude</code> typed into a plain shell stays unset.</li>
+          <li>Claude Code, Codex, omp, Devin, Grok, Droid and Perch are recognised by name and mark; Perch is found by its script path, not mistaken for a plain node program.</li>
         </ul>
       </div>
       <div data-reveal style="--d:90ms">
@@ -355,11 +359,13 @@ gexi send -e "ls -la"</code></div>
       <div class="split-copy" data-reveal>
         <h2>From a branch to a merged PR.</h2>
         <p class="lead">Press <kbd>W</kbd> in a pane’s header and the pane moves into its own git worktree, branched from the latest <code>origin</code> base. The header carries the branch, its diff, and the pull request that follows.</p>
-        <p class="body">Merge carries GitHub’s answer as its colour: green when it would merge, amber while checks or reviews are pending, red when something blocks it. Merging fast-forwards your base and leaves the pane in the worktree; Archive closes it and removes the checkout.</p>
-        <p class="body">With an agent running, <kbd>W</kbd> stops it, moves the pane’s uncommitted changes into the new checkout, and opens a fresh session of the same agent there. Claude Code’s first prompt is told where the changes came from; the conversation itself starts over.</p>
+        <p class="body"><strong>PR</strong> commits any pending changes first, with a message the pane’s agent writes from the diff in its headless mode; when the agent cannot answer, a dialog asks for it. Then it pushes the branch and opens the pull request with <code>gh</code>.</p>
+        <p class="body"><strong>Merge</strong> carries GitHub’s answer as its colour: green when it would merge, amber while checks or reviews are pending, red when something blocks it. Merging fast-forwards your base and archives the worktree on the spot: the pane closes, the checkout goes, and the project folder comes back in front of you, on the merged branch when that checkout has no changes of its own. The branch is kept, so Settings › Worktrees can restore it or delete it.</p>
+        <p class="body">When a conflict blocks the merge and an agent is running, gexi hands it the files, commits and pushes the result, and merges once GitHub sees it. <kbd>W</kbd> does not need a running agent stopped first either: gexi stops it, moves the pane’s uncommitted changes into the new checkout, and opens a fresh session of the same agent there; the conversation itself starts over.</p>
         <ul class="feature-points">
           <li>Branches start with a Dota 2 placeholder name; the first prompt renames them to the task.</li>
-          <li>Opening and merging pull requests uses the GitHub CLI, authenticated. Merge asks first.</li>
+          <li>A pane that cd’s into any worktree is recognised too: its header offers that branch’s PR, and leaving the folder returns <kbd>W</kbd>.</li>
+          <li>Opening and merging pull requests uses the GitHub CLI, authenticated.</li>
         </ul>
       </div>
       <div data-reveal style="--d:90ms">
@@ -386,9 +392,14 @@ gexi send -e "ls -la"</code></div>
               <span class="pr-note">review requested</span>
             </div>
             <div class="pr-row">
-              <span class="pr-label">Archive</span>
-              <span class="pr-btn pr-btn--violet">Merged · archive</span>
-              <span class="pr-note">closes the pane, removes the checkout</span>
+              <span class="pr-label">Conflicts</span>
+              <span class="pr-btn pr-btn--amber">Ask claude</span>
+              <span class="pr-note">the agent settles the files, then merges</span>
+            </div>
+            <div class="pr-row">
+              <span class="pr-label">Merged</span>
+              <span class="pr-btn pr-btn--violet">Back to the project</span>
+              <span class="pr-note">the pane closes, the branch is kept</span>
             </div>
           </div>
         </div>
@@ -425,7 +436,7 @@ gexi send -e "ls -la"</code></div>
       <div data-reveal>
         <img class="install-icon" src="assets/gexi-icon-256.png" width="72" height="72" alt="gexi app icon">
         <h2>Install gexi.</h2>
-        <p class="lead">Early software, version 0.0.15. Free and MIT licensed. Every copy updates itself from signed releases; <em>gexi → Check for Updates…</em> checks on demand.</p>
+        <p class="lead">Early software, version 0.0.41. Free and MIT licensed. Every copy updates itself from signed releases; <em>gexi → Check for Updates…</em> checks on demand.</p>
         <div class="install-actions">
           <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">Download for macOS<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
           <a class="link-arrow" href="https://github.com/justdoswift/gexi/releases">All releases<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
@@ -466,11 +477,15 @@ go build -o gexi ./cmd/gexi</code></div>
           </details>
           <details class="qa" name="faq">
             <summary>Which agents does it work with?<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">Any CLI agent runs in a pane. Lifecycle hooks ship for Claude Code, and any process can report with <code>gexi event</code>. On restart, Claude Code, Codex, omp, Devin, Grok and Droid resume their newest session; other agents fall back to a shell.</div>
+            <div class="answer">Any CLI agent runs in a pane. Lifecycle hooks ship for Claude Code, and any process can report with <code>gexi event</code>. Claude Code, Codex, omp, Devin, Grok, Droid and Perch are recognised by name and mark. On restart each resumes its newest session in the pane’s directory; Perch keeps one conversation per directory, so a plain <code>perch</code> reopens it. Other agents fall back to a shell.</div>
           </details>
           <details class="qa" name="faq">
             <summary>What happens to my shells when I close the window?<span class="sign" aria-hidden="true"></span></summary>
             <div class="answer">They keep running. Closing the window hides it, and the Dock icon brings everything back. <kbd>⌘Q</kbd> is the real quit, and it kills the processes.</div>
+          </details>
+          <details class="qa" name="faq">
+            <summary>What if I close a pane with an agent in it?<span class="sign" aria-hidden="true"></span></summary>
+            <div class="answer">gexi asks first. <strong>Keep Running</strong> takes the pane off the stage without ending the agent, and <strong>Settings › Worktrees</strong> brings it back with its session intact; <strong>Close</strong> ends it.</div>
           </details>
           <details class="qa" name="faq">
             <summary>Can I run it on an Intel Mac?<span class="sign" aria-hidden="true"></span></summary>
