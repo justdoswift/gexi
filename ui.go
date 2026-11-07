@@ -67,12 +67,14 @@ func (w *workspace) view(c *ui.Context) {
 		canvas := ui.Column(c).Fill().Padding(inset, inset, inset, 0)
 		// Comfortable panes are cards on the glass. Compact panes are the
 		// canvas itself and their terminals draw no background of their own,
-		// so the canvas carries the glass there, tinted like a card so both
-		// styles sit on the same surface.
+		// so the canvas carries the card's tint there, and both styles sit on
+		// the same surface. Over the window's glass the tint is what the
+		// desktop reads through; the glass itself stays one layer, the
+		// window's.
 		if !liquid(c) {
 			canvas = canvas.Background(w.backdrop(tk))
 		} else if w.settings.PaneStyle != paneComfortable {
-			canvas = glassNative(canvas, tk.Background.Alpha(0.72))
+			canvas = canvas.Background(cardTint(tk))
 		}
 		canvas.Children(func() {
 			w.canvas(c, tk)
@@ -182,13 +184,13 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 	outer.Children(func() {
 		col := ui.Column(c).Fill()
 		// An empty session is a pane card like the ones that hold terminals:
-		// over the window's material it is glass too, its rim the edge, with
-		// no border painted over the glass.
+		// over the window's glass it takes the card's tint and hairline, so
+		// the desktop colours it the same way it colours a live pane.
 		glassCard := liquid(c) && w.settings.PaneStyle == paneComfortable
 		if w.settings.PaneStyle == paneComfortable {
 			col = col.Radius(windowRadius).Clip()
 			if glassCard {
-				col = glassNative(col, tk.Background.Alpha(0.72))
+				col = col.Border(1, rimTint(tk)).Background(cardTint(tk))
 			} else {
 				col = col.Border(1, tk.Border).Background(tk.Background)
 			}
@@ -269,7 +271,7 @@ func (w *workspace) projectSearch(c *ui.Context, tk tokens) {
 	field := ui.Row(c).Height(searchHeight).FillWidth().AlignItems(ui.Center).Gap(6).
 		PaddingStart(9).PaddingEnd(8).Radius(chromeRadius).
 		Border(1, ui.RGBA(0, 0, 0, 0)).Cursor(ui.CursorText)
-	field = glassControl(c, field, tk, 0.45, tk.Active)
+	field = controlWash(c, field, tk, 0.06, tk.Active)
 	var in ui.Element
 	field.OnClick(func() { in.Focus() }).Children(func() {
 		if src := iconSource("search", colorHex(tk.MutedForeground)); src != nil {
@@ -404,7 +406,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 		color = tk.Foreground
 	}
 	if hovered {
-		row = glassControl(c, row, tk, 0.35, tk.Active)
+		row = controlWash(c, row, tk, 0.045, tk.Active)
 	}
 	toggle := func() { w.toggleProject(pr) }
 	row.OnClick(toggle).Children(func() {
@@ -453,9 +455,9 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	}
 	switch {
 	case sel:
-		row = glassControl(c, row, tk, 0.6, tk.Active)
+		row = controlWash(c, row, tk, 0.09, tk.Active)
 	case hovered:
-		row = glassControl(c, row, tk, 0.35, tk.Active)
+		row = controlWash(c, row, tk, 0.045, tk.Active)
 	}
 	pick := func() { w.selectSession(s.ID) }
 	activity := sessionActivityState(s)
@@ -725,10 +727,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		if card {
 			col = col.Radius(windowRadius).Clip()
 			if liquid(c) {
-				// The card is glass rather than a bordered white panel: its
-				// lit rim is the edge, and the terminal, which leaves its own
-				// background undrawn, reads on the tinted surface.
-				col = glassNative(col, tk.Background.Alpha(0.72))
+				// The card is a wash on the window's glass, not another glass
+				// view: a second frosted layer would sample the frozen desktop
+				// and settle into a flat grey. The tint seats the terminal and
+				// the hairline is the rim the glass itself would have lit.
+				col = col.Border(1, rimTint(tk)).Background(cardTint(tk))
 			} else {
 				col = col.Border(1, tk.Border).Background(tk.Background)
 			}
