@@ -131,11 +131,16 @@ func (w *workspace) openSettings() {
 		return
 	}
 	w.settingsWin = mygo.NewWindow(mygo.WindowOptions{
-		Title:           "Settings",
-		Width:           720,
-		Height:          540,
-		MinWidth:        620,
-		MinHeight:       420,
+		Title:     "Settings",
+		Width:     720,
+		Height:    540,
+		MinWidth:  620,
+		MinHeight: 420,
+		// The window carries the same glass as the main one, so the
+		// settings pages sit on the app's material instead of a plain fill.
+		Transparent:     true,
+		Vibrancy:        mygo.VibrancyGlass,
+		VibrancyTint:    "light-dark(rgba(245, 245, 245, 0.8), rgba(14, 14, 16, 0.8))",
 		TitleBarStyle:   mygo.TitleBarHidden,
 		BackgroundColor: "light-dark(#ffffff, #0e0e10)",
 		Content:         ui.View(w.settingsView),
@@ -146,7 +151,13 @@ func (w *workspace) openSettings() {
 
 func (w *workspace) settingsView(c *ui.Context) {
 	tk := themeTokens(c.Theme())
-	ui.Row(c).Fill().Background(tk.Background).Children(func() {
+	// Over the window's material the settings page is bare too, so the
+	// glass is the surface its cards and rows sit on.
+	// The page takes the same background as a compact pane — the theme's own
+	// colour — not a tint of the window's glass, which would lift it into a
+	// grey that matches neither style.
+	root := ui.Row(c).Fill().Background(tk.Background)
+	root.Children(func() {
 		w.settingsSidebar(c, tk)
 		ui.Column(c).Fill().Children(func() {
 			// The band above the form drags the window, so the whole top of
@@ -166,8 +177,9 @@ func (w *workspace) settingsView(c *ui.Context) {
 // settingsSidebar is the window's left rail: the pages above, the config
 // file's door below.
 func (w *workspace) settingsSidebar(c *ui.Context, tk tokens) {
-	ui.Column(c).Width(196).FillHeight().Background(tk.Muted).
-		Padding(0, 10, 10, 10).Children(func() {
+	side := ui.Column(c).Width(196).FillHeight().Background(tk.Muted).
+		Padding(0, 10, 10, 10)
+	side.Children(func() {
 		ui.Row(c).Height(headerHeight).DragWindow()
 		ui.Column(c).FillWidth().Gap(1).Children(func() {
 			for i := range settingsTabs {
