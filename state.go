@@ -39,9 +39,9 @@ type workspaceState struct {
 }
 
 type savedProject struct {
-	ID    string         `json:"id"`
-	Dir   string         `json:"dir"`
-	Label string         `json:"label,omitempty"`
+	ID    string `json:"id"`
+	Dir   string `json:"dir"`
+	Label string `json:"label,omitempty"`
 	// RemoteHost is set by layouts saved while gexi had remote hosts.
 	// Restore drops those projects; the field stays so old layouts load.
 	RemoteHost string         `json:"remoteHost,omitempty"`
@@ -52,6 +52,9 @@ type savedProject struct {
 type savedSession struct {
 	ID   string    `json:"id"`
 	Root savedNode `json:"root"`
+	// ZoomedPane is the pane the session was left filling it, so the stage
+	// comes back after a launch the way it was left.
+	ZoomedPane string `json:"zoomedPane,omitempty"`
 }
 
 type savedTab struct {
@@ -166,8 +169,9 @@ func (w *workspace) savedState() workspaceState {
 				continue
 			}
 			saved.Sessions = append(saved.Sessions, savedSession{
-				ID:   s.ID,
-				Root: s.Root.saved(),
+				ID:         s.ID,
+				Root:       s.Root.saved(),
+				ZoomedPane: s.zoomedPane,
 			})
 		}
 		if len(saved.Sessions) == 0 {
@@ -293,7 +297,13 @@ func (w *workspace) restoreOrCreate() {
 			if err != nil {
 				continue
 			}
-			pr.Sessions = append(pr.Sessions, &session{ID: ss.ID, Root: root})
+			s := &session{ID: ss.ID, Root: root}
+			// A zoom that names a pane the layout no longer has would leave
+			// the session blank, so it is dropped.
+			if root.paneByID(ss.ZoomedPane) != nil {
+				s.zoomedPane = ss.ZoomedPane
+			}
+			pr.Sessions = append(pr.Sessions, s)
 		}
 		if len(pr.Sessions) == 0 {
 			continue
@@ -337,12 +347,17 @@ func (w *workspace) restoreOrCreate() {
 	w.FocusedPane = state.FocusedPane
 	if w.paneByID(w.FocusedPane) == nil {
 		if s := w.selected(); s != nil && s.Root != nil {
-			if ps := s.Root.panes(); len(ps) > 0 {
+			if p := w.zoomedIn(s); p != nil {
+				w.FocusedPane = p.ID
+			} else if ps := s.Root.panes(); len(ps) > 0 {
 				w.FocusedPane = ps[0].ID
 			}
 		}
 	}
 	w.focusReq = w.FocusedPane
+	// A session restored zoomed needs its rail's previews started before the
+	// first frame draws them.
+	w.syncStageMirrors()
 	// The drawer comes back as it was left, without sliding in.
 	w.drawer.listWidth = state.DrawerListWidth
 	w.drawer.fileWidth = state.DrawerFileWidth

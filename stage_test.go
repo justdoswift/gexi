@@ -106,14 +106,14 @@ func TestStageRailPanesFollowTheSplit(t *testing.T) {
 		t.Fatalf("unzoomed rail: %v", paneIDs(got))
 	}
 
-	w.zoomedPane = "b"
+	s.zoomedPane = "b"
 	got := w.stageRailPanes(s)
 	if len(got) != 2 || got[0].ID != "a" || got[1].ID != "c" {
 		t.Fatalf("rail panes: %v", paneIDs(got))
 	}
 
 	one := &session{ID: "one", Root: leaf(a)}
-	w.zoomedPane = "a"
+	one.zoomedPane = "a"
 	if got := w.stageRailPanes(one); got != nil {
 		t.Fatalf("a lone pane has a rail: %v", paneIDs(got))
 	}
@@ -126,15 +126,15 @@ func TestStagePaneSwapsTheStage(t *testing.T) {
 	s := &session{ID: "s", Root: &splitNode{
 		axis: axisHorizontal, ratio: 50, first: leaf(a), second: leaf(b),
 	}}
+	s.zoomedPane = "a"
 	w := &workspace{
 		Projects:    []*project{{Sessions: []*session{s}}},
-		zoomedPane:  "a",
 		FocusedPane: "a",
 	}
 
 	w.stagePane(b)
-	if w.zoomedPane != "b" || w.FocusedPane != "b" || w.focusReq != "b" {
-		t.Fatalf("staged %q, focus %q/%q", w.zoomedPane, w.FocusedPane, w.focusReq)
+	if s.zoomedPane != "b" || w.FocusedPane != "b" || w.focusReq != "b" {
+		t.Fatalf("staged %q, focus %q/%q", s.zoomedPane, w.FocusedPane, w.focusReq)
 	}
 	got := w.stageRailPanes(s)
 	if len(got) != 1 || got[0].ID != "a" {
@@ -149,7 +149,8 @@ func TestStageRailHidesUnderTheDrawer(t *testing.T) {
 	s := &session{ID: "s", Root: &splitNode{
 		axis: axisHorizontal, ratio: 50, first: leaf(a), second: leaf(b),
 	}}
-	w := &workspace{zoomedPane: "a"}
+	s.zoomedPane = "a"
+	w := &workspace{}
 	if !w.stageRailVisible(s) {
 		t.Fatal("the rail is hidden while idle")
 	}

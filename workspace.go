@@ -31,6 +31,11 @@ type project struct {
 type session struct {
 	ID   string
 	Root *splitNode
+	// zoomedPane fills the session on its own while set, so the other panes
+	// keep their places without being drawn. It belongs to the session, not
+	// the workspace: switching to another session in the sidebar and back
+	// shows the pane this one was left zoomed to.
+	zoomedPane string
 }
 
 func (s *session) title() string {
@@ -87,10 +92,9 @@ type workspace struct {
 	SelectedSession string
 	FocusedPane     string
 	focusReq        string
-	// zoomedPane fills the session on its own while set, so the other panes
-	// keep their places without being drawn. zoomSettling asks the next frame
-	// to fade and grow the layout in after a zoom changes.
-	zoomedPane   string
+	// zoomSettling asks the next frame to fade and grow the layout in after a
+	// zoom changes. The zoom itself lives on the session, so each one keeps
+	// the pane it was left zoomed to.
 	zoomSettling bool
 	// stageRailShown tells that the off-stage panes' rail has drawn once since
 	// the zoom began, so its cards slide in only on entry.
@@ -331,7 +335,6 @@ func (w *workspace) newSession(pr *project, command []string, dir string) (*sess
 	s := &session{ID: newID(), Root: leaf(p)}
 	pr.Sessions = append(pr.Sessions, s)
 	w.SelectedSession = s.ID
-	w.zoomedPane = ""
 	w.syncStageMirrors()
 	delete(w.collapsed, pr.ID)
 	w.FocusedPane = p.ID
@@ -381,7 +384,7 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 	host.Root = host.Root.splitting(p.ID, ax, np)
 	// A split made while zoomed has to be visible, so the session comes
 	// back to showing all its panes.
-	w.zoomedPane = ""
+	host.zoomedPane = ""
 	w.syncStageMirrors()
 	w.FocusedPane = np.ID
 	w.focusReq = np.ID
@@ -537,8 +540,8 @@ func (w *workspace) detachPane(p *pane) {
 	}
 	p.bgProject = w.projectOf(w.sessionOf(p))
 	w.stopStageMirror(p)
-	if w.zoomedPane == p.ID {
-		w.zoomedPane = ""
+	if s := w.sessionOf(p); s != nil && s.zoomedPane == p.ID {
+		s.zoomedPane = ""
 		w.syncStageMirrors()
 	}
 	w.removePaneFromLayout(p)
@@ -574,7 +577,6 @@ func (w *workspace) reattachPane(p *pane) {
 	pr.Sessions = append(pr.Sessions, s)
 	delete(w.collapsed, pr.ID)
 	w.SelectedSession = s.ID
-	w.zoomedPane = ""
 	w.syncStageMirrors()
 	w.FocusedPane = p.ID
 	w.focusReq = p.ID
@@ -659,8 +661,8 @@ func (w *workspace) fixFocusAfterRemoval(p *pane) {
 // closePane hangs up the pane's program and collapses its slot. Main thread.
 func (w *workspace) closePane(p *pane) {
 	p.close()
-	if w.zoomedPane == p.ID {
-		w.zoomedPane = ""
+	if s := w.sessionOf(p); s != nil && s.zoomedPane == p.ID {
+		s.zoomedPane = ""
 		w.syncStageMirrors()
 	}
 	w.removePaneFromLayout(p)
@@ -748,7 +750,9 @@ func (w *workspace) selectSession(id string) {
 		return
 	}
 	w.SelectedSession = s.ID
-	w.zoomedPane = ""
+	// The session keeps the pane it was zoomed to: switching away in the
+	// sidebar and back shows the same stage, its rail included.
+	w.stageRailShown = false
 	w.syncStageMirrors()
 	if s.Root != nil {
 		for _, p := range s.Root.panes() {
@@ -760,7 +764,10 @@ func (w *workspace) selectSession(id string) {
 	if pr := w.projectOf(s); pr != nil {
 		delete(w.collapsed, pr.ID)
 	}
-	if s.Root != nil {
+	if p := w.zoomedIn(s); p != nil {
+		w.FocusedPane = p.ID
+		w.focusReq = p.ID
+	} else if s.Root != nil {
 		if ps := s.Root.panes(); len(ps) > 0 {
 			w.FocusedPane = ps[0].ID
 			w.focusReq = ps[0].ID
@@ -798,10 +805,14 @@ func (w *workspace) toggleZoom(p *pane) {
 	if p == nil {
 		return
 	}
-	if w.zoomedPane == p.ID {
-		w.zoomedPane = ""
+	s := w.sessionOf(p)
+	if s == nil {
+		return
+	}
+	if s.zoomedPane == p.ID {
+		s.zoomedPane = ""
 	} else {
-		w.zoomedPane = p.ID
+		s.zoomedPane = p.ID
 		w.FocusedPane = p.ID
 		w.focusReq = p.ID
 		w.stageRailShown = false
@@ -809,17 +820,24 @@ func (w *workspace) toggleZoom(p *pane) {
 	w.syncStageMirrors()
 	w.zoomSettling = true
 	w.invalidate()
+	w.scheduleSave()
+}
+
+// isZoomed reports whether p is the pane its session fills with.
+func (w *workspace) isZoomed(p *pane) bool {
+	s := w.sessionOf(p)
+	return s != nil && s.zoomedPane == p.ID
 }
 
 // zoomedIn returns the pane the session is zoomed to. A pane that is gone
 // leaves the session unzoomed rather than blank.
 func (w *workspace) zoomedIn(s *session) *pane {
-	if w.zoomedPane == "" || s == nil || s.Root == nil {
+	if s == nil || s.zoomedPane == "" || s.Root == nil {
 		return nil
 	}
-	p := s.Root.paneByID(w.zoomedPane)
+	p := s.Root.paneByID(s.zoomedPane)
 	if p == nil {
-		w.zoomedPane = ""
+		s.zoomedPane = ""
 	}
 	return p
 }
@@ -952,7 +970,9 @@ func (w *workspace) cyclePane(delta int) {
 	}
 	// Moving between panes brings the whole layout back, so the pane the
 	// focus lands on is visible.
-	w.zoomedPane = ""
+	if s := w.selected(); s != nil {
+		s.zoomedPane = ""
+	}
 	w.syncStageMirrors()
 	index := 0
 	for i, p := range panes {
@@ -1013,12 +1033,59 @@ func shellCommand(raw string) []string {
 	return []string{loginShell(), "-lc", raw}
 }
 
-func supportDir() string {
-	if v := os.Getenv("GEXI_HOME"); v != "" {
-		return v
-	}
+// installedSupportDir is the installed app's folder, whichever build is
+// asking.
+func installedSupportDir() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, "Library", "Application Support", "Gexi")
+}
+
+// testBuild reports whether this binary is not the installed app: a
+// `mygo dev` build, or one made in a worktree gexi manages. Its folder goes
+// away when the worktree is archived, so its state, socket and agent hooks
+// must stay away from the installed app's.
+func testBuild() bool {
+	if os.Getenv("MYGO_DEV") != "" {
+		return true
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	exe = filepath.Clean(exe)
+	root := filepath.Clean(installedSupportDir()) + string(os.PathSeparator)
+	if strings.HasPrefix(exe, root) {
+		return true
+	}
+	// A build run where mygo put it — build/darwin-arm64/gexi.app, or the
+	// .mygo/dev folder — is a test build too, wherever its repo lives.
+	for _, part := range strings.Split(exe, string(os.PathSeparator)) {
+		if part == "build" || part == ".mygo" {
+			return true
+		}
+	}
+	return false
+}
+
+// inheritedHome reports whether home came from the pane this build was
+// started in: the pane's GEXI_SOCKET names that app's folder too. Such a
+// GEXI_HOME belongs to the app that owns the pane, not to this build.
+func inheritedHome(home string) bool {
+	sock := os.Getenv("GEXI_SOCKET")
+	return sock != "" && filepath.Dir(sock) == filepath.Clean(home)
+}
+
+func supportDir() string {
+	// An explicit GEXI_HOME outside gexi is taken at its word; one inherited
+	// from a pane is the other app's.
+	if v := os.Getenv("GEXI_HOME"); v != "" && !inheritedHome(v) {
+		return v
+	}
+	if testBuild() {
+		home, _ := os.UserHomeDir()
+		return filepath.Join(home, "Library", "Application Support", "Gexi Dev")
+	}
+	return installedSupportDir()
 }
 
 func socketPath() string {

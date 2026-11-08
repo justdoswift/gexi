@@ -450,6 +450,14 @@ func startControl(w *workspace) func() {
 		return func() {}
 	}
 	path := socketPath()
+	// A socket that answers belongs to a live instance. Leave it alone
+	// rather than take the control channel away from the app that owns it;
+	// a socket nobody answers on is stale and is replaced.
+	if conn, err := net.DialTimeout("unix", path, 200*time.Millisecond); err == nil {
+		_ = conn.Close()
+		log.Printf("control: %s belongs to another instance", path)
+		return func() {}
+	}
 	_ = os.Remove(path)
 	ln, err := net.Listen("unix", path)
 	if err != nil {

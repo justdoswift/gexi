@@ -875,9 +875,9 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 							iconButtonOnCard(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, "") },
 								locales.MenuSplitDown()+" (⌘⇧D)")
 							// A pane with nowhere to go has nothing to zoom to.
-							if len(w.visiblePanes()) > 1 || w.zoomedPane == p.ID {
+							if len(w.visiblePanes()) > 1 || w.isZoomed(p) {
 								name, hint := "expand", locales.PaneZoom()+" ("+zoomShortcut+")"
-								if w.zoomedPane == p.ID {
+								if w.isZoomed(p) {
 									name, hint = "collapse", locales.PaneUnzoom()+" ("+zoomShortcut+")"
 								}
 								iconButtonOnCard(c, tk, name, func() { w.toggleZoom(p) }, hint)
