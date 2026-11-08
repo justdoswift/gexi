@@ -98,10 +98,10 @@ func (c *mirrorConn) Close() error {
 // except the one on stage, in the split tree's order, so a card keeps its
 // place as the stage moves.
 func (w *workspace) stageRailPanes(s *session) []*pane {
-	if s == nil || s.Root == nil || w.zoomedPane == "" {
+	if s == nil || s.Root == nil || s.zoomedPane == "" {
 		return nil
 	}
-	stage := s.Root.paneByID(w.zoomedPane)
+	stage := s.Root.paneByID(s.zoomedPane)
 	if stage == nil {
 		return nil
 	}
@@ -132,22 +132,25 @@ func (w *workspace) stageRailVisible(s *session) bool {
 // stagePane brings p to the stage: it fills the session, takes the focus, and
 // the pane it replaces joins the rail.
 func (w *workspace) stagePane(p *pane) {
-	if p == nil || p.ID == w.zoomedPane {
+	if p == nil {
 		return
 	}
-	if s := w.sessionOf(p); s != nil && s.Root != nil {
-		if cur := s.Root.paneByID(w.zoomedPane); cur != nil && cur != p {
-			// The pane that leaves the stage shrinks into the rail.
-			cur.stageCardShown = false
-			cur.stageCardShrink = true
-		}
+	s := w.sessionOf(p)
+	if s == nil || s.Root == nil || s.zoomedPane == p.ID {
+		return
 	}
-	w.zoomedPane = p.ID
+	if cur := s.Root.paneByID(s.zoomedPane); cur != nil && cur != p {
+		// The pane that leaves the stage shrinks into the rail.
+		cur.stageCardShown = false
+		cur.stageCardShrink = true
+	}
+	s.zoomedPane = p.ID
 	w.FocusedPane = p.ID
 	w.focusReq = p.ID
 	p.stageEnter = true
 	w.syncStageMirrors()
 	w.invalidate()
+	w.scheduleSave()
 }
 
 // syncStageMirrors starts a live preview for every pane in the rail and

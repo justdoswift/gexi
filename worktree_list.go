@@ -312,7 +312,9 @@ func (w *workspace) revealPane(p *pane) {
 	if p == nil || w.paneByID(p.ID) != p {
 		return
 	}
-	w.zoomedPane = ""
+	if s := w.sessionOf(p); s != nil {
+		s.zoomedPane = ""
+	}
 	w.syncStageMirrors()
 	w.focusPane(p)
 	w.dismissSettings()
