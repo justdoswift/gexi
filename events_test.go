@@ -134,6 +134,51 @@ func TestSubagentEventsReachThePane(t *testing.T) {
 	}
 }
 
+// TestTurnEndStartsTheCompletionSweep covers when the light belongs to a
+// finished task: a turn that left a background child running waits for that
+// child's stop, new work puts the light away, and a plain turn end starts it.
+func TestTurnEndStartsTheCompletionSweep(t *testing.T) {
+	p := &pane{ID: "ab12"}
+	s := &session{ID: "s1", Root: leaf(p)}
+	w := &workspace{Projects: []*project{{Sessions: []*session{s}}}}
+
+	if _, err := w.handleEvent(agentEvent{Kind: eventSubagentStart, Pane: "ab12", Subagent: "a1"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.handleEvent(agentEvent{Kind: "turn.end", Pane: "ab12", Agent: "claude"}); err != nil {
+		t.Fatal(err)
+	}
+	if !p.haloStart.IsZero() {
+		t.Fatal("a turn ending with a running subagent lit the pane")
+	}
+	if _, err := w.handleEvent(agentEvent{Kind: eventSubagentEnd, Pane: "ab12", Subagent: "a1"}); err != nil {
+		t.Fatal(err)
+	}
+	if p.haloStart.IsZero() {
+		t.Fatal("the last subagent's stop did not light the pane")
+	}
+
+	if _, err := w.handleEvent(agentEvent{Kind: "turn.start", Pane: "ab12", Agent: "claude"}); err != nil {
+		t.Fatal(err)
+	}
+	if !p.haloStart.IsZero() {
+		t.Fatal("new work left the last completion's light running")
+	}
+	if _, err := w.handleEvent(agentEvent{Kind: "turn.end", Pane: "ab12", Agent: "claude"}); err != nil {
+		t.Fatal(err)
+	}
+	if p.haloStart.IsZero() {
+		t.Fatal("a finished turn did not light the pane")
+	}
+	// Waiting for the user is not a finished task.
+	if _, err := w.handleEvent(agentEvent{Kind: "needs-input", Pane: "ab12", Agent: "claude"}); err != nil {
+		t.Fatal(err)
+	}
+	if !p.haloStart.IsZero() {
+		t.Fatal("a prompt waiting for input kept the completion light")
+	}
+}
+
 func TestClaudeLaunchInjectsHooks(t *testing.T) {
 	t.Setenv("GEXI_HOME", t.TempDir())
 	t.Setenv("GEXI_BIN", "/opt/test/bin/gexi")

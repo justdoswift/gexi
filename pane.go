@@ -227,6 +227,9 @@ type pane struct {
 	closing             bool
 	closingAt           time.Time
 	exited              bool
+	// haloStart is when the completion sweep over the terminal began; zero
+	// when none runs.
+	haloStart time.Time
 	// headerActionsW is the width the pane's action buttons took in the
 	// frame before, so a header can set its path and branch pill beside the
 	// room they leave rather than by fixed thresholds.

@@ -1054,6 +1054,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				el = el.Focus()
 				w.focusReq = ""
 			}
+			// The completion sweep bends and lights the terminal itself;
+			// the header above it takes no part.
+			if fx := p.haloEffect(c, tk); fx != nil {
+				el = el.Effect(fx)
+			}
 			if place != paneDropNone {
 				paneDropHint(c, place, card)
 			}

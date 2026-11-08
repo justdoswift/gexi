@@ -111,6 +111,12 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		case eventSubagentEnd:
 			p.endSubagent(ev.Subagent, ev.SubagentType)
 		}
+		// A turn that ended while its children still ran finishes now: the
+		// last child's stop is the moment the task is really over.
+		if ev.Kind == eventSubagentEnd && p.subagentCount() == 0 &&
+			p.activity != nil && p.activity.State == activityIdle && p.activity.Kind == "turn.end" {
+			p.startHalo()
+		}
 		w.invalidate()
 		return map[string]any{"pane": p.ID, "subagents": p.subagentCount()}, nil
 	}
@@ -135,10 +141,15 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		if ctx := w.worktreeNamingContext(p); ctx != "" {
 			result["context"] = ctx
 		}
+		// New work takes the stage from the last completion's light.
+		p.stopHalo()
 	case "turn.end":
 		if p.Worktree != nil {
 			w.refreshWorktree(p)
 		}
+	case "needs-input":
+		// A turn that stops to ask is not a finished task: no light for it.
+		p.stopHalo()
 	case "session.start", "session.end":
 		// A fresh session has no running subagents, and a finished one leaves
 		// none behind even if a stop hook was missed.
@@ -151,6 +162,11 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		Session: ev.Session,
 		Kind:    ev.Kind,
 		Since:   time.Now().Format(time.RFC3339),
+	}
+	// A finished turn is a finished task only when nothing it spawned still
+	// runs; a background subagent's last stop begins the sweep instead.
+	if ev.Kind == "turn.end" && p.subagentCount() == 0 {
+		p.startHalo()
 	}
 	result["pane"] = p.ID
 	w.invalidate()
