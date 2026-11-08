@@ -737,9 +737,9 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					}
 				}
 				// The strip's padding and the line's gaps: one between the
-				// strip, the pill, the subagent count, the drag area and the
-				// actions.
-				kept := 2*stripPad + markW + titleW + actionsW + 3*4
+				// strip, the path chip, the pill, the subagent count, the drag
+				// area and the actions.
+				kept := 2*stripPad + markW + titleW + actionsW + 4*4
 				info, hasPill := w.branchPillInfo(p)
 				pillW := float32(0)
 				if hasPill {
@@ -772,10 +772,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				merged := showPill && name == info.branch
 				path := ""
 				if !merged {
-					room := pathRoom
-					if managed {
-						room -= 10 // the chip's padding
-					}
+					room := pathRoom - 10 // the chip's padding a side
 					tw, _ := c.MeasureText(0, ui.Span{Text: name, Size: 11})
 					if width == 0 || (room > 0 && tw <= room) {
 						path = name
@@ -818,31 +815,33 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 							ui.Text(c, title).FontSize(12).SingleLine().
 								Shrink(titleShrink).TextColor(tk.MutedForeground)
 						}
-						if path != "" {
+					})
+					// The path is a chip of its own: the title names the agent,
+					// and the checkout must not read as part of that name. A
+					// gexi worktree is tinted so it reads as a place; any other
+					// checkout keeps the quiet control surface.
+					if path != "" {
+						fill := tk.Control.Alpha(0.10)
+						if managed {
+							fill = tk.SystemAccent.Alpha(0.10)
+						}
+						chip := ui.Row(c).Height(18).Radius(4).Padding(0, 5).
+							AlignItems(ui.Center).Shrink(1)
+						if chip.Hovered() {
 							if managed {
-								// A gexi worktree shows only the name it was
-								// given; the pointer brings the checkout's full
-								// path, and the tint keeps the name legible as a
-								// place rather than another title.
-								bg := tk.SystemAccent.Alpha(0.10)
-								chip := ui.Row(c).Height(18).Radius(4).Padding(0, 5).
-									AlignItems(ui.Center).Shrink(1)
-								if chip.Hovered() {
-									bg = tk.SystemAccent.Alpha(0.2)
-								}
-								chip = capsule(c, chip, tk, bg, bg)
-								chip.Tooltip(dir).Children(func() {
-									ui.Text(c, path).FontSize(11).SingleLine().
-										Shrink(1).TextColor(tk.MutedForeground)
-								})
+								fill = tk.SystemAccent.Alpha(0.2)
 							} else {
-								// The header keeps the folder's own name; the
-								// full path is the pointer's to find.
-								ui.Text(c, path).FontSize(11).SingleLine().Shrink(1).
-									TextColor(tk.MutedForeground).Tooltip(dir)
+								fill = tk.Control.Alpha(0.2)
 							}
 						}
-					})
+						chip = capsule(c, chip, tk, fill, fill)
+						// The header keeps the checkout's name; the pointer
+						// brings the full path it stands for.
+						chip.Tooltip(dir).Children(func() {
+							ui.Text(c, path).FontSize(11).SingleLine().
+								Shrink(1).TextColor(tk.MutedForeground)
+						})
+					}
 					// The branch pill follows the title: it names the branch
 					// the project is on, counts the working tree's changes,
 					// and opens their diff. It sits inside the header band
