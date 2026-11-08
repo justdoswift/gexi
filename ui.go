@@ -150,6 +150,13 @@ func (w *workspace) backdrop(tk tokens) ui.Color {
 }
 
 func (w *workspace) canvas(c *ui.Context, tk tokens) {
+	// A remote host takes the canvas while it is selected; the local
+	// sessions keep their layout underneath and come back when the user
+	// picks one of them again.
+	if rc := w.activeRemote(); rc != nil {
+		rc.view(c)
+		return
+	}
 	if tb := w.selected(); tb != nil {
 		// A zoomed pane fills the session on its own: its tree is still
 		// there, so putting the others back is only a matter of drawing it.
@@ -260,12 +267,15 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 				ui.Text(c, locales.NoProjects()).FontSize(12).
 					TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
 			}
+			// Paired Macs sit under the projects, each with the sessions it
+			// runs; picking one shows it in the canvas.
+			w.remoteSection(c, tk)
 			ui.Spacer(c)
 			// The footer holds the sidebar's two menus: remote Macs on the
 			// left, settings on the right, off the search row so the field
 			// can run nearly as wide as the sessions.
 			ui.Row(c).Height(iconSize).Gap(2).Children(func() {
-				iconMenuButton(c, tk, "server", w.remoteMenu, locales.RemoteMenuHint())
+				iconMenuButton(c, tk, "monitor", w.remoteMenu, locales.RemoteMenuHint())
 				ui.Spacer(c)
 				iconButton(c, tk, "setting", func() { w.openSettings() },
 					locales.ShortcutSettings()+" (⌘,)")
@@ -314,7 +324,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 		MarginX(2)
 	hovered := row.Hovered()
 	color := tk.MutedForeground
-	if pr.sessionsSelected(w) || hovered {
+	if (w.remoteActive == "" && pr.sessionsSelected(w)) || hovered {
 		color = tk.Foreground
 	}
 	if hovered {
@@ -350,7 +360,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 // hover. The close button's place is kept while the pointer is away, so the
 // loader does not move as the button comes and goes.
 func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session) {
-	sel := s.ID == w.SelectedSession
+	sel := w.remoteActive == "" && s.ID == w.SelectedSession
 	color := tk.MutedForeground
 	// Flush with the project row: the session card reads as its own row, not
 	// as something hanging under an indent.

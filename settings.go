@@ -132,7 +132,7 @@ var settingsTabs = []struct {
 	{"setting", locales.SettingsGeneral},
 	{"themes", locales.SettingsThemes},
 	{"bell", locales.SettingsNotifications},
-	{"server", locales.SettingsRemote},
+	{"monitor", locales.SettingsRemote},
 	{"keyboard", locales.SettingsKeyboard},
 	{"branch", locales.SettingsWorktrees},
 	{"sliders", locales.SettingsAdvanced},

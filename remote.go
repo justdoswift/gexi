@@ -434,11 +434,17 @@ func (w *workspace) addRemoteHost(host remoteHost) {
 		if w.settings.RemoteHosts[i].Address == host.Address {
 			w.settings.RemoteHosts[i] = host
 			w.settings.save()
+			// A new pairing replaces the token the old link carries, so the
+			// poll loop starts over with it.
+			w.dropRemoteConn(host.Address)
+			w.remoteConn(host)
 			return
 		}
 	}
 	w.settings.RemoteHosts = append(w.settings.RemoteHosts, host)
 	w.settings.save()
+	w.remoteOpen[host.Address] = true
+	w.remoteConn(host)
 }
 
 func (w *workspace) removeRemoteHost(address string) {
@@ -450,7 +456,21 @@ func (w *workspace) removeRemoteHost(address string) {
 	}
 	w.settings.RemoteHosts = kept
 	w.settings.save()
+	w.dropRemoteConn(address)
+	delete(w.remoteOpen, address)
+	if w.remoteActive == address {
+		w.remoteActive = ""
+	}
+	w.invalidate()
 	w.invalidateSettings()
+}
+
+// dropRemoteConn ends and forgets the link to a host. Main thread.
+func (w *workspace) dropRemoteConn(address string) {
+	if rc := w.remoteConns[address]; rc != nil {
+		rc.close()
+		delete(w.remoteConns, address)
+	}
 }
 
 // remoteOnMain runs fn on the main thread when there is a window, and
