@@ -87,7 +87,6 @@
               <div class="session"><span class="sess-name">homepage</span></div>
             </div>
           </div>
-          <div class="side-remote"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg><span>Remote</span><span class="plus">+</span></div>
         </div>
         <div class="app-main">
           <div class="panes" data-count="3" data-panes>
@@ -271,8 +270,7 @@ no changes added to commit
                   <div class="session"><span class="sess-name">staging</span></div>
                 </div>
               </div>
-              <div class="side-remote"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg><span>Remote</span><span class="plus">+</span></div>
-            </div>
+                </div>
           </div>
         </div>
       </div>
@@ -407,30 +405,6 @@ gexi send -e "ls -la"</code></div>
     </div>
   </section>
 
-  <section class="section wrap" id="remote">
-    <div class="split">
-      <div class="split-copy" data-reveal>
-        <h2>Another Mac, same window.</h2>
-        <p class="lead">Reach another Mac through a relay with a one-time connection code, or pick a host from <code>~/.ssh/config</code>. Panes run your own ssh config: ProxyJump, identities and all.</p>
-        <p class="body">Every pane to the same host shares one connection. With “Keep remote sessions” on, each pane gets its own tmux session, so a dropped link reattaches to the same shell; a host without tmux still gets a login shell. What stays local is agent detection: a remote agent does not report activity yet.</p>
-      </div>
-      <div data-reveal style="--d:90ms">
-        <div class="panel">
-          <div class="menu" data-ui aria-label="The Remote menu">
-            <div class="menu-head">Remote</div>
-            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg>Connect to another Mac…<span class="sub">code</span></div>
-            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 2.5v11M3 7.5 8 2.5l5 5"/></svg>Allow this Mac to be reached…<span class="sub">relay</span></div>
-            <div class="menu-sep"></div>
-            <div class="menu-head">Hosts in ~/.ssh/config</div>
-            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg>studio-mac<span class="sub">tunnel</span></div>
-            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg>build-mini<span class="sub">ssh</span></div>
-            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg>staging<span class="sub">ProxyJump</span></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <section class="section wrap" id="install">
     <div class="install-grid">
       <div data-reveal>
@@ -490,10 +464,6 @@ go build -o gexi ./cmd/gexi</code></div>
           <details class="qa" name="faq">
             <summary>Can I run it on an Intel Mac?<span class="sign" aria-hidden="true"></span></summary>
             <div class="answer">Build it from source: the code builds for Apple silicon and Intel. The signed, notarized download is Apple silicon only for now.</div>
-          </details>
-          <details class="qa" name="faq">
-            <summary>Does a remote agent report activity?<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">Not yet. gexi sees the ssh process, not the agent on the far side, so a remote <code>claude</code> does not report working or waiting. Everything else about a remote pane works as it does locally.</div>
           </details>
           <details class="qa" name="faq">
             <summary>Is it really free?<span class="sign" aria-hidden="true"></span></summary>

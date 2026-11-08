@@ -18,7 +18,6 @@ type appSettings struct {
 	RestoreScreen    bool   `json:"restoreScreen"`
 	SidebarCollapsed bool   `json:"sidebarCollapsed"`
 	PaneStyle        string `json:"paneStyle"`
-	RemoteTmux       bool   `json:"remoteTmux"`
 	Notifications    bool   `json:"notifications"`
 	// Language is the language the app shows: "" follows the system's
 	// languages, "en" and "zh-Hans" pin one.
@@ -29,14 +28,6 @@ type appSettings struct {
 	// LiquidGlass draws the window, the sidebar and the panes in macOS 26's
 	// material; off, they keep the flat look.
 	LiquidGlass bool `json:"liquidGlass"`
-
-	// Remote access: either this Mac is reachable through a relay, or it
-	// keeps codes imported from other Macs.
-	RemoteListen  bool         `json:"remoteListen"`
-	RemoteRelay   string       `json:"remoteRelay"`
-	RemoteName    string       `json:"remoteName"`
-	RemotePort    int          `json:"remotePort"`
-	ImportedHosts []remoteHost `json:"importedHosts"`
 }
 
 const (
@@ -51,7 +42,6 @@ func defaultSettings() appSettings {
 	return appSettings{
 		RestoreScreen: true,
 		PaneStyle:     paneComfortable,
-		RemoteTmux:    true,
 		Notifications: true,
 		LiquidGlass:   true,
 	}
@@ -102,7 +92,6 @@ func (s appSettings) save() {
 const (
 	settingsGeneral = iota
 	settingsNotifications
-	settingsRemote
 	settingsKeyboard
 	settingsWorktrees
 	settingsAdvanced
@@ -114,7 +103,6 @@ var settingsTabs = []struct {
 }{
 	{"setting", locales.SettingsGeneral},
 	{"bell", locales.SettingsNotifications},
-	{"server", locales.SettingsRemote},
 	{"keyboard", locales.SettingsKeyboard},
 	{"branch", locales.SettingsWorktrees},
 	{"sliders", locales.SettingsAdvanced},
@@ -238,8 +226,6 @@ func (w *workspace) settingsPage(c *ui.Context, tk tokens) {
 	switch w.settingsTab {
 	case settingsNotifications:
 		w.notificationsPage(c, tk)
-	case settingsRemote:
-		w.remotePage(c, tk)
 	case settingsKeyboard:
 		w.keyboardPage(c, tk)
 	case settingsWorktrees:
@@ -319,55 +305,6 @@ func (w *workspace) notificationsPage(c *ui.Context, tk tokens) {
 			locales.SettingsSendTest(),
 			func() { notifyUser(locales.TestNotificationTitle(), "gexi", locales.TestNotificationBody()) },
 		)
-	})
-}
-
-func (w *workspace) remotePage(c *ui.Context, tk tokens) {
-	sectionLabel(c, tk, locales.SettingsRemote())
-	settingsCard(c, tk, func() {
-		w.settingRowView(c, tk, settingRow{
-			title:  locales.SettingsKeepRemote(),
-			detail: locales.SettingsKeepRemoteDetail(),
-			on:     w.settings.RemoteTmux,
-			toggle: func() {
-				w.settings.RemoteTmux = !w.settings.RemoteTmux
-				w.settings.save()
-			},
-		})
-	})
-
-	sectionLabel(c, tk, locales.SettingsThisMac())
-	settingsCard(c, tk, func() {
-		w.remoteAccessRow(c, tk)
-	})
-}
-
-// remoteAccessRow reports whether other Macs can reach this one, and hands
-// over the code when they can.
-func (w *workspace) remoteAccessRow(c *ui.Context, tk tokens) {
-	detail := locales.SettingsRemoteOff()
-	var action func()
-	if w.settings.RemoteListen {
-		state := locales.SettingsRemoteReconnecting()
-		if w.tunnelUp {
-			state = locales.SettingsRemoteReachable()
-		}
-		detail = locales.SettingsRemoteOn(w.settings.RemoteName, state)
-		action = func() {
-			if code, err := w.remoteCodeValue(); err == nil {
-				writeClipboard(code)
-			}
-		}
-	}
-	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
-		ui.Column(c).Gap(2).Children(func() {
-			ui.Text(c, locales.SettingsRemoteAccess()).FontSize(13).TextColor(tk.Foreground)
-			ui.Text(c, detail).FontSize(11).TextColor(tk.MutedForeground)
-		})
-		ui.Spacer(c)
-		if action != nil {
-			outlineButton(c, tk, locales.SettingsCopyCode(), action)
-		}
 	})
 }
 

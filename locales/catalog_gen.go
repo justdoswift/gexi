@@ -1594,108 +1594,6 @@ func (msgs Messages) ArchiveDeleteBody(branch string) string {
 	return Catalog.Format(msgs.locale, "archiveDeleteBody", map[string]any{"branch": branch})
 }
 
-// SettingsRemote says "Remote"
-// in the language the app shows.
-func SettingsRemote() string { return In(i18n.Locale()).SettingsRemote() }
-
-// SettingsRemote says "Remote"
-// in the language of msgs.
-func (msgs Messages) SettingsRemote() string {
-	return Catalog.Format(msgs.locale, "settingsRemote", nil)
-}
-
-// SettingsKeepRemote says "Keep remote sessions"
-// in the language the app shows.
-func SettingsKeepRemote() string { return In(i18n.Locale()).SettingsKeepRemote() }
-
-// SettingsKeepRemote says "Keep remote sessions"
-// in the language of msgs.
-func (msgs Messages) SettingsKeepRemote() string {
-	return Catalog.Format(msgs.locale, "settingsKeepRemote", nil)
-}
-
-// SettingsKeepRemoteDetail says "Run tmux on the host so a dropped link can reconnect."
-// in the language the app shows.
-func SettingsKeepRemoteDetail() string { return In(i18n.Locale()).SettingsKeepRemoteDetail() }
-
-// SettingsKeepRemoteDetail says "Run tmux on the host so a dropped link can reconnect."
-// in the language of msgs.
-func (msgs Messages) SettingsKeepRemoteDetail() string {
-	return Catalog.Format(msgs.locale, "settingsKeepRemoteDetail", nil)
-}
-
-// SettingsThisMac says "This Mac"
-// in the language the app shows.
-func SettingsThisMac() string { return In(i18n.Locale()).SettingsThisMac() }
-
-// SettingsThisMac says "This Mac"
-// in the language of msgs.
-func (msgs Messages) SettingsThisMac() string {
-	return Catalog.Format(msgs.locale, "settingsThisMac", nil)
-}
-
-// SettingsRemoteAccess says "Remote access"
-// in the language the app shows.
-func SettingsRemoteAccess() string { return In(i18n.Locale()).SettingsRemoteAccess() }
-
-// SettingsRemoteAccess says "Remote access"
-// in the language of msgs.
-func (msgs Messages) SettingsRemoteAccess() string {
-	return Catalog.Format(msgs.locale, "settingsRemoteAccess", nil)
-}
-
-// SettingsRemoteOn says "Reachable as {name} · {state}"
-// in the language the app shows.
-func SettingsRemoteOn(name string, state string) string {
-	return In(i18n.Locale()).SettingsRemoteOn(name, state)
-}
-
-// SettingsRemoteOn says "Reachable as {name} · {state}"
-// in the language of msgs.
-func (msgs Messages) SettingsRemoteOn(name string, state string) string {
-	return Catalog.Format(msgs.locale, "settingsRemoteOn", map[string]any{"name": name, "state": state})
-}
-
-// SettingsRemoteOff says "Off — turn it on from the Remote menu in the sidebar."
-// in the language the app shows.
-func SettingsRemoteOff() string { return In(i18n.Locale()).SettingsRemoteOff() }
-
-// SettingsRemoteOff says "Off — turn it on from the Remote menu in the sidebar."
-// in the language of msgs.
-func (msgs Messages) SettingsRemoteOff() string {
-	return Catalog.Format(msgs.locale, "settingsRemoteOff", nil)
-}
-
-// SettingsRemoteReachable says "reachable"
-// in the language the app shows.
-func SettingsRemoteReachable() string { return In(i18n.Locale()).SettingsRemoteReachable() }
-
-// SettingsRemoteReachable says "reachable"
-// in the language of msgs.
-func (msgs Messages) SettingsRemoteReachable() string {
-	return Catalog.Format(msgs.locale, "settingsRemoteReachable", nil)
-}
-
-// SettingsRemoteReconnecting says "reconnecting"
-// in the language the app shows.
-func SettingsRemoteReconnecting() string { return In(i18n.Locale()).SettingsRemoteReconnecting() }
-
-// SettingsRemoteReconnecting says "reconnecting"
-// in the language of msgs.
-func (msgs Messages) SettingsRemoteReconnecting() string {
-	return Catalog.Format(msgs.locale, "settingsRemoteReconnecting", nil)
-}
-
-// SettingsCopyCode says "Copy code"
-// in the language the app shows.
-func SettingsCopyCode() string { return In(i18n.Locale()).SettingsCopyCode() }
-
-// SettingsCopyCode says "Copy code"
-// in the language of msgs.
-func (msgs Messages) SettingsCopyCode() string {
-	return Catalog.Format(msgs.locale, "settingsCopyCode", nil)
-}
-
 // SettingsNotifications says "Notifications"
 // in the language the app shows.
 func SettingsNotifications() string { return In(i18n.Locale()).SettingsNotifications() }
@@ -2008,116 +1906,6 @@ func (msgs Messages) Cancel() string {
 	return Catalog.Format(msgs.locale, "cancel", nil)
 }
 
-// Connect says "Connect"
-// in the language the app shows.
-func Connect() string { return In(i18n.Locale()).Connect() }
-
-// Connect says "Connect"
-// in the language of msgs.
-func (msgs Messages) Connect() string {
-	return Catalog.Format(msgs.locale, "connect", nil)
-}
-
-// TurnOn says "Turn on"
-// in the language the app shows.
-func TurnOn() string { return In(i18n.Locale()).TurnOn() }
-
-// TurnOn says "Turn on"
-// in the language of msgs.
-func (msgs Messages) TurnOn() string {
-	return Catalog.Format(msgs.locale, "turnOn", nil)
-}
-
-// Checking says "Checking…"
-// in the language the app shows.
-func Checking() string { return In(i18n.Locale()).Checking() }
-
-// Checking says "Checking…"
-// in the language of msgs.
-func (msgs Messages) Checking() string {
-	return Catalog.Format(msgs.locale, "checking", nil)
-}
-
-// RelayTitle says "Allow this Mac to be reached"
-// in the language the app shows.
-func RelayTitle() string { return In(i18n.Locale()).RelayTitle() }
-
-// RelayTitle says "Allow this Mac to be reached"
-// in the language of msgs.
-func (msgs Messages) RelayTitle() string {
-	return Catalog.Format(msgs.locale, "relayTitle", nil)
-}
-
-// RelayBody says "gexi keeps a tunnel to your relay and gives you one code for the other Mac. The relay only forwards ssh."
-// in the language the app shows.
-func RelayBody() string { return In(i18n.Locale()).RelayBody() }
-
-// RelayBody says "gexi keeps a tunnel to your relay and gives you one code for the other Mac. The relay only forwards ssh."
-// in the language of msgs.
-func (msgs Messages) RelayBody() string {
-	return Catalog.Format(msgs.locale, "relayBody", nil)
-}
-
-// RelayHost says "Relay (user@host)"
-// in the language the app shows.
-func RelayHost() string { return In(i18n.Locale()).RelayHost() }
-
-// RelayHost says "Relay (user@host)"
-// in the language of msgs.
-func (msgs Messages) RelayHost() string {
-	return Catalog.Format(msgs.locale, "relayHost", nil)
-}
-
-// RelayHostPlaceholder says "you@relay.example.com"
-// in the language the app shows.
-func RelayHostPlaceholder() string { return In(i18n.Locale()).RelayHostPlaceholder() }
-
-// RelayHostPlaceholder says "you@relay.example.com"
-// in the language of msgs.
-func (msgs Messages) RelayHostPlaceholder() string {
-	return Catalog.Format(msgs.locale, "relayHostPlaceholder", nil)
-}
-
-// RelayName says "Name on the other Mac"
-// in the language the app shows.
-func RelayName() string { return In(i18n.Locale()).RelayName() }
-
-// RelayName says "Name on the other Mac"
-// in the language of msgs.
-func (msgs Messages) RelayName() string {
-	return Catalog.Format(msgs.locale, "relayName", nil)
-}
-
-// RelayNamePlaceholder says "company"
-// in the language the app shows.
-func RelayNamePlaceholder() string { return In(i18n.Locale()).RelayNamePlaceholder() }
-
-// RelayNamePlaceholder says "company"
-// in the language of msgs.
-func (msgs Messages) RelayNamePlaceholder() string {
-	return Catalog.Format(msgs.locale, "relayNamePlaceholder", nil)
-}
-
-// ImportTitle says "Connect to another Mac"
-// in the language the app shows.
-func ImportTitle() string { return In(i18n.Locale()).ImportTitle() }
-
-// ImportTitle says "Connect to another Mac"
-// in the language of msgs.
-func (msgs Messages) ImportTitle() string {
-	return Catalog.Format(msgs.locale, "importTitle", nil)
-}
-
-// ImportBody says "Paste the code the other Mac copied. It works once per Mac and can be revoked there."
-// in the language the app shows.
-func ImportBody() string { return In(i18n.Locale()).ImportBody() }
-
-// ImportBody says "Paste the code the other Mac copied. It works once per Mac and can be revoked there."
-// in the language of msgs.
-func (msgs Messages) ImportBody() string {
-	return Catalog.Format(msgs.locale, "importBody", nil)
-}
-
 // NotifyTurnFinished says "Turn finished"
 // in the language the app shows.
 func NotifyTurnFinished() string { return In(i18n.Locale()).NotifyTurnFinished() }
@@ -2146,26 +1934,6 @@ func NotifyAgent() string { return In(i18n.Locale()).NotifyAgent() }
 // in the language of msgs.
 func (msgs Messages) NotifyAgent() string {
 	return Catalog.Format(msgs.locale, "notifyAgent", nil)
-}
-
-// NotifyCodeCopiedTitle says "Connection code copied"
-// in the language the app shows.
-func NotifyCodeCopiedTitle() string { return In(i18n.Locale()).NotifyCodeCopiedTitle() }
-
-// NotifyCodeCopiedTitle says "Connection code copied"
-// in the language of msgs.
-func (msgs Messages) NotifyCodeCopiedTitle() string {
-	return Catalog.Format(msgs.locale, "notifyCodeCopiedTitle", nil)
-}
-
-// NotifyCodeCopiedBody says "Paste it in gexi on the other Mac."
-// in the language the app shows.
-func NotifyCodeCopiedBody() string { return In(i18n.Locale()).NotifyCodeCopiedBody() }
-
-// NotifyCodeCopiedBody says "Paste it in gexi on the other Mac."
-// in the language of msgs.
-func (msgs Messages) NotifyCodeCopiedBody() string {
-	return Catalog.Format(msgs.locale, "notifyCodeCopiedBody", nil)
 }
 
 // MenuToggleFiles says "Toggle Files"
@@ -2258,16 +2026,6 @@ func (msgs Messages) DrawerNoProject() string {
 	return Catalog.Format(msgs.locale, "drawerNoProject", nil)
 }
 
-// DrawerRemote says "Files are not available for remote sessions yet."
-// in the language the app shows.
-func DrawerRemote() string { return In(i18n.Locale()).DrawerRemote() }
-
-// DrawerRemote says "Files are not available for remote sessions yet."
-// in the language of msgs.
-func (msgs Messages) DrawerRemote() string {
-	return Catalog.Format(msgs.locale, "drawerRemote", nil)
-}
-
 // DrawerBinary says "Binary file"
 // in the language the app shows.
 func DrawerBinary() string { return In(i18n.Locale()).DrawerBinary() }
@@ -2306,16 +2064,6 @@ func DrawerOpenChanges() string { return In(i18n.Locale()).DrawerOpenChanges() }
 // in the language of msgs.
 func (msgs Messages) DrawerOpenChanges() string {
 	return Catalog.Format(msgs.locale, "drawerOpenChanges", nil)
-}
-
-// RemoteMenuHint says "Remote Macs"
-// in the language the app shows.
-func RemoteMenuHint() string { return In(i18n.Locale()).RemoteMenuHint() }
-
-// RemoteMenuHint says "Remote Macs"
-// in the language of msgs.
-func (msgs Messages) RemoteMenuHint() string {
-	return Catalog.Format(msgs.locale, "remoteMenuHint", nil)
 }
 
 // CloseProject says "Close Project"

@@ -20,8 +20,7 @@ import (
 // text. It slides in over the canvas like a drawer, so opening it never
 // reshuffles the panes.
 //
-// It reads a local project only. A remote session's folder lives on the other
-// Mac, where Git would have to run too.
+// It reads local projects only.
 
 const (
 	drawerTabChanges = iota
@@ -118,7 +117,7 @@ func (w *workspace) drawerProject() *project {
 // focused pane that was moved into a worktree reads that checkout.
 func (w *workspace) drawerDir() string {
 	pr := w.drawerProject()
-	if pr == nil || pr.RemoteHost != "" {
+	if pr == nil {
 		return ""
 	}
 	if s := w.selected(); s != nil && s.Root != nil {
@@ -143,7 +142,7 @@ type branchPillInfo struct {
 
 func (w *workspace) branchPillInfo(p *pane) (branchPillInfo, bool) {
 	pr := w.projectOf(w.sessionOf(p))
-	if pr == nil || pr.RemoteHost != "" {
+	if pr == nil {
 		return branchPillInfo{}, false
 	}
 	dir := pr.Dir
@@ -542,8 +541,6 @@ func (w *workspace) drawerView(c *ui.Context, tk tokens) {
 		switch {
 		case w.drawerProject() == nil:
 			w.drawerNote(c, tk, locales.DrawerNoProject())
-		case w.drawerProject().RemoteHost != "":
-			w.drawerNote(c, tk, locales.DrawerRemote())
 		case d.tab == drawerTabChanges:
 			w.drawerChanges(c, tk)
 		default:
