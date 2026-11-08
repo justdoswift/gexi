@@ -1357,9 +1357,10 @@ func (w *workspace) commitDialog(c *ui.Context, tk tokens) {
 }
 
 // mergePullRequest merges the PR on GitHub and fast-forwards the local base
-// branch. The pane and its worktree stay open: the header button becomes
-// Archive, so clearing them away is the user's next step rather than a
-// side effect of the merge.
+// branch. The pane and its worktree stay open by default: the header button
+// becomes Archive, so clearing them away is the user's next step rather than
+// a side effect of the merge. Settings › Worktrees can have the archive run
+// with the merge instead.
 func (w *workspace) mergePullRequest(p *pane) {
 	wt := p.Worktree
 	if wt == nil || wt.busy != "" || wt.PR == 0 || wt.State == worktreeMerged || w.paneByID(p.ID) != p {
@@ -1404,10 +1405,11 @@ func (w *workspace) mergePullRequest(p *pane) {
 			}
 			w.invalidate()
 			w.scheduleSave()
-			// A merged worktree has nothing left to keep, so the pane goes
-			// back to the project folder instead of leaving the user to
-			// archive it by hand.
-			w.archiveMergedAndReturn(p)
+			// Archiving used to be the merge's last step; it is the user's
+			// choice now, and the header's Archive button waits for it.
+			if w.settings.ArchiveAfterMerge {
+				w.archiveMergedAndReturn(p)
+			}
 		})
 	}()
 }
@@ -2587,9 +2589,12 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 		return
 	}
 	if busy := worktreeBusyLabel(wt); busy != "" {
+		// The wait says what it is doing in words, and the words shimmer,
+		// rather than a spinner sitting beside them: the label is the
+		// button's own and reads as one control while it works.
 		worktreeChip(c, tk).OnClick(func() {}).
 			Tooltip(worktreeBusyHint(p, busy)).Children(func() {
-			worktreeSpinner(c, tk, busy)
+			shimmerText(c, tk, busy)
 		})
 		return
 	}
