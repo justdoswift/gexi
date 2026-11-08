@@ -100,6 +100,7 @@ func (w *workspace) view(c *ui.Context) {
 		// thing drawn, so it slides over the canvas rather than resizing it.
 		w.drawerView(c, tk)
 	})
+	ui.Modal(c, &w.hostOpen, func() { w.hostDialog(c, tk) })
 	ui.Modal(c, &w.commitOpen, func() { w.commitDialog(c, tk) })
 	if w.closeTarget != nil {
 		switch ui.AlertDialog(c, &w.closeOpen, locales.PaneCloseTitle(), w.closeMsg,
@@ -260,10 +261,11 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 					TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
 			}
 			ui.Spacer(c)
-			// The footer holds the sidebar's one menu, settings, off the
-			// search row so the field can run nearly as wide as the
-			// sessions.
+			// The footer holds the sidebar's two menus: remote Macs on the
+			// left, settings on the right, off the search row so the field
+			// can run nearly as wide as the sessions.
 			ui.Row(c).Height(iconSize).Gap(2).Children(func() {
+				iconMenuButton(c, tk, "server", w.remoteMenu, locales.RemoteMenuHint())
 				ui.Spacer(c)
 				iconButton(c, tk, "setting", func() { w.openSettings() },
 					locales.ShortcutSettings()+" (⌘,)")

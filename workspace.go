@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -165,16 +166,29 @@ type workspace struct {
 	commitText   string
 	commitHint   string
 	commitErr    string
+
+	// Remote: the LAN server this Mac runs while it is reachable, the error
+	// that kept it from starting, and the add-host dialog.
+	remoteSrv     *http.Server
+	remoteErr     string
+	remoteWindows map[string]*remoteWindow
+	hostOpen      bool
+	hostName      string
+	hostAddr      string
+	hostCode      string
+	hostErr       string
+	hostBusy      bool
 }
 
 func newWorkspace() *workspace {
 	w := &workspace{
-		InstanceID: newID(),
-		settings:   loadSettings(),
-		collapsed:  map[string]bool{},
-		gitInfo:    map[string]gitSummary{},
-		gitBusy:    map[string]bool{},
-		gitGen:     map[string]int{},
+		InstanceID:    newID(),
+		settings:      loadSettings(),
+		collapsed:     map[string]bool{},
+		gitInfo:       map[string]gitSummary{},
+		gitBusy:       map[string]bool{},
+		gitGen:        map[string]int{},
+		remoteWindows: map[string]*remoteWindow{},
 	}
 	return w
 }

@@ -2287,3 +2287,353 @@ func CloseSession() string { return In(i18n.Locale()).CloseSession() }
 func (msgs Messages) CloseSession() string {
 	return Catalog.Format(msgs.locale, "closeSession", nil)
 }
+
+// SettingsRemote says "Remote"
+// in the language the app shows.
+func SettingsRemote() string { return In(i18n.Locale()).SettingsRemote() }
+
+// SettingsRemote says "Remote"
+// in the language of msgs.
+func (msgs Messages) SettingsRemote() string {
+	return Catalog.Format(msgs.locale, "settingsRemote", nil)
+}
+
+// SettingsRemoteThisMac says "This Mac"
+// in the language the app shows.
+func SettingsRemoteThisMac() string { return In(i18n.Locale()).SettingsRemoteThisMac() }
+
+// SettingsRemoteThisMac says "This Mac"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteThisMac() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteThisMac", nil)
+}
+
+// SettingsRemoteAllow says "Allow this Mac to be reached"
+// in the language the app shows.
+func SettingsRemoteAllow() string { return In(i18n.Locale()).SettingsRemoteAllow() }
+
+// SettingsRemoteAllow says "Allow this Mac to be reached"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteAllow() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteAllow", nil)
+}
+
+// SettingsRemoteAllowDetail says "Other Macs and phones on the same network can view your sessions and type in them."
+// in the language the app shows.
+func SettingsRemoteAllowDetail() string { return In(i18n.Locale()).SettingsRemoteAllowDetail() }
+
+// SettingsRemoteAllowDetail says "Other Macs and phones on the same network can view your sessions and type in them."
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteAllowDetail() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteAllowDetail", nil)
+}
+
+// SettingsRemoteFailed says "Cannot listen: {error}"
+// in the language the app shows.
+func SettingsRemoteFailed(error string) string { return In(i18n.Locale()).SettingsRemoteFailed(error) }
+
+// SettingsRemoteFailed says "Cannot listen: {error}"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteFailed(error string) string {
+	return Catalog.Format(msgs.locale, "settingsRemoteFailed", map[string]any{"error": error})
+}
+
+// SettingsRemoteNoNetwork says "No network address yet."
+// in the language the app shows.
+func SettingsRemoteNoNetwork() string { return In(i18n.Locale()).SettingsRemoteNoNetwork() }
+
+// SettingsRemoteNoNetwork says "No network address yet."
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteNoNetwork() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteNoNetwork", nil)
+}
+
+// SettingsRemoteAddress says "Address"
+// in the language the app shows.
+func SettingsRemoteAddress() string { return In(i18n.Locale()).SettingsRemoteAddress() }
+
+// SettingsRemoteAddress says "Address"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteAddress() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteAddress", nil)
+}
+
+// SettingsRemoteCopy says "Copy"
+// in the language the app shows.
+func SettingsRemoteCopy() string { return In(i18n.Locale()).SettingsRemoteCopy() }
+
+// SettingsRemoteCopy says "Copy"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteCopy() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteCopy", nil)
+}
+
+// SettingsRemoteCode says "Pairing code"
+// in the language the app shows.
+func SettingsRemoteCode() string { return In(i18n.Locale()).SettingsRemoteCode() }
+
+// SettingsRemoteCode says "Pairing code"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteCode() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteCode", nil)
+}
+
+// SettingsRemoteCodeDetail says "Enter it on the other Mac or phone."
+// in the language the app shows.
+func SettingsRemoteCodeDetail() string { return In(i18n.Locale()).SettingsRemoteCodeDetail() }
+
+// SettingsRemoteCodeDetail says "Enter it on the other Mac or phone."
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteCodeDetail() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteCodeDetail", nil)
+}
+
+// SettingsRemoteRegenerate says "New Code"
+// in the language the app shows.
+func SettingsRemoteRegenerate() string { return In(i18n.Locale()).SettingsRemoteRegenerate() }
+
+// SettingsRemoteRegenerate says "New Code"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteRegenerate() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteRegenerate", nil)
+}
+
+// SettingsRemoteNoDevices says "No device has paired yet."
+// in the language the app shows.
+func SettingsRemoteNoDevices() string { return In(i18n.Locale()).SettingsRemoteNoDevices() }
+
+// SettingsRemoteNoDevices says "No device has paired yet."
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteNoDevices() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteNoDevices", nil)
+}
+
+// SettingsRemoteRemove says "Remove"
+// in the language the app shows.
+func SettingsRemoteRemove() string { return In(i18n.Locale()).SettingsRemoteRemove() }
+
+// SettingsRemoteRemove says "Remove"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteRemove() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteRemove", nil)
+}
+
+// SettingsRemoteHosts says "Other Macs"
+// in the language the app shows.
+func SettingsRemoteHosts() string { return In(i18n.Locale()).SettingsRemoteHosts() }
+
+// SettingsRemoteHosts says "Other Macs"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteHosts() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteHosts", nil)
+}
+
+// SettingsRemoteNoHosts says "No Mac added yet."
+// in the language the app shows.
+func SettingsRemoteNoHosts() string { return In(i18n.Locale()).SettingsRemoteNoHosts() }
+
+// SettingsRemoteNoHosts says "No Mac added yet."
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteNoHosts() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteNoHosts", nil)
+}
+
+// SettingsRemoteOpen says "Open"
+// in the language the app shows.
+func SettingsRemoteOpen() string { return In(i18n.Locale()).SettingsRemoteOpen() }
+
+// SettingsRemoteOpen says "Open"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteOpen() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteOpen", nil)
+}
+
+// SettingsRemoteAddHost says "Connect to another Mac"
+// in the language the app shows.
+func SettingsRemoteAddHost() string { return In(i18n.Locale()).SettingsRemoteAddHost() }
+
+// SettingsRemoteAddHost says "Connect to another Mac"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteAddHost() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteAddHost", nil)
+}
+
+// SettingsRemoteAdd says "Add…"
+// in the language the app shows.
+func SettingsRemoteAdd() string { return In(i18n.Locale()).SettingsRemoteAdd() }
+
+// SettingsRemoteAdd says "Add…"
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteAdd() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteAdd", nil)
+}
+
+// RemoteMenuHint says "Remote Macs"
+// in the language the app shows.
+func RemoteMenuHint() string { return In(i18n.Locale()).RemoteMenuHint() }
+
+// RemoteMenuHint says "Remote Macs"
+// in the language of msgs.
+func (msgs Messages) RemoteMenuHint() string {
+	return Catalog.Format(msgs.locale, "remoteMenuHint", nil)
+}
+
+// RemoteAddTitle says "Connect to another Mac"
+// in the language the app shows.
+func RemoteAddTitle() string { return In(i18n.Locale()).RemoteAddTitle() }
+
+// RemoteAddTitle says "Connect to another Mac"
+// in the language of msgs.
+func (msgs Messages) RemoteAddTitle() string {
+	return Catalog.Format(msgs.locale, "remoteAddTitle", nil)
+}
+
+// RemoteAddBody says "On the other Mac, open Settings › Remote and enter its address and pairing code here."
+// in the language the app shows.
+func RemoteAddBody() string { return In(i18n.Locale()).RemoteAddBody() }
+
+// RemoteAddBody says "On the other Mac, open Settings › Remote and enter its address and pairing code here."
+// in the language of msgs.
+func (msgs Messages) RemoteAddBody() string {
+	return Catalog.Format(msgs.locale, "remoteAddBody", nil)
+}
+
+// RemoteAddName says "Name (optional)"
+// in the language the app shows.
+func RemoteAddName() string { return In(i18n.Locale()).RemoteAddName() }
+
+// RemoteAddName says "Name (optional)"
+// in the language of msgs.
+func (msgs Messages) RemoteAddName() string {
+	return Catalog.Format(msgs.locale, "remoteAddName", nil)
+}
+
+// RemoteAddNamePlaceholder says "Mac mini"
+// in the language the app shows.
+func RemoteAddNamePlaceholder() string { return In(i18n.Locale()).RemoteAddNamePlaceholder() }
+
+// RemoteAddNamePlaceholder says "Mac mini"
+// in the language of msgs.
+func (msgs Messages) RemoteAddNamePlaceholder() string {
+	return Catalog.Format(msgs.locale, "remoteAddNamePlaceholder", nil)
+}
+
+// RemoteAddAddress says "Address"
+// in the language the app shows.
+func RemoteAddAddress() string { return In(i18n.Locale()).RemoteAddAddress() }
+
+// RemoteAddAddress says "Address"
+// in the language of msgs.
+func (msgs Messages) RemoteAddAddress() string {
+	return Catalog.Format(msgs.locale, "remoteAddAddress", nil)
+}
+
+// RemoteAddCode says "Pairing code"
+// in the language the app shows.
+func RemoteAddCode() string { return In(i18n.Locale()).RemoteAddCode() }
+
+// RemoteAddCode says "Pairing code"
+// in the language of msgs.
+func (msgs Messages) RemoteAddCode() string {
+	return Catalog.Format(msgs.locale, "remoteAddCode", nil)
+}
+
+// RemoteAddAddressMissing says "Write the other Mac's address."
+// in the language the app shows.
+func RemoteAddAddressMissing() string { return In(i18n.Locale()).RemoteAddAddressMissing() }
+
+// RemoteAddAddressMissing says "Write the other Mac's address."
+// in the language of msgs.
+func (msgs Messages) RemoteAddAddressMissing() string {
+	return Catalog.Format(msgs.locale, "remoteAddAddressMissing", nil)
+}
+
+// RemoteAddCodeMissing says "The pairing code is 6 digits."
+// in the language the app shows.
+func RemoteAddCodeMissing() string { return In(i18n.Locale()).RemoteAddCodeMissing() }
+
+// RemoteAddCodeMissing says "The pairing code is 6 digits."
+// in the language of msgs.
+func (msgs Messages) RemoteAddCodeMissing() string {
+	return Catalog.Format(msgs.locale, "remoteAddCodeMissing", nil)
+}
+
+// RemoteConnect says "Connect"
+// in the language the app shows.
+func RemoteConnect() string { return In(i18n.Locale()).RemoteConnect() }
+
+// RemoteConnect says "Connect"
+// in the language of msgs.
+func (msgs Messages) RemoteConnect() string {
+	return Catalog.Format(msgs.locale, "remoteConnect", nil)
+}
+
+// RemoteConnecting says "Connecting…"
+// in the language the app shows.
+func RemoteConnecting() string { return In(i18n.Locale()).RemoteConnecting() }
+
+// RemoteConnecting says "Connecting…"
+// in the language of msgs.
+func (msgs Messages) RemoteConnecting() string {
+	return Catalog.Format(msgs.locale, "remoteConnecting", nil)
+}
+
+// RemoteNotPaired says "This Mac is no longer paired; add it again."
+// in the language the app shows.
+func RemoteNotPaired() string { return In(i18n.Locale()).RemoteNotPaired() }
+
+// RemoteNotPaired says "This Mac is no longer paired; add it again."
+// in the language of msgs.
+func (msgs Messages) RemoteNotPaired() string {
+	return Catalog.Format(msgs.locale, "remoteNotPaired", nil)
+}
+
+// RemoteBack says "Sessions"
+// in the language the app shows.
+func RemoteBack() string { return In(i18n.Locale()).RemoteBack() }
+
+// RemoteBack says "Sessions"
+// in the language of msgs.
+func (msgs Messages) RemoteBack() string {
+	return Catalog.Format(msgs.locale, "remoteBack", nil)
+}
+
+// RemoteRefresh says "Refresh"
+// in the language the app shows.
+func RemoteRefresh() string { return In(i18n.Locale()).RemoteRefresh() }
+
+// RemoteRefresh says "Refresh"
+// in the language of msgs.
+func (msgs Messages) RemoteRefresh() string {
+	return Catalog.Format(msgs.locale, "remoteRefresh", nil)
+}
+
+// RemoteNoSessions says "No sessions on this Mac."
+// in the language the app shows.
+func RemoteNoSessions() string { return In(i18n.Locale()).RemoteNoSessions() }
+
+// RemoteNoSessions says "No sessions on this Mac."
+// in the language of msgs.
+func (msgs Messages) RemoteNoSessions() string {
+	return Catalog.Format(msgs.locale, "remoteNoSessions", nil)
+}
+
+// RemoteInputPlaceholder says "Type, then Return"
+// in the language the app shows.
+func RemoteInputPlaceholder() string { return In(i18n.Locale()).RemoteInputPlaceholder() }
+
+// RemoteInputPlaceholder says "Type, then Return"
+// in the language of msgs.
+func (msgs Messages) RemoteInputPlaceholder() string {
+	return Catalog.Format(msgs.locale, "remoteInputPlaceholder", nil)
+}
+
+// RemoteSend says "Send"
+// in the language the app shows.
+func RemoteSend() string { return In(i18n.Locale()).RemoteSend() }
+
+// RemoteSend says "Send"
+// in the language of msgs.
+func (msgs Messages) RemoteSend() string {
+	return Catalog.Format(msgs.locale, "remoteSend", nil)
+}
