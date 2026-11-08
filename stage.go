@@ -187,12 +187,15 @@ func (w *workspace) startStageMirror(p *pane) {
 		return
 	}
 	conn := newMirrorConn()
+	lightTheme, darkTheme := w.terminalThemes()
 	sink, err := terminal.New(terminal.Options{
 		Conn:         conn,
 		ResizeByConn: true,
 		Scrollback:   -1,
 		NoBlink:      true,
 		Transparent:  true,
+		Theme:        lightTheme,
+		DarkTheme:    darkTheme,
 		Font: terminal.Font{
 			Family:     terminalFont + ", SF Mono, Menlo, monospace",
 			Size:       12,
@@ -380,7 +383,7 @@ func paneMark(p *pane, tk tokens) ui.ImageSource {
 
 func stageShadow(tk tokens) ui.Color {
 	alpha := float32(0.55)
-	if tk.Background.R > 128 { // a light window takes a lighter shadow
+	if !tk.Dark { // a light window takes a lighter shadow
 		alpha = 0.22
 	}
 	return ui.RGB(0, 0, 0).Alpha(alpha)

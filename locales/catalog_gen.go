@@ -584,6 +584,86 @@ func (msgs Messages) AppearanceDark() string {
 	return Catalog.Format(msgs.locale, "appearanceDark", nil)
 }
 
+// SettingsThemes says "Themes"
+// in the language the app shows.
+func SettingsThemes() string { return In(i18n.Locale()).SettingsThemes() }
+
+// SettingsThemes says "Themes"
+// in the language of msgs.
+func (msgs Messages) SettingsThemes() string {
+	return Catalog.Format(msgs.locale, "settingsThemes", nil)
+}
+
+// ThemesLightMode says "Light Mode"
+// in the language the app shows.
+func ThemesLightMode() string { return In(i18n.Locale()).ThemesLightMode() }
+
+// ThemesLightMode says "Light Mode"
+// in the language of msgs.
+func (msgs Messages) ThemesLightMode() string {
+	return Catalog.Format(msgs.locale, "themesLightMode", nil)
+}
+
+// ThemesDarkMode says "Dark Mode"
+// in the language the app shows.
+func ThemesDarkMode() string { return In(i18n.Locale()).ThemesDarkMode() }
+
+// ThemesDarkMode says "Dark Mode"
+// in the language of msgs.
+func (msgs Messages) ThemesDarkMode() string {
+	return Catalog.Format(msgs.locale, "themesDarkMode", nil)
+}
+
+// ThemesActive says "Active"
+// in the language the app shows.
+func ThemesActive() string { return In(i18n.Locale()).ThemesActive() }
+
+// ThemesActive says "Active"
+// in the language of msgs.
+func (msgs Messages) ThemesActive() string {
+	return Catalog.Format(msgs.locale, "themesActive", nil)
+}
+
+// ThemesDefault says "Default"
+// in the language the app shows.
+func ThemesDefault() string { return In(i18n.Locale()).ThemesDefault() }
+
+// ThemesDefault says "Default"
+// in the language of msgs.
+func (msgs Messages) ThemesDefault() string {
+	return Catalog.Format(msgs.locale, "themesDefault", nil)
+}
+
+// ThemesBuiltIn says "Built-in"
+// in the language the app shows.
+func ThemesBuiltIn() string { return In(i18n.Locale()).ThemesBuiltIn() }
+
+// ThemesBuiltIn says "Built-in"
+// in the language of msgs.
+func (msgs Messages) ThemesBuiltIn() string {
+	return Catalog.Format(msgs.locale, "themesBuiltIn", nil)
+}
+
+// ThemesSearch says "Search themes"
+// in the language the app shows.
+func ThemesSearch() string { return In(i18n.Locale()).ThemesSearch() }
+
+// ThemesSearch says "Search themes"
+// in the language of msgs.
+func (msgs Messages) ThemesSearch() string {
+	return Catalog.Format(msgs.locale, "themesSearch", nil)
+}
+
+// ThemesNone says "No themes match"
+// in the language the app shows.
+func ThemesNone() string { return In(i18n.Locale()).ThemesNone() }
+
+// ThemesNone says "No themes match"
+// in the language of msgs.
+func (msgs Messages) ThemesNone() string {
+	return Catalog.Format(msgs.locale, "themesNone", nil)
+}
+
 // SettingsLiquidGlass says "Liquid Glass"
 // in the language the app shows.
 func SettingsLiquidGlass() string { return In(i18n.Locale()).SettingsLiquidGlass() }

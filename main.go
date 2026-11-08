@@ -74,10 +74,10 @@ func main() {
 			// material instead (see mygo.VibrancyGlass).
 			Transparent:  true,
 			Vibrancy:     mygo.VibrancyGlass,
-			VibrancyTint: windowTint,
+			VibrancyTint: w.chromeTint(),
 			// Still the window color on the platforms whose material shows
 			// none, where the view paints the same backdrop itself.
-			BackgroundColor: "light-dark(#ffffff, #0e0e10)",
+			BackgroundColor: w.chromeBackground(),
 		})
 		w.win = win
 		win.OnShow(func() { win.Invalidate() })
@@ -86,7 +86,14 @@ func main() {
 		// draws in their place, is what made opening the settings window
 		// flicker. The app tracks the keyboard itself instead (windowFocused).
 		win.SetActiveAppearance(true)
-		win.OnFocus(func() { setWindowFocused(win, true) })
+		win.OnFocus(func() {
+			setWindowFocused(win, true)
+			// The window switches back to its glass when it takes the
+			// keyboard. Re-apply the theme's tint then, so the glass shows
+			// the theme picked while the settings window had the keyboard,
+			// not the tint the window launched with.
+			w.updateChrome()
+		})
 		win.OnBlur(func() { setWindowFocused(win, false) })
 
 		// gexi: closing the window hides it; shells keep running.

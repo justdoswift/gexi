@@ -1,8 +1,11 @@
 package main
 
 import (
+	"fmt"
+	"math"
 	"time"
 
+	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -10,6 +13,11 @@ import (
 // instead of the toolkit's defaults so every surface, border, and muted text
 // reads as one system.
 type tokens struct {
+	// Dark is whether the palette draws a dark surface. Shadows, tints and
+	// the raised card read from it, where the background's red channel once
+	// stood in: a theme may be dark with a warm background.
+	Dark bool
+
 	Background      ui.Color
 	Foreground      ui.Color
 	Muted           ui.Color
@@ -31,9 +39,14 @@ type tokens struct {
 	SystemAccent ui.Color
 }
 
-func themeTokens(t *ui.Theme) tokens {
-	if t.Dark {
+// themeTokens returns the chrome's neutral palette, which is what the app
+// draws when no theme is picked.
+func themeTokens(t *ui.Theme) tokens { return defaultTokens(t.Dark, t.Accent) }
+
+func defaultTokens(dark bool, accent ui.Color) tokens {
+	if dark {
 		return tokens{
+			Dark: true,
 			// The card background is the terminal's own background
 			// (ui.DarkTheme), so a pane header and its body read as one
 			// surface; the canvas around it sits a step darker, which is
@@ -51,7 +64,7 @@ func themeTokens(t *ui.Theme) tokens {
 			Working:         ui.RGB(0x22, 0xc5, 0x5e),
 			Waiting:         ui.RGB(0xf5, 0x9e, 0x0b),
 			Danger:          ui.RGB(0xf8, 0x71, 0x71),
-			SystemAccent:    t.Accent,
+			SystemAccent:    accent,
 		}
 	}
 	return tokens{
@@ -68,21 +81,148 @@ func themeTokens(t *ui.Theme) tokens {
 		Working:         ui.RGB(0x16, 0xa3, 0x4a),
 		Waiting:         ui.RGB(0xd9, 0x77, 0x06),
 		Danger:          ui.RGB(0xdc, 0x26, 0x26),
-		SystemAccent:    t.Accent,
+		SystemAccent:    accent,
 	}
 }
 
 const chromeRadius float32 = 6
 
+// themeTokensFor returns the chrome's tokens for one appearance: the neutral
+// pair when name is empty, else a ramp derived from that terminal theme.
+func themeTokensFor(t *ui.Theme, name string) tokens {
+	if name == "" {
+		return defaultTokens(t.Dark, t.Accent)
+	}
+	th, err := terminal.GhosttyTheme(name)
+	if err != nil {
+		return defaultTokens(t.Dark, t.Accent)
+	}
+	return tokensForTheme(th)
+}
+
+// tokensForTheme derives the chrome from a terminal theme's own two colours:
+// the surfaces step off the background, the borders and controls climb toward
+// the text, and the status colours come from the theme's ANSI palette, lifted
+// until they read on its background. Chrome and terminal then share one
+// palette, as Rex's themes do, instead of a theme inside a neutral shell.
+func tokensForTheme(th *terminal.Theme) tokens {
+	bg, fg := th.Background, th.Foreground
+	if bg.A == 0 {
+		bg = ui.RGB(0x18, 0x18, 0x1b)
+	}
+	if fg.A == 0 {
+		fg = ui.RGB(0xfa, 0xfa, 0xfa)
+	}
+	dark := themeIsDark(th)
+
+	accent := th.Cursor
+	if accent.A == 0 {
+		accent = th.Palette[4]
+	}
+	if accent.A == 0 {
+		accent = fg
+	}
+
+	step := func(t float32) ui.Color { return bg.MixOklab(fg, t) }
+	recede := func(t float32) ui.Color {
+		if dark {
+			return bg.MixOklab(ui.RGB(0, 0, 0), t)
+		}
+		return bg.MixOklab(fg, t)
+	}
+	mutedText := func() ui.Color {
+		c := fg.MixOklab(bg, 0.42)
+		for i := 0; i < 8 && contrast(c, bg) < 4; i++ {
+			c = c.MixOklab(fg, 0.1)
+		}
+		return c
+	}
+
+	tk := tokens{
+		Dark:            dark,
+		Background:      bg,
+		Foreground:      fg,
+		MutedForeground: mutedText(),
+		Border:          step(0.10),
+		Accent:          step(0.05),
+		Active:          step(0.09),
+		Control:         step(0.17),
+		Raised:          step(0.14),
+		Working:         legible(th.Palette[2], bg, fg, 3.2),
+		Waiting:         legible(th.Palette[3], bg, fg, 3.2),
+		Danger:          legible(th.Palette[1], bg, fg, 3.2),
+		SystemAccent:    accent,
+	}
+	if dark {
+		tk.Muted = recede(0.45)
+		tk.Sidebar = tk.Muted
+	} else {
+		tk.Muted = step(0.04)
+		tk.Sidebar = step(0.03)
+		tk.Raised = bg
+	}
+	return tk
+}
+
+// themeIsDark reports whether a theme paints a dark background.
+func themeIsDark(th *terminal.Theme) bool { return luminance(th.Background) < 0.4 }
+
+// luminance is WCAG's relative luminance: how bright a colour reads, 0 for
+// black and 1 for white.
+func luminance(c ui.Color) float32 {
+	lin := func(v uint8) float32 {
+		s := float32(v) / 255
+		if s <= 0.04045 {
+			return s / 12.92
+		}
+		return float32(math.Pow(float64((s+0.055)/1.055), 2.4))
+	}
+	return 0.2126*lin(c.R) + 0.7152*lin(c.G) + 0.0722*lin(c.B)
+}
+
+// contrast is WCAG's contrast ratio: 1 for a colour with itself, 21 at most.
+func contrast(a, b ui.Color) float32 {
+	la, lb := luminance(a), luminance(b)
+	if la < lb {
+		la, lb = lb, la
+	}
+	return (la + 0.05) / (lb + 0.05)
+}
+
+// legible lifts c toward fg until it reads on bg at min contrast: a theme's
+// red or green may be too dark for its own background, and a status dot must
+// not be.
+func legible(c, bg, fg ui.Color, min float32) ui.Color {
+	for i := 0; i < 12 && contrast(c, bg) < min; i++ {
+		c = c.MixOklab(fg, 0.12)
+	}
+	return c
+}
+
 // windowTint is the window's material tint, in the syntax
-// WindowOptions.VibrancyTint takes: the canvas's own grey, so the glass reads
-// as the app's surface rather than the wallpaper's. It is light enough that
-// the frozen desktop still colours the glass — at 0.8 the sheet is opaque and
-// the glass's lens and rim have nothing to show. It only shows while the
-// window is active: an inactive window's material is frosted by the system,
-// which lifts the tint into a grey sheet, so the view draws its own surfaces
-// there instead (see liquid).
-const windowTint = "light-dark(rgba(245, 245, 245, 0.55), rgba(14, 14, 16, 0.62))"
+// WindowOptions.VibrancyTint takes: the canvas's own colour, so the glass
+// reads as the app's surface rather than the wallpaper's. It is light enough
+// that the frozen desktop still colours the glass — at 0.8 the sheet is
+// opaque and the glass's lens and rim have nothing to show. It only shows
+// while the window is active: an inactive window's material is frosted by the
+// system, which lifts the tint into a sheet, so the view draws its own
+// surfaces there instead (see liquid).
+func windowTint(light, dark tokens) string {
+	return "light-dark(" + tintColor(light, 0.55) + ", " + tintColor(dark, 0.62) + ")"
+}
+
+func tintColor(tk tokens, alpha float32) string {
+	return fmt.Sprintf("rgba(%d, %d, %d, %.2f)",
+		tk.Background.R, tk.Background.G, tk.Background.B, alpha)
+}
+
+// windowBackground is the colour behind the page, for the platforms whose
+// material shows none.
+func windowBackground(light, dark tokens) string {
+	return fmt.Sprintf("light-dark(#%02x%02x%02x, #%02x%02x%02x)",
+		light.Background.R, light.Background.G, light.Background.B,
+		dark.Background.R, dark.Background.G, dark.Background.B)
+}
 
 // cardTint is the wash a pane card lays on the window's glass. The card is not
 // a second sheet of glass: two frosted layers read as one flat grey panel,
@@ -90,7 +230,7 @@ const windowTint = "light-dark(rgba(245, 245, 245, 0.55), rgba(14, 14, 16, 0.62)
 // card carries only enough of the theme's own colour to seat the terminal, and
 // lets the glass and the desktop's colour show through.
 func cardTint(tk tokens) ui.Color {
-	if tk.Background.R > 128 {
+	if !tk.Dark {
 		return tk.Background.Alpha(0.34)
 	}
 	return tk.Background.Alpha(0.5)
@@ -132,7 +272,7 @@ const canvasInset float32 = 6
 // takes the lighter one, as stageShadow does.
 func paneShadow(tk tokens) ui.Color {
 	alpha := float32(0.16)
-	if tk.Background.R > 128 {
+	if !tk.Dark {
 		alpha = 0.07
 	}
 	return ui.RGB(0, 0, 0).Alpha(alpha)

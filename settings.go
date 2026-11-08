@@ -29,6 +29,11 @@ type appSettings struct {
 	// LiquidGlass draws the window, the sidebar and the panes in macOS 26's
 	// material; off, they keep the flat look.
 	LiquidGlass bool `json:"liquidGlass"`
+	// ThemeLight and ThemeDark are the Ghostty themes picked for each
+	// appearance. Empty keeps the neutral chrome and the toolkit's own
+	// terminal colours.
+	ThemeLight string `json:"themeLight"`
+	ThemeDark  string `json:"themeDark"`
 
 	// Remote access: either this Mac is reachable through a relay, or it
 	// keeps codes imported from other Macs.
@@ -70,6 +75,13 @@ func loadSettings() appSettings {
 	if s.Appearance != appearanceLight && s.Appearance != appearanceDark {
 		s.Appearance = ""
 	}
+	// A theme that has gone — a deleted user file — falls back to the
+	// neutral pair rather than leaving the window without one.
+	for _, name := range []*string{&s.ThemeLight, &s.ThemeDark} {
+		if *name != "" && !themeExists(*name) {
+			*name = ""
+		}
+	}
 	glassUI = s.LiquidGlass
 	return s
 }
@@ -101,6 +113,7 @@ func (s appSettings) save() {
 // a grouped form on the right, as macOS's own settings read.
 const (
 	settingsGeneral = iota
+	settingsThemes
 	settingsNotifications
 	settingsRemote
 	settingsKeyboard
@@ -113,6 +126,7 @@ var settingsTabs = []struct {
 	title func() string
 }{
 	{"setting", locales.SettingsGeneral},
+	{"themes", locales.SettingsThemes},
 	{"bell", locales.SettingsNotifications},
 	{"server", locales.SettingsRemote},
 	{"keyboard", locales.SettingsKeyboard},
@@ -132,16 +146,16 @@ func (w *workspace) openSettings() {
 	}
 	w.settingsWin = mygo.NewWindow(mygo.WindowOptions{
 		Title:     "Settings",
-		Width:     720,
-		Height:    540,
-		MinWidth:  620,
-		MinHeight: 420,
+		Width:     880,
+		Height:    620,
+		MinWidth:  720,
+		MinHeight: 460,
 		// The page fills the window with the theme's own colours, so the
 		// window carries no material of its own: a transparent window would
 		// show the desktop for the frame before the page's first draw, and
 		// the system's material would frost as the window takes the keyboard.
 		TitleBarStyle:   mygo.TitleBarHidden,
-		BackgroundColor: "light-dark(#ffffff, #0e0e10)",
+		BackgroundColor: w.chromeBackground(),
 		Content:         ui.View(w.settingsView),
 	})
 	w.settingsWin.OnShow(func() { w.settingsWin.Invalidate() })
@@ -149,7 +163,7 @@ func (w *workspace) openSettings() {
 }
 
 func (w *workspace) settingsView(c *ui.Context) {
-	tk := themeTokens(c.Theme())
+	tk := w.tokens(c)
 	// Over the window's material the settings page is bare too, so the
 	// glass is the surface its cards and rows sit on.
 	// The page takes the same background as a compact pane — the theme's own
@@ -236,6 +250,8 @@ func (w *workspace) sidebarAction(c *ui.Context, tk tokens, label string, action
 
 func (w *workspace) settingsPage(c *ui.Context, tk tokens) {
 	switch w.settingsTab {
+	case settingsThemes:
+		w.themesPage(c, tk)
 	case settingsNotifications:
 		w.notificationsPage(c, tk)
 	case settingsRemote:

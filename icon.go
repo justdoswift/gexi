@@ -151,6 +151,15 @@ var glassUI = true
 // and the app switches its own surfaces in one frame. Main thread only.
 var windowFocused = true
 
+// chromeTheme is whether the current appearance draws a theme the user
+// picked. A themed window paints its own surfaces instead of leaving them to
+// the window's glass: the glass takes its colour from the window's tint,
+// which is set while the settings window has the keyboard and does not always
+// reach the material, so a themed window would read as the neutral chrome
+// once the settings window closes. Painted surfaces also match what the
+// window shows while it is unfocused. Set from the view, main thread only.
+var chromeTheme bool
+
 // setWindowFocused records whether the main window has the keyboard, and has
 // win draw again if that changed: its surfaces switch between glass and the
 // theme's own colours with it.

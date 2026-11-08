@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 
 	"github.com/justdoswift/gexi/locales"
 )
@@ -105,9 +106,15 @@ type workspace struct {
 	settings    appSettings
 	// settingsTab is the page the settings window shows.
 	settingsTab int
-	quitting    bool
-	saveTimer   *time.Timer
-	lastNotify  map[string]time.Time
+	// themeQuery filters the Themes page; themeScroll keeps where each
+	// appearance's carousel is, and themeQuerySeen notices a new query so
+	// both start from the beginning.
+	themeQuery     string
+	themeQuerySeen string
+	themeScroll    [2]ui.ScrollState
+	quitting       bool
+	saveTimer      *time.Timer
+	lastNotify     map[string]time.Time
 
 	collapsed   map[string]bool
 	searchQuery string
