@@ -237,6 +237,7 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 		p.lastAgentRestore = append([]string(nil), resolved.restore...)
 	}
 
+	lightTheme, darkTheme := ws.terminalThemes()
 	term, err := terminal.New(terminal.Options{
 		Conn: connOf(p),
 		Env: []string{
@@ -257,6 +258,10 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 			Weight:     400,
 			LineHeight: 1.2,
 		},
+		// The user's themes, one for each appearance: the view takes the
+		// dark one in a dark window, so switching appearance keeps it.
+		Theme:     lightTheme,
+		DarkTheme: darkTheme,
 		OnTitle: func(string) {
 			ws.invalidate()
 		},

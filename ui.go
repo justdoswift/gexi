@@ -30,7 +30,10 @@ func (w *workspace) view(c *ui.Context) {
 		}
 		w.pendingToast, w.pendingToastAction, w.pendingAction = "", "", nil
 	}
-	tk := themeTokens(c.Theme())
+	tk := w.tokens(c)
+	// A themed window paints its surfaces, so the chrome keeps the theme
+	// whether it has the keyboard or not (see liquid).
+	chromeTheme = w.appearanceThemeName(c.Theme().Dark) != ""
 	bar := c.TitleBar()
 	// The window's own surface is the one the sidebar and the canvas share,
 	// so in comfortable a pane reads as a panel wrapped by it, not as a card
@@ -38,10 +41,17 @@ func (w *workspace) view(c *ui.Context) {
 	// and the glass itself, tinted by the window's VibrancyTint, is that
 	// surface.
 	root := ui.Row(c).Fill()
-	if liquid(c) {
-		root = root.Background(ui.Transparent)
-	} else {
+	switch {
+	case !liquid(c):
 		root = root.Background(w.backdrop(tk))
+	case chromeTheme:
+		// A theme colours the window over its glass too: the native tint
+		// does not always reach the material, so the view lays the theme's
+		// own wash on the glass. The fade when the window loses the keyboard
+		// stays: there it paints the backdrop solid, as before.
+		root = root.Background(w.backdrop(tk).Alpha(0.55))
+	default:
+		root = root.Background(ui.Transparent)
 	}
 
 	target := float32(0)
