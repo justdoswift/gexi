@@ -449,11 +449,15 @@ type remotePaneLink struct {
 	sink         *remoteSink
 	// viewW and viewH are the size the host's view of the pane is laid out
 	// at, which the stream names; gridCols and gridRows are the terminal's
-	// own size. The card scales the whole of the host's screen to fit it, so
-	// a line wraps where the card ends rather than running on past it, out
-	// of sight.
+	// own size. cellW and cellH are a cell's size in DIPs, measured from
+	// those, so the mirror can ask the host for the grid this card fits.
 	viewW, viewH       float32
 	gridCols, gridRows int
+	cellW, cellH       float32
+	// wantCols and wantRows are the grid the card fits, written by the canvas
+	// and sent with every stream poll: the host takes that size for the pane,
+	// so its lines wrap where this card ends, at the same text size.
+	wantCols, wantRows atomic.Int32
 	// stream is the pane's poll loop while the canvas shows it, nil while it
 	// is off stage.
 	stream chan struct{}
@@ -479,29 +483,39 @@ func mirrorSize(p *pane) (float32, float32) {
 	return float32(max(cols, 80))*7.55 + 24, float32(max(rows, 24))*19.2 + 20
 }
 
-// fitScale is how much the whole of the host's screen shrinks to fit a card
-// aw by ah: at 1 when the card is at least the size the host draws at, less
-// when it is smaller. A card smaller than the host's screen used to hide the
-// right of every line, and a shell's input wrapped only at the host's width,
-// past the card's edge; at this scale the line ends where the card does. The
-// host's size comes from the stream, or from the same estimate mirrorSize
-// starts with before the first one.
-func (l *remotePaneLink) fitScale(aw, ah float32) float32 {
-	if l == nil || aw <= 0 || ah <= 0 {
-		return 1
+// measureCell takes the cell's size from the first stream that names the
+// host's view: the same font draws both ends, so one measurement serves
+// while the host takes the size this Mac asks for.
+func (l *remotePaneLink) measureCell() {
+	if l.cellW == 0 && l.viewW > 24 && l.gridCols > 0 {
+		l.cellW = (l.viewW - 24) / float32(l.gridCols)
 	}
-	vw, vh := l.viewW, l.viewH
-	if vw <= 0 || vh <= 0 {
-		cols, rows := l.gridCols, l.gridRows
-		vw, vh = float32(max(cols, 80))*7.55+24, float32(max(rows, 24))*19.2+20
+	if l.cellH == 0 && l.viewH > 20 && l.gridRows > 0 {
+		l.cellH = (l.viewH - 20) / float32(l.gridRows)
 	}
-	scale := min(1, aw/vw, ah/vh)
-	// A screen far larger than the card would make the text unreadable; the
-	// zoom shortcut widens the card when that is not enough.
-	if scale < 0.2 {
-		scale = 0.2
+}
+
+// wantGrid is the terminal size the card aw by ah fits: what the host's pane
+// is asked to take, so its lines wrap where the card ends at the text size
+// this Mac's own panes have. One column and row are kept back, since the
+// host lays the same cells out at the same font and rounds by a pixel.
+func (l *remotePaneLink) wantGrid(aw, ah float32) (int, int) {
+	cw, ch := l.cellW, l.cellH
+	if cw <= 0 {
+		cw = 7.55
 	}
-	return scale
+	if ch <= 0 {
+		ch = 19.2
+	}
+	cols := int((aw-24)/cw) - 1
+	rows := int((ah-20)/ch) - 1
+	if cols < 10 {
+		cols = 10
+	}
+	if rows < 3 {
+		rows = 3
+	}
+	return cols, rows
 }
 
 // remoteConn is this Mac's link to one paired host: the transport under the
@@ -908,11 +922,18 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 		default:
 		}
 		var view remoteStreamView
-		err := rc.client.call("pane.stream", map[string]any{
+		params := map[string]any{
 			"pane":     p.remote.id,
 			"offset":   offset,
 			"snapshot": snapshot,
-		}, &view)
+		}
+		// The grid this card fits goes with every poll: the host keeps the
+		// pane at that size while this Mac watches, and lets it go when the
+		// polls stop.
+		if wantCols, wantRows := int(p.remote.wantCols.Load()), int(p.remote.wantRows.Load()); wantCols > 0 && wantRows > 0 {
+			params["cols"], params["rows"] = wantCols, wantRows
+		}
+		err := rc.client.call("pane.stream", params, &view)
 		if err != nil {
 			if errors.Is(err, errRemoteNotPaired) {
 				rc.fail(err)
@@ -928,6 +949,13 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 			if cols > 0 && rows > 0 {
 				p.term.Resize(cols, rows)
 				cursor.resize(rows, cols)
+			}
+			// The screen changed shape, and the host's did too: start over
+			// from a snapshot of it rather than feed the old grid's output
+			// into the new one. A response that already brought one (reset)
+			// has done it.
+			if !view.Reset {
+				snapshot = true
 			}
 		}
 		// The size the host lays its view out at comes with the stream; the
