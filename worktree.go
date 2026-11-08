@@ -1736,7 +1736,7 @@ func (w *workspace) createPaneWorktree(p *pane) {
 	}
 	s := w.sessionOf(p)
 	pr := w.projectOf(s)
-	if pr == nil || pr.RemoteHost != "" {
+	if pr == nil {
 		return
 	}
 	p.worktreeBusy = worktreeBusyCreate
@@ -2414,11 +2414,6 @@ func excludePerchRule(worktreePath string) {
 // for the pane; once it has one, the same slot shows PR / Merge instead.
 func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 	if p.Worktree == nil {
-		if s := w.sessionOf(p); s != nil {
-			if pr := w.projectOf(s); pr != nil && pr.RemoteHost != "" {
-				return
-			}
-		}
 		label := "W"
 		action := func() { w.createPaneWorktree(p) }
 		hint := locales.WorktreeCreateHint()

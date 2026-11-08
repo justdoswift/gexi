@@ -87,7 +87,6 @@
               <div class="session"><span class="sess-name">homepage</span></div>
             </div>
           </div>
-          <div class="side-remote"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg><span>远程</span><span class="plus">+</span></div>
         </div>
         <div class="app-main">
           <div class="panes" data-count="3" data-panes>
@@ -271,8 +270,7 @@ no changes added to commit
                   <div class="session"><span class="sess-name">staging</span></div>
                 </div>
               </div>
-              <div class="side-remote"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg><span>远程</span><span class="plus">+</span></div>
-            </div>
+                </div>
           </div>
         </div>
       </div>
@@ -407,30 +405,6 @@ gexi send -e "ls -la"</code></div>
     </div>
   </section>
 
-  <section class="section wrap" id="remote">
-    <div class="split">
-      <div class="split-copy" data-reveal>
-        <h2>另一台 Mac，同一个窗口。</h2>
-        <p class="lead">用一次性连接码，通过中继连上另一台 Mac；或者直接选 <code>~/.ssh/config</code> 里的主机。窗格跑你自己的 ssh 配置，ProxyJump、密钥这些照旧。</p>
-        <p class="body">同一台主机的所有窗格共用一条连接。打开「保留远程会话」后，每个窗格有自己的 tmux 会话，掉线再连还是同一个 shell；没有 tmux 的主机也能拿到登录 shell。留在本地的是 agent 检测：远程 agent 目前不汇报状态。</p>
-      </div>
-      <div data-reveal style="--d:90ms">
-        <div class="panel">
-          <div class="menu" data-ui aria-label="远程菜单">
-            <div class="menu-head">远程</div>
-            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg>连接到另一台 Mac…<span class="sub">连接码</span></div>
-            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 2.5v11M3 7.5 8 2.5l5 5"/></svg>允许这台 Mac 被连接…<span class="sub">中继</span></div>
-            <div class="menu-sep"></div>
-            <div class="menu-head">~/.ssh/config 里的主机</div>
-            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg>studio-mac<span class="sub">隧道</span></div>
-            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg>build-mini<span class="sub">ssh</span></div>
-            <div class="menu-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="7" rx="1.5"/><path d="M5.5 13h5M8 10v3"/></svg>staging<span class="sub">ProxyJump</span></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <section class="section wrap" id="install">
     <div class="install-grid">
       <div data-reveal>
@@ -490,10 +464,6 @@ go build -o gexi ./cmd/gexi</code></div>
           <details class="qa" name="faq">
             <summary>能在 Intel Mac 上跑吗？<span class="sign" aria-hidden="true"></span></summary>
             <div class="answer">从源码构建可以，代码同时支持 Apple 芯片和 Intel。签名公证的下载目前只有 Apple 芯片版。</div>
-          </details>
-          <details class="qa" name="faq">
-            <summary>远程 agent 会汇报状态吗？<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">还不会。gexi 看到的是 ssh 进程，不是远端的 agent，所以远程 <code>claude</code> 不会汇报工作或等待。远程窗格的其他部分和本地一样。</div>
           </details>
           <details class="qa" name="faq">
             <summary>真的免费吗？<span class="sign" aria-hidden="true"></span></summary>

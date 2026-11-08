@@ -257,28 +257,6 @@ func iconButtonSmall(c *ui.Context, tk tokens, name string, action func(), hint 
 	iconButtonSized(c, tk, name, iconSmallSize, 15, iconOnMaterial, action, hint...)
 }
 
-// iconMenuButton is iconButton that opens a menu. The menu is built when it
-// opens, so the host list is read fresh instead of at startup. A hint, when
-// given, is the tooltip the pointer shows over it.
-func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu), hint ...string) {
-	size := iconSize
-	el := ui.Row(c).Width(size).Height(size).Radius(chromeRadius).
-		Center().Cursor(ui.CursorPointer)
-	if el.Hovered() {
-		el = controlWash(c, el, tk, 0.06, tk.Control)
-	}
-	if len(hint) > 0 && hint[0] != "" {
-		el = el.Tooltip(hint[0])
-	}
-	el.Menu(build).Children(func() {
-		if src := iconSource(name, colorHex(tk.MutedForeground)); src != nil {
-			// The glyph sits inside the button: the press has to reach the
-			// button so its menu opens.
-			ui.Image(c, src).Width(17).Height(17).IgnoreInput(true)
-		}
-	})
-}
-
 func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32, glass iconGlass, action func(), hint ...string) {
 	el := ui.Row(c).Width(size).Height(size).Radius(chromeRadius).
 		Center().Cursor(ui.CursorPointer)

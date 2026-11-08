@@ -481,20 +481,6 @@ kbd {
   50% { opacity: 0.45; }
 }
 
-.side-remote {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 42px;
-  padding: 0 16px;
-  border-top: 1px solid #ececec;
-  font-size: 12.5px;
-  color: #6b6b6b;
-  flex: 0 0 auto;
-}
-.side-remote svg { width: 14px; height: 14px; }
-.side-remote .plus { margin-inline-start: auto; font-size: 15px; color: #9a9a9a; }
-
 .app-main {
   flex: 1 1 auto;
   min-width: 0;

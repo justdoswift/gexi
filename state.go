@@ -39,9 +39,11 @@ type workspaceState struct {
 }
 
 type savedProject struct {
-	ID         string         `json:"id"`
-	Dir        string         `json:"dir"`
-	Label      string         `json:"label,omitempty"`
+	ID    string         `json:"id"`
+	Dir   string         `json:"dir"`
+	Label string         `json:"label,omitempty"`
+	// RemoteHost is set by layouts saved while gexi had remote hosts.
+	// Restore drops those projects; the field stays so old layouts load.
 	RemoteHost string         `json:"remoteHost,omitempty"`
 	Collapsed  bool           `json:"collapsed,omitempty"`
 	Sessions   []savedSession `json:"sessions"`
@@ -154,11 +156,10 @@ func (w *workspace) savedState() workspaceState {
 	}
 	for _, pr := range w.Projects {
 		saved := savedProject{
-			ID:         pr.ID,
-			Dir:        pr.Dir,
-			Label:      pr.Label,
-			RemoteHost: pr.RemoteHost,
-			Collapsed:  w.collapsed[pr.ID],
+			ID:        pr.ID,
+			Dir:       pr.Dir,
+			Label:     pr.Label,
+			Collapsed: w.collapsed[pr.ID],
 		}
 		for _, s := range pr.Sessions {
 			if s.Root == nil {
@@ -281,7 +282,11 @@ func (w *workspace) restoreOrCreate() {
 	w.archived = state.ArchivedWorktrees
 
 	for _, sp := range state.Projects {
-		pr := &project{ID: sp.ID, Dir: sp.Dir, Label: sp.Label, RemoteHost: sp.RemoteHost}
+		// Remote projects are gone; their panes were ssh sessions.
+		if sp.RemoteHost != "" {
+			continue
+		}
+		pr := &project{ID: sp.ID, Dir: sp.Dir, Label: sp.Label}
 		for _, ss := range sp.Sessions {
 			ss.Root.dropMissingWorktrees(sp.Dir)
 			root, err := ss.Root.restore(w)
