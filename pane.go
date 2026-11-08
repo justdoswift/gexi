@@ -16,6 +16,10 @@ import (
 	"github.com/egoist/mygo/plugins/terminal"
 )
 
+// paneOutputLog is how much of a pane's recent output a remote mirror can
+// ask for by offset: past it, the client is sent a fresh snapshot instead.
+const paneOutputLog = 4 << 20
+
 // ptyConn is the in-memory backend: gexi owns the PTY, so the terminal
 // reads every byte the shell writes. That is also where agent detection gets
 // its master fd.
@@ -24,6 +28,18 @@ type ptyConn struct {
 	f       *os.File
 	ready   chan struct{}
 	pending *pty.Winsize
+
+	// out is the tail of what the program wrote, which a remote mirror of
+	// the pane replays from a snapshot: chunks from outStart, the offset of
+	// the oldest byte kept, through outEnd. cutMu holds the log still while
+	// a snapshot is taken, so the snapshot and outEnd name the same state;
+	// busy says the last chunk read may not have reached the terminal yet.
+	cutMu    sync.Mutex
+	out      [][]byte
+	outBytes int
+	outStart int64
+	outEnd   int64
+	busy     bool
 }
 
 func newPTYConn() *ptyConn { return &ptyConn{ready: make(chan struct{})} }
@@ -42,7 +58,74 @@ func (c *ptyConn) attach(f *os.File) {
 
 func (c *ptyConn) Read(p []byte) (int, error) {
 	<-c.ready
-	return c.f.Read(p)
+	// The terminal applied the chunk read last before it reads again, so
+	// the log now matches what it shows.
+	c.cutMu.Lock()
+	c.busy = false
+	c.cutMu.Unlock()
+	n, err := c.f.Read(p)
+	if n > 0 {
+		c.cutMu.Lock()
+		c.log(p[:n])
+		c.busy = true
+		c.cutMu.Unlock()
+	}
+	return n, err
+}
+
+// log keeps a chunk for the mirrors, letting go of the oldest chunks past
+// paneOutputLog. cutMu is held.
+func (c *ptyConn) log(b []byte) {
+	c.out = append(c.out, append([]byte(nil), b...))
+	c.outBytes += len(b)
+	c.outEnd += int64(len(b))
+	for c.outBytes > paneOutputLog && len(c.out) > 1 {
+		c.outBytes -= len(c.out[0])
+		c.outStart += int64(len(c.out[0]))
+		c.out = c.out[1:]
+	}
+}
+
+// snapshot returns what the pane shows as escape sequences and the log
+// offset they stand for, so a mirror can take the output after it without
+// doubling or losing any. The cut waits for the terminal to have applied
+// every chunk logged, then holds the log while it reads the screen.
+func (c *ptyConn) snapshot(term *terminal.Terminal) (int64, []byte) {
+	for try := 0; ; try++ {
+		if try > 0 {
+			time.Sleep(time.Millisecond)
+		}
+		c.cutMu.Lock()
+		if c.busy && try < 50 {
+			c.cutMu.Unlock()
+			continue
+		}
+		off := c.outEnd
+		snap := term.Snapshot()
+		c.cutMu.Unlock()
+		return off, snap
+	}
+}
+
+// outputSince returns the output logged from offset on, and false when the
+// log no longer holds it.
+func (c *ptyConn) outputSince(offset int64) ([]byte, bool) {
+	c.cutMu.Lock()
+	defer c.cutMu.Unlock()
+	if offset < c.outStart || offset > c.outEnd {
+		return nil, false
+	}
+	skip := offset - c.outStart
+	var out []byte
+	for _, chunk := range c.out {
+		if skip >= int64(len(chunk)) {
+			skip -= int64(len(chunk))
+			continue
+		}
+		out = append(out, chunk[skip:]...)
+		skip = 0
+	}
+	return out, true
 }
 
 func (c *ptyConn) Write(p []byte) (int, error) {

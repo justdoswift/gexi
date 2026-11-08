@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -160,6 +161,42 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 			"cols":       cols,
 			"rows":       rows,
 		}, nil
+
+	case "pane.stream":
+		pane, err := w.resolvePane(str(p, "pane"))
+		if err != nil {
+			return nil, err
+		}
+		offset := int64(intParam(p, "offset"))
+		var snap []byte
+		reset := offset <= 0 || boolParam(p, "snapshot")
+		if reset {
+			offset, snap = pane.conn.snapshot(pane.term)
+		}
+		data, ok := pane.conn.outputSince(offset)
+		if !ok {
+			// The mirror fell behind the log: start it over from the screen.
+			offset, snap = pane.conn.snapshot(pane.term)
+			data, _ = pane.conn.outputSince(offset)
+			reset = true
+		}
+		cols, rows := pane.term.Size()
+		out := map[string]any{
+			"pane":   pane.ID,
+			"title":  pane.title(),
+			"cwd":    pane.dir(),
+			"offset": offset + int64(len(data)),
+			"data":   base64.StdEncoding.EncodeToString(data),
+			"cols":   cols,
+			"rows":   rows,
+			"viewW":  pane.viewW,
+			"viewH":  pane.viewH,
+		}
+		if reset {
+			out["reset"] = true
+			out["snapshot"] = base64.StdEncoding.EncodeToString(snap)
+		}
+		return out, nil
 
 	case "pane.send":
 		pane, err := w.resolvePane(str(p, "pane"))

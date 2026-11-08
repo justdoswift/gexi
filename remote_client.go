@@ -2,10 +2,11 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -15,14 +16,18 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/justdoswift/gexi/locales"
 )
 
 // The other half of the LAN remote: this Mac's gexi reaching another one.
-// A host is an address and the token pairing gave us; a window shows the
-// host's sessions and one session's terminal, polled once a second.
+// A host is an address and a token pairing gave us; a window shows the
+// host's sessions and one session's terminal, as the terminal itself draws
+// it: the pane's output is streamed and fed to a terminal of the same size,
+// so colors, the cursor, full-screen programs and the keys typed work as
+// they do on the host.
 
 var remoteHTTP = &http.Client{Timeout: 15 * time.Second}
 
@@ -48,13 +53,21 @@ type remotePane struct {
 	Activity *agentActivity `json:"activity"`
 }
 
-type remoteTextView struct {
-	Pane  string `json:"pane"`
-	Title string `json:"title"`
-	Cwd   string `json:"cwd"`
-	Text  string `json:"text"`
-	Cols  int    `json:"cols"`
-	Rows  int    `json:"rows"`
+// remoteStreamView is what one poll of a pane's mirror brings: the output
+// after the offset the client has, or a snapshot of the whole screen when
+// the client starts over, with the size and the view the pane has.
+type remoteStreamView struct {
+	Pane     string  `json:"pane"`
+	Title    string  `json:"title"`
+	Cwd      string  `json:"cwd"`
+	Offset   int64   `json:"offset"`
+	Data     string  `json:"data"`
+	Snapshot string  `json:"snapshot"`
+	Reset    bool    `json:"reset"`
+	Cols     int     `json:"cols"`
+	Rows     int     `json:"rows"`
+	ViewW    float32 `json:"viewW"`
+	ViewH    float32 `json:"viewH"`
 }
 
 func (c remoteClient) call(method string, params map[string]any, out any) error {
@@ -414,10 +427,10 @@ func (w *workspace) remoteSessionRow(c *ui.Context, tk tokens, rc *remoteConn, s
 // MARK: the remote host, inside the main window
 
 // remoteConn is this Mac's link to one paired host. It keeps the host's
-// sessions and the text of the session being watched, polled once a second
-// while the app runs. The sidebar lists the sessions under the host's row
-// and the canvas shows one session's terminal, in the same window as the
-// local projects.
+// sessions and, while a session is on the canvas, the terminal showing one
+// of its panes: the pane's output is polled as a mirror and fed to a sink
+// terminal here. The sidebar lists the sessions under the host's row and
+// the canvas shows the terminal in the same window as the local projects.
 type remoteConn struct {
 	ws     *workspace
 	host   remoteHost
@@ -434,11 +447,22 @@ type remoteConn struct {
 	panes    []remotePane
 	session  *remoteSession
 
-	text   string
-	title  string
-	cwd    string
-	input  string
-	scroll ui.ScrollState
+	title string
+	cwd   string
+
+	// The mirror: term is the sink the frames feed, sink its connection,
+	// and streamPane the pane it shows. Main thread only.
+	term       *terminal.Terminal
+	sink       *remoteSink
+	streamPane string
+	streamStop chan struct{}
+	cols, rows int
+	viewW      float32
+	viewH      float32
+	// areaW and areaH are the room the terminal view had last frame, which
+	// scales the sink into it. focus asks the next frame to focus it.
+	areaW, areaH float32
+	focus        bool
 
 	stop chan struct{}
 }
@@ -515,6 +539,8 @@ func (rc *remoteConn) close() {
 	default:
 		close(rc.stop)
 	}
+	// stopRemoteClients runs on the main thread, where the mirror lives.
+	rc.stopStream()
 }
 
 func (rc *remoteConn) stopped() bool {
@@ -550,7 +576,6 @@ func (rc *remoteConn) refresh() {
 	if rc.stopped() || rc.ws.quitting {
 		return
 	}
-	sessionID, paneID := rc.target()
 	// The sidebar keeps the host's sessions and their activity current even
 	// while one of them fills the canvas.
 	var sessions []remoteSession
@@ -572,34 +597,27 @@ func (rc *remoteConn) refresh() {
 					break
 				}
 			}
+			// A session opened before its panes were listed picks the
+			// focused one now, and the mirror starts with it.
+			if rc.currentPaneID() == "" {
+				if ps := rc.panesOf(*rc.session); len(ps) > 0 {
+					rc.mu.Lock()
+					rc.paneID = ps[0].ID
+					for _, p := range ps {
+						if p.Focused {
+							rc.paneID = p.ID
+							break
+						}
+					}
+					rc.mu.Unlock()
+				}
+			}
 		}
+		// Runs on the main thread, where the mirror's terminal is made.
+		rc.startStreamIfNeeded()
 	})
-	if sessionID == "" || paneID == "" {
-		return
-	}
-	// Only the session on screen pulls its text; the others stay listed
-	// until the user opens one of them.
-	if !rc.ws.viewingRemote(rc.host.Address) {
-		return
-	}
-	var view remoteTextView
-	err := rc.client.call("pane.text", map[string]any{
-		"pane":  paneID,
-		"limit": 64_000,
-	}, &view)
-	if err != nil {
-		rc.fail(err)
-		return
-	}
-	rc.update(func() {
-		rc.loading = false
-		rc.err = ""
-		rc.text = view.Text
-		if view.Title != "" {
-			rc.title = view.Title
-		}
-		rc.cwd = view.Cwd
-	})
+	// The mirror of the session on the canvas runs on its own; the poll
+	// only keeps the sidebar current.
 }
 
 // viewingRemote says whether the canvas shows address. Polled from a
@@ -675,12 +693,11 @@ func (rc *remoteConn) openSession(s remoteSession) {
 	rc.sessionID, rc.paneID = s.ID, paneID
 	rc.mu.Unlock()
 	rc.session = &s
-	rc.text = ""
 	rc.title = s.Title
 	rc.cwd = ""
 	rc.loading = true
-	rc.scroll = ui.ScrollState{}
 	rc.ws.remoteActive = rc.host.Address
+	rc.startStreamIfNeeded()
 	rc.ws.invalidate()
 }
 
@@ -691,8 +708,8 @@ func (rc *remoteConn) back() {
 	rc.sessionID, rc.paneID = "", ""
 	rc.mu.Unlock()
 	rc.session = nil
-	rc.text = ""
 	rc.loading = true
+	rc.stopStream()
 	rc.ws.invalidate()
 }
 
@@ -700,43 +717,257 @@ func (rc *remoteConn) selectPane(paneID string) {
 	rc.mu.Lock()
 	rc.paneID = paneID
 	rc.mu.Unlock()
-	rc.text = ""
-	rc.scroll = ui.ScrollState{}
+	rc.startStreamIfNeeded()
 	rc.ws.invalidate()
 }
 
-func (rc *remoteConn) sendInput() {
-	if rc.input == "" {
-		return
-	}
-	_, paneID := rc.target()
-	text := rc.input + "\r"
-	rc.input = ""
-	if paneID == "" {
-		return
-	}
-	rc.ws.invalidate()
-	go func() { _ = rc.client.call("pane.send", map[string]any{"pane": paneID, "text": text}, nil) }()
+// remoteStreamInterval paces the mirror's polls: a frame of the display,
+// the delay a keystroke or a program's output takes to show.
+const remoteStreamInterval = 16 * time.Millisecond
+
+// remoteSink is the sink terminal's connection to the pane on the host: the
+// frames the mirror's poll brings, which the terminal reads, and the keys
+// typed into it, which go back as pane.send. Writes keep their order: one
+// goroutine sends them as they were typed.
+type remoteSink struct {
+	rc   *remoteConn
+	mu   sync.Mutex
+	cond *sync.Cond
+	buf  [][]byte
+	out  chan []byte
+	done chan struct{}
+	once sync.Once
 }
 
-func (rc *remoteConn) sendKey(seq string) {
-	_, paneID := rc.target()
-	if paneID == "" {
-		return
+func newRemoteSink(rc *remoteConn) *remoteSink {
+	c := &remoteSink{
+		rc:   rc,
+		out:  make(chan []byte, 64),
+		done: make(chan struct{}),
 	}
-	go func() { _ = rc.client.call("pane.send", map[string]any{"pane": paneID, "text": seq}, nil) }()
+	c.cond = sync.NewCond(&c.mu)
+	go c.sendLoop()
+	return c
 }
 
-// remoteKeys are the keys a phone or a small window cannot type around.
-var remoteKeys = [][2]string{
-	{"esc", "\x1b"},
-	{"^C", "\x03"},
-	{"tab", "\t"},
-	{"←", "\x1b[D"},
-	{"↑", "\x1b[A"},
-	{"↓", "\x1b[B"},
-	{"→", "\x1b[C"},
-	{"⏎", "\r"},
+func (c *remoteSink) Read(p []byte) (int, error) {
+	c.mu.Lock()
+	for len(c.buf) == 0 {
+		select {
+		case <-c.done:
+			c.mu.Unlock()
+			return 0, io.EOF
+		default:
+		}
+		c.cond.Wait()
+	}
+	frame := c.buf[0]
+	n := copy(p, frame)
+	if n == len(frame) {
+		c.buf = c.buf[1:]
+	} else {
+		c.buf[0] = frame[n:]
+	}
+	c.mu.Unlock()
+	return n, nil
+}
+
+func (c *remoteSink) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	select {
+	case c.out <- append([]byte(nil), p...):
+	case <-c.done:
+	}
+	return len(p), nil
+}
+
+func (c *remoteSink) push(b []byte) {
+	if len(b) == 0 {
+		return
+	}
+	c.mu.Lock()
+	select {
+	case <-c.done:
+	default:
+		c.buf = append(c.buf, b)
+	}
+	c.mu.Unlock()
+	c.cond.Signal()
+}
+
+func (c *remoteSink) Close() error {
+	c.once.Do(func() {
+		close(c.done)
+		c.mu.Lock()
+		c.cond.Broadcast()
+		c.mu.Unlock()
+	})
+	return nil
+}
+
+// sendLoop sends what was typed, in order, to the pane the mirror shows.
+func (c *remoteSink) sendLoop() {
+	for {
+		select {
+		case <-c.done:
+			return
+		case b := <-c.out:
+			_, paneID := c.rc.target()
+			if paneID == "" {
+				continue
+			}
+			_ = c.rc.client.call("pane.send", map[string]any{
+				"pane": paneID,
+				"text": string(b),
+			}, nil)
+		}
+	}
+}
+
+// startStreamIfNeeded brings up the mirror of the pane the canvas shows,
+// or takes down the one of a pane it no longer does. Main thread.
+func (rc *remoteConn) startStreamIfNeeded() {
+	paneID := rc.currentPaneID()
+	if paneID == "" {
+		rc.stopStream()
+		return
+	}
+	if rc.streamPane == paneID && rc.term != nil {
+		return
+	}
+	rc.startStream(paneID)
+}
+
+// startStream makes a terminal for the pane's mirror and polls it. Main
+// thread.
+func (rc *remoteConn) startStream(paneID string) {
+	rc.stopStream()
+	sink := newRemoteSink(rc)
+	lightTheme, darkTheme := rc.ws.terminalThemes()
+	term, err := terminal.New(terminal.Options{
+		Conn:         sink,
+		ResizeByConn: true,
+		Scrollback:   4 << 20,
+		Transparent:  true,
+		Theme:        lightTheme,
+		DarkTheme:    darkTheme,
+		Font: terminal.Font{
+			Family:     terminalFont + ", SF Mono, Menlo, monospace",
+			Size:       12,
+			Weight:     400,
+			LineHeight: 1.2,
+		},
+		Padding: terminal.Padding{X: 12, Y: 10},
+	})
+	if err != nil {
+		_ = sink.Close()
+		rc.fail(err)
+		return
+	}
+	stop := make(chan struct{})
+	rc.sink = sink
+	rc.term = term
+	rc.streamPane = paneID
+	rc.streamStop = stop
+	rc.focus = true
+	go rc.streamLoop(paneID, sink, term, stop)
+}
+
+// stopStream takes the mirror down. Main thread.
+func (rc *remoteConn) stopStream() {
+	if rc.streamStop != nil {
+		close(rc.streamStop)
+		rc.streamStop = nil
+	}
+	if rc.sink != nil {
+		_ = rc.sink.Close()
+		rc.sink = nil
+	}
+	if rc.term != nil {
+		_ = rc.term.Close()
+		rc.term = nil
+	}
+	rc.streamPane = ""
+	rc.cols, rc.rows = 0, 0
+	rc.viewW, rc.viewH = 0, 0
+}
+
+// streamLoop polls the pane's mirror and feeds the sink terminal what came
+// back. It runs until the pane changes or the app quits.
+func (rc *remoteConn) streamLoop(paneID string, sink *remoteSink, term *terminal.Terminal, stop chan struct{}) {
+	offset := int64(0)
+	snapshot := true
+	cols, rows := 0, 0
+	first := true
+	var title, cwd string
+	var vw, vh float32
+	var ucols, urows int
+	for {
+		select {
+		case <-stop:
+			return
+		case <-rc.stop:
+			return
+		default:
+		}
+		// Nothing to show while the canvas is on local work: the log keeps
+		// the output until the next poll starts over from a snapshot.
+		if !rc.ws.viewingRemote(rc.host.Address) {
+			time.Sleep(250 * time.Millisecond)
+			snapshot = false
+			continue
+		}
+		var view remoteStreamView
+		err := rc.client.call("pane.stream", map[string]any{
+			"pane":     paneID,
+			"offset":   offset,
+			"snapshot": snapshot,
+		}, &view)
+		if err != nil {
+			if errors.Is(err, errRemoteNotPaired) {
+				rc.fail(err)
+				return
+			}
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		snapshot = false
+		if view.Reset || view.Cols != cols || view.Rows != rows {
+			cols, rows = view.Cols, view.Rows
+			if cols > 0 && rows > 0 {
+				term.Resize(cols, rows)
+			}
+		}
+		if view.Reset {
+			if snap, err := base64.StdEncoding.DecodeString(view.Snapshot); err == nil {
+				sink.push(snap)
+			}
+		}
+		if data, err := base64.StdEncoding.DecodeString(view.Data); err == nil {
+			sink.push(data)
+		}
+		offset = view.Offset
+		// The sink draws itself as it is fed; the header and the size the
+		// canvas lays the view out at change with the poll, not every frame.
+		if first || view.Title != title || view.Cwd != cwd || view.Cols != ucols ||
+			view.Rows != urows || view.ViewW != vw || view.ViewH != vh {
+			first = false
+			title, cwd, ucols, urows, vw, vh = view.Title, view.Cwd, view.Cols, view.Rows, view.ViewW, view.ViewH
+			rc.update(func() {
+				rc.loading = false
+				rc.err = ""
+				rc.cols, rc.rows = view.Cols, view.Rows
+				rc.viewW, rc.viewH = view.ViewW, view.ViewH
+				if view.Title != "" {
+					rc.title = view.Title
+				}
+				rc.cwd = view.Cwd
+			})
+		}
+		time.Sleep(remoteStreamInterval)
+	}
 }
 
 func (rc *remoteConn) view(c *ui.Context) {
@@ -899,38 +1130,55 @@ func (rc *remoteConn) terminalView(c *ui.Context, tk tokens) {
 			}
 		})
 	}
-	// Keep the view at the end of the output unless the user scrolled up.
-	if rc.scroll.Y >= rc.scroll.MaxY {
-		rc.scroll.Y = math.MaxFloat32
+	// The pane's terminal as the host draws it: the mirror's frames feed a
+	// sink of the host's size, scaled into the room the canvas leaves.
+	if rc.term == nil {
+		ui.Spacer(c)
+		ui.Text(c, locales.RemoteConnecting()).FontSize(12).
+			TextColor(tk.MutedForeground)
+		ui.Spacer(c)
+		return
 	}
-	ui.Scroll(c).Fill().TrackScroll(&rc.scroll).Children(func() {
-		ui.Text(c, rc.text).Font("SF Mono, Menlo, monospace").FontSize(12).
-			FixedLineHeight(15).TextColor(tk.Foreground).
-			Padding(10, 14, 10, 14).FillWidth()
-	})
-	ui.Row(c).Height(28).Padding(0, 10, 0, 10).Gap(4).Children(func() {
-		for _, entry := range remoteKeys {
-			label, seq := entry[0], entry[1]
-			key := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(5).
-				Border(1, tk.Border).Cursor(ui.CursorPointer)
-			if key.Hovered() {
-				key = key.Background(tk.Active)
-			}
-			key.OnClick(func() { rc.sendKey(seq) }).Children(func() {
-				ui.Text(c, label).FontSize(11).TextColor(tk.MutedForeground).
-					OnClick(func() { rc.sendKey(seq) })
+	natW, natH := rc.naturalSize()
+	area := ui.Box(c).Fill()
+	area.Children(func() {
+		availW, availH := rc.areaW, rc.areaH
+		if availW <= 0 || availH <= 0 {
+			availW, availH = natW, natH
+		}
+		scale := min(availW/natW, availH/natH, 1)
+		w, h := natW*scale, natH*scale
+		// The card centers the grid; the view inside it is the host's size,
+		// scaled to the room the window leaves.
+		ui.Column(c).Fill().Center().Children(func() {
+			ui.Box(c).Width(w).Height(h).Clip().Children(func() {
+				el := terminal.View(c, rc.term).
+					Width(natW).Height(natH).Absolute().
+					Left(0).Top(0).TransformOrigin(0, 0).
+					Scale(scale, scale)
+				if rc.focus {
+					el = el.Focus()
+					rc.focus = false
+				}
 			})
-		}
+		})
 	})
-	ui.Row(c).Height(40).Padding(8, 10, 8, 10).Gap(6).Children(func() {
-		input := ui.TextInput(c, &rc.input).
-			Placeholder(locales.RemoteInputPlaceholder()).Height(28).FontSize(12).
-			FillWidth()
-		if input.Submitted() {
-			rc.sendInput()
-		}
-		ui.Button(c, locales.RemoteSend()).OnClick(func() { rc.sendInput() })
-	})
+	if b := area.LayoutBounds(); b.W > 0 && b.H > 0 {
+		rc.areaW, rc.areaH = b.W, b.H
+	}
+}
+
+// naturalSize is the size the sink's view was laid out at on the host, or
+// an estimate from the grid when the pane has not been drawn there.
+func (rc *remoteConn) naturalSize() (float32, float32) {
+	w, h := rc.viewW, rc.viewH
+	if w <= 0 || h <= 0 {
+		// SF Mono at 12 DIPs is about 7.2 by 14.4 a cell, with the grid's
+		// padding around it.
+		w = float32(max(rc.cols, 80))*7.2 + 24
+		h = float32(max(rc.rows, 24))*14.4 + 20
+	}
+	return w, h
 }
 
 func (rc *remoteConn) currentPaneID() string {
