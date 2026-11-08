@@ -14,10 +14,9 @@ into them, and read their screens.
 
 > **Status: early.** Projects and sessions, nested splits, focus, keyboard
 > shortcuts, screen capture, persistence, agent session resume, a files drawer
-> with changes and diffs, and the control CLI work today. Remote hosts work
-> over ssh; there is no remote agent yet.
-> Settings has a page each for general options, notifications, remote access,
-> shortcuts, and storage.
+> with changes and diffs, and the control CLI work today.
+> Settings has a page each for general options, notifications, shortcuts,
+> worktrees, and storage.
 
 ## Build
 
@@ -146,37 +145,6 @@ folder and deletes the worktree. A branch with unmerged commits is kept, and
 uncommitted changes ask first. Closing a pane keeps its checkout on disk for
 the Worktrees page to reopen; closing a pane where an agent has run asks
 first, and can keep the agent running in the background instead.
-
-### Remote hosts
-
-The **Remote** row at the bottom of the sidebar is the whole feature.
-
-**Reaching another Mac.** On that Mac, open Remote → *Allow this Mac to be
-reached…*, enter the relay (`user@host`, any ssh account you already have),
-and confirm. gexi writes a key, keeps a reverse tunnel
-(`ssh -R 127.0.0.1:<port>:localhost:22`) to the relay, and copies a
-connection code. On this Mac, Remote → *Connect to another Mac…*, paste the
-code, and the Mac appears in the menu from then on. The code carries the
-key, so treat it like a password; turning remote access off revokes it.
-The tunnel restarts on launch and after a dropped link.
-
-**Hosts in `~/.ssh/config`** are listed in the same menu (wildcards and `!`
-patterns are skipped, `Include` is followed). Choosing one opens a session in
-a project named after the host. The pane runs ssh with your own config, so
-`ProxyJump`, identities, and the rest apply unchanged, plus:
-
-- `ControlMaster=auto` with `ControlPersist=10m`, so every pane to the same
-  host shares one connection and the next session reuses it.
-- `ServerAliveInterval=15`, so a dead link is noticed while you are away.
-
-With "Keep remote sessions" on (the default, in Settings → Remote), the
-remote command is `tmux new -A -s gexi-<id> || exec ${SHELL:-sh} -l`: each
-pane gets its own tmux session, a dropped link reconnects to the same shell,
-and a host without tmux still gets a login shell. Remote panes restore like
-local ones — the saved layout reruns the ssh command and reattaches.
-
-What stays local is agent detection: `gexi` sees the ssh process, not the
-agent on the far side, so a remote `claude` does not report activity.
 
 ### Shortcuts
 

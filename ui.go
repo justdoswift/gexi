@@ -90,8 +90,6 @@ func (w *workspace) view(c *ui.Context) {
 		// thing drawn, so it slides over the canvas rather than resizing it.
 		w.drawerView(c, tk)
 	})
-	ui.Modal(c, &w.relayOpen, func() { w.relayDialog(c, tk) })
-	ui.Modal(c, &w.importOpen, func() { w.importDialog(c, tk) })
 	ui.Modal(c, &w.commitOpen, func() { w.commitDialog(c, tk) })
 	if w.closeTarget != nil {
 		switch ui.AlertDialog(c, &w.closeOpen, locales.PaneCloseTitle(), w.closeMsg,
@@ -252,11 +250,10 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 					TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
 			}
 			ui.Spacer(c)
-			// The footer holds the sidebar's two menus: remote Macs on
-			// the left, settings on the right, off the search row so the
-			// field can run nearly as wide as the sessions.
+			// The footer holds the sidebar's one menu, settings, off the
+			// search row so the field can run nearly as wide as the
+			// sessions.
 			ui.Row(c).Height(iconSize).Gap(2).Children(func() {
-				iconMenuButton(c, tk, "server", w.remoteMenu, locales.RemoteMenuHint())
 				ui.Spacer(c)
 				iconButton(c, tk, "setting", func() { w.openSettings() },
 					locales.ShortcutSettings()+" (⌘,)")
@@ -288,103 +285,6 @@ func (w *workspace) projectSearch(c *ui.Context, tk tokens) {
 	}
 }
 
-// remoteMenu is the whole Remote row: whether this Mac can be reached, the
-// Macs it already reaches, and the one-line import. A host list is read as
-// the menu opens, so ~/.ssh/config edits show up without a restart.
-func (w *workspace) remoteMenu(m *ui.Menu) {
-	if w.settings.RemoteListen {
-		state := "tunnel reconnecting"
-		if w.tunnelUp {
-			state = "reachable"
-		}
-		m.Item(fmt.Sprintf("%s · %s", w.settings.RemoteName, state)).Disabled(true)
-		if m.Item("Copy connection code").Chosen() {
-			if code, err := w.remoteCodeValue(); err == nil {
-				writeClipboard(code)
-			}
-		}
-		if m.Item("Turn off remote access").Chosen() {
-			w.disableRemote()
-			w.invalidate()
-		}
-	} else if m.Item("Allow this Mac to be reached…").Chosen() {
-		w.openRelayDialog()
-	}
-	m.Separator()
-
-	for _, h := range w.settings.ImportedHosts {
-		if m.Item(h.Name + "  " + h.Relay).Chosen() {
-			w.connectRemote(h)
-		}
-	}
-	for _, h := range loadSSHHosts() {
-		label := h.Alias
-		if target := h.target(); target != label {
-			label += "  " + target
-		}
-		if m.Item(label).Chosen() {
-			w.connectHost(h)
-		}
-	}
-	if len(w.settings.ImportedHosts) == 0 && len(loadSSHHosts()) == 0 {
-		m.Item("No other Mac yet").Disabled(true)
-	}
-	m.Separator()
-	if m.Item("Connect to another Mac…").Chosen() {
-		w.openImportDialog()
-	}
-}
-
-// relayDialog is the one-time setup for a Mac that should be reachable.
-func (w *workspace) relayDialog(c *ui.Context, tk tokens) {
-	ui.Column(c).Width(400).Padding(20).Gap(8).Children(func() {
-		ui.Text(c, locales.RelayTitle()).FontSize(14).FontWeight(600).TextColor(tk.Foreground)
-		ui.Text(c, locales.RelayBody()).
-			FontSize(11).TextColor(tk.MutedForeground)
-		ui.Text(c, locales.RelayHost()).FontSize(11).TextColor(tk.MutedForeground).Padding(6, 0, 0, 0)
-		ui.TextInput(c, &w.relayInput).Placeholder(locales.RelayHostPlaceholder()).Height(28).FontSize(12)
-		ui.Text(c, locales.RelayName()).FontSize(11).TextColor(tk.MutedForeground).Padding(6, 0, 0, 0)
-		ui.TextInput(c, &w.relayName).Placeholder(locales.RelayNamePlaceholder()).Height(28).FontSize(12)
-		if w.relayErr != "" {
-			ui.Text(c, w.relayErr).FontSize(11).TextColor(tk.Waiting)
-		}
-		ui.Row(c).Gap(8).Padding(8, 0, 0, 0).Children(func() {
-			ui.Spacer(c)
-			ui.Button(c, locales.Cancel()).OnClick(func() {
-				w.relayOpen = false
-				w.invalidate()
-			})
-			label := locales.TurnOn()
-			if w.relayBusy {
-				label = locales.Checking()
-			}
-			ui.Button(c, label).OnClick(func() { w.submitRelay() })
-		})
-	})
-}
-
-// importDialog takes the code from the other Mac. It starts from the
-// clipboard, so the usual path is open, connect.
-func (w *workspace) importDialog(c *ui.Context, tk tokens) {
-	ui.Column(c).Width(440).Padding(20).Gap(8).Children(func() {
-		ui.Text(c, locales.ImportTitle()).FontSize(14).FontWeight(600).TextColor(tk.Foreground)
-		ui.Text(c, locales.ImportBody()).
-			FontSize(11).TextColor(tk.MutedForeground)
-		ui.TextInput(c, &w.importText).Height(28).FontSize(12).Placeholder("gexi1.…")
-		if w.importErr != "" {
-			ui.Text(c, w.importErr).FontSize(11).TextColor(tk.Waiting)
-		}
-		ui.Row(c).Gap(8).Padding(8, 0, 0, 0).Children(func() {
-			ui.Spacer(c)
-			ui.Button(c, locales.Cancel()).OnClick(func() {
-				w.importOpen = false
-				w.invalidate()
-			})
-			ui.Button(c, locales.Connect()).OnClick(func() { w.submitImport() })
-		})
-	})
-}
-
 func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
 	iconButton(c, tk, "panel-left", func() {
 		w.settings.SidebarCollapsed = !w.settings.SidebarCollapsed
@@ -394,8 +294,8 @@ func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
 }
 
 // projectRow is a folder header: it folds its sessions in and out, and offers
-// another session or closing the project on hover. A remote project keeps a
-// server mark; a local one needs no folder glyph, the header being a folder.
+// another session or closing the project on hover. The header needs no folder
+// glyph: it is a folder.
 func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 	open := !w.collapsed[pr.ID] || strings.TrimSpace(w.searchQuery) != ""
 	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(6).Radius(chromeRadius).
@@ -416,11 +316,6 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 		}
 		if src := iconSource(chevron, colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(15).Height(15).OnClick(toggle)
-		}
-		if pr.RemoteHost != "" {
-			if src := iconSource("server", colorHex(tk.MutedForeground)); src != nil {
-				ui.Image(c, src).Width(16).Height(16).OnClick(toggle)
-			}
 		}
 		ui.Text(c, pr.name()).FontSize(12).FontWeight(500).SingleLine().TextColor(color).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)

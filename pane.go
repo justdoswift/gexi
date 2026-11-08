@@ -206,8 +206,8 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 	if dir == "" {
 		dir, _ = os.UserHomeDir()
 	}
-	// A remote shell reports its own path through OSC 7, and that path does
-	// not exist here. The ssh process still has to start in a local folder.
+	// A shell reports its own path through OSC 7, and that path may not exist
+	// here. The pane still has to start in a folder that does.
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 		dir, _ = os.UserHomeDir()
 	}
