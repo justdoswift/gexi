@@ -55,6 +55,7 @@ var remoteMethods = map[string]bool{
 	"session.list":   true,
 	"pane.list":      true,
 	"pane.text":      true,
+	"pane.stream":    true,
 	"pane.send":      true,
 }
 
