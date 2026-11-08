@@ -355,10 +355,15 @@ func (w *workspace) projectFor(dir string) *project {
 }
 
 // newSession runs command (or a login shell) in the project and selects it.
-// Main thread.
+// A project on another Mac has no session to make here: it asks the host for
+// one, and the next poll brings it. Main thread.
 func (w *workspace) newSession(pr *project, command []string, dir string) (*session, error) {
 	if pr == nil {
 		return nil, fmt.Errorf("No project is open")
+	}
+	if pr.remote != nil {
+		pr.remote.conn.newSession()
+		return nil, nil
 	}
 	if dir == "" {
 		dir = pr.Dir

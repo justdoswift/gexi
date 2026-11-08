@@ -124,6 +124,10 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		if s == nil {
+			// The project is on another Mac: the session is made there.
+			return map[string]any{"remote": true}, nil
+		}
 		return map[string]any{"session": s.ID, "pane": w.FocusedPane}, nil
 
 	case "pane.list":
