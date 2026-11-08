@@ -144,10 +144,25 @@ func (n *savedNode) dropMissingWorktrees(fallback string) {
 }
 
 func (w *workspace) savedState() workspaceState {
+	// A session on another Mac is not this window's to restore: its host
+	// brings it back next time the two are paired, and the pairing is
+	// what the sidebar draws it from.
+	selected, focused := w.SelectedSession, w.FocusedPane
+	if s := w.sessionByID(selected); s != nil && s.remote != nil {
+		selected, focused = "", ""
+		if first := w.firstSession(); first != nil {
+			selected = first.ID
+			if first.Root != nil {
+				if ps := first.Root.panes(); len(ps) > 0 {
+					focused = ps[0].ID
+				}
+			}
+		}
+	}
 	state := workspaceState{
 		Version:           2,
-		SelectedSession:   w.SelectedSession,
-		FocusedPane:       w.FocusedPane,
+		SelectedSession:   selected,
+		FocusedPane:       focused,
 		DrawerOpen:        w.drawer.open,
 		DrawerTab:         "changes",
 		DrawerListWidth:   w.drawer.listWidth,

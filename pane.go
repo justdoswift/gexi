@@ -223,6 +223,10 @@ type pane struct {
 	// bgProject is the project whose session held this pane when it went to
 	// the background, so reattaching lands it in the same place.
 	bgProject *project
+	// remote is set on a pane the window shows from another Mac: its
+	// terminal is fed by that host's stream, and its actions go back over
+	// the link.
+	remote *remotePaneLink
 }
 
 // paneSubagent is one Task/Agent call running under the pane's agent. Type is
@@ -441,6 +445,10 @@ func cleanTitle(title string) string {
 }
 
 func (p *pane) title() string {
+	// A pane on another Mac is called what its host calls it.
+	if p.remote != nil && p.remote.title != "" {
+		return p.remote.title
+	}
 	if t := cleanTitle(p.term.Title()); t != "" {
 		return t
 	}

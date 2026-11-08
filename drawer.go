@@ -141,6 +141,21 @@ type branchPillInfo struct {
 }
 
 func (w *workspace) branchPillInfo(p *pane) (branchPillInfo, bool) {
+	// A pane on another Mac brings its branch with it; the changes are its
+	// host's to count.
+	if p.remote != nil {
+		b := p.remote.branch
+		if b == nil || b.Name == "" {
+			return branchPillInfo{}, false
+		}
+		return branchPillInfo{
+			dir:     p.dir(),
+			branch:  b.Name,
+			added:   b.Added,
+			deleted: b.Deleted,
+			changed: b.Changed,
+		}, true
+	}
 	pr := w.projectOf(w.sessionOf(p))
 	if pr == nil {
 		return branchPillInfo{}, false
@@ -215,7 +230,16 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane, hint string) {
 		tint = tk.Control.Alpha(0.3)
 	}
 	el = capsule(c, el, tk, tint, bg)
+	// A remote pane's branch is the host's: its changes open on the host,
+	// not here, so the pill only names it.
 	pick := func() { w.toggleChangesDrawer(info.dir) }
+	if p.remote != nil {
+		pick = func() {}
+		el = el.Cursor(ui.CursorDefault)
+		if hint == "" {
+			hint = info.branch
+		}
+	}
 	if hint == "" {
 		hint = locales.DrawerOpenChanges()
 	}

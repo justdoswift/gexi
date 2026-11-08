@@ -237,6 +237,14 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		w.requestClose(pane)
 		return map[string]any{"closed": pane.ID}, nil
 
+	case "session.close":
+		s, err := w.resolveSession(str(p, "session"))
+		if err != nil {
+			return nil, err
+		}
+		w.closeSession(s)
+		return map[string]any{"closed": s.ID}, nil
+
 	case "pane.focus":
 		pane, err := w.resolvePane(str(p, "pane"))
 		if err != nil {
@@ -312,6 +320,46 @@ func (w *workspace) paneJSON(p *pane) map[string]any {
 		"agent":          agentJSON(p.agent),
 		"activity":       activityJSON(p.activity),
 		"subagents":      p.subagentsJSON(),
+		"branch":         w.branchJSON(p),
+	}
+}
+
+// branchJSON is the branch pill's data: the branch the pane's checkout is
+// on, and what its working tree changes. A remote client draws the same
+// pill the host does, so it needs the same figures; they come from the
+// git cache the header already keeps.
+func (w *workspace) branchJSON(p *pane) any {
+	info, ok := w.branchPillInfo(p)
+	if !ok {
+		return nil
+	}
+	return map[string]any{
+		"name":    info.branch,
+		"added":   info.added,
+		"deleted": info.deleted,
+		"changed": info.changed,
+	}
+}
+
+// layoutJSON is a session's split tree: a branch names its axis and the
+// percent its first side takes, and a leaf names its pane, so another Mac
+// can draw the same arrangement the host has.
+func layoutJSON(n *splitNode) any {
+	if n == nil {
+		return nil
+	}
+	if n.isLeaf() {
+		return map[string]any{"pane": n.pane.ID}
+	}
+	axis := "horizontal"
+	if n.axis == axisVertical {
+		axis = "vertical"
+	}
+	return map[string]any{
+		"axis":   axis,
+		"ratio":  n.ratio,
+		"first":  layoutJSON(n.first),
+		"second": layoutJSON(n.second),
 	}
 }
 
@@ -339,6 +387,7 @@ func (w *workspace) sessionJSON(pr *project, s *session) map[string]any {
 		"project":  projectID,
 		"selected": s.ID == w.SelectedSession,
 		"panes":    ids,
+		"layout":   layoutJSON(s.Root),
 	}
 	worktrees := []any{}
 	if s.Root != nil {

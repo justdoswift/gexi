@@ -224,15 +224,53 @@ func TestPairingCode(t *testing.T) {
 }
 
 func TestRemoteMethodWhitelist(t *testing.T) {
-	for _, allowed := range []string{"pane.text", "pane.send", "session.list", "pane.list"} {
+	// A paired window draws the pane header the host does, so the buttons
+	// that header shows work through the same methods.
+	for _, allowed := range []string{
+		"pane.text", "pane.send", "session.list", "pane.list",
+		"pane.split", "pane.close", "pane.focus", "session.close",
+	} {
 		if !remoteMethods[allowed] {
 			t.Errorf("%s should be allowed", allowed)
 		}
 	}
-	for _, denied := range []string{"app.quit", "app.settings", "project.new", "session.new", "pane.split", "pane.close", "event", "debug.proc"} {
+	for _, denied := range []string{"app.quit", "app.settings", "project.new", "session.new", "event", "debug.proc"} {
 		if remoteMethods[denied] {
 			t.Errorf("%s should not be allowed", denied)
 		}
+	}
+}
+
+// A session's layout goes over the wire as the tree the window draws, so a
+// host's splits show up on the client as the same splits.
+func TestRemoteLayout(t *testing.T) {
+	root := &splitNode{
+		axis:  axisHorizontal,
+		ratio: 60,
+		first: leaf(&pane{ID: "a"}),
+		second: &splitNode{
+			axis:   axisVertical,
+			ratio:  40,
+			first:  leaf(&pane{ID: "b"}),
+			second: leaf(&pane{ID: "c"}),
+		},
+	}
+	data, err := json.Marshal(layoutJSON(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got remoteLayout
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Axis != "horizontal" || got.Ratio != 60 || got.First.Pane != "a" {
+		t.Fatalf("first side: %+v", got)
+	}
+	if got.Second == nil || got.Second.Axis != "vertical" {
+		t.Fatalf("second side: %+v", got.Second)
+	}
+	if got.Second.First.Pane != "b" || got.Second.Second.Pane != "c" {
+		t.Fatalf("leaves: %+v", got.Second)
 	}
 }
 

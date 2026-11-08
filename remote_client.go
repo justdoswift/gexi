@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
@@ -40,9 +39,10 @@ type remoteClient struct {
 }
 
 type remoteSession struct {
-	ID    string   `json:"id"`
-	Title string   `json:"title"`
-	Panes []string `json:"panes"`
+	ID     string        `json:"id"`
+	Title  string        `json:"title"`
+	Panes  []string      `json:"panes"`
+	Layout *remoteLayout `json:"layout"`
 }
 
 type remotePane struct {
@@ -51,6 +51,53 @@ type remotePane struct {
 	Cwd      string         `json:"cwd"`
 	Focused  bool           `json:"focused"`
 	Activity *agentActivity `json:"activity"`
+	Agent    *remoteAgent   `json:"agent"`
+	Branch   *remoteBranch  `json:"branch"`
+}
+
+// remoteAgent is the host's agent detection, as agentJSON sends it: the
+// window shows the same mark and name the host's header does.
+type remoteAgent struct {
+	Kind    string `json:"kind"`
+	Session string `json:"session"`
+}
+
+func (p *remotePane) agent() *agentDetection {
+	if p == nil || p.Agent == nil || p.Agent.Kind == "" {
+		return nil
+	}
+	return &agentDetection{Kind: agentKind(p.Agent.Kind), SessionID: p.Agent.Session}
+}
+
+// remoteLayout is a session's split tree as the host has it: a leaf names
+// one of its panes, and a branch names its axis and the percent the first
+// side takes.
+type remoteLayout struct {
+	Pane   string        `json:"pane"`
+	Axis   string        `json:"axis"`
+	Ratio  float32       `json:"ratio"`
+	First  *remoteLayout `json:"first"`
+	Second *remoteLayout `json:"second"`
+}
+
+func (n *remoteLayout) isLeaf() bool { return n != nil && n.Pane != "" }
+
+func (n *remoteLayout) panes() []string {
+	if n == nil {
+		return nil
+	}
+	if n.isLeaf() {
+		return []string{n.Pane}
+	}
+	return append(n.First.panes(), n.Second.panes()...)
+}
+
+// remoteBranch is the pane's branch, as the host's own header pill shows it.
+type remoteBranch struct {
+	Name    string `json:"name"`
+	Added   int    `json:"added"`
+	Deleted int    `json:"deleted"`
+	Changed bool   `json:"changed"`
 }
 
 // remoteStreamView is what one poll of a pane's mirror brings: the output
@@ -306,174 +353,71 @@ func (w *workspace) remoteMenu(m *ui.Menu) {
 	}
 }
 
-// MARK: the sidebar's remote hosts
+// MARK: the hosts as projects
 
-// remoteSection lists the paired Macs under the projects, each row opening
-// the host and its live sessions. It keeps out of the way while the search
-// box filters local projects.
-func (w *workspace) remoteSection(c *ui.Context, tk tokens) {
-	if len(w.settings.RemoteHosts) == 0 || strings.TrimSpace(w.searchQuery) != "" {
-		return
-	}
-	for _, host := range w.settings.RemoteHosts {
-		w.remoteHostRow(c, tk, host)
-	}
+// A paired Mac is not a view of its own: it is a project in the sidebar, its
+// sessions are sessions, and its panes are panes, so the window draws them
+// with the same code it draws local work with. Only the transport is remote:
+// a pane's terminal is fed by the host's stream, and the buttons its header
+// shows call back to the host.
+
+type remoteProjectLink struct {
+	conn *remoteConn
+	host remoteHost
 }
 
-func (w *workspace) remoteHostRow(c *ui.Context, tk tokens, host remoteHost) {
-	rc := w.remoteConns[host.Address]
-	open := w.remoteOpen[host.Address]
-	selected := w.remoteActive == host.Address
-	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(6).
-		Radius(chromeRadius).MarginX(2)
-	hovered := row.Hovered()
-	color := tk.MutedForeground
-	if selected || hovered {
-		color = tk.Foreground
-	}
-	switch {
-	case selected:
-		row = controlWash(c, row, tk, 0.09, tk.Active)
-	case hovered:
-		row = controlWash(c, row, tk, 0.045, tk.Active)
-	}
-	pick := func() { w.openRemoteHost(host) }
-	toggle := func() {
-		w.remoteOpen[host.Address] = !open
-		w.invalidate()
-	}
-	row.OnClick(pick).Children(func() {
-		chevron := "chevron-right"
-		if open {
-			chevron = "chevron-down"
-		}
-		if src := iconSource(chevron, colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(15).Height(15).OnClick(toggle)
-		}
-		if src := iconSource("monitor", colorHex(color)); src != nil {
-			ui.Image(c, src).Width(14).Height(14).OnClick(pick)
-		}
-		ui.Text(c, host.Name).FontSize(12).FontWeight(500).SingleLine().
-			TextColor(color).OnClick(pick)
-		ui.Spacer(c).OnClick(pick)
-		if rc != nil && rc.err != "" {
-			ui.Box(c).Width(7).Height(7).Radius(4).Background(tk.Waiting).
-				Tooltip(rc.err).OnClick(pick)
-		}
-	})
-	if !open || rc == nil {
-		return
-	}
-	for _, s := range rc.sessions {
-		w.remoteSessionRow(c, tk, rc, s)
-	}
+type remoteSessionLink struct {
+	conn  *remoteConn
+	id    string
+	title string
+	// panes are the window's panes for the host's, keyed by the host's pane
+	// id: a pane that stays across polls keeps its terminal and screen.
+	panes map[string]*pane
 }
 
-func (w *workspace) remoteSessionRow(c *ui.Context, tk tokens, rc *remoteConn, s remoteSession) {
-	sel := w.remoteActive == rc.host.Address && rc.session != nil && rc.session.ID == s.ID
-	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(8).
-		Radius(chromeRadius).MarginX(2)
-	hovered := row.Hovered()
-	color := tk.MutedForeground
-	if sel || hovered {
-		color = tk.Foreground
-	}
-	switch {
-	case sel:
-		row = controlWash(c, row, tk, 0.09, tk.Active)
-	case hovered:
-		row = controlWash(c, row, tk, 0.045, tk.Active)
-	}
-	panes := rc.panesOf(s)
-	state := ""
-	for _, pane := range panes {
-		if pane.Activity == nil {
-			continue
-		}
-		if pane.Activity.State == activityWaiting {
-			state = activityWaiting
-			break
-		}
-		if pane.Activity.State == activityWorking {
-			state = activityWorking
-		}
-	}
-	label := s.Title
-	if label == "" && len(panes) > 0 {
-		label = panes[0].Cwd
-	}
-	pick := func() { rc.openSession(s) }
-	row.OnClick(pick).Children(func() {
-		if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(16).Height(16).OnClick(pick)
-		}
-		labelColor := color
-		if state == activityWaiting {
-			labelColor = tk.Foreground
-		}
-		ui.Text(c, label).FontSize(12).FontWeight(500).SingleLine().
-			TextColor(labelColor).OnClick(pick)
-		ui.Spacer(c).OnClick(pick)
-		if state != "" {
-			dot := tk.Working
-			if state == activityWaiting {
-				dot = tk.Waiting
-			}
-			ui.Box(c).Width(7).Height(7).Radius(4).Background(dot).OnClick(pick)
-		}
-	})
+type remotePaneLink struct {
+	conn   *remoteConn
+	id     string
+	title  string
+	branch *remoteBranch
+	sink   *remoteSink
+	// stream is the pane's poll loop while the canvas shows it, nil while it
+	// is off stage.
+	stream chan struct{}
 }
 
-// MARK: the remote host, inside the main window
-
-// remoteConn is this Mac's link to one paired host. It keeps the host's
-// sessions and, while a session is on the canvas, the terminal showing one
-// of its panes: the pane's output is polled as a mirror and fed to a sink
-// terminal here. The sidebar lists the sessions under the host's row and
-// the canvas shows the terminal in the same window as the local projects.
+// remoteConn is this Mac's link to one paired host: the transport under the
+// project and panes it keeps in the window. Its poll brings the host's
+// sessions and panes, and apply turns them into the model the window draws.
 type remoteConn struct {
-	ws     *workspace
-	host   remoteHost
-	client remoteClient
-
-	// mu guards the target a poll reads while the main thread changes it.
-	mu        sync.Mutex
-	sessionID string
-	paneID    string
+	ws      *workspace
+	host    remoteHost
+	client  remoteClient
+	project *project
 
 	loading  bool
 	err      string
 	sessions []remoteSession
 	panes    []remotePane
-	session  *remoteSession
-
-	title string
-	cwd   string
-
-	// The mirror: term is the sink the frames feed, sink its connection,
-	// and streamPane the pane it shows. Main thread only.
-	term       *terminal.Terminal
-	sink       *remoteSink
-	streamPane string
-	streamStop chan struct{}
-	cols, rows int
-	viewW      float32
-	viewH      float32
-	// areaW and areaH are the room the terminal view had last frame, which
-	// scales the sink into it. focus asks the next frame to focus it.
-	areaW, areaH float32
-	focus        bool
 
 	stop chan struct{}
 }
 
-// startRemoteClients starts a poll loop for every host already paired, so
-// the sidebar can list their sessions as soon as the window opens.
+// remoteProjectID names the project a host takes in the sidebar, and the
+// session and pane ids build on it so nothing collides with local work.
+func remoteProjectID(address string) string { return "remote:" + address }
+
+func remoteSessionID(address, id string) string { return "remote:" + address + ":session:" + id }
+
+func remotePaneID(address, id string) string { return "remote:" + address + ":pane:" + id }
+
+// startRemoteClients picks up the Macs already paired, so their projects are
+// in the sidebar as soon as the window opens.
 func (w *workspace) startRemoteClients() {
 	for _, host := range w.settings.RemoteHosts {
-		w.remoteOpen[host.Address] = true
 		w.remoteConn(host)
 	}
+	w.syncRemoteProjects()
 }
 
 // stopRemoteClients ends every poll loop. Called on quit.
@@ -481,6 +425,18 @@ func (w *workspace) stopRemoteClients() {
 	for address, rc := range w.remoteConns {
 		rc.close()
 		delete(w.remoteConns, address)
+	}
+	w.remoteProjects = nil
+}
+
+// syncRemoteProjects puts the projects in the order the settings keep the
+// hosts. Main thread.
+func (w *workspace) syncRemoteProjects() {
+	w.remoteProjects = w.remoteProjects[:0]
+	for _, host := range w.settings.RemoteHosts {
+		if rc := w.remoteConns[host.Address]; rc != nil && rc.project != nil {
+			w.remoteProjects = append(w.remoteProjects, rc.project)
+		}
 	}
 }
 
@@ -497,40 +453,29 @@ func (w *workspace) remoteConn(host remoteHost) *remoteConn {
 		loading: true,
 		stop:    make(chan struct{}),
 	}
+	pr := &project{
+		ID:     remoteProjectID(host.Address),
+		Label:  host.Name,
+		remote: &remoteProjectLink{conn: rc, host: host},
+	}
+	rc.project = pr
 	w.remoteConns[host.Address] = rc
+	w.syncRemoteProjects()
 	go rc.refreshLoop()
 	return rc
 }
 
-// openRemoteHost brings a host to the front of the window: its row in the
-// sidebar opens, and the canvas shows the host's session list.
+// openRemoteHost brings a host to the front: its project opens, and its
+// first session takes the canvas when it has one.
 func (w *workspace) openRemoteHost(host remoteHost) {
-	w.remoteConn(host)
-	w.remoteActive = host.Address
-	w.remoteOpen[host.Address] = true
-	if w.settings.SidebarCollapsed {
-		w.settings.SidebarCollapsed = false
-		w.scheduleSave()
+	rc := w.remoteConn(host)
+	w.syncRemoteProjects()
+	pr := rc.project
+	delete(w.collapsed, pr.ID)
+	if len(pr.Sessions) > 0 {
+		w.selectSession(pr.Sessions[0].ID)
 	}
 	w.invalidate()
-}
-
-// leaveRemote puts the canvas back on the local work. Main thread.
-func (w *workspace) leaveRemote() {
-	if w.remoteActive == "" {
-		return
-	}
-	w.remoteActive = ""
-	w.invalidate()
-}
-
-// activeRemote is the host the canvas shows, or nil while it shows local
-// work. Main thread.
-func (w *workspace) activeRemote() *remoteConn {
-	if w.remoteActive == "" {
-		return nil
-	}
-	return w.remoteConns[w.remoteActive]
 }
 
 func (rc *remoteConn) close() {
@@ -539,8 +484,10 @@ func (rc *remoteConn) close() {
 	default:
 		close(rc.stop)
 	}
-	// stopRemoteClients runs on the main thread, where the mirror lives.
-	rc.stopStream()
+	// stopRemoteClients runs on the main thread, where the panes live.
+	for _, s := range rc.project.Sessions {
+		rc.dropSession(s)
+	}
 }
 
 func (rc *remoteConn) stopped() bool {
@@ -550,12 +497,6 @@ func (rc *remoteConn) stopped() bool {
 	default:
 		return false
 	}
-}
-
-func (rc *remoteConn) target() (sessionID, paneID string) {
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
-	return rc.sessionID, rc.paneID
 }
 
 func (rc *remoteConn) refreshLoop() {
@@ -576,8 +517,6 @@ func (rc *remoteConn) refresh() {
 	if rc.stopped() || rc.ws.quitting {
 		return
 	}
-	// The sidebar keeps the host's sessions and their activity current even
-	// while one of them fills the canvas.
 	var sessions []remoteSession
 	if err := rc.client.call("session.list", nil, &sessions); err != nil {
 		rc.fail(err)
@@ -590,42 +529,8 @@ func (rc *remoteConn) refresh() {
 		rc.err = ""
 		rc.sessions = sessions
 		rc.panes = panes
-		if rc.session != nil {
-			for i := range sessions {
-				if sessions[i].ID == rc.session.ID {
-					rc.session = &sessions[i]
-					break
-				}
-			}
-			// A session opened before its panes were listed picks the
-			// focused one now, and the mirror starts with it.
-			if rc.currentPaneID() == "" {
-				if ps := rc.panesOf(*rc.session); len(ps) > 0 {
-					rc.mu.Lock()
-					rc.paneID = ps[0].ID
-					for _, p := range ps {
-						if p.Focused {
-							rc.paneID = p.ID
-							break
-						}
-					}
-					rc.mu.Unlock()
-				}
-			}
-		}
-		// Runs on the main thread, where the mirror's terminal is made.
-		rc.startStreamIfNeeded()
+		rc.apply()
 	})
-	// The mirror of the session on the canvas runs on its own; the poll
-	// only keeps the sidebar current.
-}
-
-// viewingRemote says whether the canvas shows address. Polled from a
-// goroutine, so it reads the selection on the main thread.
-func (w *workspace) viewingRemote(address string) bool {
-	var on bool
-	mygo.RunOnMain(func() { on = w.remoteActive == address })
-	return on
 }
 
 func (rc *remoteConn) update(fn func()) {
@@ -636,8 +541,6 @@ func (rc *remoteConn) update(fn func()) {
 		fn()
 		return
 	}
-	// The main window rebuilds its content: the sidebar's host row and the
-	// canvas both read what the poll brings back.
 	rc.ws.win.Update(func() {
 		if rc.stopped() {
 			return
@@ -653,19 +556,180 @@ func (rc *remoteConn) fail(err error) {
 	rc.update(func() {
 		rc.loading = false
 		rc.err = err.Error()
+		rc.ws.invalidate()
 	})
 }
 
-func (rc *remoteConn) panesOf(s remoteSession) []remotePane {
-	var out []remotePane
-	for _, pane := range rc.panes {
-		if includesString(s.Panes, pane.ID) {
-			out = append(out, pane)
+func (rc *remoteConn) paneByID(id string) *remotePane {
+	for i := range rc.panes {
+		if rc.panes[i].ID == id {
+			return &rc.panes[i]
 		}
 	}
-	return out
+	return nil
 }
 
+// apply turns what the poll brought into the window's model: the host's
+// sessions keep the objects they had, so the panes keep their terminals and
+// the screen they show, and only what changed on the host changes here.
+// Main thread.
+func (rc *remoteConn) apply() {
+	pr := rc.project
+	existing := map[string]*session{}
+	for _, s := range pr.Sessions {
+		if s.remote != nil {
+			existing[s.remote.id] = s
+		}
+	}
+	sessions := make([]*session, 0, len(rc.sessions))
+	for _, rs := range rc.sessions {
+		s := existing[rs.ID]
+		if s == nil {
+			s = &session{
+				ID: remoteSessionID(rc.host.Address, rs.ID),
+				remote: &remoteSessionLink{
+					conn:  rc,
+					id:    rs.ID,
+					panes: map[string]*pane{},
+				},
+			}
+		}
+		s.remote.title = rs.Title
+		s.Root = rc.tree(s, rs)
+		rc.prune(s, rs)
+		sessions = append(sessions, s)
+		delete(existing, rs.ID)
+	}
+	for _, gone := range existing {
+		rc.dropSession(gone)
+	}
+	pr.Sessions = sessions
+	rc.ws.syncRemoteProjects()
+	rc.ws.syncRemoteMirrors()
+	rc.ws.invalidate()
+}
+
+// tree builds the host's split tree for a session, over the window's panes.
+func (rc *remoteConn) tree(s *session, rs remoteSession) *splitNode {
+	if rs.Layout != nil {
+		return rc.node(s, rs.Layout)
+	}
+	// A host from before the layout was sent still names its panes; the
+	// first one stands for the session, as it always did.
+	if len(rs.Panes) == 0 {
+		return nil
+	}
+	return rc.leaf(s, rs.Panes[0])
+}
+
+func (rc *remoteConn) node(s *session, n *remoteLayout) *splitNode {
+	if n == nil {
+		return nil
+	}
+	if n.isLeaf() {
+		return rc.leaf(s, n.Pane)
+	}
+	ax := axisHorizontal
+	if n.Axis == "vertical" {
+		ax = axisVertical
+	}
+	return &splitNode{
+		axis:   ax,
+		ratio:  n.Ratio,
+		first:  rc.node(s, n.First),
+		second: rc.node(s, n.Second),
+	}
+}
+
+// leaf is the window's pane for one of the host's, made the first time it
+// is seen. Its terminal is the sink the host's stream feeds.
+func (rc *remoteConn) leaf(s *session, paneID string) *splitNode {
+	p := s.remote.panes[paneID]
+	if p == nil {
+		p = rc.newPane(s, paneID)
+	}
+	if p == nil {
+		return nil
+	}
+	if hp := rc.paneByID(paneID); hp != nil {
+		p.initialDir = hp.Cwd
+		p.agent = hp.agent()
+		p.activity = hp.Activity
+		p.remote.branch = hp.Branch
+		p.remote.title = hp.Title
+	}
+	return leaf(p)
+}
+
+func (rc *remoteConn) newPane(s *session, paneID string) *pane {
+	p := &pane{
+		ID:     remotePaneID(rc.host.Address, paneID),
+		ws:     rc.ws,
+		remote: &remotePaneLink{conn: rc, id: paneID},
+	}
+	sink := newRemoteSink(rc, paneID)
+	lightTheme, darkTheme := rc.ws.terminalThemes()
+	term, err := terminal.New(terminal.Options{
+		Conn:         sink,
+		ResizeByConn: true,
+		Scrollback:   4 << 20,
+		Transparent:  true,
+		Theme:        lightTheme,
+		DarkTheme:    darkTheme,
+		Font: terminal.Font{
+			Family:     terminalFont + ", SF Mono, Menlo, monospace",
+			Size:       12,
+			Weight:     400,
+			LineHeight: 1.2,
+		},
+		Padding: terminal.Padding{X: 12, Y: 10},
+	})
+	if err != nil {
+		_ = sink.Close()
+		rc.err = err.Error()
+		return nil
+	}
+	p.term = term
+	p.remote.sink = sink
+	s.remote.panes[paneID] = p
+	return p
+}
+
+// prune lets go of the panes a session no longer has. The layout is what
+// the window draws, so it decides; a host from before it is drawn lists its
+// panes alone.
+func (rc *remoteConn) prune(s *session, rs remoteSession) {
+	keep := rs.Panes
+	if rs.Layout != nil {
+		keep = rs.Layout.panes()
+	}
+	for id, p := range s.remote.panes {
+		if includesString(keep, id) {
+			continue
+		}
+		rc.stopStream(p)
+		if p.term != nil {
+			_ = p.term.Close()
+		}
+		delete(s.remote.panes, id)
+	}
+}
+
+// dropSession takes a session the host no longer has out of the window.
+func (rc *remoteConn) dropSession(s *session) {
+	if s == nil || s.remote == nil {
+		return
+	}
+	for id, p := range s.remote.panes {
+		rc.stopStream(p)
+		if p.term != nil {
+			_ = p.term.Close()
+		}
+		delete(s.remote.panes, id)
+	}
+}
+
+// includesString reports whether a list holds want.
 func includesString(list []string, want string) bool {
 	for _, s := range list {
 		if s == want {
@@ -675,80 +739,224 @@ func includesString(list []string, want string) bool {
 	return false
 }
 
-// openSession shows one remote session's terminal in the canvas. Main
-// thread.
-func (rc *remoteConn) openSession(s remoteSession) {
-	panes := rc.panesOf(s)
-	paneID := ""
-	for _, pane := range panes {
-		if pane.Focused {
-			paneID = pane.ID
-			break
-		}
-	}
-	if paneID == "" && len(panes) > 0 {
-		paneID = panes[0].ID
-	}
-	rc.mu.Lock()
-	rc.sessionID, rc.paneID = s.ID, paneID
-	rc.mu.Unlock()
-	rc.session = &s
-	rc.title = s.Title
-	rc.cwd = ""
-	rc.loading = true
-	rc.ws.remoteActive = rc.host.Address
-	rc.startStreamIfNeeded()
-	rc.ws.invalidate()
-}
-
-// back leaves the session and returns the canvas to the host's session
-// list. Main thread.
-func (rc *remoteConn) back() {
-	rc.mu.Lock()
-	rc.sessionID, rc.paneID = "", ""
-	rc.mu.Unlock()
-	rc.session = nil
-	rc.loading = true
-	rc.stopStream()
-	rc.ws.invalidate()
-}
-
-func (rc *remoteConn) selectPane(paneID string) {
-	rc.mu.Lock()
-	rc.paneID = paneID
-	rc.mu.Unlock()
-	rc.startStreamIfNeeded()
-	rc.ws.invalidate()
-}
+// MARK: the streams
 
 // remoteStreamInterval paces the mirror's polls: a frame of the display,
 // the delay a keystroke or a program's output takes to show.
 const remoteStreamInterval = 16 * time.Millisecond
 
-// remoteSink is the sink terminal's connection to the pane on the host: the
-// frames the mirror's poll brings, which the terminal reads, and the keys
-// typed into it, which go back as pane.send. Writes keep their order: one
-// goroutine sends them as they were typed.
-type remoteSink struct {
-	rc   *remoteConn
-	mu   sync.Mutex
-	cond *sync.Cond
-	buf  [][]byte
-	out  chan []byte
-	done chan struct{}
-	once sync.Once
+// startStream polls the pane's mirror while the canvas shows it. The
+// terminal keeps the size the host drew it at, so the text stays the size it
+// is there; the card only decides how much of the screen shows.
+func (rc *remoteConn) startStream(p *pane) {
+	if p == nil || p.remote == nil || p.term == nil || p.remote.stream != nil {
+		return
+	}
+	stop := make(chan struct{})
+	p.remote.stream = stop
+	go rc.streamLoop(p, stop)
 }
 
-func newRemoteSink(rc *remoteConn) *remoteSink {
+func (rc *remoteConn) stopStream(p *pane) {
+	if p == nil || p.remote == nil || p.remote.stream == nil {
+		return
+	}
+	close(p.remote.stream)
+	p.remote.stream = nil
+}
+
+func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
+	sink := p.remote.sink
+	offset := int64(0)
+	snapshot := true
+	cols, rows := 0, 0
+	for {
+		select {
+		case <-stop:
+			return
+		case <-rc.stop:
+			return
+		default:
+		}
+		var view remoteStreamView
+		err := rc.client.call("pane.stream", map[string]any{
+			"pane":     p.remote.id,
+			"offset":   offset,
+			"snapshot": snapshot,
+		}, &view)
+		if err != nil {
+			if errors.Is(err, errRemoteNotPaired) {
+				rc.fail(err)
+				return
+			}
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		snapshot = false
+		if view.Reset || view.Cols != cols || view.Rows != rows {
+			cols, rows = view.Cols, view.Rows
+			if cols > 0 && rows > 0 {
+				p.term.Resize(cols, rows)
+			}
+		}
+		if view.Reset {
+			if snap, err := base64.StdEncoding.DecodeString(view.Snapshot); err == nil {
+				sink.push(snap)
+			}
+		}
+		if data, err := base64.StdEncoding.DecodeString(view.Data); err == nil {
+			sink.push(data)
+		}
+		offset = view.Offset
+		time.Sleep(remoteStreamInterval)
+	}
+}
+
+// syncRemoteMirrors runs the streams of the pane the canvas shows and rests
+// the ones it does not: a hidden pane costs the host nothing. Main thread.
+func (w *workspace) syncRemoteMirrors() {
+	shown := map[*pane]bool{}
+	// Every pane of the session on the canvas keeps its stream: a zoomed
+	// one hides the others, but their rail cards still show them live.
+	if s := w.selected(); s != nil && s.remote != nil && s.Root != nil {
+		for _, p := range s.Root.panes() {
+			shown[p] = true
+		}
+	}
+	for _, rc := range w.remoteConns {
+		for _, s := range rc.project.Sessions {
+			if s.Root == nil {
+				continue
+			}
+			for _, p := range s.Root.panes() {
+				if p.remote == nil {
+					continue
+				}
+				if shown[p] {
+					rc.startStream(p)
+				} else {
+					rc.stopStream(p)
+				}
+			}
+		}
+	}
+}
+
+// MARK: the pane's buttons, on the host
+
+// splitPane splits the host's pane toward the side asked for; the poll
+// brings the new layout and the new pane's stream.
+func (rc *remoteConn) splitPane(paneID string, ax axis) {
+	axis := "horizontal"
+	if ax == axisVertical {
+		axis = "vertical"
+	}
+	go func() {
+		if err := rc.client.call("pane.split", map[string]any{
+			"pane": paneID,
+			"axis": axis,
+		}, nil); err != nil {
+			rc.fail(err)
+			return
+		}
+		rc.refresh()
+	}()
+}
+
+// closePane closes one of the host's panes.
+func (rc *remoteConn) closePane(paneID string) {
+	go func() {
+		if err := rc.client.call("pane.close", map[string]any{"pane": paneID}, nil); err != nil {
+			rc.fail(err)
+			return
+		}
+		rc.refresh()
+	}()
+}
+
+// closeSession ends a session on the host.
+func (rc *remoteConn) closeSession(sessionID string) {
+	go func() {
+		if err := rc.client.call("session.close", map[string]any{"session": sessionID}, nil); err != nil {
+			rc.fail(err)
+			return
+		}
+		rc.refresh()
+	}()
+}
+
+// focusPane tells the host which of its panes has the keyboard here.
+func (rc *remoteConn) focusPane(paneID string) {
+	go func() {
+		_ = rc.client.call("pane.focus", map[string]any{"pane": paneID}, nil)
+	}()
+}
+
+// MARK: the remote pane's place in the window
+
+// remoteHost drops the pairing, its project, and the streams under it.
+func (w *workspace) removeRemoteHost(address string) {
+	kept := w.settings.RemoteHosts[:0]
+	for _, h := range w.settings.RemoteHosts {
+		if h.Address != address {
+			kept = append(kept, h)
+		}
+	}
+	w.settings.RemoteHosts = kept
+	w.settings.save()
+	if rc := w.remoteConns[address]; rc != nil {
+		rc.close()
+		delete(w.remoteConns, address)
+	}
+	for i, pr := range w.remoteProjects {
+		if pr.ID == remoteProjectID(address) {
+			w.remoteProjects = append(w.remoteProjects[:i], w.remoteProjects[i+1:]...)
+			break
+		}
+	}
+	if s := w.sessionByID(w.SelectedSession); s == nil || s.remote != nil {
+		w.SelectedSession = ""
+		if first := w.firstSession(); first != nil {
+			w.SelectedSession = first.ID
+		}
+	}
+	w.invalidate()
+	w.invalidateSettings()
+}
+
+// MARK: the stream's connection to a pane
+
+// remoteSink is one sink terminal's connection to the pane on the host: the
+// frames the mirror's poll brings, which the terminal reads, and the keys
+// typed into it, which go back to that pane as pane.send. Writes keep their
+// order: one goroutine sends them as they were typed.
+type remoteSink struct {
+	rc     *remoteConn
+	paneID string
+	mu     sync.Mutex
+	cond   *sync.Cond
+	buf    [][]byte
+	out    chan []byte
+	done   chan struct{}
+	once   sync.Once
+}
+
+func newRemoteSink(rc *remoteConn, paneID string) *remoteSink {
 	c := &remoteSink{
-		rc:   rc,
-		out:  make(chan []byte, 64),
-		done: make(chan struct{}),
+		rc:     rc,
+		paneID: paneID,
+		out:    make(chan []byte, 64),
+		done:   make(chan struct{}),
 	}
 	c.cond = sync.NewCond(&c.mu)
 	go c.sendLoop()
 	return c
 }
+
+// Resize makes the sink a sized connection: the terminal keeps the size the
+// host gave it, and the view tells the host's grid, not its own, where the
+// cells go.
+func (c *remoteSink) Resize(cols, rows int) error { return nil }
 
 func (c *remoteSink) Read(p []byte) (int, error) {
 	c.mu.Lock()
@@ -807,398 +1015,17 @@ func (c *remoteSink) Close() error {
 	return nil
 }
 
-// sendLoop sends what was typed, in order, to the pane the mirror shows.
+// sendLoop sends what was typed, in order, to the pane the sink shows.
 func (c *remoteSink) sendLoop() {
 	for {
 		select {
 		case <-c.done:
 			return
 		case b := <-c.out:
-			_, paneID := c.rc.target()
-			if paneID == "" {
-				continue
-			}
 			_ = c.rc.client.call("pane.send", map[string]any{
-				"pane": paneID,
+				"pane": c.paneID,
 				"text": string(b),
 			}, nil)
 		}
 	}
-}
-
-// startStreamIfNeeded brings up the mirror of the pane the canvas shows,
-// or takes down the one of a pane it no longer does. Main thread.
-func (rc *remoteConn) startStreamIfNeeded() {
-	paneID := rc.currentPaneID()
-	if paneID == "" {
-		rc.stopStream()
-		return
-	}
-	if rc.streamPane == paneID && rc.term != nil {
-		return
-	}
-	rc.startStream(paneID)
-}
-
-// startStream makes a terminal for the pane's mirror and polls it. Main
-// thread.
-func (rc *remoteConn) startStream(paneID string) {
-	rc.stopStream()
-	sink := newRemoteSink(rc)
-	lightTheme, darkTheme := rc.ws.terminalThemes()
-	term, err := terminal.New(terminal.Options{
-		Conn:         sink,
-		ResizeByConn: true,
-		Scrollback:   4 << 20,
-		Transparent:  true,
-		Theme:        lightTheme,
-		DarkTheme:    darkTheme,
-		Font: terminal.Font{
-			Family:     terminalFont + ", SF Mono, Menlo, monospace",
-			Size:       12,
-			Weight:     400,
-			LineHeight: 1.2,
-		},
-		Padding: terminal.Padding{X: 12, Y: 10},
-	})
-	if err != nil {
-		_ = sink.Close()
-		rc.fail(err)
-		return
-	}
-	stop := make(chan struct{})
-	rc.sink = sink
-	rc.term = term
-	rc.streamPane = paneID
-	rc.streamStop = stop
-	rc.focus = true
-	go rc.streamLoop(paneID, sink, term, stop)
-}
-
-// stopStream takes the mirror down. Main thread.
-func (rc *remoteConn) stopStream() {
-	if rc.streamStop != nil {
-		close(rc.streamStop)
-		rc.streamStop = nil
-	}
-	if rc.sink != nil {
-		_ = rc.sink.Close()
-		rc.sink = nil
-	}
-	if rc.term != nil {
-		_ = rc.term.Close()
-		rc.term = nil
-	}
-	rc.streamPane = ""
-	rc.cols, rc.rows = 0, 0
-	rc.viewW, rc.viewH = 0, 0
-}
-
-// streamLoop polls the pane's mirror and feeds the sink terminal what came
-// back. It runs until the pane changes or the app quits.
-func (rc *remoteConn) streamLoop(paneID string, sink *remoteSink, term *terminal.Terminal, stop chan struct{}) {
-	offset := int64(0)
-	snapshot := true
-	cols, rows := 0, 0
-	first := true
-	var title, cwd string
-	var vw, vh float32
-	var ucols, urows int
-	for {
-		select {
-		case <-stop:
-			return
-		case <-rc.stop:
-			return
-		default:
-		}
-		// Nothing to show while the canvas is on local work: the log keeps
-		// the output until the next poll starts over from a snapshot.
-		if !rc.ws.viewingRemote(rc.host.Address) {
-			time.Sleep(250 * time.Millisecond)
-			snapshot = false
-			continue
-		}
-		var view remoteStreamView
-		err := rc.client.call("pane.stream", map[string]any{
-			"pane":     paneID,
-			"offset":   offset,
-			"snapshot": snapshot,
-		}, &view)
-		if err != nil {
-			if errors.Is(err, errRemoteNotPaired) {
-				rc.fail(err)
-				return
-			}
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		snapshot = false
-		if view.Reset || view.Cols != cols || view.Rows != rows {
-			cols, rows = view.Cols, view.Rows
-			if cols > 0 && rows > 0 {
-				term.Resize(cols, rows)
-			}
-		}
-		if view.Reset {
-			if snap, err := base64.StdEncoding.DecodeString(view.Snapshot); err == nil {
-				sink.push(snap)
-			}
-		}
-		if data, err := base64.StdEncoding.DecodeString(view.Data); err == nil {
-			sink.push(data)
-		}
-		offset = view.Offset
-		// The sink draws itself as it is fed; the header and the size the
-		// canvas lays the view out at change with the poll, not every frame.
-		if first || view.Title != title || view.Cwd != cwd || view.Cols != ucols ||
-			view.Rows != urows || view.ViewW != vw || view.ViewH != vh {
-			first = false
-			title, cwd, ucols, urows, vw, vh = view.Title, view.Cwd, view.Cols, view.Rows, view.ViewW, view.ViewH
-			rc.update(func() {
-				rc.loading = false
-				rc.err = ""
-				rc.cols, rc.rows = view.Cols, view.Rows
-				rc.viewW, rc.viewH = view.ViewW, view.ViewH
-				if view.Title != "" {
-					rc.title = view.Title
-				}
-				rc.cwd = view.Cwd
-			})
-		}
-		time.Sleep(remoteStreamInterval)
-	}
-}
-
-func (rc *remoteConn) view(c *ui.Context) {
-	tk := rc.ws.tokens(c)
-	outer := ui.Column(c).Fill()
-	if rc.ws.settings.PaneStyle == paneComfortable {
-		outer = outer.Padding(6)
-	}
-	outer.Children(func() {
-		// The host's sessions take the same card the local panes do, so the
-		// remote work sits in the window rather than in a window of its own.
-		col := ui.Column(c).Fill()
-		glassCard := liquid(c) && rc.ws.settings.PaneStyle == paneComfortable
-		if rc.ws.settings.PaneStyle == paneComfortable {
-			col = col.Radius(windowRadius).Clip()
-			if glassCard {
-				col = col.Border(1, rimTint(tk)).Background(cardTint(tk))
-			} else {
-				col = col.Border(1, tk.Border).Background(tk.Background)
-			}
-			col = col.Shadow(0, 1, 20, 0, paneShadow(tk))
-		}
-		col.Children(func() {
-			headerBg := tk.Background
-			if glassCard {
-				headerBg = ui.Transparent
-			}
-			header := ui.Row(c).Height(headerHeight).Padding(0, 8, 0, 10).Gap(8).
-				Background(headerBg).DragWindow()
-			header.Children(func() {
-				if rc.session != nil {
-					textButton(c, tk, "‹", rc.back, locales.RemoteBack())
-				}
-				ui.Column(c).Gap(1).Children(func() {
-					title := rc.client.Name
-					if rc.session != nil {
-						title = rc.title
-						if title == "" {
-							title = rc.session.Title
-						}
-					}
-					if title == "" {
-						title = rc.client.Address
-					}
-					ui.Text(c, title).FontSize(12).FontWeight(500).
-						TextColor(tk.Foreground).SingleLine()
-					subtitle := rc.client.Address
-					if rc.session != nil && rc.cwd != "" {
-						subtitle = rc.cwd
-					}
-					ui.Text(c, subtitle).FontSize(10).TextColor(tk.MutedForeground).SingleLine()
-				})
-				ui.Spacer(c)
-				textButton(c, tk, "⟳", func() { go rc.refresh() }, locales.RemoteRefresh())
-			})
-			if rc.err != "" {
-				ui.Row(c).Padding(8, 12, 8, 12).Background(tk.Waiting.Alpha(0.12)).
-					Children(func() {
-						ui.Text(c, rc.err).FontSize(11).TextColor(tk.Waiting)
-					})
-			}
-			if rc.session == nil {
-				rc.listView(c, tk)
-				return
-			}
-			rc.terminalView(c, tk)
-		})
-	})
-}
-
-func (rc *remoteConn) listView(c *ui.Context, tk tokens) {
-	if rc.loading && len(rc.sessions) == 0 {
-		ui.Spacer(c)
-		ui.Text(c, locales.RemoteConnecting()).FontSize(12).
-			TextColor(tk.MutedForeground)
-		ui.Spacer(c)
-		return
-	}
-	if len(rc.sessions) == 0 {
-		ui.Spacer(c)
-		ui.Text(c, locales.RemoteNoSessions()).FontSize(12).
-			TextColor(tk.MutedForeground)
-		ui.Spacer(c)
-		return
-	}
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().Padding(12, 14, 16, 14).Gap(2).Children(func() {
-			for _, s := range rc.sessions {
-				rc.sessionRow(c, tk, s)
-			}
-		})
-	})
-}
-
-func (rc *remoteConn) sessionRow(c *ui.Context, tk tokens, s remoteSession) {
-	session := s
-	panes := rc.panesOf(s)
-	state := ""
-	for _, pane := range panes {
-		if pane.Activity == nil {
-			continue
-		}
-		if pane.Activity.State == activityWaiting {
-			state = activityWaiting
-			break
-		}
-		if pane.Activity.State == activityWorking {
-			state = activityWorking
-		}
-	}
-	path := ""
-	if len(panes) > 0 {
-		path = panes[0].Cwd
-	}
-	row := ui.Row(c).Height(46).Padding(0, 10, 0, 10).Gap(8).
-		Radius(chromeRadius).Cursor(ui.CursorPointer)
-	if row.Hovered() {
-		row = row.Background(tk.Active)
-	}
-	row.OnClick(func() { rc.openSession(session) }).Children(func() {
-		ui.Column(c).Gap(1).Children(func() {
-			ui.Text(c, session.Title).FontSize(13).TextColor(tk.Foreground).
-				SingleLine().OnClick(func() { rc.openSession(session) })
-			ui.Text(c, path).FontSize(11).TextColor(tk.MutedForeground).
-				SingleLine().OnClick(func() { rc.openSession(session) })
-		})
-		ui.Spacer(c).OnClick(func() { rc.openSession(session) })
-		if state != "" {
-			color := tk.Working
-			if state == activityWaiting {
-				color = tk.Waiting
-			}
-			ui.Box(c).Width(7).Height(7).Radius(4).Background(color)
-		}
-	})
-}
-
-func (rc *remoteConn) terminalView(c *ui.Context, tk tokens) {
-	panes := rc.panesOf(*rc.session)
-	if len(panes) > 1 {
-		ui.Row(c).Height(32).Padding(0, 10, 0, 10).Gap(4).Children(func() {
-			for _, pane := range panes {
-				p := pane
-				label := p.Title
-				if label == "" {
-					label = p.Cwd
-				}
-				selected := p.ID == rc.currentPaneID()
-				chip := ui.Row(c).Height(22).Padding(0, 8, 0, 8).Radius(5).
-					Border(1, tk.Border).Cursor(ui.CursorPointer)
-				if selected {
-					chip = chip.BorderColor(tk.Foreground)
-				} else if chip.Hovered() {
-					chip = chip.Background(tk.Active)
-				}
-				chip.OnClick(func() { rc.selectPane(p.ID) }).Children(func() {
-					ui.Text(c, label).FontSize(11).TextColor(tk.MutedForeground).
-						SingleLine().OnClick(func() { rc.selectPane(p.ID) })
-				})
-			}
-		})
-	}
-	// The pane's terminal as the host draws it: the mirror's frames feed a
-	// sink of the host's size, scaled into the room the canvas leaves.
-	if rc.term == nil {
-		ui.Spacer(c)
-		ui.Text(c, locales.RemoteConnecting()).FontSize(12).
-			TextColor(tk.MutedForeground)
-		ui.Spacer(c)
-		return
-	}
-	natW, natH := rc.naturalSize()
-	area := ui.Box(c).Fill()
-	area.Children(func() {
-		availW, availH := rc.areaW, rc.areaH
-		if availW <= 0 || availH <= 0 {
-			availW, availH = natW, natH
-		}
-		scale := min(availW/natW, availH/natH, 1)
-		w, h := natW*scale, natH*scale
-		// The card centers the grid; the view inside it is the host's size,
-		// scaled to the room the window leaves.
-		ui.Column(c).Fill().Center().Children(func() {
-			ui.Box(c).Width(w).Height(h).Clip().Children(func() {
-				el := terminal.View(c, rc.term).
-					Width(natW).Height(natH).Absolute().
-					Left(0).Top(0).TransformOrigin(0, 0).
-					Scale(scale, scale)
-				if rc.focus {
-					el = el.Focus()
-					rc.focus = false
-				}
-			})
-		})
-	})
-	if b := area.LayoutBounds(); b.W > 0 && b.H > 0 {
-		rc.areaW, rc.areaH = b.W, b.H
-	}
-}
-
-// naturalSize is the size the sink's view was laid out at on the host, or
-// an estimate from the grid when the pane has not been drawn there.
-func (rc *remoteConn) naturalSize() (float32, float32) {
-	w, h := rc.viewW, rc.viewH
-	if w <= 0 || h <= 0 {
-		// SF Mono at 12 DIPs is about 7.2 by 14.4 a cell, with the grid's
-		// padding around it.
-		w = float32(max(rc.cols, 80))*7.2 + 24
-		h = float32(max(rc.rows, 24))*14.4 + 20
-	}
-	return w, h
-}
-
-func (rc *remoteConn) currentPaneID() string {
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
-	return rc.paneID
-}
-
-// textButton is a quiet glyph or short word button for a window header,
-// where the icon set has no mark.
-func textButton(c *ui.Context, tk tokens, label string, action func(), hint string) {
-	el := ui.Row(c).Height(22).Padding(0, 6, 0, 6).Radius(5).
-		Center().Cursor(ui.CursorPointer)
-	if el.Hovered() {
-		el = el.Background(tk.Active)
-	}
-	if hint != "" {
-		el = el.Tooltip(hint)
-	}
-	el.OnClick(action).Children(func() {
-		ui.Text(c, label).FontSize(13).TextColor(tk.MutedForeground).OnClick(action)
-	})
 }

@@ -260,12 +260,27 @@ header .grow { flex: 1; min-width: 0; }
 
 pre.term {
   margin: 0;
-  padding: 12px 14px calc(env(safe-area-inset-bottom) + 16px);
+  /* The host's grid at the size the app draws it: SF Mono at 12 with the
+     terminal's own 1.2 line height and 12 by 10 padding. */
+  padding: 10px 12px calc(env(safe-area-inset-bottom) + 10px);
   color: var(--term-fg);
-  font: 11px/1.5 "SF Mono", Menlo, Consolas, monospace;
+  font: 12px/1.2 "SF Mono", Menlo, Consolas, monospace;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   tab-size: 4;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.actions .key {
+  min-width: 0;
 }
 
 .keys {
