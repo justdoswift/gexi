@@ -257,6 +257,38 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		w.focusPane(pane)
 		return map[string]any{"pane": pane.ID}, nil
 
+	case "pane.worktree":
+		// The header's checkout controls, for a paired Mac: the checkout is
+		// this Mac's, so each press runs here and the poll brings the result
+		// back. Most of them work in the background; leaving one answers
+		// what the checkout would lose, which is what the local prompt asks.
+		pane, err := w.resolvePane(str(p, "pane"))
+		if err != nil {
+			return nil, err
+		}
+		if pane.remote != nil {
+			return nil, fmt.Errorf("pane.worktree works on this Mac's panes only")
+		}
+		switch action := str(p, "action"); action {
+		case "", "create":
+			w.createPaneWorktree(pane)
+		case "pr":
+			w.createPullRequest(pane)
+		case "merge":
+			w.requestMerge(pane)
+		case "archive":
+			w.archiveMergedWorktree(pane)
+		case "drop":
+			w.dropGoneWorktree(pane)
+		case "leave":
+			return w.leaveWorktreeFromRemote(pane), nil
+		case "leaveConfirm":
+			w.leaveWorktree(pane)
+		default:
+			return nil, fmt.Errorf("unknown worktree action: %s", action)
+		}
+		return map[string]any{"pane": pane.ID}, nil
+
 	case "event":
 		ev := agentEvent{
 			Kind:    str(p, "kind"),
@@ -325,6 +357,35 @@ func (w *workspace) paneJSON(p *pane) map[string]any {
 		"activity":       activityJSON(p.activity),
 		"subagents":      p.subagentsJSON(),
 		"branch":         w.branchJSON(p),
+		"worktree":       w.worktreeJSON(p),
+		"worktreeBusy":   p.worktreeBusy,
+	}
+}
+
+// worktreeJSON is the checkout a pane was moved into, as a paired Mac draws
+// it: the fields the header's chips decide on, and whether the checkout is
+// still on disk, which only this Mac can tell. worktreeBusy, beside it, is
+// the checkout being made while there is none to send yet: the W spins for
+// it.
+func (w *workspace) worktreeJSON(p *pane) any {
+	wt := p.Worktree
+	if wt == nil {
+		return nil
+	}
+	return map[string]any{
+		"path":       wt.Path,
+		"branch":     wt.Branch,
+		"base":       wt.Base,
+		"pr":         wt.PR,
+		"url":        wt.URL,
+		"state":      wt.State,
+		"detected":   wt.Detected,
+		"missing":    !worktreeCheckoutExists(wt),
+		"busy":       wt.busy,
+		"checks":     wt.checks,
+		"review":     wt.review,
+		"mergeable":  wt.mergeable,
+		"mergeState": wt.mergeState,
 	}
 }
 

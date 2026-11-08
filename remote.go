@@ -49,7 +49,8 @@ type remoteHost struct {
 // remoteMethods is what a paired device may call: read a session and type
 // into a pane, make or close one, and the pane actions its own window shows.
 // It may not change the app, the projects, or the layout beyond splitting and
-// closing a pane, which is what the pane's own header offers.
+// closing a pane, and the pane's checkout and its pull request, which is what
+// the pane's own header offers.
 var remoteMethods = map[string]bool{
 	"ping":           true,
 	"host.info":      true,
@@ -64,6 +65,7 @@ var remoteMethods = map[string]bool{
 	"pane.split":     true,
 	"pane.close":     true,
 	"pane.focus":     true,
+	"pane.worktree":  true,
 }
 
 // remoteBackend is what the HTTP layer needs from the app. The workspace

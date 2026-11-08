@@ -172,6 +172,12 @@ type workspace struct {
 	leaveTarget *pane
 	leaveMsg    string
 
+	// remoteLeaveOpen is the same alert for a checkout on another Mac: its
+	// host asks nothing there, so the question is asked here instead.
+	remoteLeaveOpen   bool
+	remoteLeaveTarget *pane
+	remoteLeaveMsg    string
+
 	// commitOpen is the manual commit-message prompt, shown when the pane
 	// has no agent that can write one or the agent could not answer.
 	commitOpen   bool
