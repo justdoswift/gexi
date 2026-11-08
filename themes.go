@@ -88,10 +88,6 @@ func (w *workspace) tokens(c *ui.Context) tokens {
 	return themeTokensFor(t, w.appearanceThemeName(t.Dark))
 }
 
-func (w *workspace) chromeTint() string {
-	return windowTint(w.appearanceTokens(false), w.appearanceTokens(true))
-}
-
 func (w *workspace) chromeBackground() string {
 	return windowBackground(w.appearanceTokens(false), w.appearanceTokens(true))
 }
@@ -113,7 +109,7 @@ func (w *workspace) terminalThemes() (light, dark *terminal.Theme) {
 }
 
 // setTheme saves the pick for one appearance and hands it to every terminal
-// and to the window's own material, so the change shows at once.
+// and to the windows' own backgrounds, so the change shows at once.
 func (w *workspace) setTheme(dark bool, name string) {
 	if w.appearanceThemeName(dark) == name {
 		return
@@ -145,11 +141,10 @@ func (w *workspace) setTheme(dark bool, name string) {
 	w.invalidateSettings()
 }
 
-// updateChrome repaints the windows' own backgrounds and the glass's tint
-// after a theme changes, so the frame behind the page matches it too.
+// updateChrome repaints the windows' own backgrounds after a theme changes,
+// so the frame behind the page matches it too.
 func (w *workspace) updateChrome() {
 	if w.win != nil {
-		_ = w.win.SetVibrancyTint(w.chromeTint())
 		_ = w.win.SetBackgroundColor(w.chromeBackground())
 	}
 	if w.settingsWin != nil {

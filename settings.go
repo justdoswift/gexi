@@ -26,9 +26,10 @@ type appSettings struct {
 	// Appearance is the light/dark the app draws: "" follows the system,
 	// "light" and "dark" pin one.
 	Appearance string `json:"appearance"`
-	// LiquidGlass draws the window, the sidebar and the panes in macOS 26's
-	// material; off, they keep the flat look.
-	LiquidGlass bool `json:"liquidGlass"`
+	// SidebarMaterial draws the sidebar in the system's translucent material.
+	// Off, the sidebar takes the canvas's colour, wrapping the panes in one
+	// surface.
+	SidebarMaterial bool `json:"sidebarMaterial"`
 	// ArchiveAfterMerge clears a merged worktree and its pane away as the
 	// pull request merges. Off, the header offers Archive and the user
 	// decides when the checkout goes.
@@ -61,7 +62,6 @@ func defaultSettings() appSettings {
 		RestoreScreen: true,
 		PaneStyle:     paneComfortable,
 		Notifications: true,
-		LiquidGlass:   true,
 	}
 }
 
@@ -90,7 +90,7 @@ func loadSettings() appSettings {
 	if s.RemoteEnabled && len(s.RemoteCode) != 6 {
 		s.RemoteCode = newPairingCode()
 	}
-	glassUI = s.LiquidGlass
+	sidebarMaterial = s.SidebarMaterial
 	return s
 }
 
@@ -172,11 +172,8 @@ func (w *workspace) openSettings() {
 
 func (w *workspace) settingsView(c *ui.Context) {
 	tk := w.tokens(c)
-	// Over the window's material the settings page is bare too, so the
-	// glass is the surface its cards and rows sit on.
-	// The page takes the same background as a compact pane — the theme's own
-	// colour — not a tint of the window's glass, which would lift it into a
-	// grey that matches neither style.
+	// The page takes the theme's own colour: the settings window carries no
+	// material, so its cards and rows sit on the theme's surface.
 	root := ui.Row(c).Fill().Background(tk.Background)
 	root.Children(func() {
 		w.settingsSidebar(c, tk)
@@ -299,10 +296,10 @@ func (w *workspace) generalPage(c *ui.Context, tk tokens) {
 		w.settingRowView(c, tk, settingRow{
 			title:  locales.SettingsLiquidGlass(),
 			detail: locales.SettingsLiquidGlassDetail(),
-			on:     w.settings.LiquidGlass,
+			on:     w.settings.SidebarMaterial,
 			toggle: func() {
-				w.settings.LiquidGlass = !w.settings.LiquidGlass
-				glassUI = w.settings.LiquidGlass
+				w.settings.SidebarMaterial = !w.settings.SidebarMaterial
+				sidebarMaterial = w.settings.SidebarMaterial
 				w.settings.save()
 				w.invalidate()
 				w.invalidateSettings()
