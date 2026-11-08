@@ -2149,9 +2149,10 @@ func (w *workspace) leaveWorktree(p *pane) {
 // worktreeActionChip draws the pane header's worktree control as one chip
 // split in two: the label runs action on the left, a chevron on the right
 // opens the worktree menu, where leaving the checkout sits. Leaving is
-// rare, so it shares the chip instead of holding a button of its own. bg
-// is the chip's fill, ui.Transparent for the quiet chip that tints as the
-// pointer crosses it, and fg colours its label and chevron.
+// rare, so it shares the chip instead of holding a button of its own, and
+// while it runs the whole chip becomes the spinner. bg is the chip's fill,
+// ui.Transparent for the quiet chip that tints as the pointer crosses it,
+// and fg colours its label and chevron.
 func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg ui.Color,
 	hint string, action func(), label func()) {
 	quiet := bg == ui.Transparent
@@ -2162,6 +2163,15 @@ func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg
 		group = group.Background(bg)
 	case group.Hovered():
 		group = capsule(c, group, tk, tk.Control.Alpha(0.3), tk.Control)
+	}
+	// Leaving is the chip's own work, not the menu's: the label and the
+	// chevron give way to the spinner in the middle, so the wait reads the
+	// same on every chip that carries the menu instead of sitting in the
+	// chevron's narrow half.
+	if p.worktreeBusy == worktreeBusyLeave {
+		group.Padding(0, 7, 0, 7).Tooltip(locales.WorktreeLeaving()).
+			Children(func() { worktreeSpinner(c, tk, locales.WorktreeLeaving()) })
+		return
 	}
 	group.Children(func() {
 		// A checkout gexi only found has no Leave menu: the chip is one
@@ -2191,18 +2201,14 @@ func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg
 			// the label it follows.
 			chevron = tk.MutedForeground
 		}
-		w.worktreeMenuSegment(c, tk, p, chevron)
+		w.worktreeMenuSegment(c, p, chevron)
 	})
 }
 
 // worktreeMenuSegment is the chevron half of worktreeActionChip.
-func (w *workspace) worktreeMenuSegment(c *ui.Context, tk tokens, p *pane, fg ui.Color) {
+func (w *workspace) worktreeMenuSegment(c *ui.Context, p *pane, fg ui.Color) {
 	seg := ui.Row(c).Width(18).Height(22).Radius(headerRadius).
 		Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeLeaveHint())
-	if p.worktreeBusy == worktreeBusyLeave {
-		seg.Children(func() { worktreeSpinner(c, tk, locales.WorktreeLeaving()) })
-		return
-	}
 	wt := p.Worktree
 	seg.PopoverMenuButton(func(m *ui.Menu) {
 		if m.Item(locales.WorktreeLeave()).Disabled(wt == nil || wt.busy != "").Chosen() {

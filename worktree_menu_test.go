@@ -95,3 +95,38 @@ func TestDetectedWorktreeChipHasNoMenu(t *testing.T) {
 		}
 	}
 }
+
+// TestLeavingChipIsOneCenteredSpinner checks that leaving a checkout takes
+// over the whole chip: the loading sits where the chip is, not squeezed into
+// the chevron half at its right end.
+func TestLeavingChipIsOneCenteredSpinner(t *testing.T) {
+	dir := t.TempDir()
+	view := func(c *ui.Context) {
+		tk := themeTokens(c.Theme())
+		w := &workspace{}
+		ui.Row(c).Fill().Center().Background(tk.Background).Children(func() {
+			w.paneWorktreeButton(c, tk, &pane{
+				Worktree:     &paneWorktree{Path: dir, Branch: "b", Base: "main"},
+				worktreeBusy: worktreeBusyLeave,
+			})
+		})
+	}
+	tester := ui.NewTester(view, 220, 180)
+	tester.Frame()
+	r, ok := tester.Find(locales.WorktreeLeaving())
+	if !ok {
+		t.Fatal("the leaving spinner is not drawn")
+	}
+	if _, ok := tester.Find(locales.WorktreePR()); ok {
+		t.Fatal("the PR label still sits beside the leaving spinner")
+	}
+	// The chip is the spinner's own box plus its padding, so the spinner
+	// is in the middle of the room the label and chevron left.
+	if r.W != 12 || r.H != 12 {
+		t.Fatalf("the spinner takes %vx%v, want 12x12", r.W, r.H)
+	}
+	if center := r.X + r.W/2; center < 109.5 || center > 110.5 {
+		t.Fatalf("the spinner's center is at %.1f, want the chip's 110", center)
+	}
+}
+
