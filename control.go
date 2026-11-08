@@ -56,6 +56,14 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 			"socket":  socketPath(),
 		}, nil
 
+	case "host.info":
+		return map[string]any{
+			"name":      deviceName(),
+			"version":   Version,
+			"port":      remotePort,
+			"addresses": lanAddresses(),
+		}, nil
+
 	case "workspace.info":
 		return map[string]any{
 			"instance":        w.InstanceID,
@@ -118,8 +126,14 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		return map[string]any{"session": s.ID, "pane": w.FocusedPane}, nil
 
 	case "pane.list":
+		panes := w.visiblePanes()
+		// A remote client names every session's panes, not the selected
+		// session's alone.
+		if boolParam(p, "all") {
+			panes = w.allPanes()
+		}
 		out := []any{}
-		for _, pane := range w.visiblePanes() {
+		for _, pane := range panes {
 			out = append(out, w.paneJSON(pane))
 		}
 		return out, nil
@@ -130,12 +144,21 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 			return nil, err
 		}
 		scrollback := boolParam(p, "scrollback")
+		text := pane.text()
+		// A client that only shows the screen asks for the tail: a long
+		// session's Text() carries every line of scrollback with it.
+		if limit := intParam(p, "limit"); limit > 0 && len(text) > limit {
+			text = text[len(text)-limit:]
+		}
+		cols, rows := pane.term.Size()
 		return map[string]any{
 			"pane":       pane.ID,
 			"title":      pane.title(),
 			"cwd":        pane.dir(),
-			"text":       pane.text(),
+			"text":       text,
 			"scrollback": scrollback,
+			"cols":       cols,
+			"rows":       rows,
 		}, nil
 
 	case "pane.send":
@@ -393,6 +416,16 @@ func boolParam(p map[string]json.RawMessage, key string) bool {
 	var b bool
 	_ = json.Unmarshal(raw, &b)
 	return b
+}
+
+func intParam(p map[string]json.RawMessage, key string) int {
+	raw, ok := p[key]
+	if !ok {
+		return 0
+	}
+	var n int
+	_ = json.Unmarshal(raw, &n)
+	return n
 }
 
 func nullable(s string) any {

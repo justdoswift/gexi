@@ -14,7 +14,8 @@ into them, and read their screens.
 
 > **Status: early.** Projects and sessions, nested splits, focus, keyboard
 > shortcuts, screen capture, persistence, agent session resume, a files drawer
-> with changes and diffs, and the control CLI work today.
+> with changes and diffs, LAN remote for other Macs and phones, and the
+> control CLI work today.
 > Settings has a page each for general options, notifications, shortcuts,
 > worktrees, and storage.
 
@@ -103,6 +104,25 @@ Closing a pane where an agent has run asks first. **Keep Running** takes the
 pane off the stage without ending its program, and **Settings → Worktrees**
 brings it back with its session intact; **Close** ends it. Closing a session
 or project with an agent in it asks the same way.
+
+### Remote Macs and phones
+
+**Settings → Remote → Allow this Mac to be reached** serves this Mac's
+sessions to the local network on port 47823. It shows the address and a
+six-digit pairing code. A phone on the same Wi-Fi opens the address in its
+browser and enters the code; another Mac running gexi uses the server button
+at the bottom of the sidebar (**Connect to another Mac…**) with the same
+address and code. Paired devices are listed in Settings, where each can be
+revoked.
+
+A paired device sees the projects and sessions, reads a session's terminal,
+and types into its panes, with the keys a phone cannot type (Esc, Ctrl-C, Tab,
+the arrows). It cannot create, split, or close anything. Both ends must be on
+the same network — there is no relay, no SSH, and no public port — and the
+Mac being reached has to stay awake with gexi running. macOS asks once whether
+to allow incoming connections; allow it, or the address will not answer. The
+connection is plain HTTP guarded by the token pairing handed out; it is not
+meant for networks you do not trust.
 
 ### Worktrees and pull requests
 

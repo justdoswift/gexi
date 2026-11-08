@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -33,6 +34,14 @@ type appSettings struct {
 	// terminal colours.
 	ThemeLight string `json:"themeLight"`
 	ThemeDark  string `json:"themeDark"`
+
+	// Remote access on the local network: whether this Mac can be reached,
+	// the six-digit code a client pairs with, the devices paired so far, and
+	// the Macs this one reaches.
+	RemoteEnabled bool           `json:"remoteEnabled"`
+	RemoteCode    string         `json:"remoteCode"`
+	RemoteDevices []remoteDevice `json:"remoteDevices"`
+	RemoteHosts   []remoteHost   `json:"remoteHosts"`
 }
 
 const (
@@ -72,6 +81,11 @@ func loadSettings() appSettings {
 			*name = ""
 		}
 	}
+	// Remote access needs the code clients pair with; a settings file from
+	// before the feature, or a hand-edited one, gets a fresh code.
+	if s.RemoteEnabled && len(s.RemoteCode) != 6 {
+		s.RemoteCode = newPairingCode()
+	}
 	glassUI = s.LiquidGlass
 	return s
 }
@@ -105,6 +119,7 @@ const (
 	settingsGeneral = iota
 	settingsThemes
 	settingsNotifications
+	settingsRemote
 	settingsKeyboard
 	settingsWorktrees
 	settingsAdvanced
@@ -117,6 +132,7 @@ var settingsTabs = []struct {
 	{"setting", locales.SettingsGeneral},
 	{"themes", locales.SettingsThemes},
 	{"bell", locales.SettingsNotifications},
+	{"server", locales.SettingsRemote},
 	{"keyboard", locales.SettingsKeyboard},
 	{"branch", locales.SettingsWorktrees},
 	{"sliders", locales.SettingsAdvanced},
@@ -242,6 +258,8 @@ func (w *workspace) settingsPage(c *ui.Context, tk tokens) {
 		w.themesPage(c, tk)
 	case settingsNotifications:
 		w.notificationsPage(c, tk)
+	case settingsRemote:
+		w.remotePage(c, tk)
 	case settingsKeyboard:
 		w.keyboardPage(c, tk)
 	case settingsWorktrees:
@@ -321,6 +339,129 @@ func (w *workspace) notificationsPage(c *ui.Context, tk tokens) {
 			locales.SettingsSendTest(),
 			func() { notifyUser(locales.TestNotificationTitle(), "gexi", locales.TestNotificationBody()) },
 		)
+	})
+}
+
+// remotePage is Settings › Remote: this Mac's own server, and the Macs it
+// reaches.
+func (w *workspace) remotePage(c *ui.Context, tk tokens) {
+	sectionLabel(c, tk, locales.SettingsRemoteThisMac())
+	settingsCard(c, tk, func() {
+		w.settingRowView(c, tk, settingRow{
+			title:  locales.SettingsRemoteAllow(),
+			detail: locales.SettingsRemoteAllowDetail(),
+			on:     w.settings.RemoteEnabled,
+			toggle: func() { w.setRemoteEnabled(!w.settings.RemoteEnabled) },
+		})
+		if !w.settings.RemoteEnabled {
+			return
+		}
+		cardDivider(c, tk)
+		w.remoteAddressRow(c, tk)
+		cardDivider(c, tk)
+		w.remoteCodeRow(c, tk)
+		cardDivider(c, tk)
+		if len(w.settings.RemoteDevices) == 0 {
+			ui.Row(c).Padding(10, 16, 10, 16).Children(func() {
+				ui.Text(c, locales.SettingsRemoteNoDevices()).FontSize(12).
+					TextColor(tk.MutedForeground)
+			})
+			return
+		}
+		for _, device := range w.settings.RemoteDevices {
+			id := device.ID
+			ui.Row(c).Padding(10, 16, 10, 16).Gap(12).Children(func() {
+				ui.Column(c).Gap(1).Children(func() {
+					ui.Text(c, device.Name).FontSize(13).TextColor(tk.Foreground)
+					ui.Text(c, remotePairedLabel(device.PairedAt)).FontSize(11).
+						TextColor(tk.MutedForeground)
+				})
+				ui.Spacer(c)
+				outlineButton(c, tk, locales.SettingsRemoteRemove(), func() {
+					w.removeRemoteDevice(id)
+					w.invalidateSettings()
+				})
+			})
+		}
+	})
+
+	sectionLabel(c, tk, locales.SettingsRemoteHosts())
+	settingsCard(c, tk, func() {
+		if len(w.settings.RemoteHosts) == 0 {
+			ui.Row(c).Padding(10, 16, 10, 16).Children(func() {
+				ui.Text(c, locales.SettingsRemoteNoHosts()).FontSize(12).
+					TextColor(tk.MutedForeground)
+			})
+		}
+		for _, entry := range w.settings.RemoteHosts {
+			host := entry
+			ui.Row(c).Padding(10, 16, 10, 16).Gap(12).Children(func() {
+				ui.Column(c).Gap(1).Children(func() {
+					ui.Text(c, host.Name).FontSize(13).TextColor(tk.Foreground)
+					ui.Text(c, host.Address).FontSize(11).TextColor(tk.MutedForeground)
+				})
+				ui.Spacer(c)
+				outlineButton(c, tk, locales.SettingsRemoteOpen(), func() {
+					w.openRemoteHost(host)
+				})
+				outlineButton(c, tk, locales.SettingsRemoteRemove(), func() {
+					w.removeRemoteHost(host.Address)
+					w.invalidateSettings()
+				})
+			})
+		}
+		cardDivider(c, tk)
+		ui.Row(c).Padding(12, 16, 12, 16).Children(func() {
+			ui.Text(c, locales.SettingsRemoteAddHost()).FontSize(13).
+				TextColor(tk.Foreground)
+			ui.Spacer(c)
+			outlineButton(c, tk, locales.SettingsRemoteAdd(), func() { w.openHostDialog() })
+		})
+	})
+}
+
+// remoteAddressRow is where another device reaches this Mac, with the
+// addresses in reach and a copy button.
+func (w *workspace) remoteAddressRow(c *ui.Context, tk tokens) {
+	addresses := lanAddresses()
+	detail := strings.Join(addresses, "  ")
+	color := tk.MutedForeground
+	if w.remoteErr != "" {
+		detail = locales.SettingsRemoteFailed(w.remoteErr)
+		color = tk.Waiting
+	} else if len(addresses) == 0 {
+		detail = locales.SettingsRemoteNoNetwork()
+	}
+	ui.Row(c).Padding(10, 16, 10, 16).Gap(12).Children(func() {
+		ui.Column(c).Gap(2).Children(func() {
+			ui.Text(c, locales.SettingsRemoteAddress()).FontSize(13).
+				TextColor(tk.Foreground)
+			ui.Text(c, detail).FontSize(11).TextColor(color)
+		})
+		ui.Spacer(c)
+		if w.remoteErr == "" && len(addresses) > 0 {
+			outlineButton(c, tk, locales.SettingsRemoteCopy(), func() {
+				writeClipboard(addresses[0])
+			})
+		}
+	})
+}
+
+// remoteCodeRow shows the six digits a client pairs with.
+func (w *workspace) remoteCodeRow(c *ui.Context, tk tokens) {
+	ui.Row(c).Padding(10, 16, 10, 16).Gap(12).Children(func() {
+		ui.Column(c).Gap(2).Children(func() {
+			ui.Text(c, locales.SettingsRemoteCode()).FontSize(13).
+				TextColor(tk.Foreground)
+			ui.Text(c, locales.SettingsRemoteCodeDetail()).FontSize(11).
+				TextColor(tk.MutedForeground)
+		})
+		ui.Spacer(c)
+		ui.Text(c, w.settings.RemoteCode).Font("SF Mono, Menlo, monospace").
+			FontSize(18).TextColor(tk.Foreground)
+		outlineButton(c, tk, locales.SettingsRemoteRegenerate(), func() {
+			w.regenerateRemoteCode()
+		})
 	})
 }
 
