@@ -132,6 +132,19 @@ func (w *workspace) view(c *ui.Context) {
 			w.leaveTarget = nil
 		}
 	}
+	if w.remoteLeaveTarget != nil {
+		switch ui.AlertDialog(c, &w.remoteLeaveOpen, locales.WorktreeLeaveTitle(), w.remoteLeaveMsg,
+			locales.WorktreeLeaveConfirm(), locales.Cancel()) {
+		case 0:
+			p := w.remoteLeaveTarget
+			w.remoteLeaveTarget = nil
+			if p.remote != nil {
+				p.remote.conn.paneWorktree(p, "leaveConfirm")
+			}
+		case 1, ui.AlertDismissed:
+			w.remoteLeaveTarget = nil
+		}
+	}
 }
 
 // dragArea is a draggable stretch of a header that also zooms the window on
@@ -894,10 +907,13 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					actions = actions.IgnoreInput(!showActions).
 						Opacity(actions.AnimateTo("actions", alpha, ui.Animation{Duration: 150 * time.Millisecond, Ease: ui.EaseOut}))
 					actions.Children(func() {
-						// The worktree button is the host's checkout, not
-						// this window's to move.
+						// The worktree button is the pane's checkout: a local
+						// one here, and a host's pressed through it, since
+						// the checkout and its pull request are the host's.
 						if p.remote == nil {
 							w.paneWorktreeButton(c, tk, p)
+						} else {
+							w.remoteWorktreeButton(c, tk, p)
 						}
 						// A pane too narrow for all three keeps only the way
 						// out: splitting and zooming are in the View menu, and
@@ -940,25 +956,22 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			var el ui.Element
 			if p.remote != nil {
 				// A pane on another Mac mirrors the screen the host draws,
-				// laid out at the size the host lays it out at and scaled
-				// into the card: the whole of the host's screen shows, the
-				// input line at the bottom of its program included.
+				// laid out at the size the host lays it out at and drawn as
+				// it is: the text keeps the size it has on the host, the
+				// same as a local pane's. A card smaller than that size shows
+				// the part of the host's screen that fits, its bottom kept in
+				// view since that is where a program's input line sits; the
+				// zoom shortcut gives the whole of it.
 				natW, natH := mirrorSize(p)
-				area := ui.Box(c).Fill()
+				area := ui.Box(c).Fill().Clip()
 				area.Children(func() {
-					availW, availH := area.Bounds().W, area.Bounds().H
-					if availW <= 0 || availH <= 0 {
-						availW, availH = natW, natH
+					top := float32(0)
+					if availH := area.Bounds().H; availH > 0 && availH < natH {
+						top = availH - natH
 					}
-					scale := min(min(availW/natW, availH/natH), 1)
-					ui.Column(c).Fill().Center().Children(func() {
-						ui.Box(c).Width(natW * scale).Height(natH * scale).Clip().Children(func() {
-							el = terminal.View(c, p.term).
-								Width(natW).Height(natH).Absolute().
-								Left(0).Top(0).TransformOrigin(0, 0).
-								Scale(scale, scale)
-						})
-					})
+					el = terminal.View(c, p.term).
+						Width(natW).Height(natH).Absolute().
+						Left(0).Top(top)
 				})
 			} else {
 				el = terminal.View(c, p.term).Fill()

@@ -1414,32 +1414,63 @@ func (w *workspace) mergePullRequest(p *pane) {
 	}()
 }
 
+// worktreeStatus is what the Merge chip and its hint decide on: the fields
+// GitHub's answer sets. A checkout on another Mac carries the same five from
+// its host, so both headers colour the chip from one place.
+type worktreeStatus struct {
+	State      string
+	MergeState string
+	Mergeable  string
+	Review     string
+	Checks     string
+}
+
+func (wt *paneWorktree) status() worktreeStatus {
+	if wt == nil {
+		return worktreeStatus{}
+	}
+	return worktreeStatus{
+		State:      wt.State,
+		MergeState: wt.mergeState,
+		Mergeable:  wt.mergeable,
+		Review:     wt.review,
+		Checks:     wt.checks,
+	}
+}
+
 // mergeBlocker says why GitHub would not merge the pull request now, in the
 // user's language, or "" when it is ready.
 func (w *workspace) mergeBlocker(wt *paneWorktree) string {
-	switch wt.State {
+	if wt == nil {
+		return ""
+	}
+	return w.mergeBlockerOf(wt.status())
+}
+
+func (w *workspace) mergeBlockerOf(s worktreeStatus) string {
+	switch s.State {
 	case "merged":
 		return locales.WorktreeBlockedMerged()
 	case "closed":
 		return locales.WorktreeBlockedClosed()
 	}
-	if strings.EqualFold(wt.mergeState, "BEHIND") {
+	if strings.EqualFold(s.MergeState, "BEHIND") {
 		return locales.WorktreeBlockedBehind()
 	}
-	if mergeConflicts(wt) {
+	if mergeConflicting(s.Mergeable, s.MergeState) {
 		return locales.WorktreeBlockedConflicts()
 	}
-	switch strings.ToUpper(wt.mergeable) {
+	switch strings.ToUpper(s.Mergeable) {
 	case "", "UNKNOWN":
 		return locales.WorktreeBlockedChecking()
 	}
-	switch strings.ToUpper(wt.review) {
+	switch strings.ToUpper(s.Review) {
 	case "CHANGES_REQUESTED":
 		return locales.WorktreeBlockedChanges()
 	case "REVIEW_REQUIRED":
 		return locales.WorktreeBlockedReview()
 	}
-	switch wt.checks {
+	switch s.Checks {
 	case "":
 		return locales.WorktreeBlockedChecking()
 	case "failing":
@@ -1447,7 +1478,7 @@ func (w *workspace) mergeBlocker(wt *paneWorktree) string {
 	case "pending":
 		return locales.WorktreeBlockedChecksPending()
 	}
-	if strings.ToUpper(wt.mergeState) == "BLOCKED" {
+	if strings.ToUpper(s.MergeState) == "BLOCKED" {
 		return locales.WorktreeBlockedGeneric()
 	}
 	return ""
@@ -2095,6 +2126,32 @@ func (w *workspace) promptLeaveWorktree(p *pane) {
 	}()
 }
 
+// leaveWorktreeFromRemote is the leave a paired Mac asks for. Its prompt is
+// this window's, which that Mac never sees, so the checks the prompt makes
+// answer in the reply: a clean checkout is left at once, and one with work
+// it would lose says what, so the client can ask before it asks again.
+func (w *workspace) leaveWorktreeFromRemote(p *pane) any {
+	wt := p.Worktree
+	if wt == nil || wt.Detected || wt.busy != "" || p.worktreeBusy != "" {
+		return map[string]any{"left": false}
+	}
+	if p.agent != nil {
+		return map[string]any{"left": false, "agent": true}
+	}
+	clean, _ := worktreeIsClean(wt)
+	ahead, _ := commitsAhead(wt)
+	if clean && ahead == 0 {
+		w.leaveWorktree(p)
+		return map[string]any{"left": true}
+	}
+	return map[string]any{
+		"left":   false,
+		"dirty":  !clean,
+		"ahead":  ahead,
+		"branch": wt.Branch,
+	}
+}
+
 // leaveWorktree deletes the checkout and restarts the pane in the project
 // folder. A branch with commits that were never merged is kept.
 func (w *workspace) leaveWorktree(p *pane) {
@@ -2626,7 +2683,14 @@ func worktreeChip(c *ui.Context, tk tokens) ui.Element {
 }
 
 func worktreeBusyLabel(wt *paneWorktree) string {
-	switch wt.busy {
+	if wt == nil {
+		return ""
+	}
+	return worktreeBusyLabelOf(wt.busy)
+}
+
+func worktreeBusyLabelOf(busy string) string {
+	switch busy {
 	case worktreeBusyPR:
 		return locales.WorktreePROpening()
 	case worktreeBusyCheck:
@@ -2666,33 +2730,37 @@ func (w *workspace) pullRequestChip(c *ui.Context, tk tokens, p *pane, onItsOwn 
 // mergeStatus is the short label Conductor puts beside the pull request:
 // ready, or the first thing standing in the way.
 func (w *workspace) mergeStatus(wt *paneWorktree) (label string, ready, danger bool) {
-	switch wt.State {
+	return w.mergeStatusOf(wt.status())
+}
+
+func (w *workspace) mergeStatusOf(s worktreeStatus) (label string, ready, danger bool) {
+	switch s.State {
 	case "merged":
 		return locales.WorktreeMerged(), false, false
 	case "closed":
 		return locales.WorktreeStatusClosed(), false, false
 	}
 	switch {
-	case strings.EqualFold(wt.mergeState, "BEHIND"):
+	case strings.EqualFold(s.MergeState, "BEHIND"):
 		return locales.WorktreeStatusBehind(), false, false
-	case mergeConflicts(wt):
+	case mergeConflicting(s.Mergeable, s.MergeState):
 		return locales.WorktreeStatusConflicts(), false, true
-	case strings.EqualFold(wt.review, "CHANGES_REQUESTED"):
+	case strings.EqualFold(s.Review, "CHANGES_REQUESTED"):
 		return locales.WorktreeStatusChanges(), false, true
-	case strings.EqualFold(wt.review, "REVIEW_REQUIRED"):
+	case strings.EqualFold(s.Review, "REVIEW_REQUIRED"):
 		return locales.WorktreeStatusReview(), false, false
-	case wt.checks == "failing":
+	case s.Checks == "failing":
 		return locales.WorktreeStatusChecks(), false, true
-	case wt.checks == "pending":
+	case s.Checks == "pending":
 		return locales.WorktreeStatusChecksPending(), false, false
-	case wt.checks == "":
+	case s.Checks == "":
 		return locales.WorktreeStatusChecking(), false, false
 	}
-	switch strings.ToUpper(wt.mergeable) {
+	switch strings.ToUpper(s.Mergeable) {
 	case "", "UNKNOWN":
 		return locales.WorktreeStatusChecking(), false, false
 	}
-	if strings.EqualFold(wt.mergeState, "BLOCKED") {
+	if strings.EqualFold(s.MergeState, "BLOCKED") {
 		return locales.WorktreeStatusBlocked(), false, false
 	}
 	return locales.WorktreeStatusReady(), true, false

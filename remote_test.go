@@ -6,7 +6,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -241,7 +243,8 @@ func TestRemoteMethodWhitelist(t *testing.T) {
 	// that header shows work through the same methods.
 	for _, allowed := range []string{
 		"pane.text", "pane.send", "session.list", "pane.list",
-		"pane.split", "pane.close", "pane.focus", "session.new", "session.close",
+		"pane.split", "pane.close", "pane.focus", "pane.worktree",
+		"session.new", "session.close",
 	} {
 		if !remoteMethods[allowed] {
 			t.Errorf("%s should be allowed", allowed)
@@ -390,5 +393,122 @@ func TestMirrorSize(t *testing.T) {
 	bare := &pane{remote: &remotePaneLink{}}
 	if w, h := mirrorSize(bare); w <= 0 || h <= 0 {
 		t.Fatalf("estimate: %v by %v", w, h)
+	}
+}
+
+// TestWorktreeJSONRoundTrip: a host sends its panes' checkouts as the
+// fields the paired window's header chips read, so the two names must agree.
+func TestWorktreeJSONRoundTrip(t *testing.T) {
+	gone := filepath.Join(t.TempDir(), "gone")
+	w := &workspace{}
+	wt := &paneWorktree{
+		Path: gone, Branch: "tokyo", Base: "main", PR: 12,
+		URL: "https://example.test/pull/12", State: "open",
+		mergeable: "MERGEABLE", review: "APPROVED", checks: "passing",
+		mergeState: "CLEAN", busy: worktreeBusyCheck,
+	}
+	term, _ := probeTerminal(t)
+	p := &pane{ID: "a", term: term, initialDir: gone,
+		Worktree: wt, worktreeBusy: worktreeBusyCreate}
+	raw, err := json.Marshal(w.paneJSON(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got remotePane
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	rt := got.Worktree
+	if rt == nil {
+		t.Fatal("the checkout did not come over")
+	}
+	if rt.Branch != "tokyo" || rt.Base != "main" || rt.PR != 12 || rt.State != "open" {
+		t.Fatalf("checkout = %+v", rt)
+	}
+	if !rt.Missing {
+		t.Fatal("a checkout that is not on disk should say so")
+	}
+	if rt.Busy != worktreeBusyCheck {
+		t.Fatalf("busy = %q, want the host's operation", rt.Busy)
+	}
+	if got.WorktreeBusy != worktreeBusyCreate {
+		t.Fatalf("worktreeBusy = %q, want the one being made", got.WorktreeBusy)
+	}
+	if label, ready, _ := w.mergeStatusOf(rt.status()); !ready || label == "" {
+		t.Fatalf("status = %q ready=%v, want mergeable", label, ready)
+	}
+}
+
+// TestRemoteMergeStatusMatchesLocal: the Merge chip on a paired Mac colours
+// itself from the fields its host sent, as the host's own chip does.
+func TestRemoteMergeStatusMatchesLocal(t *testing.T) {
+	w := &workspace{}
+	cases := []struct {
+		name   string
+		local  paneWorktree
+		remote remoteWorktree
+	}{
+		{"ready", paneWorktree{State: "open", mergeable: "MERGEABLE", checks: "passing"},
+			remoteWorktree{State: "open", Mergeable: "MERGEABLE", Checks: "passing"}},
+		{"conflicts", paneWorktree{State: "open", mergeable: "CONFLICTING"},
+			remoteWorktree{State: "open", Mergeable: "CONFLICTING"}},
+		{"merged", paneWorktree{State: "merged"}, remoteWorktree{State: "merged"}},
+		{"review", paneWorktree{State: "open", mergeable: "MERGEABLE", checks: "none", review: "REVIEW_REQUIRED"},
+			remoteWorktree{State: "open", Mergeable: "MERGEABLE", Checks: "none", Review: "REVIEW_REQUIRED"}},
+	}
+	for _, tc := range cases {
+		local := &tc.local
+		label, ready, danger := w.mergeStatus(local)
+		gotLabel, gotReady, gotDanger := w.mergeStatusOf(tc.remote.status())
+		if label != gotLabel || ready != gotReady || danger != gotDanger {
+			t.Fatalf("%s: host %q/%v/%v, remote %q/%v/%v",
+				tc.name, label, ready, danger, gotLabel, gotReady, gotDanger)
+		}
+		if a, b := w.mergeBlocker(local), w.mergeBlockerOf(tc.remote.status()); a != b {
+			t.Fatalf("%s: blocker %q vs %q", tc.name, a, b)
+		}
+	}
+}
+
+// TestPaneWorktreeControlGuards: the controls a paired Mac presses run on
+// this Mac's own checkouts only, and only for an action that exists.
+func TestPaneWorktreeControlGuards(t *testing.T) {
+	away := &pane{ID: "r1", remote: &remotePaneLink{conn: &remoteConn{}}}
+	here := &pane{ID: "l1"}
+	pr := &project{ID: "p", Sessions: []*session{{ID: "s",
+		Root: &splitNode{axis: axisHorizontal, ratio: 50, first: leaf(away), second: leaf(here)}}}}
+	w := &workspace{Projects: []*project{pr}, FocusedPane: "r1"}
+	call := func(paneID, action string) error {
+		_, err := w.dispatch(controlRequest{Method: "pane.worktree", Params: map[string]json.RawMessage{
+			"pane":   json.RawMessage(strconv.Quote(paneID)),
+			"action": json.RawMessage(strconv.Quote(action)),
+		}})
+		return err
+	}
+	if err := call("r1", "create"); err == nil {
+		t.Fatal("a pane on another Mac was moved")
+	}
+	if err := call("l1", "bogus"); err == nil {
+		t.Fatal("an unknown worktree action was taken")
+	}
+}
+
+// TestLeaveWorktreeFromRemoteRefusals: leaving a checkout the host did not
+// make, one that is busy, or one whose agent still runs is refused, and the
+// answer says which so the client can say it too.
+func TestLeaveWorktreeFromRemoteRefusals(t *testing.T) {
+	w := &workspace{}
+	detected := &pane{ID: "a", Worktree: &paneWorktree{Detected: true}}
+	if out, _ := w.leaveWorktreeFromRemote(detected).(map[string]any); out["left"] != false {
+		t.Fatalf("a detected checkout was left: %+v", out)
+	}
+	busy := &pane{ID: "b", Worktree: &paneWorktree{busy: worktreeBusyPR}}
+	if out, _ := w.leaveWorktreeFromRemote(busy).(map[string]any); out["left"] != false {
+		t.Fatalf("a busy checkout was left: %+v", out)
+	}
+	running := &pane{ID: "c", Worktree: &paneWorktree{}, agent: &agentDetection{Kind: agentClaude}}
+	out, _ := w.leaveWorktreeFromRemote(running).(map[string]any)
+	if out["agent"] != true {
+		t.Fatalf("an agent's checkout was left: %+v", out)
 	}
 }

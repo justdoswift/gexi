@@ -46,13 +46,15 @@ type remoteSession struct {
 }
 
 type remotePane struct {
-	ID       string         `json:"id"`
-	Title    string         `json:"title"`
-	Cwd      string         `json:"cwd"`
-	Focused  bool           `json:"focused"`
-	Activity *agentActivity `json:"activity"`
-	Agent    *remoteAgent   `json:"agent"`
-	Branch   *remoteBranch  `json:"branch"`
+	ID           string          `json:"id"`
+	Title        string          `json:"title"`
+	Cwd          string          `json:"cwd"`
+	Focused      bool            `json:"focused"`
+	Activity     *agentActivity  `json:"activity"`
+	Agent        *remoteAgent    `json:"agent"`
+	Branch       *remoteBranch   `json:"branch"`
+	Worktree     *remoteWorktree `json:"worktree"`
+	WorktreeBusy string          `json:"worktreeBusy"`
 }
 
 // remoteAgent is the host's agent detection, as agentJSON sends it: the
@@ -98,6 +100,50 @@ type remoteBranch struct {
 	Added   int    `json:"added"`
 	Deleted int    `json:"deleted"`
 	Changed bool   `json:"changed"`
+}
+
+// remoteWorktree is the checkout the host moved a pane into, as its own
+// header draws it: the pull request's state colours the Merge chip, and
+// missing says the checkout was deleted under the host, which only the host
+// can tell.
+type remoteWorktree struct {
+	Path       string `json:"path"`
+	Branch     string `json:"branch"`
+	Base       string `json:"base"`
+	PR         int    `json:"pr"`
+	URL        string `json:"url"`
+	State      string `json:"state"`
+	Detected   bool   `json:"detected"`
+	Missing    bool   `json:"missing"`
+	Busy       string `json:"busy"`
+	Checks     string `json:"checks"`
+	Review     string `json:"review"`
+	Mergeable  string `json:"mergeable"`
+	MergeState string `json:"mergeState"`
+}
+
+func (wt *remoteWorktree) status() worktreeStatus {
+	if wt == nil {
+		return worktreeStatus{}
+	}
+	return worktreeStatus{
+		State:      wt.State,
+		MergeState: wt.MergeState,
+		Mergeable:  wt.Mergeable,
+		Review:     wt.Review,
+		Checks:     wt.Checks,
+	}
+}
+
+// worktreeResult is what a pane.worktree call answers. The operations that
+// work in the background answer at once, but leaving a checkout has to say
+// what the checkout would lose, so the client can ask before asking again.
+type worktreeResult struct {
+	Left   bool   `json:"left"`
+	Dirty  bool   `json:"dirty"`
+	Ahead  int    `json:"ahead"`
+	Agent  bool   `json:"agent"`
+	Branch string `json:"branch"`
 }
 
 // remoteStreamView is what one poll of a pane's mirror brings: the output
@@ -380,10 +426,15 @@ type remotePaneLink struct {
 	id     string
 	title  string
 	branch *remoteBranch
-	sink   *remoteSink
+	// worktree is the checkout the host moved the pane into, and
+	// worktreeBusy the one it is making: the header draws the same chips
+	// the host's does, and presses them here.
+	worktree     *remoteWorktree
+	worktreeBusy string
+	sink         *remoteSink
 	// viewW and viewH are the size the host's view of the pane is laid out
-	// at, which the stream names: the mirror is laid out at it too, and the
-	// card scales it down.
+	// at, which the stream names: the mirror is laid out at it too, so its
+	// text keeps the size it has on the host.
 	viewW, viewH float32
 	// stream is the pane's poll loop while the canvas shows it, nil while it
 	// is off stage.
@@ -676,6 +727,8 @@ func (rc *remoteConn) leaf(s *session, paneID string) *splitNode {
 		p.activity = hp.Activity
 		p.remote.branch = hp.Branch
 		p.remote.title = hp.Title
+		p.remote.worktree = hp.Worktree
+		p.remote.worktreeBusy = hp.WorktreeBusy
 	}
 	return leaf(p)
 }
@@ -941,6 +994,270 @@ func (rc *remoteConn) focusPane(paneID string) {
 	go func() {
 		_ = rc.client.call("pane.focus", map[string]any{"pane": paneID}, nil)
 	}()
+}
+
+// paneWorktree runs one of the header's checkout actions on the pane's host.
+// The answer says something only to leave, whose prompt would be the host's
+// window, which the user here never sees: the client asks instead.
+func (rc *remoteConn) paneWorktree(p *pane, action string) {
+	if p == nil || p.remote == nil {
+		return
+	}
+	id := p.remote.id
+	go func() {
+		var out worktreeResult
+		err := rc.client.call("pane.worktree", map[string]any{
+			"pane":   id,
+			"action": action,
+		}, &out)
+		if err != nil {
+			if errors.Is(err, errRemoteNotPaired) {
+				rc.fail(err)
+				return
+			}
+			rc.update(func() { rc.ws.flash(err.Error()) })
+			return
+		}
+		rc.refresh()
+		if action != "leave" {
+			return
+		}
+		rc.update(func() {
+			switch {
+			case out.Agent:
+				rc.ws.flash(locales.WorktreeAgentRunning())
+			case !out.Left && (out.Dirty || out.Ahead > 0):
+				rc.ws.remoteLeaveTarget = p
+				rc.ws.remoteLeaveMsg = remoteLeaveMessage(out.Dirty, out.Ahead, out.Branch)
+				rc.ws.remoteLeaveOpen = true
+				rc.ws.invalidate()
+			}
+		})
+	}()
+}
+
+// remoteLeaveMessage is the alert that asks whether a checkout with work it
+// would lose should still be left, as the host's own prompt says it.
+func remoteLeaveMessage(dirty bool, ahead int, branch string) string {
+	msg := ""
+	if ahead > 0 {
+		msg = locales.WorktreeLeaveUnmerged(strconv.Itoa(ahead), branch)
+	}
+	if dirty {
+		if msg != "" {
+			msg += "\n\n"
+		}
+		msg += locales.WorktreeLeaveDirty()
+	}
+	return msg
+}
+
+// MARK: the pane's checkout, on the host
+
+// remoteWorktreeButton is the header's checkout control for a pane on
+// another Mac: the chips the host's header shows, drawn from what its poll
+// brought, with every press going back to the host, since the checkout and
+// its pull request are there.
+func (w *workspace) remoteWorktreeButton(c *ui.Context, tk tokens, p *pane) {
+	link := p.remote
+	if link == nil {
+		return
+	}
+	wt := link.worktree
+	if wt == nil {
+		label := "W"
+		action := func() { link.conn.paneWorktree(p, "create") }
+		hint := locales.WorktreeCreateHint()
+		if link.worktreeBusy != "" {
+			hint = locales.WorktreeCreating()
+			action = func() {}
+		}
+		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
+			Border(1, ui.Transparent).
+			Center().Cursor(ui.CursorPointer).Tooltip(hint)
+		if el.Hovered() {
+			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
+		}
+		el.OnClick(action).Children(func() {
+			if link.worktreeBusy != "" {
+				worktreeSpinner(c, tk, locales.WorktreeCreating())
+				return
+			}
+			ui.Text(c, label).FontSize(11).FontWeight(600).
+				TextColor(tk.Foreground).OnClick(action)
+		})
+		return
+	}
+	// The checkout can be deleted while the host runs. There is no git work
+	// to offer then, only the way to clear the binding.
+	if wt.Missing {
+		action := func() { link.conn.paneWorktree(p, "drop") }
+		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
+			Border(1, ui.Transparent).
+			Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeGoneHint())
+		if el.Hovered() {
+			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
+		}
+		el.OnClick(action).Children(func() {
+			ui.Text(c, locales.WorktreeGone()).FontSize(11).FontWeight(600).
+				TextColor(tk.MutedForeground).OnClick(action)
+		})
+		return
+	}
+	if wt.State == worktreeMerged {
+		if wt.Detected {
+			w.remotePullRequestChip(c, tk, p, wt, true)
+			return
+		}
+		action := func() { link.conn.paneWorktree(p, "archive") }
+		w.remoteWorktreeActionChip(c, tk, p, wt, ui.Transparent, tk.Foreground,
+			locales.WorktreeArchiveHint(), action, func() {
+				ui.Text(c, locales.WorktreeArchive()).FontSize(11).FontWeight(600).
+					TextColor(tk.Foreground).OnClick(action)
+			})
+		return
+	}
+	if busy := worktreeBusyLabelOf(wt.Busy); busy != "" {
+		worktreeChip(c, tk).OnClick(func() {}).Tooltip(busy).Children(func() {
+			shimmerText(c, tk, busy)
+		})
+		return
+	}
+	if wt.PR == 0 {
+		action := func() { link.conn.paneWorktree(p, "pr") }
+		w.remoteWorktreeActionChip(c, tk, p, wt, ui.Transparent, tk.Foreground,
+			wt.Branch+" → "+wt.Base, action, func() {
+				ui.Text(c, locales.WorktreePR()).FontSize(11).FontWeight(600).
+					TextColor(tk.Foreground).OnClick(action)
+			})
+		return
+	}
+	w.remotePullRequestChip(c, tk, p, wt, wt.State != "open")
+	if wt.State == "open" {
+		w.remoteMergeChip(c, tk, p, wt)
+	}
+}
+
+// remotePullRequestChip shows the number and opens the page here, where it
+// is read, as Conductor's #8376 ↗. onItsOwn says no Merge button follows it,
+// so the chip carries the worktree menu itself.
+func (w *workspace) remotePullRequestChip(c *ui.Context, tk tokens, p *pane, wt *remoteWorktree, onItsOwn bool) {
+	action := func() {
+		if wt.URL != "" {
+			openPath(wt.URL)
+		}
+	}
+	content := func() {
+		ui.Text(c, "#"+strconv.Itoa(wt.PR)).FontSize(11).FontWeight(600).
+			TextColor(tk.Foreground).OnClick(action)
+		ui.Text(c, "↗").FontSize(10).TextColor(tk.MutedForeground).OnClick(action)
+	}
+	hint := remotePRStatusHint(wt)
+	if onItsOwn {
+		w.remoteWorktreeActionChip(c, tk, p, wt, ui.Transparent, tk.Foreground, hint, action, content)
+		return
+	}
+	worktreeChip(c, tk).Tooltip(hint).OnClick(action).Children(content)
+}
+
+// remotePRStatusHint is the tip over the pull request chip: the host's own
+// figures, as its chip says them.
+func remotePRStatusHint(wt *remoteWorktree) string {
+	parts := []string{}
+	if wt.Checks != "" {
+		parts = append(parts, "checks: "+wt.Checks)
+	}
+	if wt.Review != "" {
+		parts = append(parts, "review: "+strings.ToLower(wt.Review))
+	}
+	if wt.Mergeable != "" {
+		parts = append(parts, "mergeable: "+strings.ToLower(wt.Mergeable))
+	}
+	if wt.MergeState != "" {
+		parts = append(parts, "state: "+strings.ToLower(wt.MergeState))
+	}
+	hint := strings.Join(parts, " · ")
+	if hint == "" {
+		hint = wt.Branch + " → " + wt.Base
+	}
+	if wt.URL != "" {
+		hint = wt.URL + "\n" + hint
+	}
+	return hint
+}
+
+// remoteMergeChip is the filled Merge button, coloured by the status the
+// host's refresh brought: green can merge, amber is still checking, red is
+// blocked.
+func (w *workspace) remoteMergeChip(c *ui.Context, tk tokens, p *pane, wt *remoteWorktree) {
+	label, ready, danger := w.mergeStatusOf(wt.status())
+	bg := tk.Waiting
+	if ready {
+		bg = tk.Working
+	} else if danger {
+		bg = tk.Danger
+	}
+	fg := tk.Background
+	hint := label
+	if blocker := w.mergeBlockerOf(wt.status()); blocker != "" {
+		hint = locales.WorktreeMergeBlocked(blocker)
+	}
+	action := func() { p.remote.conn.paneWorktree(p, "merge") }
+	w.remoteWorktreeActionChip(c, tk, p, wt, bg, fg, hint, action, func() {
+		ui.Text(c, locales.WorktreeMerge()).FontSize(11).FontWeight(600).
+			TextColor(fg).OnClick(action)
+	})
+}
+
+// remoteWorktreeActionChip is the host's worktreeActionChip over a checkout
+// this Mac only sees: the label runs the action, and the chevron opens the
+// one menu item, leaving the checkout, which the host then carries out.
+func (w *workspace) remoteWorktreeActionChip(c *ui.Context, tk tokens, p *pane, wt *remoteWorktree,
+	bg, fg ui.Color, hint string, action func(), label func()) {
+	quiet := bg == ui.Transparent
+	group := ui.Row(c).Height(22).Radius(headerRadius).Center().
+		Border(1, ui.Transparent)
+	switch {
+	case !quiet:
+		group = group.Background(bg)
+	case group.Hovered():
+		group = capsule(c, group, tk, tk.Control.Alpha(0.3), tk.Control)
+	}
+	group.Children(func() {
+		// A checkout gexi only found has no Leave menu: the chip is one
+		// press, so it takes the whole pill.
+		main := ui.Row(c).Height(22).Padding(0, 6, 0, 8).
+			Center().Cursor(ui.CursorPointer).Tooltip(hint).OnClick(action)
+		if wt.Detected {
+			main = main.Padding(0, 8, 0, 8)
+		}
+		main.Radius(headerRadius).Children(label)
+		if wt.Detected {
+			return
+		}
+		rule := tk.Control
+		if !quiet {
+			rule = fg.Alpha(0.28)
+		}
+		ui.Box(c).Width(1).Height(12).Background(rule)
+		chevron := fg
+		if quiet {
+			chevron = tk.MutedForeground
+		}
+		seg := ui.Row(c).Width(18).Height(22).Radius(headerRadius).
+			Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeLeaveHint())
+		seg.PopoverMenuButton(func(m *ui.Menu) {
+			if m.Item(locales.WorktreeLeave()).Disabled(wt.Busy != "").Chosen() {
+				if p.remote != nil {
+					p.remote.conn.paneWorktree(p, "leave")
+				}
+			}
+		}).Children(func() {
+			if src := iconSource("chevron-down", colorHex(chevron)); src != nil {
+				ui.Image(c, src).Width(10).Height(10).IgnoreInput(true)
+			}
+		})
+	})
 }
 
 // MARK: the remote pane's place in the window
