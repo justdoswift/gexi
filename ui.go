@@ -353,12 +353,11 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 				Tooltip(pr.remote.conn.err).OnClick(toggle)
 		}
 		if hovered {
-			// A host has no new session of its own to make here: its + is
-			// the host's, not this window's. The × forgets the pairing.
-			if pr.remote == nil {
-				iconButtonSmall(c, tk, "plus", func() { _, _ = w.newSession(pr, nil, pr.Dir) },
-					locales.ShortcutNewSession()+" (⌘T)")
-			}
+			// The + makes the session where it belongs: here for a local
+			// project, on the host for a paired Mac. The × forgets the
+			// pairing.
+			iconButtonSmall(c, tk, "plus", func() { _, _ = w.newSession(pr, nil, pr.Dir) },
+				locales.ShortcutNewSession()+" (⌘T)")
 			iconButtonSmall(c, tk, "x", func() { w.closeProject(pr) }, locales.CloseProject())
 		}
 	})
@@ -938,11 +937,36 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			}
 			header.Background(header.AnimateColor("paneLiftBg", panelBg, blend))
 
-			el := terminal.View(c, p.term).Fill()
-			// The size the pane's terminal is laid out at is what its
-			// mirror is laid out at too, before the card scales it down.
-			if b := el.LayoutBounds(); b.W > 0 && b.H > 0 {
-				p.viewW, p.viewH = b.W, b.H
+			var el ui.Element
+			if p.remote != nil {
+				// A pane on another Mac mirrors the screen the host draws,
+				// laid out at the size the host lays it out at and scaled
+				// into the card: the whole of the host's screen shows, the
+				// input line at the bottom of its program included.
+				natW, natH := mirrorSize(p)
+				area := ui.Box(c).Fill()
+				area.Children(func() {
+					availW, availH := area.Bounds().W, area.Bounds().H
+					if availW <= 0 || availH <= 0 {
+						availW, availH = natW, natH
+					}
+					scale := min(min(availW/natW, availH/natH), 1)
+					ui.Column(c).Fill().Center().Children(func() {
+						ui.Box(c).Width(natW * scale).Height(natH * scale).Clip().Children(func() {
+							el = terminal.View(c, p.term).
+								Width(natW).Height(natH).Absolute().
+								Left(0).Top(0).TransformOrigin(0, 0).
+								Scale(scale, scale)
+						})
+					})
+				})
+			} else {
+				el = terminal.View(c, p.term).Fill()
+				// The size the pane's terminal is laid out at is what its
+				// mirror is laid out at too, before the card scales it down.
+				if b := el.LayoutBounds(); b.W > 0 && b.H > 0 {
+					p.viewW, p.viewH = b.W, b.H
+				}
 			}
 			if el.Focused() && w.FocusedPane != p.ID {
 				w.FocusedPane = p.ID

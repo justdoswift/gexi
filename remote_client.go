@@ -381,9 +381,28 @@ type remotePaneLink struct {
 	title  string
 	branch *remoteBranch
 	sink   *remoteSink
+	// viewW and viewH are the size the host's view of the pane is laid out
+	// at, which the stream names: the mirror is laid out at it too, and the
+	// card scales it down.
+	viewW, viewH float32
 	// stream is the pane's poll loop while the canvas shows it, nil while it
 	// is off stage.
 	stream chan struct{}
+}
+
+// mirrorSize is the size the host's view of the pane is laid out at, before
+// the card scales it down. Before the first stream names it, an estimate
+// from the grid's cells: the embedded terminal font at 12 DIPs is about
+// 7.55 by 19.2 a cell, with the grid's padding around it.
+func mirrorSize(p *pane) (float32, float32) {
+	if p != nil && p.remote != nil && p.remote.viewW > 0 && p.remote.viewH > 0 {
+		return p.remote.viewW, p.remote.viewH
+	}
+	cols, rows := 0, 0
+	if p != nil && p.term != nil {
+		cols, rows = p.term.Size()
+	}
+	return float32(max(cols, 80))*7.55 + 24, float32(max(rows, 24))*19.2 + 20
 }
 
 // remoteConn is this Mac's link to one paired host: the transport under the
@@ -770,6 +789,7 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 	offset := int64(0)
 	snapshot := true
 	cols, rows := 0, 0
+	viewW, viewH := float32(0), float32(0)
 	for {
 		select {
 		case <-stop:
@@ -798,6 +818,17 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 			if cols > 0 && rows > 0 {
 				p.term.Resize(cols, rows)
 			}
+		}
+		// The size the host lays its view out at comes with the stream; the
+		// card lays the mirror out at it, and the pane's stage card too.
+		// The pane's fields are read on the main thread, so they change there.
+		if view.ViewW != viewW || view.ViewH != viewH {
+			viewW, viewH = view.ViewW, view.ViewH
+			w, h := viewW, viewH
+			rc.update(func() {
+				p.remote.viewW, p.remote.viewH = w, h
+				p.viewW, p.viewH = w, h
+			})
 		}
 		if view.Reset {
 			if snap, err := base64.StdEncoding.DecodeString(view.Snapshot); err == nil {
@@ -843,6 +874,26 @@ func (w *workspace) syncRemoteMirrors() {
 }
 
 // MARK: the pane's buttons, on the host
+
+// newSession asks the host for a session in the project it is working in,
+// and opens it once the poll brings it.
+func (rc *remoteConn) newSession() {
+	go func() {
+		var out struct {
+			Session string `json:"session"`
+		}
+		if err := rc.client.call("session.new", nil, &out); err != nil {
+			rc.fail(err)
+			return
+		}
+		rc.refresh()
+		if out.Session == "" {
+			return
+		}
+		id := remoteSessionID(rc.host.Address, out.Session)
+		rc.update(func() { rc.ws.selectSession(id) })
+	}()
+}
 
 // splitPane splits the host's pane toward the side asked for; the poll
 // brings the new layout and the new pane's stream.

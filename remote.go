@@ -47,14 +47,15 @@ type remoteHost struct {
 }
 
 // remoteMethods is what a paired device may call: read a session and type
-// into a pane, and the pane actions its own window shows. It may not change
-// the app, the projects, or the layout beyond splitting and closing a pane,
-// which is what the pane's own header offers.
+// into a pane, make or close one, and the pane actions its own window shows.
+// It may not change the app, the projects, or the layout beyond splitting and
+// closing a pane, which is what the pane's own header offers.
 var remoteMethods = map[string]bool{
 	"ping":           true,
 	"host.info":      true,
 	"workspace.info": true,
 	"session.list":   true,
+	"session.new":    true,
 	"session.close":  true,
 	"pane.list":      true,
 	"pane.text":      true,

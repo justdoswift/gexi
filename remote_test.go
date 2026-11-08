@@ -6,9 +6,11 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // fakeRemoteBackend stands in for the workspace: the HTTP layer only needs
@@ -18,6 +20,7 @@ type fakeRemoteBackend struct {
 	enabled bool
 	code    string
 	devices []remoteDevice
+	methods []string
 }
 
 func (f *fakeRemoteBackend) remoteEnabled() bool { return f.enabled }
@@ -37,10 +40,20 @@ func (f *fakeRemoteBackend) remoteAddDevice(d remoteDevice) {
 }
 
 func (f *fakeRemoteBackend) remoteDispatch(req controlRequest) controlResponse {
+	f.mu.Lock()
+	f.methods = append(f.methods, req.Method)
+	f.mu.Unlock()
 	if !remoteMethods[req.Method] {
 		return controlResponse{ID: req.ID, Error: "method not allowed"}
 	}
 	return controlResponse{ID: req.ID, OK: true, Result: map[string]any{"method": req.Method}}
+}
+
+// sawMethod reports whether the paired device called the method.
+func (f *fakeRemoteBackend) sawMethod(name string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Contains(f.methods, name)
 }
 
 func (f *fakeRemoteBackend) remoteName() string { return "test-mac" }
@@ -228,13 +241,13 @@ func TestRemoteMethodWhitelist(t *testing.T) {
 	// that header shows work through the same methods.
 	for _, allowed := range []string{
 		"pane.text", "pane.send", "session.list", "pane.list",
-		"pane.split", "pane.close", "pane.focus", "session.close",
+		"pane.split", "pane.close", "pane.focus", "session.new", "session.close",
 	} {
 		if !remoteMethods[allowed] {
 			t.Errorf("%s should be allowed", allowed)
 		}
 	}
-	for _, denied := range []string{"app.quit", "app.settings", "project.new", "session.new", "event", "debug.proc"} {
+	for _, denied := range []string{"app.quit", "app.settings", "project.new", "event", "debug.proc"} {
 		if remoteMethods[denied] {
 			t.Errorf("%s should not be allowed", denied)
 		}
@@ -324,5 +337,58 @@ func TestRemoteClientRejectsWrongCode(t *testing.T) {
 
 	if _, err := pairRemoteHost(address, "000000", ""); err == nil {
 		t.Fatal("pairing with a wrong code succeeded")
+	}
+}
+
+// TestRemoteProjectNewSessionAsksTheHost: the sidebar's + on a paired Mac
+// makes the session there, not a local shell filed under a remote project.
+func TestRemoteProjectNewSessionAsksTheHost(t *testing.T) {
+	srv, backend := newTestRemote(t)
+	defer srv.Close()
+	address := strings.TrimPrefix(srv.URL, "http://")
+	host, err := pairRemoteHost(address, "123456", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := &workspace{}
+	rc := &remoteConn{
+		ws:     w,
+		host:   host,
+		client: remoteClient{Name: host.Name, Address: address, Token: host.Token},
+		stop:   make(chan struct{}),
+	}
+	pr := &project{ID: remoteProjectID(address), Label: host.Name,
+		remote: &remoteProjectLink{conn: rc, host: host}}
+	rc.project = pr
+	w.remoteProjects = []*project{pr}
+
+	s, err := w.newSession(pr, nil, "")
+	if err != nil {
+		t.Fatalf("newSession: %v", err)
+	}
+	if s != nil {
+		t.Fatalf("a paired Mac made a local session: %+v", s)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if backend.sawMethod("session.new") {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("the host was never asked for a session")
+}
+
+// TestMirrorSize: the card lays the mirror out at the size the host named,
+// and has a size to start from before the first stream brings it.
+func TestMirrorSize(t *testing.T) {
+	named := &pane{remote: &remotePaneLink{viewW: 812, viewH: 640}}
+	if w, h := mirrorSize(named); w != 812 || h != 640 {
+		t.Fatalf("named view: %v by %v", w, h)
+	}
+	bare := &pane{remote: &remotePaneLink{}}
+	if w, h := mirrorSize(bare); w <= 0 || h <= 0 {
+		t.Fatalf("estimate: %v by %v", w, h)
 	}
 }
