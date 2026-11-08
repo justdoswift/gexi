@@ -621,6 +621,36 @@ func TestWatchRemoteSize(t *testing.T) {
 	}
 }
 
+// TestWatchRemoteSizeLeavesTheSettledGrid: the pane's own view sizes the
+// terminal from the held grid every frame, so its rounding decides where the
+// terminal settles. A poll that names the same grid again must leave that
+// size alone: forcing it back on every poll sends a SIGWINCH at the poll's
+// rate, and a full-screen agent redraws its whole screen each time.
+func TestWatchRemoteSizeLeavesTheSettledGrid(t *testing.T) {
+	term, _ := probeTerminal(t)
+	p := &pane{term: term}
+	p.watchRemoteSize(100, 30)
+	// The view rounds the card's width down a column, as a card narrower
+	// than the requested grid does.
+	term.Resize(99, 30)
+	p.watchRemoteSize(100, 30)
+	if cols, rows := term.Size(); cols != 99 || rows != 30 {
+		t.Fatalf("a repeated poll resized the terminal to %vx%v, want 99x30", cols, rows)
+	}
+	// A new grid still takes the pane, and a watch that lapsed applies the
+	// grid again when the Mac comes back.
+	p.watchRemoteSize(120, 40)
+	if cols, rows := term.Size(); cols != 120 || rows != 40 {
+		t.Fatalf("a new request left the terminal at %vx%v, want 120x40", cols, rows)
+	}
+	term.Resize(118, 40)
+	p.remoteWatchAt = time.Now().Add(-remoteWatchTTL - time.Second)
+	p.watchRemoteSize(120, 40)
+	if cols, rows := term.Size(); cols != 120 || rows != 40 {
+		t.Fatalf("a fresh watch left the terminal at %vx%v, want 120x40", cols, rows)
+	}
+}
+
 // TestLeaveWorktreeFromRemoteRefusals: leaving a checkout the host did not
 // make, one that is busy, or one whose agent still runs is refused, and the
 // answer says which so the client can say it too.

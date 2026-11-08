@@ -533,10 +533,19 @@ func (p *pane) watchRemoteSize(cols, rows int) {
 	if p == nil || p.term == nil || cols < 1 || rows < 1 {
 		return
 	}
+	// The pane's view lays the terminal out at the held grid on every
+	// frame, and its rounding of the card's size is what the terminal ends
+	// up at. Asking again for the grid the last poll already named must
+	// leave that settled size alone: resizing it back on every poll would
+	// send the agent a SIGWINCH at the poll's rate, and a full-screen
+	// display redraws its whole screen each time.
+	changed := !p.remoteWatched() || p.remoteCols != cols || p.remoteRows != rows
 	p.remoteCols, p.remoteRows = cols, rows
 	p.remoteWatchAt = time.Now()
-	if c, r := p.term.Size(); c != cols || r != rows {
-		p.term.Resize(cols, rows)
+	if changed {
+		if c, r := p.term.Size(); c != cols || r != rows {
+			p.term.Resize(cols, rows)
+		}
 	}
 	// One timer while the Mac is watching lets the pane take the card's size
 	// again once it stops; it is set at most once a second.
