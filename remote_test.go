@@ -651,6 +651,47 @@ func TestWatchRemoteSizeLeavesTheSettledGrid(t *testing.T) {
 	}
 }
 
+// TestStreamViewSizeFollowsTheHeldGrid: the watching Mac measures a cell from
+// the view size and grid the stream names, so while it watches both must come
+// from the held grid, not from the card the pane was laid out at before.
+func TestStreamViewSizeFollowsTheHeldGrid(t *testing.T) {
+	term, _ := probeTerminal(t)
+	p := &pane{term: term, cellW: 7.5, cellH: 19, viewW: 1000, viewH: 500}
+	if w, h := p.streamViewSize(120, 30); w != 1000 || h != 500 {
+		t.Fatalf("unwatched view %vx%v, want the last card's 1000x500", w, h)
+	}
+	p.watchRemoteSize(120, 30)
+	if w, h := p.streamViewSize(120, 30); w != 924 || h != 590 {
+		t.Fatalf("watched view %vx%v, want 924x590", w, h)
+	}
+}
+
+// TestRemoteMirrorTop: a mirror taller than its card shows the lowest row
+// with text at the card's bottom, so a full-screen program's input line stays
+// visible; a shell's prompt near the top leaves the view at the top.
+func TestRemoteMirrorTop(t *testing.T) {
+	// A screen that fits needs no shift.
+	if got := remoteMirrorTop(800, 700, 36, 35); got != 0 {
+		t.Fatalf("a fitting screen shifted by %v", got)
+	}
+	// 40 rows in 800 DIPs: 19.5 a row with the view's 10 a side padding.
+	top := remoteMirrorTop(700, 800, 40, 39)
+	if top >= 0 {
+		t.Fatalf("a taller screen stayed at the top: %v", top)
+	}
+	if bottom := top + 10 + 40*19.5; bottom != 700 {
+		t.Fatalf("the last row ends at %v, want the card's 700", bottom)
+	}
+	// A prompt on row 2 keeps the top of the screen in view.
+	if got := remoteMirrorTop(700, 800, 40, 2); got != 0 {
+		t.Fatalf("a top row shifted the view by %v", got)
+	}
+	// An anchor past the screen is clamped to its last row.
+	if got, want := remoteMirrorTop(700, 800, 40, 99), remoteMirrorTop(700, 800, 40, 39); got != want {
+		t.Fatalf("anchor past the screen = %v, want %v", got, want)
+	}
+}
+
 // TestLeaveWorktreeFromRemoteRefusals: leaving a checkout the host did not
 // make, one that is busy, or one whose agent still runs is refused, and the
 // answer says which so the client can say it too.

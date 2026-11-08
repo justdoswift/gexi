@@ -990,16 +990,30 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				// The card asks the host for the grid the card fits, so the
 				// host's lines wrap where the card ends, at the text size
 				// this Mac's own panes have; the mirror draws it at that
-				// size, in the same font.
+				// size, in the same font. When the host's screen is still
+				// taller than the card — a card smaller than the host's
+				// window, or a cell that rounds differently — the card
+				// keeps the lowest row with text in view instead of the
+				// top, so a full-screen program's input line stays visible.
 				area := ui.Box(c).Fill().Clip()
 				area.Children(func() {
-					if aw, ah := area.Bounds().W, area.Bounds().H; aw > 0 && ah > 0 {
-						p.remote.measureCell()
-						cols, rows := p.remote.wantGrid(aw, ah)
-						p.remote.wantCols.Store(int32(cols))
-						p.remote.wantRows.Store(int32(rows))
+					aw, ah := area.Bounds().W, area.Bounds().H
+					if aw <= 0 || ah <= 0 {
+						el = terminal.View(c, p.term).Fill()
+						return
 					}
-					el = terminal.View(c, p.term).Fill()
+					p.remote.measureCell()
+					cols, rows := p.remote.wantGrid(aw, ah)
+					p.remote.wantCols.Store(int32(cols))
+					p.remote.wantRows.Store(int32(rows))
+					gridRows := rows
+					if _, r := p.term.Size(); r > 0 {
+						gridRows = r
+					}
+					natW, natH := mirrorSize(p)
+					top := remoteMirrorTop(ah, natH, gridRows, int(p.remote.anchor.Load()))
+					el = terminal.View(c, p.term).Width(natW).Height(natH).
+						Absolute().Left(0).Top(top)
 				})
 			} else {
 				el = terminal.View(c, p.term)

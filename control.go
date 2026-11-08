@@ -190,6 +190,9 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 			reset = true
 		}
 		cols, rows := pane.term.Size()
+		// The watching Mac measures the cell from these two numbers and
+		// the grid; while it watches, both come from the held grid.
+		viewW, viewH := pane.streamViewSize(cols, rows)
 		out := map[string]any{
 			"pane":   pane.ID,
 			"title":  pane.title(),
@@ -198,8 +201,8 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 			"data":   base64.StdEncoding.EncodeToString(data),
 			"cols":   cols,
 			"rows":   rows,
-			"viewW":  pane.viewW,
-			"viewH":  pane.viewH,
+			"viewW":  viewW,
+			"viewH":  viewH,
 		}
 		if reset {
 			out["reset"] = true
