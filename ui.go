@@ -959,15 +959,30 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				// laid out at the size the host lays it out at and drawn as
 				// it is: the text keeps the size it has on the host, the
 				// same as a local pane's. A card smaller than that size shows
-				// the part of the host's screen that fits, its bottom kept in
-				// view since that is where a program's input line sits; the
-				// zoom shortcut gives the whole of it.
+				// the part of the host's screen that fits, the lowest row the
+				// host has text on kept in view: a shell's prompt sits at the
+				// top of an empty screen, a full-screen program's input row at
+				// the bottom. The zoom shortcut gives the whole of it.
 				natW, natH := mirrorSize(p)
 				area := ui.Box(c).Fill().Clip()
 				area.Children(func() {
 					top := float32(0)
 					if availH := area.Bounds().H; availH > 0 && availH < natH {
-						top = availH - natH
+						rows := 1
+						if _, r := p.term.Size(); r > 0 {
+							rows = r
+						}
+						// The view's padding, 10 above and 10 below the grid.
+						cellH := (natH - 20) / float32(rows)
+						low := int(p.remote.anchor.Load())
+						low = clampInt(low, 0, rows-1)
+						top = availH - float32(low+1)*cellH - 10
+						if full := availH - natH; top < full {
+							top = full
+						}
+						if top > 0 {
+							top = 0
+						}
 					}
 					el = terminal.View(c, p.term).
 						Width(natW).Height(natH).Absolute().

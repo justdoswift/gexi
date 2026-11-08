@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo/plugins/terminal"
@@ -439,6 +440,11 @@ type remotePaneLink struct {
 	// stream is the pane's poll loop while the canvas shows it, nil while it
 	// is off stage.
 	stream chan struct{}
+	// anchor is the lowest row the host's screen has text on, which a card
+	// smaller than the host's screen keeps in view: a shell's prompt sits at
+	// the top of an empty screen, a full-screen program's input row at the
+	// bottom. The stream loop writes it, the canvas reads it.
+	anchor atomic.Int32
 }
 
 // mirrorSize is the size the host's view of the pane is laid out at, before
@@ -843,6 +849,7 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 	snapshot := true
 	cols, rows := 0, 0
 	viewW, viewH := float32(0), float32(0)
+	var cursor streamCursor
 	for {
 		select {
 		case <-stop:
@@ -870,6 +877,7 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 			cols, rows = view.Cols, view.Rows
 			if cols > 0 && rows > 0 {
 				p.term.Resize(cols, rows)
+				cursor.resize(rows, cols)
 			}
 		}
 		// The size the host lays its view out at comes with the stream; the
@@ -886,11 +894,15 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 		if view.Reset {
 			if snap, err := base64.StdEncoding.DecodeString(view.Snapshot); err == nil {
 				sink.push(snap)
+				row, col, alt := snapshotCursor(snap)
+				cursor.start(row, col, view.Rows, view.Cols, alt)
 			}
 		}
 		if data, err := base64.StdEncoding.DecodeString(view.Data); err == nil {
 			sink.push(data)
+			cursor.feed(data)
 		}
+		p.remote.anchor.Store(int32(cursor.low))
 		offset = view.Offset
 		time.Sleep(remoteStreamInterval)
 	}
