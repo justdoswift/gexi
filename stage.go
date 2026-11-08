@@ -164,7 +164,7 @@ func (w *workspace) syncStageMirrors() {
 			keep[p.ID] = true
 		}
 	}
-	for _, pr := range w.Projects {
+	for _, pr := range w.allProjects() {
 		for _, s := range pr.Sessions {
 			if s.Root == nil {
 				continue

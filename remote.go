@@ -47,16 +47,22 @@ type remoteHost struct {
 }
 
 // remoteMethods is what a paired device may call: read a session and type
-// into a pane. It may not change the app, the projects, or the layout.
+// into a pane, and the pane actions its own window shows. It may not change
+// the app, the projects, or the layout beyond splitting and closing a pane,
+// which is what the pane's own header offers.
 var remoteMethods = map[string]bool{
 	"ping":           true,
 	"host.info":      true,
 	"workspace.info": true,
 	"session.list":   true,
+	"session.close":  true,
 	"pane.list":      true,
 	"pane.text":      true,
 	"pane.stream":    true,
 	"pane.send":      true,
+	"pane.split":     true,
+	"pane.close":     true,
+	"pane.focus":     true,
 }
 
 // remoteBackend is what the HTTP layer needs from the app. The workspace
@@ -439,31 +445,14 @@ func (w *workspace) addRemoteHost(host remoteHost) {
 			// poll loop starts over with it.
 			w.dropRemoteConn(host.Address)
 			w.remoteConn(host)
+			w.syncRemoteProjects()
 			return
 		}
 	}
 	w.settings.RemoteHosts = append(w.settings.RemoteHosts, host)
 	w.settings.save()
-	w.remoteOpen[host.Address] = true
 	w.remoteConn(host)
-}
-
-func (w *workspace) removeRemoteHost(address string) {
-	kept := w.settings.RemoteHosts[:0]
-	for _, h := range w.settings.RemoteHosts {
-		if h.Address != address {
-			kept = append(kept, h)
-		}
-	}
-	w.settings.RemoteHosts = kept
-	w.settings.save()
-	w.dropRemoteConn(address)
-	delete(w.remoteOpen, address)
-	if w.remoteActive == address {
-		w.remoteActive = ""
-	}
-	w.invalidate()
-	w.invalidateSettings()
+	w.syncRemoteProjects()
 }
 
 // dropRemoteConn ends and forgets the link to a host. Main thread.
@@ -472,6 +461,7 @@ func (w *workspace) dropRemoteConn(address string) {
 		rc.close()
 		delete(w.remoteConns, address)
 	}
+	w.syncRemoteProjects()
 }
 
 // remoteOnMain runs fn on the main thread when there is a window, and

@@ -150,13 +150,6 @@ func (w *workspace) backdrop(tk tokens) ui.Color {
 }
 
 func (w *workspace) canvas(c *ui.Context, tk tokens) {
-	// A remote host takes the canvas while it is selected; the local
-	// sessions keep their layout underneath and come back when the user
-	// picks one of them again.
-	if rc := w.activeRemote(); rc != nil {
-		rc.view(c)
-		return
-	}
 	if tb := w.selected(); tb != nil {
 		// A zoomed pane fills the session on its own: its tree is still
 		// there, so putting the others back is only a matter of drawing it.
@@ -263,13 +256,20 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 				shown = true
 				w.projectRow(c, tk, pr)
 			}
+			// Paired Macs sit under the projects as projects of their own:
+			// their sessions are sessions, and the canvas draws them with
+			// the same code.
+			for _, pr := range w.remoteProjects {
+				if !w.projectVisible(pr) {
+					continue
+				}
+				shown = true
+				w.projectRow(c, tk, pr)
+			}
 			if !shown {
 				ui.Text(c, locales.NoProjects()).FontSize(12).
 					TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
 			}
-			// Paired Macs sit under the projects, each with the sessions it
-			// runs; picking one shows it in the canvas.
-			w.remoteSection(c, tk)
 			ui.Spacer(c)
 			// The footer holds the sidebar's two menus: remote Macs on the
 			// left, settings on the right, off the search row so the field
@@ -324,7 +324,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 		MarginX(2)
 	hovered := row.Hovered()
 	color := tk.MutedForeground
-	if (w.remoteActive == "" && pr.sessionsSelected(w)) || hovered {
+	if pr.sessionsSelected(w) || hovered {
 		color = tk.Foreground
 	}
 	if hovered {
@@ -339,11 +339,26 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 		if src := iconSource(chevron, colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(15).Height(15).OnClick(toggle)
 		}
+		// A paired Mac wears the monitor its menu does, so it reads as a
+		// host rather than another checkout.
+		if pr.remote != nil {
+			if src := iconSource("monitor", colorHex(tk.MutedForeground)); src != nil {
+				ui.Image(c, src).Width(14).Height(14).OnClick(toggle)
+			}
+		}
 		ui.Text(c, pr.name()).FontSize(12).FontWeight(500).SingleLine().TextColor(color).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
+		if pr.remote != nil && pr.remote.conn.err != "" {
+			ui.Box(c).Width(7).Height(7).Radius(4).Background(tk.Waiting).
+				Tooltip(pr.remote.conn.err).OnClick(toggle)
+		}
 		if hovered {
-			iconButtonSmall(c, tk, "plus", func() { _, _ = w.newSession(pr, nil, pr.Dir) },
-				locales.ShortcutNewSession()+" (⌘T)")
+			// A host has no new session of its own to make here: its + is
+			// the host's, not this window's. The × forgets the pairing.
+			if pr.remote == nil {
+				iconButtonSmall(c, tk, "plus", func() { _, _ = w.newSession(pr, nil, pr.Dir) },
+					locales.ShortcutNewSession()+" (⌘T)")
+			}
 			iconButtonSmall(c, tk, "x", func() { w.closeProject(pr) }, locales.CloseProject())
 		}
 	})
@@ -360,7 +375,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 // hover. The close button's place is kept while the pointer is away, so the
 // loader does not move as the button comes and goes.
 func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session) {
-	sel := w.remoteActive == "" && s.ID == w.SelectedSession
+	sel := s.ID == w.SelectedSession
 	color := tk.MutedForeground
 	// Flush with the project row: the session card reads as its own row, not
 	// as something hanging under an indent.
@@ -410,6 +425,10 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 // sessionLabel is what the sidebar calls a session: its agent when one runs
 // there, the terminal title otherwise.
 func sessionLabel(s *session) string {
+	// A session on another Mac is called what its host calls it.
+	if s.remote != nil && s.remote.title != "" {
+		return s.remote.title
+	}
 	if s.Root != nil {
 		for _, p := range s.Root.panes() {
 			if p.Worktree != nil && p.Worktree.Branch != "" {
@@ -604,12 +623,14 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	// A pane takes another pane dropped on it: the side it lands on splits
 	// toward that side, the middle trades the two. The hint is read before
 	// the drop, which clears the drag, so both read the pointer directly.
+	// A pane on another Mac is not moved by this window's drags: its layout
+	// belongs to the host.
 	moved, over := ui.DragOver[paneMoved](outer)
 	place := paneDropNone
-	if over {
+	if over && p.remote == nil {
 		place = dropPlaceOf(outer, moved.Pane, p)
 	}
-	if v, dropped := ui.Drop[paneMoved](outer); dropped {
+	if v, dropped := ui.Drop[paneMoved](outer); dropped && p.remote == nil {
 		if at := dropPlaceOf(outer, v.Pane, p); at != paneDropNone {
 			w.movePane(v.Pane, p, at)
 			place = paneDropNone
@@ -696,7 +717,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				// to trade with. Alone in the window it keeps dragging the
 				// window, as a title bar does, since there is nowhere to
 				// put it.
-				movable := len(w.visiblePanes()) > 1
+				movable := len(w.visiblePanes()) > 1 && p.remote == nil
 				// A sliver of a pane spends nothing on padding it does not
 				// need: a couple of points buy its title back.
 				stripPad := float32(6)
@@ -874,7 +895,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					actions = actions.IgnoreInput(!showActions).
 						Opacity(actions.AnimateTo("actions", alpha, ui.Animation{Duration: 150 * time.Millisecond, Ease: ui.EaseOut}))
 					actions.Children(func() {
-						w.paneWorktreeButton(c, tk, p)
+						// The worktree button is the host's checkout, not
+						// this window's to move.
+						if p.remote == nil {
+							w.paneWorktreeButton(c, tk, p)
+						}
 						// A pane too narrow for all three keeps only the way
 						// out: splitting and zooming are in the View menu, and
 						// a clipped button is worse than an absent one.
@@ -921,6 +946,9 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			}
 			if el.Focused() && w.FocusedPane != p.ID {
 				w.FocusedPane = p.ID
+				if p.remote != nil {
+					p.remote.conn.focusPane(p.remote.id)
+				}
 			}
 			if w.focusReq == p.ID {
 				el = el.Focus()

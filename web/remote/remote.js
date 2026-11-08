@@ -25,6 +25,9 @@ const L = zh ? {
   session: '会话',
   inputPlaceholder: '输入后按回车',
   send: '发送',
+  splitRight: '分屏 →',
+  splitDown: '分屏 ↓',
+  closePane: '关闭窗格',
 } : {
   pairTitle: 'Connect to this Mac',
   pairBody: 'On the Mac, open gexi › Settings › Remote and enter the 6-digit pairing code shown there.',
@@ -43,6 +46,9 @@ const L = zh ? {
   session: 'Session',
   inputPlaceholder: 'Type, then Return',
   send: 'Send',
+  splitRight: 'Split Right',
+  splitDown: 'Split Down',
+  closePane: 'Close Pane',
 };
 
 const state = {
@@ -286,6 +292,7 @@ function openSession(session) {
         </div>
       </header>
       <div id="paneChips" class="chips hidden"></div>
+      <div id="paneActions" class="actions"></div>
       <div id="banner" class="banner hidden"></div>
       <div class="term-scroll" id="scroll"><pre class="term" id="term"></pre></div>
       <div class="keys" id="keys"></div>
@@ -311,6 +318,22 @@ function openSession(session) {
     button.textContent = label;
     button.onclick = () => sendKey(seq);
     keys.appendChild(button);
+  }
+
+  // The pane's own buttons, as the app's header shows them: the split and
+  // the close act on the host, like every other control here.
+  const actions = document.getElementById('paneActions');
+  for (const [label, action] of [
+    [L.splitRight, () => splitPane('horizontal')],
+    [L.splitDown, () => splitPane('vertical')],
+    [L.closePane, closePane],
+  ]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'key';
+    button.textContent = label;
+    button.onclick = action;
+    actions.appendChild(button);
   }
 
   renderPaneChips(panes);
@@ -357,7 +380,62 @@ function renderPaneChips(panes) {
 function startPolling() {
   stopPolling();
   poll();
-  state.timer = setInterval(poll, 1000);
+  refreshPanes();
+  state.timer = setInterval(() => {
+    poll();
+    refreshPanes();
+  }, 1000);
+}
+
+// refreshPanes keeps the pane chips, and the pane the page shows, in step
+// with the host: a split or a close from either side shows up here.
+async function refreshPanes() {
+  if (!state.session) return;
+  try {
+    const panes = await call('pane.list', { all: true });
+    state.panes = panes || [];
+    const mine = panesOf(state.session);
+    if (!mine.length) {
+      showSessions();
+      return;
+    }
+    if (!mine.some(p => p.id === state.paneID)) {
+      const focused = mine.find(p => p.focused) || mine[0];
+      state.paneID = focused.id;
+      state.text = '';
+      state.autoScroll = true;
+      poll();
+    }
+    renderPaneChips(mine);
+  } catch (err) {
+    if (!err.unpaired) setBanner(err.message);
+  }
+}
+
+async function splitPane(axis) {
+  if (!state.paneID) return;
+  try {
+    const result = await call('pane.split', { pane: state.paneID, axis });
+    if (result && result.pane) {
+      state.paneID = result.pane;
+      state.text = '';
+      state.autoScroll = true;
+    }
+    await refreshPanes();
+    poll();
+  } catch (err) {
+    if (!err.unpaired) setBanner(err.message);
+  }
+}
+
+async function closePane() {
+  if (!state.paneID) return;
+  try {
+    await call('pane.close', { pane: state.paneID });
+    await refreshPanes();
+  } catch (err) {
+    if (!err.unpaired) setBanner(err.message);
+  }
 }
 
 async function poll() {

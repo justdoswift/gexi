@@ -25,6 +25,9 @@ type project struct {
 	Dir      string
 	Label    string
 	Sessions []*session
+	// remote is set on the project a paired Mac takes: its sessions and
+	// panes live on that host, and the window draws them as local work.
+	remote *remoteProjectLink
 }
 
 // session is one split tree of panes inside a project.
@@ -36,9 +39,15 @@ type session struct {
 	// the workspace: switching to another session in the sidebar and back
 	// shows the pane this one was left zoomed to.
 	zoomedPane string
+	// remote is set on a session that lives on another Mac; title is the
+	// name its host gives it.
+	remote *remoteSessionLink
 }
 
 func (s *session) title() string {
+	if s.remote != nil && s.remote.title != "" {
+		return s.remote.title
+	}
 	if s.Root == nil {
 		return locales.Terminal()
 	}
@@ -173,31 +182,30 @@ type workspace struct {
 
 	// Remote: the LAN server this Mac runs while it is reachable, the error
 	// that kept it from starting, the add-host dialog, and the Macs this one
-	// reaches. remoteActive is the address of the host the canvas shows, or
-	// "" while it shows local work.
-	remoteSrv    *http.Server
-	remoteErr    string
-	remoteConns  map[string]*remoteConn
-	remoteActive string
-	remoteOpen   map[string]bool
-	hostOpen     bool
-	hostName      string
-	hostAddr      string
-	hostCode      string
-	hostErr       string
-	hostBusy      bool
+	// reaches. Each paired host is a project in the sidebar; its sessions
+	// and panes are in remoteProjects rather than Projects, so they are
+	// never saved or treated as local work.
+	remoteSrv      *http.Server
+	remoteErr      string
+	remoteConns    map[string]*remoteConn
+	remoteProjects []*project
+	hostOpen       bool
+	hostName       string
+	hostAddr       string
+	hostCode       string
+	hostErr        string
+	hostBusy       bool
 }
 
 func newWorkspace() *workspace {
 	w := &workspace{
-		InstanceID:    newID(),
-		settings:      loadSettings(),
-		collapsed:     map[string]bool{},
-		gitInfo:       map[string]gitSummary{},
-		gitBusy:       map[string]bool{},
-		gitGen:        map[string]int{},
+		InstanceID:   newID(),
+		settings:     loadSettings(),
+		collapsed:    map[string]bool{},
+		gitInfo:      map[string]gitSummary{},
+		gitBusy:      map[string]bool{},
+		gitGen:       map[string]int{},
 		remoteConns:  map[string]*remoteConn{},
-		remoteOpen:   map[string]bool{},
 	}
 	return w
 }
@@ -206,7 +214,7 @@ func (w *workspace) selected() *session {
 	if s := w.sessionByID(w.SelectedSession); s != nil {
 		return s
 	}
-	for _, pr := range w.Projects {
+	for _, pr := range w.allProjects() {
 		if len(pr.Sessions) > 0 {
 			return pr.Sessions[0]
 		}
@@ -215,7 +223,7 @@ func (w *workspace) selected() *session {
 }
 
 func (w *workspace) sessionByID(id string) *session {
-	for _, pr := range w.Projects {
+	for _, pr := range w.allProjects() {
 		for _, s := range pr.Sessions {
 			if s.ID == id {
 				return s
@@ -235,6 +243,9 @@ func (w *workspace) projectByID(id string) *project {
 }
 
 func (w *workspace) projectOf(s *session) *project {
+	if s != nil && s.remote != nil {
+		return s.remote.conn.project
+	}
 	for _, pr := range w.Projects {
 		for _, have := range pr.Sessions {
 			if have == s {
@@ -246,6 +257,16 @@ func (w *workspace) projectOf(s *session) *project {
 }
 
 func (w *workspace) sessionOf(p *pane) *session {
+	if p != nil && p.remote != nil {
+		for _, s := range p.remote.conn.project.Sessions {
+			for _, have := range s.Root.panes() {
+				if have == p {
+					return s
+				}
+			}
+		}
+		return nil
+	}
 	for _, pr := range w.Projects {
 		for _, s := range pr.Sessions {
 			if s.Root != nil && s.Root.paneByID(p.ID) != nil {
@@ -254,6 +275,15 @@ func (w *workspace) sessionOf(p *pane) *session {
 		}
 	}
 	return nil
+}
+
+// allProjects is the projects the sidebar draws: the local ones, and the
+// paired Macs under them.
+func (w *workspace) allProjects() []*project {
+	if len(w.remoteProjects) == 0 {
+		return w.Projects
+	}
+	return append(append([]*project{}, w.Projects...), w.remoteProjects...)
 }
 
 func (w *workspace) visiblePanes() []*pane {
@@ -375,6 +405,11 @@ func splitDirFor(p *pane, projectDir, current string) string {
 
 // splitPane puts a new pane beside p. Main thread.
 func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*pane, error) {
+	// A pane on another Mac splits there; the poll brings its new layout.
+	if p != nil && p.remote != nil {
+		p.remote.conn.splitPane(p.remote.id, ax)
+		return nil, nil
+	}
 	if dir == "" {
 		dir = w.splitDir(p)
 	}
@@ -402,6 +437,11 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 // them has an agent in it.
 func (w *workspace) closeSession(s *session) {
 	if s == nil || s.Root == nil {
+		return
+	}
+	// A session on another Mac ends there, as its host's own button would.
+	if s.remote != nil {
+		s.remote.conn.closeSession(s.remote.id)
 		return
 	}
 	if panesHaveAgent(s.Root.panes()) {
@@ -515,6 +555,11 @@ func (w *workspace) requestClose(p *pane) {
 // keep it running in the background instead.
 func (w *workspace) requestCloseByUser(p *pane) {
 	if p == nil || p.closing {
+		return
+	}
+	// The pane's close button on another Mac closes it there.
+	if p.remote != nil {
+		p.remote.conn.closePane(p.remote.id)
 		return
 	}
 	if p.agent != nil || p.sawAgent || len(p.lastAgentRestore) > 0 {
@@ -682,6 +727,11 @@ func (w *workspace) closeProject(pr *project) {
 	if pr == nil {
 		return
 	}
+	// A host is not closed, it is forgotten: the pairing goes with it.
+	if pr.remote != nil {
+		w.removeRemoteHost(pr.remote.host.Address)
+		return
+	}
 	panes := []*pane{}
 	for _, s := range pr.Sessions {
 		if s.Root != nil {
@@ -754,13 +804,12 @@ func (w *workspace) selectSession(id string) {
 	if s == nil {
 		return
 	}
-	// Choosing local work puts the canvas back on it.
-	w.remoteActive = ""
 	w.SelectedSession = s.ID
 	// The session keeps the pane it was zoomed to: switching away in the
 	// sidebar and back shows the same stage, its rail included.
 	w.stageRailShown = false
 	w.syncStageMirrors()
+	w.syncRemoteMirrors()
 	if s.Root != nil {
 		for _, p := range s.Root.panes() {
 			if p.Worktree != nil {
@@ -780,9 +829,26 @@ func (w *workspace) selectSession(id string) {
 			w.focusReq = ps[0].ID
 		}
 	}
+	if s.remote != nil {
+		w.notifyRemoteFocus(s)
+	}
 	w.invalidate()
 	w.scheduleSave()
 	w.refreshGit()
+}
+
+// notifyRemoteFocus tells the host which pane the window now has the
+// keyboard in.
+func (w *workspace) notifyRemoteFocus(s *session) {
+	if s == nil || s.remote == nil || s.Root == nil {
+		return
+	}
+	for _, p := range s.Root.panes() {
+		if p.ID == w.FocusedPane && p.remote != nil {
+			p.remote.conn.focusPane(p.remote.id)
+			return
+		}
+	}
 }
 
 func (w *workspace) toggleProject(pr *project) {
@@ -798,6 +864,9 @@ func (w *workspace) toggleProject(pr *project) {
 func (w *workspace) focusPane(p *pane) {
 	w.FocusedPane = p.ID
 	w.focusReq = p.ID
+	if p.remote != nil {
+		p.remote.conn.focusPane(p.remote.id)
+	}
 	if s := w.sessionOf(p); s != nil {
 		w.SelectedSession = s.ID
 	}
@@ -825,6 +894,11 @@ func (w *workspace) toggleZoom(p *pane) {
 		w.stageRailShown = false
 	}
 	w.syncStageMirrors()
+	// Only the pane on stage keeps its stream running.
+	w.syncRemoteMirrors()
+	if s.remote != nil {
+		w.notifyRemoteFocus(s)
+	}
 	w.zoomSettling = true
 	w.invalidate()
 	w.scheduleSave()
