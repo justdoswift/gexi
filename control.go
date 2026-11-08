@@ -171,6 +171,11 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		// A viewing Mac names the size its window fits, so the pane takes it
+		// and its lines wrap where that window ends.
+		if cols, rows := intParam(p, "cols"), intParam(p, "rows"); cols > 0 && rows > 0 {
+			pane.watchRemoteSize(cols, rows)
+		}
 		offset := int64(intParam(p, "offset"))
 		var snap []byte
 		reset := offset <= 0 || boolParam(p, "snapshot")

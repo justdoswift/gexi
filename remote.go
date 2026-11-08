@@ -519,3 +519,51 @@ func (w *workspace) remoteDispatch(req controlRequest) controlResponse {
 }
 
 func (w *workspace) remoteName() string { return deviceName() }
+
+// remoteWatchTTL is how long a pane keeps the size a paired Mac asked for
+// after its last look. The client polls while it shows the pane, so the size
+// lapses a moment after it looks away and the pane takes the card's again.
+const remoteWatchTTL = 3 * time.Second
+
+// watchRemoteSize gives p the size the paired Mac watching it fits: the
+// other Mac's terminal then has the columns and rows of its own window, and
+// its lines wrap where that window ends, at this Mac's text size. Main
+// thread; pane.stream runs there.
+func (p *pane) watchRemoteSize(cols, rows int) {
+	if p == nil || p.term == nil || cols < 1 || rows < 1 {
+		return
+	}
+	p.remoteCols, p.remoteRows = cols, rows
+	p.remoteWatchAt = time.Now()
+	if c, r := p.term.Size(); c != cols || r != rows {
+		p.term.Resize(cols, rows)
+	}
+	// One timer while the Mac is watching lets the pane take the card's size
+	// again once it stops; it is set at most once a second.
+	if p.ws != nil && time.Since(p.remoteWatchTick) > time.Second {
+		p.remoteWatchTick = time.Now()
+		time.AfterFunc(remoteWatchTTL, func() {
+			p.ws.onMain(func() { p.ws.invalidate() })
+		})
+	}
+}
+
+// remoteWatched reports whether a paired Mac asked for this pane's size
+// recently enough that the view should hold it.
+func (p *pane) remoteWatched() bool {
+	return p != nil && p.remoteCols > 0 && p.remoteRows > 0 &&
+		time.Since(p.remoteWatchAt) < remoteWatchTTL
+}
+
+// remoteViewSize is the view's size for a pane held at cols by rows, with a
+// cell cw by ch: the metrics come from the last layout at the card's size,
+// and the terminal's own padding, 12 by 10 a side, is added around them.
+func remoteViewSize(cols, rows int, cw, ch float32) (float32, float32) {
+	if cw <= 0 {
+		cw = 7.55
+	}
+	if ch <= 0 {
+		ch = 19.2
+	}
+	return float32(cols)*cw + 24, float32(rows)*ch + 20
+}

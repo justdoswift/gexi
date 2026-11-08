@@ -580,24 +580,44 @@ func TestRemoteTargetProject(t *testing.T) {
 	}
 }
 
-// TestRemoteFitScale: the whole of the host's screen fits the card, at 1 when
-// the card is already large enough.
-func TestRemoteFitScale(t *testing.T) {
-	l := &remotePaneLink{viewW: 1200, viewH: 800}
-	cases := []struct {
-		aw, ah, want float32
-	}{
-		{1200, 800, 1},
-		{2000, 1600, 1},
-		{600, 400, 0.5},
-		{600, 800, 0.5},
-		{1200, 400, 0.5},
-		{120, 80, 0.2}, // never unreadable, even for a huge host screen
+// TestRemoteWantGrid: the card asks the host for the columns and rows it
+// fits at the measured cell size, keeping one of each back for rounding.
+func TestRemoteWantGrid(t *testing.T) {
+	l := &remotePaneLink{cellW: 7.55, cellH: 19.2}
+	cols, rows := l.wantGrid(1285, 809)
+	if cols != 166 || rows != 40 {
+		t.Fatalf("want %vx%v, want 166x40", cols, rows)
 	}
-	for _, c := range cases {
-		if got := l.fitScale(c.aw, c.ah); got != c.want {
-			t.Errorf("fitScale(%v, %v) = %v, want %v", c.aw, c.ah, got, c.want)
-		}
+	// The cell's size comes from the first stream that names the host's view.
+	named := &remotePaneLink{viewW: 1285, viewH: 809, gridCols: 168, gridRows: 41}
+	named.measureCell()
+	if named.cellW <= 0 || named.cellH <= 0 {
+		t.Fatalf("measured cell %vx%v", named.cellW, named.cellH)
+	}
+	if cols, rows := named.wantGrid(1285, 809); cols != 167 || rows != 40 {
+		t.Fatalf("measured want %vx%v, want 167x40", cols, rows)
+	}
+	// A card with no size yet asks for nothing.
+	if cols, rows := l.wantGrid(0, 0); cols != 10 || rows != 3 {
+		t.Fatalf("empty card want %vx%v, want the floor", cols, rows)
+	}
+}
+
+// TestWatchRemoteSize: a watching Mac's size takes the pane's terminal, and
+// the view is then laid out at exactly that grid.
+func TestWatchRemoteSize(t *testing.T) {
+	term, _ := probeTerminal(t)
+	p := &pane{term: term}
+	p.watchRemoteSize(100, 30)
+	if cols, rows := term.Size(); cols != 100 || rows != 30 {
+		t.Fatalf("terminal %vx%v, want 100x30", cols, rows)
+	}
+	if !p.remoteWatched() {
+		t.Fatal("the pane does not report the watching Mac")
+	}
+	w, h := remoteViewSize(100, 30, 7.5, 19)
+	if w != 774 || h != 590 {
+		t.Fatalf("view %vx%v, want 774x590", w, h)
 	}
 }
 

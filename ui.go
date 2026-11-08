@@ -1033,30 +1033,63 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 
 			var el ui.Element
 			if p.remote != nil {
-				// A pane on another Mac mirrors the screen the host draws,
-				// laid out at the size the host lays it out at and scaled
-				// down to fit the card when the card is smaller: the whole
-				// width stays in sight, so a line ends where the card does
-				// instead of wrapping past its right edge. The zoom shortcut
-				// gives the card more room when the text is too small.
-				natW, natH := mirrorSize(p)
+				// A pane on another Mac mirrors the screen the host draws.
+				// The card asks the host for the grid the card fits, so the
+				// host's lines wrap where the card ends, at the text size
+				// this Mac's own panes have; the mirror draws it at that
+				// size, in the same font.
 				area := ui.Box(c).Fill().Clip()
 				area.Children(func() {
-					scale := float32(1)
 					if aw, ah := area.Bounds().W, area.Bounds().H; aw > 0 && ah > 0 {
-						scale = p.remote.fitScale(aw, ah)
+						p.remote.measureCell()
+						cols, rows := p.remote.wantGrid(aw, ah)
+						p.remote.wantCols.Store(int32(cols))
+						p.remote.wantRows.Store(int32(rows))
 					}
-					el = terminal.View(c, p.term).
-						Width(natW).Height(natH).Absolute().
-						Left(0).Top(0).
-						TransformOrigin(0, 0).Scale(scale, scale)
+					el = terminal.View(c, p.term).Fill()
 				})
 			} else {
-				el = terminal.View(c, p.term).Fill()
-				// The size the pane's terminal is laid out at is what its
-				// mirror is laid out at too, before the card scales it down.
-				if b := el.LayoutBounds(); b.W > 0 && b.H > 0 {
-					p.viewW, p.viewH = b.W, b.H
+				el = terminal.View(c, p.term)
+				if p.remoteWatched() {
+					// A paired Mac watches this pane at the size its own window
+					// fits: the view holds the size the terminal now has, so
+					// this card does not resize it back under that Mac. It
+					// takes no more than the card, so the grid stays whole
+					// here too.
+					cols, rows := p.remoteCols, p.remoteRows
+					if cardW, cardH := col.Bounds().W, col.Bounds().H-headerHeight; cardW > 0 && cardH > 0 {
+						cw, ch := p.cellW, p.cellH
+						if cw <= 0 {
+							cw = 7.55
+						}
+						if ch <= 0 {
+							ch = 19.2
+						}
+						if n := int((cardW - 24) / cw); n > 0 && n < cols {
+							cols = n
+						}
+						if n := int((cardH - 20) / ch); n > 0 && n < rows {
+							rows = n
+						}
+					}
+					w, h := remoteViewSize(cols, rows, p.cellW, p.cellH)
+					el = el.Width(w).Height(h)
+				} else {
+					el = el.Fill()
+					// The size the pane's terminal is laid out at is what its
+					// mirror is laid out at too, before the card scales it
+					// down; a cell's size comes from it, for a paired Mac's.
+					if b := el.LayoutBounds(); b.W > 0 && b.H > 0 {
+						p.viewW, p.viewH = b.W, b.H
+						if cols, rows := p.term.Size(); cols > 0 && rows > 0 {
+							if cw := (b.W - 24) / float32(cols); cw > 0 {
+								p.cellW = cw
+							}
+							if ch := (b.H - 20) / float32(rows); ch > 0 {
+								p.cellH = ch
+							}
+						}
+					}
 				}
 			}
 			if el.Focused() && w.FocusedPane != p.ID {
