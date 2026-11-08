@@ -411,7 +411,7 @@ func TestCreatePRFlow(t *testing.T) {
 	if err := commitStaged(wt, "the change"); err != nil {
 		t.Fatal(err)
 	}
-	info, branch, err := createPR(wt, "")
+	info, branch, err := createPR(wt, "", nil)
 	if err != nil {
 		t.Fatalf("create PR: %v", err)
 	}
@@ -436,7 +436,7 @@ func TestCreatePRFlow(t *testing.T) {
 	if err := os.WriteFile(stateFile, []byte(`{"number":23,"url":"https://example.invalid/pr/23","state":"OPEN","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	reused, _, err := createPR(early, "")
+	reused, _, err := createPR(early, "", nil)
 	if err != nil || reused.Number != 23 {
 		t.Fatalf("existing PR = %+v, %v, want #23", reused, err)
 	}
@@ -458,10 +458,10 @@ func TestCreatePRDirtyFlow(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(wt.Path, "dirty.txt"), []byte("x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := createPR(wt, ""); err == nil || !strings.Contains(err.Error(), "commit message") {
+	if _, _, err := createPR(wt, "", nil); err == nil || !strings.Contains(err.Error(), "commit message") {
 		t.Fatalf("dirty with no message = %v, want the message refusal", err)
 	}
-	info, _, err := createPR(wt, "commit the dirty file")
+	info, _, err := createPR(wt, "commit the dirty file", nil)
 	if err != nil || info.Number != 17 {
 		t.Fatalf("dirty with a message = %+v, %v", info, err)
 	}
@@ -479,14 +479,14 @@ func TestCreatePRRefusals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := createPR(wt, ""); err == nil || !strings.Contains(err.Error(), "no commits") {
+	if _, _, err := createPR(wt, "", nil); err == nil || !strings.Contains(err.Error(), "no commits") {
 		t.Fatalf("a branch with no commits = %v, want the no-commits error", err)
 	}
 
 	// A failing gh carries its message through.
 	runGitTest(t, wt.Path, "commit", "--allow-empty", "-m", "work")
 	t.Setenv("FAKE_GH_CREATE_FAIL", "1")
-	if _, _, err := createPR(wt, ""); err == nil || !strings.Contains(err.Error(), "create failed") {
+	if _, _, err := createPR(wt, "", nil); err == nil || !strings.Contains(err.Error(), "create failed") {
 		t.Fatalf("a failing gh = %v, want create failed", err)
 	}
 }
@@ -527,7 +527,7 @@ func TestGhMissingCheck(t *testing.T) {
 		t.Fatal("the missing-gh override was not used")
 	}
 	root := initRepoTest(t)
-	if _, _, err := createPR(&paneWorktree{Root: root, Path: root, Branch: "x", Base: "main"}, ""); !errors.Is(err, errGhMissing) {
+	if _, _, err := createPR(&paneWorktree{Root: root, Path: root, Branch: "x", Base: "main"}, "", nil); !errors.Is(err, errGhMissing) {
 		t.Fatalf("create PR without gh = %v, want errGhMissing", err)
 	}
 }
@@ -711,7 +711,7 @@ func TestCoreGitRefusesMissingCheckout(t *testing.T) {
 		Path:   filepath.Join(t.TempDir(), "gone"),
 		Branch: "gone", Base: "main", PR: 5,
 	}
-	if _, _, err := createPR(gone, "message"); !errors.Is(err, errWorktreeGone) {
+	if _, _, err := createPR(gone, "message", nil); !errors.Is(err, errWorktreeGone) {
 		t.Fatalf("create PR in a missing folder = %v, want errWorktreeGone", err)
 	}
 	if err := mergePR(gone); !errors.Is(err, errWorktreeGone) {
