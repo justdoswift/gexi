@@ -293,12 +293,135 @@ func (w *workspace) remoteMenu(m *ui.Menu) {
 	}
 }
 
-// MARK: the remote window
+// MARK: the sidebar's remote hosts
 
-type remoteWindow struct {
+// remoteSection lists the paired Macs under the projects, each row opening
+// the host and its live sessions. It keeps out of the way while the search
+// box filters local projects.
+func (w *workspace) remoteSection(c *ui.Context, tk tokens) {
+	if len(w.settings.RemoteHosts) == 0 || strings.TrimSpace(w.searchQuery) != "" {
+		return
+	}
+	for _, host := range w.settings.RemoteHosts {
+		w.remoteHostRow(c, tk, host)
+	}
+}
+
+func (w *workspace) remoteHostRow(c *ui.Context, tk tokens, host remoteHost) {
+	rc := w.remoteConns[host.Address]
+	open := w.remoteOpen[host.Address]
+	selected := w.remoteActive == host.Address
+	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(6).
+		Radius(chromeRadius).MarginX(2)
+	hovered := row.Hovered()
+	color := tk.MutedForeground
+	if selected || hovered {
+		color = tk.Foreground
+	}
+	switch {
+	case selected:
+		row = controlWash(c, row, tk, 0.09, tk.Active)
+	case hovered:
+		row = controlWash(c, row, tk, 0.045, tk.Active)
+	}
+	pick := func() { w.openRemoteHost(host) }
+	toggle := func() {
+		w.remoteOpen[host.Address] = !open
+		w.invalidate()
+	}
+	row.OnClick(pick).Children(func() {
+		chevron := "chevron-right"
+		if open {
+			chevron = "chevron-down"
+		}
+		if src := iconSource(chevron, colorHex(tk.MutedForeground)); src != nil {
+			ui.Image(c, src).Width(15).Height(15).OnClick(toggle)
+		}
+		if src := iconSource("monitor", colorHex(color)); src != nil {
+			ui.Image(c, src).Width(14).Height(14).OnClick(pick)
+		}
+		ui.Text(c, host.Name).FontSize(12).FontWeight(500).SingleLine().
+			TextColor(color).OnClick(pick)
+		ui.Spacer(c).OnClick(pick)
+		if rc != nil && rc.err != "" {
+			ui.Box(c).Width(7).Height(7).Radius(4).Background(tk.Waiting).
+				Tooltip(rc.err).OnClick(pick)
+		}
+	})
+	if !open || rc == nil {
+		return
+	}
+	for _, s := range rc.sessions {
+		w.remoteSessionRow(c, tk, rc, s)
+	}
+}
+
+func (w *workspace) remoteSessionRow(c *ui.Context, tk tokens, rc *remoteConn, s remoteSession) {
+	sel := w.remoteActive == rc.host.Address && rc.session != nil && rc.session.ID == s.ID
+	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(8).
+		Radius(chromeRadius).MarginX(2)
+	hovered := row.Hovered()
+	color := tk.MutedForeground
+	if sel || hovered {
+		color = tk.Foreground
+	}
+	switch {
+	case sel:
+		row = controlWash(c, row, tk, 0.09, tk.Active)
+	case hovered:
+		row = controlWash(c, row, tk, 0.045, tk.Active)
+	}
+	panes := rc.panesOf(s)
+	state := ""
+	for _, pane := range panes {
+		if pane.Activity == nil {
+			continue
+		}
+		if pane.Activity.State == activityWaiting {
+			state = activityWaiting
+			break
+		}
+		if pane.Activity.State == activityWorking {
+			state = activityWorking
+		}
+	}
+	label := s.Title
+	if label == "" && len(panes) > 0 {
+		label = panes[0].Cwd
+	}
+	pick := func() { rc.openSession(s) }
+	row.OnClick(pick).Children(func() {
+		if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
+			ui.Image(c, src).Width(16).Height(16).OnClick(pick)
+		}
+		labelColor := color
+		if state == activityWaiting {
+			labelColor = tk.Foreground
+		}
+		ui.Text(c, label).FontSize(12).FontWeight(500).SingleLine().
+			TextColor(labelColor).OnClick(pick)
+		ui.Spacer(c).OnClick(pick)
+		if state != "" {
+			dot := tk.Working
+			if state == activityWaiting {
+				dot = tk.Waiting
+			}
+			ui.Box(c).Width(7).Height(7).Radius(4).Background(dot).OnClick(pick)
+		}
+	})
+}
+
+// MARK: the remote host, inside the main window
+
+// remoteConn is this Mac's link to one paired host. It keeps the host's
+// sessions and the text of the session being watched, polled once a second
+// while the app runs. The sidebar lists the sessions under the host's row
+// and the canvas shows one session's terminal, in the same window as the
+// local projects.
+type remoteConn struct {
 	ws     *workspace
+	host   remoteHost
 	client remoteClient
-	win    *mygo.Window
 
 	// mu guards the target a poll reads while the main thread changes it.
 	mu        sync.Mutex
@@ -320,147 +443,204 @@ type remoteWindow struct {
 	stop chan struct{}
 }
 
-func (w *workspace) openRemoteHost(host remoteHost) {
-	if existing := w.remoteWindows[host.Address]; existing != nil {
-		existing.win.Show()
-		existing.win.Focus()
-		return
+// startRemoteClients starts a poll loop for every host already paired, so
+// the sidebar can list their sessions as soon as the window opens.
+func (w *workspace) startRemoteClients() {
+	for _, host := range w.settings.RemoteHosts {
+		w.remoteOpen[host.Address] = true
+		w.remoteConn(host)
 	}
-	rw := &remoteWindow{
+}
+
+// stopRemoteClients ends every poll loop. Called on quit.
+func (w *workspace) stopRemoteClients() {
+	for address, rc := range w.remoteConns {
+		rc.close()
+		delete(w.remoteConns, address)
+	}
+}
+
+// remoteConn returns the link to host, starting it when it is the first
+// time the app reaches it. Main thread.
+func (w *workspace) remoteConn(host remoteHost) *remoteConn {
+	if rc := w.remoteConns[host.Address]; rc != nil {
+		return rc
+	}
+	rc := &remoteConn{
 		ws:      w,
+		host:    host,
 		client:  remoteClient{Name: host.Name, Address: host.Address, Token: host.Token},
 		loading: true,
 		stop:    make(chan struct{}),
 	}
-	rw.win = mygo.NewWindow(mygo.WindowOptions{
-		Title:           "gexi — " + host.Name,
-		Width:           860,
-		Height:          620,
-		MinWidth:        520,
-		MinHeight:       380,
-		TitleBarStyle:   mygo.TitleBarHidden,
-		BackgroundColor: w.chromeBackground(),
-		Content:         ui.View(rw.view),
-	})
-	w.remoteWindows[host.Address] = rw
-	rw.win.OnShow(func() { rw.win.Invalidate() })
-	rw.win.OnClosed(func() {
-		rw.close()
-		if w.remoteWindows[host.Address] == rw {
-			delete(w.remoteWindows, host.Address)
-		}
-	})
-	go rw.refreshLoop()
+	w.remoteConns[host.Address] = rc
+	go rc.refreshLoop()
+	return rc
 }
 
-func (rw *remoteWindow) close() {
+// openRemoteHost brings a host to the front of the window: its row in the
+// sidebar opens, and the canvas shows the host's session list.
+func (w *workspace) openRemoteHost(host remoteHost) {
+	w.remoteConn(host)
+	w.remoteActive = host.Address
+	w.remoteOpen[host.Address] = true
+	if w.settings.SidebarCollapsed {
+		w.settings.SidebarCollapsed = false
+		w.scheduleSave()
+	}
+	w.invalidate()
+}
+
+// leaveRemote puts the canvas back on the local work. Main thread.
+func (w *workspace) leaveRemote() {
+	if w.remoteActive == "" {
+		return
+	}
+	w.remoteActive = ""
+	w.invalidate()
+}
+
+// activeRemote is the host the canvas shows, or nil while it shows local
+// work. Main thread.
+func (w *workspace) activeRemote() *remoteConn {
+	if w.remoteActive == "" {
+		return nil
+	}
+	return w.remoteConns[w.remoteActive]
+}
+
+func (rc *remoteConn) close() {
 	select {
-	case <-rw.stop:
+	case <-rc.stop:
 	default:
-		close(rw.stop)
+		close(rc.stop)
 	}
 }
 
-func (rw *remoteWindow) stopped() bool {
+func (rc *remoteConn) stopped() bool {
 	select {
-	case <-rw.stop:
+	case <-rc.stop:
 		return true
 	default:
 		return false
 	}
 }
 
-func (rw *remoteWindow) target() (sessionID, paneID string) {
-	rw.mu.Lock()
-	defer rw.mu.Unlock()
-	return rw.sessionID, rw.paneID
+func (rc *remoteConn) target() (sessionID, paneID string) {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	return rc.sessionID, rc.paneID
 }
 
-func (rw *remoteWindow) refreshLoop() {
-	rw.refresh()
+func (rc *remoteConn) refreshLoop() {
+	rc.refresh()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-rw.stop:
+		case <-rc.stop:
 			return
 		case <-ticker.C:
-			rw.refresh()
+			rc.refresh()
 		}
 	}
 }
 
-func (rw *remoteWindow) refresh() {
-	if rw.stopped() || rw.ws.quitting {
+func (rc *remoteConn) refresh() {
+	if rc.stopped() || rc.ws.quitting {
 		return
 	}
-	sessionID, paneID := rw.target()
-	if sessionID == "" {
-		var sessions []remoteSession
-		if err := rw.client.call("session.list", nil, &sessions); err != nil {
-			rw.fail(err)
-			return
+	sessionID, paneID := rc.target()
+	// The sidebar keeps the host's sessions and their activity current even
+	// while one of them fills the canvas.
+	var sessions []remoteSession
+	if err := rc.client.call("session.list", nil, &sessions); err != nil {
+		rc.fail(err)
+		return
+	}
+	var panes []remotePane
+	_ = rc.client.call("pane.list", map[string]any{"all": true}, &panes)
+	rc.update(func() {
+		rc.loading = false
+		rc.err = ""
+		rc.sessions = sessions
+		rc.panes = panes
+		if rc.session != nil {
+			for i := range sessions {
+				if sessions[i].ID == rc.session.ID {
+					rc.session = &sessions[i]
+					break
+				}
+			}
 		}
-		var panes []remotePane
-		_ = rw.client.call("pane.list", map[string]any{"all": true}, &panes)
-		rw.update(func() {
-			rw.loading = false
-			rw.err = ""
-			rw.sessions = sessions
-			rw.panes = panes
-		})
+	})
+	if sessionID == "" || paneID == "" {
 		return
 	}
-	if paneID == "" {
+	// Only the session on screen pulls its text; the others stay listed
+	// until the user opens one of them.
+	if !rc.ws.viewingRemote(rc.host.Address) {
 		return
 	}
 	var view remoteTextView
-	err := rw.client.call("pane.text", map[string]any{
+	err := rc.client.call("pane.text", map[string]any{
 		"pane":  paneID,
 		"limit": 64_000,
 	}, &view)
 	if err != nil {
-		rw.fail(err)
+		rc.fail(err)
 		return
 	}
-	rw.update(func() {
-		rw.loading = false
-		rw.err = ""
-		rw.text = view.Text
+	rc.update(func() {
+		rc.loading = false
+		rc.err = ""
+		rc.text = view.Text
 		if view.Title != "" {
-			rw.title = view.Title
+			rc.title = view.Title
 		}
-		rw.cwd = view.Cwd
+		rc.cwd = view.Cwd
 	})
 }
 
-func (rw *remoteWindow) update(fn func()) {
-	if rw.stopped() {
+// viewingRemote says whether the canvas shows address. Polled from a
+// goroutine, so it reads the selection on the main thread.
+func (w *workspace) viewingRemote(address string) bool {
+	var on bool
+	mygo.RunOnMain(func() { on = w.remoteActive == address })
+	return on
+}
+
+func (rc *remoteConn) update(fn func()) {
+	if rc.stopped() {
 		return
 	}
-	// The remote window's own Update keeps the main window out of the
-	// polling: it changes only what this window shows.
-	rw.win.Update(func() {
-		if rw.stopped() {
+	if rc.ws.win == nil {
+		fn()
+		return
+	}
+	// The main window rebuilds its content: the sidebar's host row and the
+	// canvas both read what the poll brings back.
+	rc.ws.win.Update(func() {
+		if rc.stopped() {
 			return
 		}
 		fn()
 	})
 }
 
-func (rw *remoteWindow) fail(err error) {
+func (rc *remoteConn) fail(err error) {
 	if errors.Is(err, errRemoteNotPaired) {
 		err = errors.New(locales.RemoteNotPaired())
 	}
-	rw.update(func() {
-		rw.loading = false
-		rw.err = err.Error()
+	rc.update(func() {
+		rc.loading = false
+		rc.err = err.Error()
 	})
 }
 
-func (rw *remoteWindow) panesOf(s remoteSession) []remotePane {
+func (rc *remoteConn) panesOf(s remoteSession) []remotePane {
 	var out []remotePane
-	for _, pane := range rw.panes {
+	for _, pane := range rc.panes {
 		if includesString(s.Panes, pane.ID) {
 			out = append(out, pane)
 		}
@@ -477,8 +657,10 @@ func includesString(list []string, want string) bool {
 	return false
 }
 
-func (rw *remoteWindow) openSession(s remoteSession) {
-	panes := rw.panesOf(s)
+// openSession shows one remote session's terminal in the canvas. Main
+// thread.
+func (rc *remoteConn) openSession(s remoteSession) {
+	panes := rc.panesOf(s)
 	paneID := ""
 	for _, pane := range panes {
 		if pane.Focused {
@@ -489,57 +671,60 @@ func (rw *remoteWindow) openSession(s remoteSession) {
 	if paneID == "" && len(panes) > 0 {
 		paneID = panes[0].ID
 	}
-	rw.mu.Lock()
-	rw.sessionID, rw.paneID = s.ID, paneID
-	rw.mu.Unlock()
-	rw.session = &s
-	rw.text = ""
-	rw.title = s.Title
-	rw.cwd = ""
-	rw.loading = true
-	rw.scroll = ui.ScrollState{}
-	rw.win.Invalidate()
+	rc.mu.Lock()
+	rc.sessionID, rc.paneID = s.ID, paneID
+	rc.mu.Unlock()
+	rc.session = &s
+	rc.text = ""
+	rc.title = s.Title
+	rc.cwd = ""
+	rc.loading = true
+	rc.scroll = ui.ScrollState{}
+	rc.ws.remoteActive = rc.host.Address
+	rc.ws.invalidate()
 }
 
-func (rw *remoteWindow) back() {
-	rw.mu.Lock()
-	rw.sessionID, rw.paneID = "", ""
-	rw.mu.Unlock()
-	rw.session = nil
-	rw.text = ""
-	rw.loading = true
-	rw.win.Invalidate()
+// back leaves the session and returns the canvas to the host's session
+// list. Main thread.
+func (rc *remoteConn) back() {
+	rc.mu.Lock()
+	rc.sessionID, rc.paneID = "", ""
+	rc.mu.Unlock()
+	rc.session = nil
+	rc.text = ""
+	rc.loading = true
+	rc.ws.invalidate()
 }
 
-func (rw *remoteWindow) selectPane(paneID string) {
-	rw.mu.Lock()
-	rw.paneID = paneID
-	rw.mu.Unlock()
-	rw.text = ""
-	rw.scroll = ui.ScrollState{}
-	rw.win.Invalidate()
+func (rc *remoteConn) selectPane(paneID string) {
+	rc.mu.Lock()
+	rc.paneID = paneID
+	rc.mu.Unlock()
+	rc.text = ""
+	rc.scroll = ui.ScrollState{}
+	rc.ws.invalidate()
 }
 
-func (rw *remoteWindow) sendInput() {
-	if rw.input == "" {
+func (rc *remoteConn) sendInput() {
+	if rc.input == "" {
 		return
 	}
-	_, paneID := rw.target()
-	text := rw.input + "\r"
-	rw.input = ""
+	_, paneID := rc.target()
+	text := rc.input + "\r"
+	rc.input = ""
 	if paneID == "" {
 		return
 	}
-	rw.win.Invalidate()
-	go func() { _ = rw.client.call("pane.send", map[string]any{"pane": paneID, "text": text}, nil) }()
+	rc.ws.invalidate()
+	go func() { _ = rc.client.call("pane.send", map[string]any{"pane": paneID, "text": text}, nil) }()
 }
 
-func (rw *remoteWindow) sendKey(seq string) {
-	_, paneID := rw.target()
+func (rc *remoteConn) sendKey(seq string) {
+	_, paneID := rc.target()
 	if paneID == "" {
 		return
 	}
-	go func() { _ = rw.client.call("pane.send", map[string]any{"pane": paneID, "text": seq}, nil) }()
+	go func() { _ = rc.client.call("pane.send", map[string]any{"pane": paneID, "text": seq}, nil) }()
 }
 
 // remoteKeys are the keys a phone or a small window cannot type around.
@@ -554,62 +739,83 @@ var remoteKeys = [][2]string{
 	{"⏎", "\r"},
 }
 
-func (rw *remoteWindow) view(c *ui.Context) {
-	tk := rw.ws.tokens(c)
-	bar := c.TitleBar()
-	root := ui.Column(c).Fill().Background(tk.Background)
-	root.Children(func() {
-		header := ui.Row(c).Height(36).Padding(0, 8, 0, bar.Left+6+iconSize+8).
-			Background(tk.Background).DragWindow()
-		header.Children(func() {
-			if rw.session != nil {
-				textButton(c, tk, "‹", rw.back, locales.RemoteBack())
+func (rc *remoteConn) view(c *ui.Context) {
+	tk := rc.ws.tokens(c)
+	outer := ui.Column(c).Fill()
+	if rc.ws.settings.PaneStyle == paneComfortable {
+		outer = outer.Padding(6)
+	}
+	outer.Children(func() {
+		// The host's sessions take the same card the local panes do, so the
+		// remote work sits in the window rather than in a window of its own.
+		col := ui.Column(c).Fill()
+		glassCard := liquid(c) && rc.ws.settings.PaneStyle == paneComfortable
+		if rc.ws.settings.PaneStyle == paneComfortable {
+			col = col.Radius(windowRadius).Clip()
+			if glassCard {
+				col = col.Border(1, rimTint(tk)).Background(cardTint(tk))
+			} else {
+				col = col.Border(1, tk.Border).Background(tk.Background)
 			}
-			ui.Column(c).Gap(0).Children(func() {
-				title := rw.client.Name
-				if rw.session != nil {
-					title = rw.title
-					if title == "" {
-						title = rw.session.Title
+			col = col.Shadow(0, 1, 20, 0, paneShadow(tk))
+		}
+		col.Children(func() {
+			headerBg := tk.Background
+			if glassCard {
+				headerBg = ui.Transparent
+			}
+			header := ui.Row(c).Height(headerHeight).Padding(0, 8, 0, 10).Gap(8).
+				Background(headerBg).DragWindow()
+			header.Children(func() {
+				if rc.session != nil {
+					textButton(c, tk, "‹", rc.back, locales.RemoteBack())
+				}
+				ui.Column(c).Gap(1).Children(func() {
+					title := rc.client.Name
+					if rc.session != nil {
+						title = rc.title
+						if title == "" {
+							title = rc.session.Title
+						}
 					}
-				}
-				if title == "" {
-					title = rw.client.Address
-				}
-				ui.Text(c, title).FontSize(12).FontWeight(500).
-					TextColor(tk.Foreground).SingleLine()
-				subtitle := rw.client.Address
-				if rw.session != nil && rw.cwd != "" {
-					subtitle = rw.cwd
-				}
-				ui.Text(c, subtitle).FontSize(10).TextColor(tk.MutedForeground).SingleLine()
-			})
-			ui.Spacer(c)
-			textButton(c, tk, "⟳", func() { go rw.refresh() }, locales.RemoteRefresh())
-		})
-		if rw.err != "" {
-			ui.Row(c).Padding(8, 12, 8, 12).Background(tk.Waiting.Alpha(0.12)).
-				Children(func() {
-					ui.Text(c, rw.err).FontSize(11).TextColor(tk.Waiting)
+					if title == "" {
+						title = rc.client.Address
+					}
+					ui.Text(c, title).FontSize(12).FontWeight(500).
+						TextColor(tk.Foreground).SingleLine()
+					subtitle := rc.client.Address
+					if rc.session != nil && rc.cwd != "" {
+						subtitle = rc.cwd
+					}
+					ui.Text(c, subtitle).FontSize(10).TextColor(tk.MutedForeground).SingleLine()
 				})
-		}
-		if rw.session == nil {
-			rw.listView(c, tk)
-			return
-		}
-		rw.terminalView(c, tk)
+				ui.Spacer(c)
+				textButton(c, tk, "⟳", func() { go rc.refresh() }, locales.RemoteRefresh())
+			})
+			if rc.err != "" {
+				ui.Row(c).Padding(8, 12, 8, 12).Background(tk.Waiting.Alpha(0.12)).
+					Children(func() {
+						ui.Text(c, rc.err).FontSize(11).TextColor(tk.Waiting)
+					})
+			}
+			if rc.session == nil {
+				rc.listView(c, tk)
+				return
+			}
+			rc.terminalView(c, tk)
+		})
 	})
 }
 
-func (rw *remoteWindow) listView(c *ui.Context, tk tokens) {
-	if rw.loading && len(rw.sessions) == 0 {
+func (rc *remoteConn) listView(c *ui.Context, tk tokens) {
+	if rc.loading && len(rc.sessions) == 0 {
 		ui.Spacer(c)
 		ui.Text(c, locales.RemoteConnecting()).FontSize(12).
 			TextColor(tk.MutedForeground)
 		ui.Spacer(c)
 		return
 	}
-	if len(rw.sessions) == 0 {
+	if len(rc.sessions) == 0 {
 		ui.Spacer(c)
 		ui.Text(c, locales.RemoteNoSessions()).FontSize(12).
 			TextColor(tk.MutedForeground)
@@ -618,16 +824,16 @@ func (rw *remoteWindow) listView(c *ui.Context, tk tokens) {
 	}
 	ui.Scroll(c).Fill().Children(func() {
 		ui.Column(c).FillWidth().Padding(12, 14, 16, 14).Gap(2).Children(func() {
-			for _, s := range rw.sessions {
-				rw.sessionRow(c, tk, s)
+			for _, s := range rc.sessions {
+				rc.sessionRow(c, tk, s)
 			}
 		})
 	})
 }
 
-func (rw *remoteWindow) sessionRow(c *ui.Context, tk tokens, s remoteSession) {
+func (rc *remoteConn) sessionRow(c *ui.Context, tk tokens, s remoteSession) {
 	session := s
-	panes := rw.panesOf(s)
+	panes := rc.panesOf(s)
 	state := ""
 	for _, pane := range panes {
 		if pane.Activity == nil {
@@ -650,14 +856,14 @@ func (rw *remoteWindow) sessionRow(c *ui.Context, tk tokens, s remoteSession) {
 	if row.Hovered() {
 		row = row.Background(tk.Active)
 	}
-	row.OnClick(func() { rw.openSession(session) }).Children(func() {
+	row.OnClick(func() { rc.openSession(session) }).Children(func() {
 		ui.Column(c).Gap(1).Children(func() {
 			ui.Text(c, session.Title).FontSize(13).TextColor(tk.Foreground).
-				SingleLine().OnClick(func() { rw.openSession(session) })
+				SingleLine().OnClick(func() { rc.openSession(session) })
 			ui.Text(c, path).FontSize(11).TextColor(tk.MutedForeground).
-				SingleLine().OnClick(func() { rw.openSession(session) })
+				SingleLine().OnClick(func() { rc.openSession(session) })
 		})
-		ui.Spacer(c).OnClick(func() { rw.openSession(session) })
+		ui.Spacer(c).OnClick(func() { rc.openSession(session) })
 		if state != "" {
 			color := tk.Working
 			if state == activityWaiting {
@@ -668,8 +874,8 @@ func (rw *remoteWindow) sessionRow(c *ui.Context, tk tokens, s remoteSession) {
 	})
 }
 
-func (rw *remoteWindow) terminalView(c *ui.Context, tk tokens) {
-	panes := rw.panesOf(*rw.session)
+func (rc *remoteConn) terminalView(c *ui.Context, tk tokens) {
+	panes := rc.panesOf(*rc.session)
 	if len(panes) > 1 {
 		ui.Row(c).Height(32).Padding(0, 10, 0, 10).Gap(4).Children(func() {
 			for _, pane := range panes {
@@ -678,7 +884,7 @@ func (rw *remoteWindow) terminalView(c *ui.Context, tk tokens) {
 				if label == "" {
 					label = p.Cwd
 				}
-				selected := p.ID == rw.currentPaneID()
+				selected := p.ID == rc.currentPaneID()
 				chip := ui.Row(c).Height(22).Padding(0, 8, 0, 8).Radius(5).
 					Border(1, tk.Border).Cursor(ui.CursorPointer)
 				if selected {
@@ -686,19 +892,19 @@ func (rw *remoteWindow) terminalView(c *ui.Context, tk tokens) {
 				} else if chip.Hovered() {
 					chip = chip.Background(tk.Active)
 				}
-				chip.OnClick(func() { rw.selectPane(p.ID) }).Children(func() {
+				chip.OnClick(func() { rc.selectPane(p.ID) }).Children(func() {
 					ui.Text(c, label).FontSize(11).TextColor(tk.MutedForeground).
-						SingleLine().OnClick(func() { rw.selectPane(p.ID) })
+						SingleLine().OnClick(func() { rc.selectPane(p.ID) })
 				})
 			}
 		})
 	}
 	// Keep the view at the end of the output unless the user scrolled up.
-	if rw.scroll.Y >= rw.scroll.MaxY {
-		rw.scroll.Y = math.MaxFloat32
+	if rc.scroll.Y >= rc.scroll.MaxY {
+		rc.scroll.Y = math.MaxFloat32
 	}
-	ui.Scroll(c).Fill().TrackScroll(&rw.scroll).Children(func() {
-		ui.Text(c, rw.text).Font("SF Mono, Menlo, monospace").FontSize(12).
+	ui.Scroll(c).Fill().TrackScroll(&rc.scroll).Children(func() {
+		ui.Text(c, rc.text).Font("SF Mono, Menlo, monospace").FontSize(12).
 			FixedLineHeight(15).TextColor(tk.Foreground).
 			Padding(10, 14, 10, 14).FillWidth()
 	})
@@ -710,32 +916,27 @@ func (rw *remoteWindow) terminalView(c *ui.Context, tk tokens) {
 			if key.Hovered() {
 				key = key.Background(tk.Active)
 			}
-			key.OnClick(func() { rw.sendKey(seq) }).Children(func() {
+			key.OnClick(func() { rc.sendKey(seq) }).Children(func() {
 				ui.Text(c, label).FontSize(11).TextColor(tk.MutedForeground).
-					OnClick(func() { rw.sendKey(seq) })
+					OnClick(func() { rc.sendKey(seq) })
 			})
 		}
 	})
 	ui.Row(c).Height(40).Padding(8, 10, 8, 10).Gap(6).Children(func() {
-		input := ui.TextInput(c, &rw.input).
+		input := ui.TextInput(c, &rc.input).
 			Placeholder(locales.RemoteInputPlaceholder()).Height(28).FontSize(12).
 			FillWidth()
 		if input.Submitted() {
-			rw.sendInput()
+			rc.sendInput()
 		}
-		ui.Button(c, locales.RemoteSend()).OnClick(func() { rw.sendInput() })
+		ui.Button(c, locales.RemoteSend()).OnClick(func() { rc.sendInput() })
 	})
 }
 
-func (rw *remoteWindow) currentPaneID() string {
-	rw.mu.Lock()
-	defer rw.mu.Unlock()
-	return rw.paneID
-}
-
-// settingsHostName is the window's title fallback before a session is open.
-func (w *workspace) settingsHostName() string {
-	return deviceName()
+func (rc *remoteConn) currentPaneID() string {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	return rc.paneID
 }
 
 // textButton is a quiet glyph or short word button for a window header,

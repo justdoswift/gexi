@@ -423,6 +423,42 @@
       "dx": 0,
       "dy": 0
     },
+    "monitor": {
+      "label": "Monitor",
+      "ref": "hardware/monitor",
+      "rotate": 0,
+      "els": [
+        {
+          "t": "rect",
+          "x": 1.75,
+          "y": 3,
+          "w": 12.5,
+          "h": 8.5,
+          "role": "body",
+          "rs": 0.6
+        },
+        {
+          "t": "line",
+          "x1": 8,
+          "y1": 11.5,
+          "x2": 8,
+          "y2": 13.25,
+          "role": "inner"
+        },
+        {
+          "t": "line",
+          "x1": 5.5,
+          "y1": 13.25,
+          "x2": 10.5,
+          "y2": 13.25,
+          "role": "inner"
+        }
+      ],
+      "box": 164.26,
+      "stroke": 1.07,
+      "dx": 0,
+      "dy": 0
+    },
     "terminal": {
       "label": "Terminal",
       "ref": "files/terminal",

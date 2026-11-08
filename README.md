@@ -112,7 +112,9 @@ sessions to the local network on port 47823. It shows the address and a
 six-digit pairing code. A phone on the same Wi-Fi opens the address in its
 browser and enters the code; another Mac running gexi uses the server button
 at the bottom of the sidebar (**Connect to another Mac…**) with the same
-address and code. Paired devices are listed in Settings, where each can be
+address and code. The host then sits in the sidebar with its sessions under
+it, and opening one shows that session's terminal in the main window, beside
+the local projects. Paired devices are listed in Settings, where each can be
 revoked.
 
 A paired device sees the projects and sessions, reads a session's terminal,

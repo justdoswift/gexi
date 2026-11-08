@@ -172,11 +172,15 @@ type workspace struct {
 	commitErr    string
 
 	// Remote: the LAN server this Mac runs while it is reachable, the error
-	// that kept it from starting, and the add-host dialog.
-	remoteSrv     *http.Server
-	remoteErr     string
-	remoteWindows map[string]*remoteWindow
-	hostOpen      bool
+	// that kept it from starting, the add-host dialog, and the Macs this one
+	// reaches. remoteActive is the address of the host the canvas shows, or
+	// "" while it shows local work.
+	remoteSrv    *http.Server
+	remoteErr    string
+	remoteConns  map[string]*remoteConn
+	remoteActive string
+	remoteOpen   map[string]bool
+	hostOpen     bool
 	hostName      string
 	hostAddr      string
 	hostCode      string
@@ -192,7 +196,8 @@ func newWorkspace() *workspace {
 		gitInfo:       map[string]gitSummary{},
 		gitBusy:       map[string]bool{},
 		gitGen:        map[string]int{},
-		remoteWindows: map[string]*remoteWindow{},
+		remoteConns:  map[string]*remoteConn{},
+		remoteOpen:   map[string]bool{},
 	}
 	return w
 }
@@ -749,6 +754,8 @@ func (w *workspace) selectSession(id string) {
 	if s == nil {
 		return
 	}
+	// Choosing local work puts the canvas back on it.
+	w.remoteActive = ""
 	w.SelectedSession = s.ID
 	// The session keeps the pane it was zoomed to: switching away in the
 	// sidebar and back shows the same stage, its rail included.
