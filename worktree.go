@@ -1154,6 +1154,17 @@ func removeWorktreeKeeping(wt *paneWorktree, keepBranch bool) error {
 	return nil
 }
 
+// worktreeHasNothingToPR reports a checkout with no work of its own to open
+// a pull request with: clean, and nothing ahead of its base.
+func worktreeHasNothingToPR(wt *paneWorktree) bool {
+	clean, err := worktreeIsClean(wt)
+	if err != nil || !clean {
+		return false
+	}
+	ahead, err := commitsAhead(wt)
+	return err == nil && ahead == 0
+}
+
 // worktreeHasNewWork reports a merged checkout holding work the merge did
 // not include: changes still in the tree, or a commit made after the merge.
 // The header then offers the next pull request instead of Archive, which
@@ -1784,34 +1795,90 @@ func (w *workspace) refreshWorktree(p *pane) {
 	if wt.Detected && wt.PR == 0 {
 		interval = time.Minute
 	}
-	if wt.State != worktreeMerged && (wt.PR != 0 || wt.Detected) && time.Since(wt.checked) > interval {
-		wt.checked = time.Now()
-		prPath, prBranch := wt.Path, wt.Branch
-		go func() {
-			info, err := lookupPR(prPath, prBranch)
-			if err != nil {
-				return
-			}
-			head := ""
-			if info.State == worktreeMerged {
-				if out, err := worktreeGit(prPath, "rev-parse", "HEAD"); err == nil {
-					head = strings.TrimSpace(out)
-				}
-			}
-			w.onMain(func() {
-				if p.Worktree != wt {
-					return
-				}
-				applyPRStatus(wt, info)
-				if head != "" && wt.MergedHead == "" {
-					wt.MergedHead = head
-				}
-				w.invalidate()
-				w.scheduleSave()
-				w.schedulePRRefresh(p)
-			})
-		}()
+	if wt.State == worktreeMerged || time.Since(wt.checked) <= interval {
+		return
 	}
+	if wt.PR != 0 || wt.Detected {
+		w.lookupWorktreePR(p, wt)
+		return
+	}
+	// A checkout gexi knows no pull request for may still have one: the
+	// state clears when work lands after a merge, and a branch renamed under
+	// the app takes its pull request with it. Only one with nothing to offer
+	// is reconciled, so a checkout with new work keeps offering PR.
+	w.reconcileWorktreePR(p, wt)
+}
+
+// lookupWorktreePR rereads the branch's pull request and applies what it
+// finds: the Merge chip, the checks, and the merge that closed it.
+func (w *workspace) lookupWorktreePR(p *pane, wt *paneWorktree) {
+	wt.checked = time.Now()
+	path, branch := wt.Path, wt.Branch
+	go func() {
+		info, err := lookupPR(path, branch)
+		if err != nil {
+			return
+		}
+		head := ""
+		if info.State == worktreeMerged {
+			if out, err := worktreeGit(path, "rev-parse", "HEAD"); err == nil {
+				head = strings.TrimSpace(out)
+			}
+		}
+		w.applyWorktreePR(p, wt, info, head, "")
+	}()
+}
+
+// reconcileWorktreePR finds the pull request a checkout's branch already has
+// when gexi stopped knowing it. Only a clean checkout with nothing ahead of
+// its base is looked at: it has no work to open a pull request with, so a
+// merged one the branch already carries is what the header should show, and
+// a checkout with work to offer is left to the PR button.
+func (w *workspace) reconcileWorktreePR(p *pane, wt *paneWorktree) {
+	wt.checked = time.Now()
+	path := wt.Path
+	go func() {
+		branch := currentBranch(path)
+		if branch == "" {
+			branch = wt.Branch
+		}
+		if !worktreeHasNothingToPR(wt) {
+			return
+		}
+		info, err := lookupPR(path, branch)
+		if err != nil || info.Number == 0 {
+			return
+		}
+		head := ""
+		if info.State == worktreeMerged {
+			if out, err := worktreeGit(path, "rev-parse", "HEAD"); err == nil {
+				head = strings.TrimSpace(out)
+			}
+		}
+		w.applyWorktreePR(p, wt, info, head, branch)
+	}()
+}
+
+// applyWorktreePR puts a lookup's answer on the checkout. head is the commit
+// the branch showed when the pull request was merged, which is what tells
+// the next commit from the merged work. branch, when set, is the name the
+// checkout is on now, which a renamed branch only the checkout knows.
+func (w *workspace) applyWorktreePR(p *pane, wt *paneWorktree, info prInfo, head, branch string) {
+	w.onMain(func() {
+		if p.Worktree != wt {
+			return
+		}
+		if branch != "" {
+			wt.Branch = branch
+		}
+		applyPRStatus(wt, info)
+		if head != "" && wt.MergedHead == "" {
+			wt.MergedHead = head
+		}
+		w.invalidate()
+		w.scheduleSave()
+		w.schedulePRRefresh(p)
+	})
 }
 
 // schedulePRRefresh keeps a pull request that is not ready yet up to date:
