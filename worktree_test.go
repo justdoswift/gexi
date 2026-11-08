@@ -726,3 +726,32 @@ func TestConflictMarkers(t *testing.T) {
 		t.Fatalf("conflictMarkers = %q", got)
 	}
 }
+
+// TestWorktreeHasNothingToPR: only a clean checkout with nothing ahead of
+// its base is reconciled with a pull request gexi stopped knowing; one with
+// work to offer keeps offering PR.
+func TestWorktreeHasNothingToPR(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %+v, %v", wt, err)
+	}
+	if !worktreeHasNothingToPR(wt) {
+		t.Fatal("a fresh checkout reports work to offer")
+	}
+	runGitTest(t, wt.Path, "commit", "--allow-empty", "-m", "work")
+	if worktreeHasNothingToPR(wt) {
+		t.Fatal("a checkout with a commit reports nothing to offer")
+	}
+	runGitTest(t, wt.Path, "reset", "--hard", "HEAD~1")
+	if !worktreeHasNothingToPR(wt) {
+		t.Fatal("the checkout with the commit undone still reports work")
+	}
+	if err := os.WriteFile(filepath.Join(wt.Path, "dirty.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if worktreeHasNothingToPR(wt) {
+		t.Fatal("a dirty checkout reports nothing to offer")
+	}
+}
