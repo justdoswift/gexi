@@ -139,8 +139,8 @@ placeholder Dota 2 name — a hero, item, or ability; the first prompt asks
 Claude Code to rename it to the task. The header then shows **PR**, which
 pushes the branch and opens a pull request with `gh`; any pending changes are
 committed first, with a message the pane's own agent writes from the diff in
-its headless mode (`claude -p`, `codex exec`). When the pane runs no agent, or
-it cannot answer, a small dialog asks for the message.
+its headless mode (`claude -p`, `codex exec`, `amp -x`). When the pane runs no
+agent, or it cannot answer, a small dialog asks for the message.
 Once it exists, **PR #N**
 opens the pull request on GitHub, and **Merge** reports the state by its
 colour: green when GitHub would merge, amber while checks or reviews are still
@@ -203,9 +203,9 @@ snapshotted as plain text; the next launch rebuilds the projects, sessions, and 
 paints the old screens above fresh shells. Agent panes resume their newest
 session in the pane's directory: Claude Code with `--resume <session>`,
 Codex with `codex resume --last`, and Pi, omp, Devin, and Grok with
-`--continue`; Droid with `droid --resume --last`. A detected agent also
-names its pane and sidebar row with its own logo instead of the terminal
-title.
+`--continue`; Droid with `droid --resume --last`, and Amp with
+`amp threads continue <thread>`. A detected agent also names its pane and
+sidebar row with its own logo instead of the terminal title.
 
 ### Agent events and notifications
 
@@ -233,6 +233,17 @@ instead, which writes the same events to the control socket directly:
 working, and `session_start` / `session_shutdown` report the session. Pi has
 no built-in subagents and asks for permissions only through extensions, so
 those two rows above mostly stay quiet for it.
+
+Amp takes a system plugin instead of a settings file or a flag. gexi writes
+`~/.config/amp/plugins/gexi-events.ts`, so an `amp` started by hand in a pane
+reports too; outside a gexi pane the plugin registers nothing. It maps
+`session.start` to the session event, `agent.start` to `turn.start` (and
+carries the one-time worktree note back to the prompt), and `agent.end` to
+`turn.end`, with the final reply as the notification body. Amp keeps its
+conversation in a thread id, so a restored pane returns to the exact thread
+even when another pane shares the directory. A tool waiting for approval is
+read from the thread's state and reported as `needs-input`; Amp has no
+subagent events through this API, so that count stays quiet for it.
 
 A subagent is counted rather than folded into the turn state: a background one
 outlives the turn that launched it, so the sidebar keeps shimmering (and shows

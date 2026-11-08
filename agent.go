@@ -26,6 +26,7 @@ const (
 	agentDroid  agentKind = "droid"
 	agentPerch  agentKind = "perch"
 	agentPi     agentKind = "pi"
+	agentAmp    agentKind = "amp"
 )
 
 type agentDetection struct {
@@ -54,6 +55,8 @@ func (k agentKind) name() string {
 		return "Perch"
 	case agentPi:
 		return "Pi"
+	case agentAmp:
+		return "Amp"
 	}
 	return string(k)
 }
@@ -65,8 +68,23 @@ func (k agentKind) launch() []string {
 	switch k {
 	case agentPi:
 		return shellCommand(piLaunchCommand())
-	case agentClaude, agentCodex, agentOmp, agentDevin, agentGrok, agentDroid, agentPerch:
+	case agentClaude, agentCodex, agentOmp, agentDevin, agentGrok, agentDroid, agentPerch, agentAmp:
 		return shellCommand(string(k))
+	}
+	return nil
+}
+
+// resume is the command that brings back a session an event reported. Amp
+// names a thread by id, so the pane can return to the exact conversation it
+// had even when several panes share one checkout.
+func (k agentKind) resume(session string) []string {
+	session = strings.TrimSpace(session)
+	if session == "" {
+		return nil
+	}
+	switch k {
+	case agentAmp:
+		return shellCommand("amp threads continue " + shellQuote(session))
 	}
 	return nil
 }
@@ -92,6 +110,8 @@ func resolveAgentCommand(command []string) resolvedCommand {
 		return resolveContinuing(raw, command, "--continue", "--continue", "-c")
 	case "pi":
 		return resolvePi(raw, command)
+	case "amp":
+		return resolveAmp(raw, command)
 	case "droid":
 		return resolveContinuing(raw, command, "--resume --last", "--resume", "-r", "resume")
 	}
@@ -161,6 +181,71 @@ func resolvePi(raw string, command []string) resolvedCommand {
 		restore = strings.TrimSpace(launch + " --continue")
 	}
 	return resolvedCommand{replaceRaw(launch, command), replaceRaw(restore, command)}
+}
+
+// resolveAmp starts Amp as the user typed it and restores the newest thread
+// in the pane's directory. Amp has no launch flag that names a new thread, so
+// the exact id arrives later from gexi's plugin and replaces this fallback.
+func resolveAmp(raw string, command []string) resolvedCommand {
+	if ampContinues(raw) {
+		return resolvedCommand{command, command}
+	}
+	restore := strings.TrimSpace(raw + " threads continue --last")
+	return resolvedCommand{command, replaceRaw(restore, command)}
+}
+
+// ampContinues reports whether the command already resumes a thread, either
+// as `amp threads continue` or through Amp's `amp last` alias.
+func ampContinues(raw string) bool {
+	fields := strings.Fields(raw)
+	if len(fields) > 1 && fields[1] == "last" {
+		return true
+	}
+	for i, token := range fields {
+		switch token {
+		case "threads", "thread", "t":
+			if i+1 < len(fields) && (fields[i+1] == "continue" || fields[i+1] == "c") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// agentFromResume is the conversation a saved launch already names. Amp is
+// the only agent whose resume command carries the exact thread, so a restored
+// pane can show its mark and keep the thread before the process is detected.
+func agentFromResume(command []string) *agentDetection {
+	raw, ok := rawCommand(command)
+	if !ok {
+		return nil
+	}
+	id := ampThreadID(raw)
+	if id == "" {
+		return nil
+	}
+	return &agentDetection{Kind: agentAmp, SessionID: id, Resume: command}
+}
+
+// ampThreadID reads the thread from `amp threads continue <id>`. The `--last`
+// fallback names no thread and returns "".
+func ampThreadID(raw string) string {
+	fields := strings.Fields(raw)
+	for i := 0; i+2 < len(fields); i++ {
+		switch fields[i] {
+		case "threads", "thread", "t":
+		default:
+			continue
+		}
+		if fields[i+1] != "continue" && fields[i+1] != "c" {
+			continue
+		}
+		id := strings.Trim(fields[i+2], `'"`)
+		if strings.HasPrefix(id, "T-") && isUUID(id[2:]) {
+			return id
+		}
+	}
+	return ""
 }
 
 // resolveContinuing appends the flags that resume the newest session in the
@@ -384,6 +469,11 @@ func detectAgent(pgid int, fallbackCWD string) *agentDetection {
 			// Pi also keys sessions by directory, and --continue picks the
 			// newest one there.
 			return &agentDetection{Kind: agentPi, Resume: shellCommand(piResumeCommand())}
+		case agentAmp:
+			// Amp remembers the last thread for a checkout; the plugin's
+			// session event replaces this with the exact thread id once the
+			// conversation knows it.
+			return &agentDetection{Kind: agentAmp, Resume: shellCommand("amp threads continue --last")}
 		}
 	}
 	return nil
@@ -477,6 +567,8 @@ func agentNamed(name string) agentKind {
 		return agentPerch
 	case name == "pi":
 		return agentPi
+	case name == "amp":
+		return agentAmp
 	}
 	return ""
 }

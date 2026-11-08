@@ -335,6 +335,12 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 	if resumesAgent(resolved.restore) {
 		p.lastAgentRestore = append([]string(nil), resolved.restore...)
 	}
+	// Amp's saved command names the exact thread. Knowing its mark now keeps
+	// a session-less detection from replacing the thread with --last.
+	if det := agentFromResume(resolved.restore); det != nil {
+		p.agent = det
+		p.sawAgent = true
+	}
 
 	lightTheme, darkTheme := ws.terminalThemes()
 	term, err := terminal.New(terminal.Options{
@@ -394,7 +400,8 @@ func connOf(p *pane) *ptyConn { return p.conn }
 // like.
 func resumesAgent(command []string) bool {
 	for _, arg := range command {
-		if strings.Contains(arg, "--resume") || strings.Contains(arg, "--continue") || strings.Contains(arg, " resume") {
+		if strings.Contains(arg, "--resume") || strings.Contains(arg, "--continue") ||
+			strings.Contains(arg, " resume") || strings.Contains(arg, "threads continue") {
 			return true
 		}
 	}
@@ -513,6 +520,19 @@ func (p *pane) applyPerchTurn(busy bool, prompt string) bool {
 func (p *pane) applyAgent(det *agentDetection) bool {
 	if det != nil {
 		p.sawAgent = true
+		if det.SessionID == "" {
+			// A detection without a thread id must not throw away the exact
+			// one the plugin reported, or the one the restored command
+			// already named.
+			if p.agent != nil && p.agent.Kind == det.Kind && p.agent.SessionID != "" {
+				return false
+			}
+			if exact := agentFromResume(p.lastAgentRestore); exact != nil && exact.Kind == det.Kind {
+				p.agent = exact
+				p.restoreCommand = exact.Resume
+				return false
+			}
+		}
 		if p.agent != nil && p.agent.Kind == det.Kind && p.agent.SessionID == det.SessionID {
 			return false
 		}
@@ -527,6 +547,20 @@ func (p *pane) applyAgent(det *agentDetection) bool {
 		return true
 	}
 	return false
+}
+
+// adoptSession records the conversation an agent says it is in. Amp reports
+// its thread id through gexi's plugin, so the pane can come back to that
+// exact thread rather than the newest one in the directory.
+func (p *pane) adoptSession(kind agentKind, session string) {
+	resume := kind.resume(session)
+	if len(resume) == 0 {
+		return
+	}
+	p.sawAgent = true
+	p.agent = &agentDetection{Kind: kind, SessionID: session, Resume: resume}
+	p.restoreCommand = resume
+	p.lastAgentRestore = resume
 }
 
 // savedCommand is what the next launch runs. An agent's resume command wins

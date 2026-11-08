@@ -733,6 +733,11 @@ func agentHeadless(kind agentKind) ([]string, bool) {
 		// appends it. A thread of gexi's own keeps these one-shot questions
 		// out of the conversation the user is having in the pane.
 		return []string{"perch", "run", "--json", "--thread", "gexi-worktree"}, true
+	case agentAmp:
+		// Execute mode reads the prompt from stdin and prints only the last
+		// assistant message. Web search and the other tools need no
+		// permission for a question whose diff is already in the prompt.
+		return []string{"amp", "-x"}, true
 	case agentPi:
 		// Print mode puts the piped prompt first and writes only the final
 		// answer to stdout. --no-session keeps the one-shot out of the
@@ -2035,7 +2040,7 @@ func (w *workspace) createPaneWorktree(p *pane) {
 				w.flash(locales.WorktreeNotRepo())
 				w.recoverPaneAfterWorktreeMove(p, dir, det != nil)
 			default:
-				if carried && det != nil && det.Kind == agentClaude {
+				if carried && det != nil && (det.Kind == agentClaude || det.Kind == agentAmp) {
 					wt.Carried = dir
 				}
 				// Perch has no hook to answer, so the note it would have got

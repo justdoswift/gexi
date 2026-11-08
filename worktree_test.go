@@ -634,7 +634,7 @@ func TestWorktreePaneName(t *testing.T) {
 // TestAgentHeadless maps the agents that can print a commit message to their
 // command; the rest keep the manual dialog.
 func TestAgentHeadless(t *testing.T) {
-	for _, kind := range []agentKind{agentClaude, agentCodex, agentPi} {
+	for _, kind := range []agentKind{agentClaude, agentCodex, agentPi, agentAmp} {
 		if _, ok := agentHeadless(kind); !ok {
 			t.Errorf("%s has no headless command", kind)
 		}

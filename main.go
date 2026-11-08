@@ -43,6 +43,11 @@ func main() {
 	// file is there before any of them try to launch. The user's own settings
 	// take the same hooks, so a claude started by hand in a pane reports too.
 	_, _ = installClaudeHooks()
+	// Amp reads plugins from the user's config dir. This one is inert outside
+	// a gexi pane, so a hand-started amp reports without needing a flag.
+	if _, err := installAmpEvents(); err != nil {
+		log.Printf("amp plugin: %v", err)
+	}
 	// The user's global settings belong to the installed app: a test build's
 	// binary goes away with its worktree, and the hooks left behind would
 	// point at nothing. Test panes still report through their own settings

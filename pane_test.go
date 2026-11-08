@@ -84,6 +84,7 @@ func TestResumesAgent(t *testing.T) {
 		{shellCommand("codex resume --last"), true},
 		{shellCommand("omp --continue"), true},
 		{shellCommand("pi --continue"), true},
+		{shellCommand("amp threads continue --last"), true},
 		{shellCommand("droid --resume --last"), true},
 		{[]string{"/bin/zsh", "-l"}, false},
 		{shellCommand("claude"), false},

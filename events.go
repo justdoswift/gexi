@@ -119,6 +119,15 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 	if p == nil {
 		return result, nil
 	}
+	// An event that names its conversation pins the pane's restore to it.
+	// Amp reports thread ids this way; its process arguments carry none. The
+	// end events only close a turn, so they must not bring the agent back
+	// after it has exited.
+	if ev.Session != "" && ev.Kind != "turn.end" && ev.Kind != "session.end" {
+		if kind := agentKind(ev.Agent); kind != "" {
+			p.adoptSession(kind, ev.Session)
+		}
+	}
 	switch ev.Kind {
 	case "turn.start":
 		// The hook's stdout becomes context for this prompt, which is where
