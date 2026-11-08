@@ -368,7 +368,7 @@ func (w *workspace) newSession(pr *project, command []string, dir string) (*sess
 		return nil, fmt.Errorf("No project is open")
 	}
 	if pr.remote != nil {
-		pr.remote.conn.newSession()
+		pr.remote.conn.newSession(w.remoteTargetProject(pr.remote.conn))
 		return nil, nil
 	}
 	if dir == "" {

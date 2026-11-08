@@ -40,10 +40,21 @@ type remoteClient struct {
 }
 
 type remoteSession struct {
-	ID     string        `json:"id"`
-	Title  string        `json:"title"`
-	Panes  []string      `json:"panes"`
-	Layout *remoteLayout `json:"layout"`
+	ID      string        `json:"id"`
+	Title   string        `json:"title"`
+	Project string        `json:"project"`
+	Panes   []string      `json:"panes"`
+	Layout  *remoteLayout `json:"layout"`
+}
+
+// remoteProject is one of the host's projects, as project.list sends it: the
+// sidebar draws its sessions under the folder they belong to, and its + asks
+// the host for a session there, so the new shell starts in that folder rather
+// than in whichever project the host happened to have selected.
+type remoteProject struct {
+	ID   string `json:"id"`
+	Dir  string `json:"dir"`
+	Name string `json:"name"`
 }
 
 type remotePane struct {
@@ -417,6 +428,9 @@ type remoteSessionLink struct {
 	conn  *remoteConn
 	id    string
 	title string
+	// project is the host's project the session runs in, so the sidebar can
+	// put the session under it and the + beside it can name it.
+	project string
 	// panes are the window's panes for the host's, keyed by the host's pane
 	// id: a pane that stays across polls keeps its terminal and screen.
 	panes map[string]*pane
@@ -434,9 +448,12 @@ type remotePaneLink struct {
 	worktreeBusy string
 	sink         *remoteSink
 	// viewW and viewH are the size the host's view of the pane is laid out
-	// at, which the stream names: the mirror is laid out at it too, so its
-	// text keeps the size it has on the host.
-	viewW, viewH float32
+	// at, which the stream names; gridCols and gridRows are the terminal's
+	// own size. The card scales the whole of the host's screen to fit it, so
+	// a line wraps where the card ends rather than running on past it, out
+	// of sight.
+	viewW, viewH       float32
+	gridCols, gridRows int
 	// stream is the pane's poll loop while the canvas shows it, nil while it
 	// is off stage.
 	stream chan struct{}
@@ -462,6 +479,31 @@ func mirrorSize(p *pane) (float32, float32) {
 	return float32(max(cols, 80))*7.55 + 24, float32(max(rows, 24))*19.2 + 20
 }
 
+// fitScale is how much the whole of the host's screen shrinks to fit a card
+// aw by ah: at 1 when the card is at least the size the host draws at, less
+// when it is smaller. A card smaller than the host's screen used to hide the
+// right of every line, and a shell's input wrapped only at the host's width,
+// past the card's edge; at this scale the line ends where the card does. The
+// host's size comes from the stream, or from the same estimate mirrorSize
+// starts with before the first one.
+func (l *remotePaneLink) fitScale(aw, ah float32) float32 {
+	if l == nil || aw <= 0 || ah <= 0 {
+		return 1
+	}
+	vw, vh := l.viewW, l.viewH
+	if vw <= 0 || vh <= 0 {
+		cols, rows := l.gridCols, l.gridRows
+		vw, vh = float32(max(cols, 80))*7.55+24, float32(max(rows, 24))*19.2+20
+	}
+	scale := min(1, aw/vw, ah/vh)
+	// A screen far larger than the card would make the text unreadable; the
+	// zoom shortcut widens the card when that is not enough.
+	if scale < 0.2 {
+		scale = 0.2
+	}
+	return scale
+}
+
 // remoteConn is this Mac's link to one paired host: the transport under the
 // project and panes it keeps in the window. Its poll brings the host's
 // sessions and panes, and apply turns them into the model the window draws.
@@ -473,6 +515,7 @@ type remoteConn struct {
 
 	loading  bool
 	err      string
+	projects []remoteProject
 	sessions []remoteSession
 	panes    []remotePane
 
@@ -598,11 +641,16 @@ func (rc *remoteConn) refresh() {
 		rc.fail(err)
 		return
 	}
+	// A host from before the projects came over sends none, and its sessions
+	// show flat under the host, as they did.
+	var projects []remoteProject
+	_ = rc.client.call("project.list", nil, &projects)
 	var panes []remotePane
 	_ = rc.client.call("pane.list", map[string]any{"all": true}, &panes)
 	rc.update(func() {
 		rc.loading = false
 		rc.err = ""
+		rc.projects = projects
 		rc.sessions = sessions
 		rc.panes = panes
 		rc.apply()
@@ -671,6 +719,7 @@ func (rc *remoteConn) apply() {
 			}
 		}
 		s.remote.title = rs.Title
+		s.remote.project = rs.Project
 		s.Root = rc.tree(s, rs)
 		rc.prune(s, rs)
 		sessions = append(sessions, s)
@@ -873,7 +922,8 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 			continue
 		}
 		snapshot = false
-		if view.Reset || view.Cols != cols || view.Rows != rows {
+		gridChanged := view.Reset || view.Cols != cols || view.Rows != rows
+		if gridChanged {
 			cols, rows = view.Cols, view.Rows
 			if cols > 0 && rows > 0 {
 				p.term.Resize(cols, rows)
@@ -883,11 +933,13 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 		// The size the host lays its view out at comes with the stream; the
 		// card lays the mirror out at it, and the pane's stage card too.
 		// The pane's fields are read on the main thread, so they change there.
-		if view.ViewW != viewW || view.ViewH != viewH {
-			viewW, viewH = view.ViewW, view.ViewH
-			w, h := viewW, viewH
+		if view.ViewW != viewW || view.ViewH != viewH || gridChanged {
+			w, h := view.ViewW, view.ViewH
+			gridCols, gridRows := cols, rows
+			viewW, viewH = w, h
 			rc.update(func() {
 				p.remote.viewW, p.remote.viewH = w, h
+				p.remote.gridCols, p.remote.gridRows = gridCols, gridRows
 				p.viewW, p.viewH = w, h
 			})
 		}
@@ -938,16 +990,86 @@ func (w *workspace) syncRemoteMirrors() {
 	}
 }
 
+// MARK: the host's projects in the sidebar
+
+// remoteGroupKey is where the sidebar keeps whether a host project is folded.
+func remoteGroupKey(projectID, hostProjectID string) string {
+	return projectID + ":project:" + hostProjectID
+}
+
+// remoteTargetProject is the host project a session made from this Mac
+// belongs to: the one the selected session runs in, else the first the host
+// lists, else none at all, so the host chooses. Main thread.
+func (w *workspace) remoteTargetProject(rc *remoteConn) string {
+	if rc == nil {
+		return ""
+	}
+	if s := w.selected(); s != nil && s.remote != nil && s.remote.conn == rc && s.remote.project != "" {
+		return s.remote.project
+	}
+	if len(rc.projects) > 0 {
+		return rc.projects[0].ID
+	}
+	return ""
+}
+
+// remoteProjectGroup is one of a host's projects and the sessions that run in
+// it, as the sidebar draws them under the host.
+type remoteProjectGroup struct {
+	project  remoteProject
+	sessions []*session
+}
+
+// groups splits a host's sessions by the project each runs in, in the order
+// the host lists its projects. A session whose project the host did not name
+// goes last, with no folder row of its own.
+func (rc *remoteConn) groups(sessions []*session) []remoteProjectGroup {
+	byProject := map[string][]*session{}
+	var order []string
+	for _, s := range sessions {
+		id := ""
+		if s.remote != nil {
+			id = s.remote.project
+		}
+		if _, ok := byProject[id]; !ok {
+			order = append(order, id)
+		}
+		byProject[id] = append(byProject[id], s)
+	}
+	groups := make([]remoteProjectGroup, 0, len(rc.projects)+1)
+	seen := map[string]bool{}
+	for _, rp := range rc.projects {
+		groups = append(groups, remoteProjectGroup{project: rp, sessions: byProject[rp.ID]})
+		seen[rp.ID] = true
+	}
+	var rest []*session
+	for _, id := range order {
+		if !seen[id] {
+			rest = append(rest, byProject[id]...)
+		}
+	}
+	if len(rest) > 0 {
+		groups = append(groups, remoteProjectGroup{sessions: rest})
+	}
+	return groups
+}
+
 // MARK: the pane's buttons, on the host
 
-// newSession asks the host for a session in the project it is working in,
-// and opens it once the poll brings it.
-func (rc *remoteConn) newSession() {
+// newSession asks the host for a session in projectID, the host's project
+// the sidebar's folder row names, and opens it once the poll brings it. An
+// empty project leaves the choice to the host, as a client from before the
+// projects came over did.
+func (rc *remoteConn) newSession(projectID string) {
+	params := map[string]any{}
+	if projectID != "" {
+		params["project"] = projectID
+	}
 	go func() {
 		var out struct {
 			Session string `json:"session"`
 		}
-		if err := rc.client.call("session.new", nil, &out); err != nil {
+		if err := rc.client.call("session.new", params, &out); err != nil {
 			rc.fail(err)
 			return
 		}
@@ -979,10 +1101,13 @@ func (rc *remoteConn) splitPane(paneID string, ax axis) {
 	}()
 }
 
-// closePane closes one of the host's panes.
+// closePane closes one of the host's panes. The card fades at once, as a
+// local one does; the poll that sees the host's pane gone takes it out.
 func (rc *remoteConn) closePane(paneID string) {
+	rc.markClosing(paneID, "", true)
 	go func() {
 		if err := rc.client.call("pane.close", map[string]any{"pane": paneID}, nil); err != nil {
+			rc.markClosing(paneID, "", false)
 			rc.fail(err)
 			return
 		}
@@ -990,15 +1115,43 @@ func (rc *remoteConn) closePane(paneID string) {
 	}()
 }
 
-// closeSession ends a session on the host.
+// closeSession ends a session on the host, its panes fading here at once.
 func (rc *remoteConn) closeSession(sessionID string) {
+	rc.markClosing("", sessionID, true)
 	go func() {
 		if err := rc.client.call("session.close", map[string]any{"session": sessionID}, nil); err != nil {
+			rc.markClosing("", sessionID, false)
 			rc.fail(err)
 			return
 		}
 		rc.refresh()
 	}()
+}
+
+// markClosing fades the pane the host is about to close, or every pane of the
+// session, and takes the fading back when the host refused. update keeps it on
+// the main thread, where the panes live.
+func (rc *remoteConn) markClosing(paneID, sessionID string, closing bool) {
+	rc.update(func() {
+		for _, s := range rc.project.Sessions {
+			if s.remote == nil {
+				continue
+			}
+			if sessionID != "" && s.remote.id != sessionID {
+				continue
+			}
+			for id, p := range s.remote.panes {
+				if paneID != "" && id != paneID {
+					continue
+				}
+				p.closing = closing
+				if closing {
+					p.closingAt = time.Now()
+				}
+			}
+		}
+		rc.ws.invalidate()
+	})
 }
 
 // focusPane tells the host which of its panes has the keyboard here.

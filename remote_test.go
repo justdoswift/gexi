@@ -23,6 +23,7 @@ type fakeRemoteBackend struct {
 	code    string
 	devices []remoteDevice
 	methods []string
+	params  map[string]map[string]json.RawMessage
 }
 
 func (f *fakeRemoteBackend) remoteEnabled() bool { return f.enabled }
@@ -44,6 +45,10 @@ func (f *fakeRemoteBackend) remoteAddDevice(d remoteDevice) {
 func (f *fakeRemoteBackend) remoteDispatch(req controlRequest) controlResponse {
 	f.mu.Lock()
 	f.methods = append(f.methods, req.Method)
+	if f.params == nil {
+		f.params = map[string]map[string]json.RawMessage{}
+	}
+	f.params[req.Method] = req.Params
 	f.mu.Unlock()
 	if !remoteMethods[req.Method] {
 		return controlResponse{ID: req.ID, Error: "method not allowed"}
@@ -56,6 +61,13 @@ func (f *fakeRemoteBackend) sawMethod(name string) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return slices.Contains(f.methods, name)
+}
+
+// paramsOf is the last params the paired device sent with the method.
+func (f *fakeRemoteBackend) paramsOf(name string) map[string]json.RawMessage {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.params[name]
 }
 
 func (f *fakeRemoteBackend) remoteName() string { return "test-mac" }
@@ -242,7 +254,7 @@ func TestRemoteMethodWhitelist(t *testing.T) {
 	// A paired window draws the pane header the host does, so the buttons
 	// that header shows work through the same methods.
 	for _, allowed := range []string{
-		"pane.text", "pane.send", "session.list", "pane.list",
+		"pane.text", "pane.send", "session.list", "pane.list", "project.list",
 		"pane.split", "pane.close", "pane.focus", "pane.worktree",
 		"session.new", "session.close",
 	} {
@@ -490,6 +502,102 @@ func TestPaneWorktreeControlGuards(t *testing.T) {
 	}
 	if err := call("l1", "bogus"); err == nil {
 		t.Fatal("an unknown worktree action was taken")
+	}
+}
+
+// TestRemoteNewSessionNamesTheProject: the folder row's + names the host
+// project the session belongs in, so the shell starts there rather than in
+// whichever project the host's own window last selected.
+func TestRemoteNewSessionNamesTheProject(t *testing.T) {
+	srv, backend := newTestRemote(t)
+	defer srv.Close()
+	address := strings.TrimPrefix(srv.URL, "http://")
+	host, err := pairRemoteHost(address, "123456", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := &workspace{}
+	rc := &remoteConn{
+		ws:     w,
+		host:   host,
+		client: remoteClient{Name: host.Name, Address: address, Token: host.Token},
+		stop:   make(chan struct{}),
+	}
+	rc.project = &project{ID: remoteProjectID(address), remote: &remoteProjectLink{conn: rc}}
+
+	rc.newSession("project-7")
+	waitForTest(t, 2*time.Second, func() bool { return backend.sawMethod("session.new") })
+	params := backend.paramsOf("session.new")
+	if got := string(params["project"]); got != `"project-7"` {
+		t.Fatalf("session.new project = %s, want %q", got, "project-7")
+	}
+}
+
+// TestRemoteGroups: a host's sessions are drawn under the folder each runs
+// in, in the host's project order, and a session in a project the host did
+// not name goes last without a folder row.
+func TestRemoteGroups(t *testing.T) {
+	rc := &remoteConn{projects: []remoteProject{{ID: "p1", Name: "one"}, {ID: "p2", Name: "two"}}}
+	mk := func(id, project string) *session {
+		return &session{ID: id, remote: &remoteSessionLink{id: id, project: project}}
+	}
+	groups := rc.groups([]*session{mk("a", "p2"), mk("b", "p1"), mk("c", "gone")})
+	if len(groups) != 3 {
+		t.Fatalf("groups = %d, want 3", len(groups))
+	}
+	if groups[0].project.ID != "p1" || len(groups[0].sessions) != 1 || groups[0].sessions[0].ID != "b" {
+		t.Fatalf("first group = %+v", groups[0])
+	}
+	if groups[1].project.ID != "p2" || len(groups[1].sessions) != 1 || groups[1].sessions[0].ID != "a" {
+		t.Fatalf("second group = %+v", groups[1])
+	}
+	if groups[2].project.ID != "" || len(groups[2].sessions) != 1 || groups[2].sessions[0].ID != "c" {
+		t.Fatalf("last group = %+v", groups[2])
+	}
+}
+
+// TestRemoteTargetProject: a session made on a paired Mac belongs where the
+// selected session runs; with nothing selected, the host's first project.
+func TestRemoteTargetProject(t *testing.T) {
+	rc := &remoteConn{projects: []remoteProject{{ID: "first"}}}
+	pr := &project{ID: remoteProjectID("x"), remote: &remoteProjectLink{conn: rc}}
+	pr.Sessions = []*session{{ID: "s", remote: &remoteSessionLink{conn: rc, id: "rs", project: "here"}}}
+	w := &workspace{remoteProjects: []*project{pr}, SelectedSession: "s"}
+	if got := w.remoteTargetProject(rc); got != "here" {
+		t.Fatalf("selected session's project = %q, want %q", got, "here")
+	}
+	// With nothing selected, the window shows the host's first session, so
+	// the session follows the same project.
+	w.SelectedSession = ""
+	if got := w.remoteTargetProject(rc); got != "here" {
+		t.Fatalf("with nothing selected = %q, want %q", got, "here")
+	}
+	// A host with no session yet has no folder the window shows: its first
+	// project is where the new one goes.
+	pr.Sessions = nil
+	if got := w.remoteTargetProject(rc); got != "first" {
+		t.Fatalf("host with no sessions = %q, want %q", got, "first")
+	}
+}
+
+// TestRemoteFitScale: the whole of the host's screen fits the card, at 1 when
+// the card is already large enough.
+func TestRemoteFitScale(t *testing.T) {
+	l := &remotePaneLink{viewW: 1200, viewH: 800}
+	cases := []struct {
+		aw, ah, want float32
+	}{
+		{1200, 800, 1},
+		{2000, 1600, 1},
+		{600, 400, 0.5},
+		{600, 800, 0.5},
+		{1200, 400, 0.5},
+		{120, 80, 0.2}, // never unreadable, even for a huge host screen
+	}
+	for _, c := range cases {
+		if got := l.fitScale(c.aw, c.ah); got != c.want {
+			t.Errorf("fitScale(%v, %v) = %v, want %v", c.aw, c.ah, got, c.want)
+		}
 	}
 }
 

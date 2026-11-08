@@ -246,7 +246,14 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		w.closeSession(s)
+		// A paired Mac has no window here on this Mac to answer the prompt
+		// closeSession would raise for a pane with an agent in it: its ×
+		// closes outright, as the pane's own would there.
+		if s.Root != nil && panesHaveAgent(s.Root.panes()) {
+			w.closeSessionNow(s)
+		} else {
+			w.closeSession(s)
+		}
 		return map[string]any{"closed": s.ID}, nil
 
 	case "pane.focus":

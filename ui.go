@@ -377,8 +377,85 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 	if !open {
 		return
 	}
+	// A host's projects are folders of their own under its row: sessions sit
+	// under the folder they run in, and each folder's + makes a session
+	// there, so the new shell starts in that project rather than in whichever
+	// one the host happened to have selected. A host that sends no projects
+	// keeps its sessions flat under its row, as before.
+	if pr.remote != nil {
+		for _, g := range pr.remote.conn.groups(pr.Sessions) {
+			w.remoteProjectRow(c, tk, pr, g, 0)
+		}
+		return
+	}
 	for _, s := range pr.Sessions {
-		w.sessionRow(c, tk, pr, s)
+		w.sessionRow(c, tk, pr, s, 0)
+	}
+}
+
+// remoteProjectRow is one of a host's folders under its row: its sessions,
+// the + that makes another there, and the fold that hides them. A host that
+// named no project draws its sessions with no folder row of their own.
+func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g remoteProjectGroup, indent float32) {
+	if g.project.ID == "" && g.project.Name == "" {
+		for _, s := range g.sessions {
+			w.sessionRow(c, tk, pr, s, indent)
+		}
+		return
+	}
+	key := remoteGroupKey(pr.ID, g.project.ID)
+	open := !w.collapsed[key] || strings.TrimSpace(w.searchQuery) != ""
+	selected := false
+	for _, s := range g.sessions {
+		if s.ID == w.SelectedSession {
+			selected = true
+			break
+		}
+	}
+	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8 + indent).PaddingEnd(8).Gap(6).
+		Radius(chromeRadius).MarginX(2)
+	hovered := row.Hovered()
+	color := tk.MutedForeground
+	if selected || hovered {
+		color = tk.Foreground
+	}
+	if hovered {
+		row = controlWash(c, row, tk, 0.045, tk.Active)
+	}
+	toggle := func() {
+		if w.collapsed[key] {
+			delete(w.collapsed, key)
+		} else {
+			w.collapsed[key] = true
+		}
+		w.invalidate()
+	}
+	row.OnClick(toggle).Children(func() {
+		chevron := "chevron-right"
+		if open {
+			chevron = "chevron-down"
+		}
+		if src := iconSource(chevron, colorHex(tk.MutedForeground)); src != nil {
+			ui.Image(c, src).Width(15).Height(15).OnClick(toggle)
+		}
+		if src := iconSource("folder", colorHex(tk.MutedForeground)); src != nil {
+			ui.Image(c, src).Width(14).Height(14).IgnoreInput(true).OnClick(toggle)
+		}
+		ui.Text(c, g.project.Name).FontSize(12).FontWeight(500).SingleLine().
+			TextColor(color).Tooltip(g.project.Dir).OnClick(toggle)
+		ui.Spacer(c).OnClick(toggle)
+		if hovered {
+			iconButtonSmall(c, tk, "plus", func() {
+				delete(w.collapsed, pr.ID)
+				pr.remote.conn.newSession(g.project.ID)
+			}, locales.ShortcutNewSession()+" (⌘T)")
+		}
+	})
+	if !open {
+		return
+	}
+	for _, s := range g.sessions {
+		w.sessionRow(c, tk, pr, s, indent+12)
 	}
 }
 
@@ -386,13 +463,14 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 // glyph, its name, a loader while its agent works, and a close button on
 // hover. The close button's place is kept while the pointer is away, so the
 // loader does not move as the button comes and goes.
-func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session) {
+func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session, indent float32) {
 	sel := s.ID == w.SelectedSession
 	color := tk.MutedForeground
 	// Flush with the project row: the session card reads as its own row, not
-	// as something hanging under an indent.
-	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(8).Radius(chromeRadius).
-		MarginX(2)
+	// as something hanging under an indent. A session under one of a host's
+	// folders steps in with it, so the folder reads as its parent.
+	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8+indent).PaddingEnd(8).Gap(8).
+		Radius(chromeRadius).MarginX(2)
 	hovered := row.Hovered()
 	if sel || hovered {
 		color = tk.Foreground
@@ -956,37 +1034,22 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			var el ui.Element
 			if p.remote != nil {
 				// A pane on another Mac mirrors the screen the host draws,
-				// laid out at the size the host lays it out at and drawn as
-				// it is: the text keeps the size it has on the host, the
-				// same as a local pane's. A card smaller than that size shows
-				// the part of the host's screen that fits, the lowest row the
-				// host has text on kept in view: a shell's prompt sits at the
-				// top of an empty screen, a full-screen program's input row at
-				// the bottom. The zoom shortcut gives the whole of it.
+				// laid out at the size the host lays it out at and scaled
+				// down to fit the card when the card is smaller: the whole
+				// width stays in sight, so a line ends where the card does
+				// instead of wrapping past its right edge. The zoom shortcut
+				// gives the card more room when the text is too small.
 				natW, natH := mirrorSize(p)
 				area := ui.Box(c).Fill().Clip()
 				area.Children(func() {
-					top := float32(0)
-					if availH := area.Bounds().H; availH > 0 && availH < natH {
-						rows := 1
-						if _, r := p.term.Size(); r > 0 {
-							rows = r
-						}
-						// The view's padding, 10 above and 10 below the grid.
-						cellH := (natH - 20) / float32(rows)
-						low := int(p.remote.anchor.Load())
-						low = clampInt(low, 0, rows-1)
-						top = availH - float32(low+1)*cellH - 10
-						if full := availH - natH; top < full {
-							top = full
-						}
-						if top > 0 {
-							top = 0
-						}
+					scale := float32(1)
+					if aw, ah := area.Bounds().W, area.Bounds().H; aw > 0 && ah > 0 {
+						scale = p.remote.fitScale(aw, ah)
 					}
 					el = terminal.View(c, p.term).
 						Width(natW).Height(natH).Absolute().
-						Left(0).Top(top)
+						Left(0).Top(0).
+						TransformOrigin(0, 0).Scale(scale, scale)
 				})
 			} else {
 				el = terminal.View(c, p.term).Fill()
