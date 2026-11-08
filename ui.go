@@ -410,7 +410,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 			TextColor(labelColor).OnClick(pick)
 		ui.Spacer(c).OnClick(pick)
 		if activity == activityWorking {
-			loading.Gather(c, loading.Options{Size: 14, Color: tk.Foreground}).Label(label)
+			loading.Pulse(c, loading.Options{Size: 14, Color: tk.Foreground}).Label(label)
 		}
 		if hovered {
 			iconButtonSmall(c, tk, "x", func() { w.closeSession(s) }, locales.CloseSession())

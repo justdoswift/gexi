@@ -241,6 +241,18 @@ func (w *workspace) worktreeRows() []worktreeRow {
 // worktreesPage lists every worktree and keeps the page's cleanup action
 // beside them, so finding a checkout and clearing unused ones are one task.
 func (w *workspace) worktreesPage(c *ui.Context, tk tokens) {
+	sectionLabel(c, tk, locales.SettingsWorktreesMerge())
+	settingsCard(c, tk, func() {
+		w.settingRowView(c, tk, settingRow{
+			title:  locales.SettingsArchiveAfterMerge(),
+			detail: locales.SettingsArchiveAfterMergeDetail(),
+			on:     w.settings.ArchiveAfterMerge,
+			toggle: func() {
+				w.settings.ArchiveAfterMerge = !w.settings.ArchiveAfterMerge
+				w.settings.save()
+			},
+		})
+	})
 	sectionLabel(c, tk, locales.SettingsWorktreesMaintenance())
 	settingsCard(c, tk, func() {
 		w.settingActionView(c, tk,

@@ -1518,6 +1518,38 @@ func (msgs Messages) SettingsWorktrees() string {
 	return Catalog.Format(msgs.locale, "settingsWorktrees", nil)
 }
 
+// SettingsWorktreesMerge says "Merging"
+// in the language the app shows.
+func SettingsWorktreesMerge() string { return In(i18n.Locale()).SettingsWorktreesMerge() }
+
+// SettingsWorktreesMerge says "Merging"
+// in the language of msgs.
+func (msgs Messages) SettingsWorktreesMerge() string {
+	return Catalog.Format(msgs.locale, "settingsWorktreesMerge", nil)
+}
+
+// SettingsArchiveAfterMerge says "Archive after merge"
+// in the language the app shows.
+func SettingsArchiveAfterMerge() string { return In(i18n.Locale()).SettingsArchiveAfterMerge() }
+
+// SettingsArchiveAfterMerge says "Archive after merge"
+// in the language of msgs.
+func (msgs Messages) SettingsArchiveAfterMerge() string {
+	return Catalog.Format(msgs.locale, "settingsArchiveAfterMerge", nil)
+}
+
+// SettingsArchiveAfterMergeDetail says "Clear the merged worktree and its pane away when the pull request merges, instead of leaving the Archive button for you."
+// in the language the app shows.
+func SettingsArchiveAfterMergeDetail() string {
+	return In(i18n.Locale()).SettingsArchiveAfterMergeDetail()
+}
+
+// SettingsArchiveAfterMergeDetail says "Clear the merged worktree and its pane away when the pull request merges, instead of leaving the Archive button for you."
+// in the language of msgs.
+func (msgs Messages) SettingsArchiveAfterMergeDetail() string {
+	return Catalog.Format(msgs.locale, "settingsArchiveAfterMergeDetail", nil)
+}
+
 // SettingsWorktreesMaintenance says "Maintenance"
 // in the language the app shows.
 func SettingsWorktreesMaintenance() string { return In(i18n.Locale()).SettingsWorktreesMaintenance() }

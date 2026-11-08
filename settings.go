@@ -29,6 +29,10 @@ type appSettings struct {
 	// LiquidGlass draws the window, the sidebar and the panes in macOS 26's
 	// material; off, they keep the flat look.
 	LiquidGlass bool `json:"liquidGlass"`
+	// ArchiveAfterMerge clears a merged worktree and its pane away as the
+	// pull request merges. Off, the header offers Archive and the user
+	// decides when the checkout goes.
+	ArchiveAfterMerge bool `json:"archiveAfterMerge"`
 	// ThemeLight and ThemeDark are the Ghostty themes picked for each
 	// appearance. Empty keeps the neutral chrome and the toolkit's own
 	// terminal colours.
