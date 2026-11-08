@@ -1,30 +1,25 @@
 package main
 
-import (
-	"testing"
-	"unicode/utf8"
-)
+import "testing"
 
-func TestFitPathKeepsTheLongestTail(t *testing.T) {
-	// Seven points a rune, so the numbers read as characters.
-	widthOf := func(text string) float32 { return float32(utf8.RuneCountInString(text)) * 7 }
+func TestCheckoutNameIsTheLastSegment(t *testing.T) {
+	t.Setenv("GEXI_HOME", "/tmp/gexi-home")
 	cases := []struct {
-		path string
-		room float32
+		dir  string
 		want string
 	}{
-		{"/Users/gepeng/src/gexi", 1000, "/Users/gepeng/src/gexi"},
-		{"/Users/gepeng/src/gexi", 70, "…/src/gexi"},
-		{"/Users/gepeng/src/gexi", 60, "…/gexi"},
-		{"/Users/gepeng/src/gexi", 20, ""},
-		{"~/dev/proj", 1000, "~/dev/proj"},
-		{"~/dev/proj", 60, "…/proj"},
-		{"gexi", 60, "gexi"},
-		{"gexi", 20, ""},
+		{"/Users/gepeng/src/gexi", "gexi"},
+		{"/tmp/gexi-home/worktrees/Gexi/kez", "kez"},
+		// Only the folder gexi itself made is a worktree name; a folder
+		// inside one is a place of its own.
+		{"/tmp/gexi-home/worktrees/Gexi/kez/internal", "internal"},
+		// The repo's folder is not a worktree.
+		{"/tmp/gexi-home/worktrees/Gexi", "Gexi"},
+		{"/", "/"},
 	}
 	for _, c := range cases {
-		if got := fitPath(c.path, c.room, widthOf); got != c.want {
-			t.Errorf("fitPath(%q, %v) = %q; want %q", c.path, c.room, got, c.want)
+		if got := checkoutName(c.dir); got != c.want {
+			t.Errorf("checkoutName(%q) = %q; want %q", c.dir, got, c.want)
 		}
 	}
 }

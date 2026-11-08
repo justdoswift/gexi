@@ -728,8 +728,12 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				// strip, the pill, the subagent count, the drag area and the
 				// actions.
 				kept := 2*stripPad + markW + titleW + actionsW + 3*4
-				pillW := w.branchPillWidth(c, p)
-				showPill := pillW > 0 && (width == 0 || kept+pillW <= width)
+				info, hasPill := w.branchPillInfo(p)
+				pillW := float32(0)
+				if hasPill {
+					pillW = branchPillWidth(c, info)
+				}
+				showPill := hasPill && (width == 0 || kept+pillW <= width)
 				pillSpace := float32(0)
 				if showPill {
 					pillSpace = pillW + 4
@@ -740,41 +744,29 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				if showSub {
 					subSpace = subW + 4
 				}
-				// The path takes what is left, the line's gap before it
-				// included, and never more than 40% of the line: the title
-				// stays the header's subject. A path needs a hundred points
-				// to say anything; a worktree's own name needs less.
+				// The path names the checkout with its last segment alone, and
+				// the pointer brings the whole path: the header says where the
+				// work is, not the road to it.
 				pathRoom := width - kept - pillSpace - subSpace - 4
 				if capRoom := width * 0.4; pathRoom > capRoom {
 					pathRoom = capRoom
 				}
 				dir := p.dir()
-				short, managed := worktreePaneName(dir)
+				_, managed := worktreePaneName(dir)
+				name := checkoutName(dir)
+				// A checkout whose folder carries its branch's name says the
+				// same thing twice. The branch pill then stands for both, and
+				// its hover names the path it folded in.
+				merged := showPill && name == info.branch
 				path := ""
-				if width == 0 {
-					if managed {
-						path = short
-					} else {
-						path = abbreviate(dir)
-					}
-				} else {
+				if !merged {
 					room := pathRoom
-					text := abbreviate(dir)
 					if managed {
-						text = short
 						room -= 10 // the chip's padding
 					}
-					// A gexi worktree needs less room than a path: its name
-					// is one short folder, so it survives a narrower header.
-					least := float32(100)
-					if managed {
-						least = 60
-					}
-					if room >= least {
-						path = fitPath(text, room, func(text string) float32 {
-							tw, _ := c.MeasureText(0, ui.Span{Text: text, Size: 11})
-							return tw
-						})
+					tw, _ := c.MeasureText(0, ui.Span{Text: name, Size: 11})
+					if width == 0 || (room > 0 && tw <= room) {
+						path = name
 					}
 				}
 				line.Children(func() {
@@ -832,8 +824,10 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 										Shrink(1).TextColor(tk.MutedForeground)
 								})
 							} else {
-								ui.Text(c, path).FontSize(11).SingleLine().
-									Shrink(1).TextColor(tk.MutedForeground)
+								// The header keeps the folder's own name; the
+								// full path is the pointer's to find.
+								ui.Text(c, path).FontSize(11).SingleLine().Shrink(1).
+									TextColor(tk.MutedForeground).Tooltip(dir)
 							}
 						}
 					})
@@ -842,9 +836,14 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					// and opens their diff. It sits inside the header band
 					// rather than filling it, so hovering reads as a chip and
 					// not as a second bar. The drawer still opens from the
-					// menu when the header has no room for it.
+					// menu when the header has no room for it. Merged with the
+					// path, it carries the checkout's full path in its hint.
 					if showPill {
-						w.branchPill(c, tk, p)
+						hint := ""
+						if merged {
+							hint = locales.DrawerOpenChanges() + " · " + dir
+						}
+						w.branchPill(c, tk, p, hint)
 					}
 					// Running subagents sit beside the branch they work on:
 					// the panel says where the work is, and how much of it
@@ -983,31 +982,13 @@ func abbreviate(path string) string {
 	return path
 }
 
-// fitPath keeps the longest tail of an abbreviated path that fits room, since
-// the folder names the checkout and the segments above it can go first. It
-// returns "" when even the last segment does not fit.
-func fitPath(path string, room float32, widthOf func(string) float32) string {
-	parts := strings.Split(path, string(filepath.Separator))
-	rooted := len(parts) > 0 && parts[0] == ""
-	if rooted {
-		parts = parts[1:]
+// checkoutName is what the header calls a checkout: the short name gexi gave
+// its worktree, or the last segment of any other path.
+func checkoutName(dir string) string {
+	if name, ok := worktreePaneName(dir); ok {
+		return name
 	}
-	best := ""
-	for n := 1; n <= len(parts); n++ {
-		start := len(parts) - n
-		tail := strings.Join(parts[start:], "/")
-		switch {
-		case start > 0:
-			tail = "…/" + tail
-		case rooted:
-			tail = "/" + tail
-		}
-		if widthOf(tail) > room {
-			break
-		}
-		best = tail
-	}
-	return best
+	return filepath.Base(dir)
 }
 
 // chromeLine is the height of the window controls' row: titles and buttons

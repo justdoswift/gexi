@@ -168,11 +168,7 @@ func (w *workspace) branchPillInfo(p *pane) (branchPillInfo, bool) {
 
 // branchPillWidth measures the pill before it is drawn, so the header fits it
 // beside the title instead of deciding by a fixed pane width.
-func (w *workspace) branchPillWidth(c *ui.Context, p *pane) float32 {
-	info, ok := w.branchPillInfo(p)
-	if !ok {
-		return 0
-	}
+func branchPillWidth(c *ui.Context, info branchPillInfo) float32 {
 	textW := func(text string, size float32) float32 {
 		tw, _ := c.MeasureText(0, ui.Span{Text: text, Size: size})
 		return tw
@@ -190,8 +186,9 @@ func (w *workspace) branchPillWidth(c *ui.Context, p *pane) float32 {
 
 // branchPill is the pane header's Git badge: the branch the project is on,
 // what the working tree changes, and, on a click, their diff. It follows the
-// title as Rex's does, and is the drawer's everyday way in.
-func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
+// title as Rex's does, and is the drawer's everyday way in. A hint replaces
+// the pill's own tooltip when it already stands for the checkout as well.
+func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane, hint string) {
 	info, ok := w.branchPillInfo(p)
 	if !ok {
 		return
@@ -219,7 +216,10 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane) {
 	}
 	el = capsule(c, el, tk, tint, bg)
 	pick := func() { w.toggleChangesDrawer(info.dir) }
-	el.Tooltip(locales.DrawerOpenChanges()).OnClick(pick).Children(func() {
+	if hint == "" {
+		hint = locales.DrawerOpenChanges()
+	}
+	el.Tooltip(hint).OnClick(pick).Children(func() {
 		if src := iconSource("branch", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(12).Height(12).IgnoreInput(true)
 		}
