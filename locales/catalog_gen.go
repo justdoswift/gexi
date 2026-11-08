@@ -846,6 +846,128 @@ func (msgs Messages) WorktreeResolving() string {
 	return Catalog.Format(msgs.locale, "worktreeResolving", nil)
 }
 
+// WorktreeStepCommit says "Writing the commit message"
+// in the language the app shows.
+func WorktreeStepCommit() string { return In(i18n.Locale()).WorktreeStepCommit() }
+
+// WorktreeStepCommit says "Writing the commit message"
+// in the language of msgs.
+func (msgs Messages) WorktreeStepCommit() string {
+	return Catalog.Format(msgs.locale, "worktreeStepCommit", nil)
+}
+
+// WorktreeStepPush says "Pushing the branch"
+// in the language the app shows.
+func WorktreeStepPush() string { return In(i18n.Locale()).WorktreeStepPush() }
+
+// WorktreeStepPush says "Pushing the branch"
+// in the language of msgs.
+func (msgs Messages) WorktreeStepPush() string {
+	return Catalog.Format(msgs.locale, "worktreeStepPush", nil)
+}
+
+// WorktreeStepCreatePR says "Creating the pull request"
+// in the language the app shows.
+func WorktreeStepCreatePR() string { return In(i18n.Locale()).WorktreeStepCreatePR() }
+
+// WorktreeStepCreatePR says "Creating the pull request"
+// in the language of msgs.
+func (msgs Messages) WorktreeStepCreatePR() string {
+	return Catalog.Format(msgs.locale, "worktreeStepCreatePR", nil)
+}
+
+// WorktreeStepReadPR says "Reading the pull request"
+// in the language the app shows.
+func WorktreeStepReadPR() string { return In(i18n.Locale()).WorktreeStepReadPR() }
+
+// WorktreeStepReadPR says "Reading the pull request"
+// in the language of msgs.
+func (msgs Messages) WorktreeStepReadPR() string {
+	return Catalog.Format(msgs.locale, "worktreeStepReadPR", nil)
+}
+
+// WorktreeStepCheckPR says "Checking the pull request"
+// in the language the app shows.
+func WorktreeStepCheckPR() string { return In(i18n.Locale()).WorktreeStepCheckPR() }
+
+// WorktreeStepCheckPR says "Checking the pull request"
+// in the language of msgs.
+func (msgs Messages) WorktreeStepCheckPR() string {
+	return Catalog.Format(msgs.locale, "worktreeStepCheckPR", nil)
+}
+
+// WorktreeStepFetchBase says "Fetching {base}"
+// in the language the app shows.
+func WorktreeStepFetchBase(base string) string { return In(i18n.Locale()).WorktreeStepFetchBase(base) }
+
+// WorktreeStepFetchBase says "Fetching {base}"
+// in the language of msgs.
+func (msgs Messages) WorktreeStepFetchBase(base string) string {
+	return Catalog.Format(msgs.locale, "worktreeStepFetchBase", map[string]any{"base": base})
+}
+
+// WorktreeStepMergeBase says "Merging {base}"
+// in the language the app shows.
+func WorktreeStepMergeBase(base string) string { return In(i18n.Locale()).WorktreeStepMergeBase(base) }
+
+// WorktreeStepMergeBase says "Merging {base}"
+// in the language of msgs.
+func (msgs Messages) WorktreeStepMergeBase(base string) string {
+	return Catalog.Format(msgs.locale, "worktreeStepMergeBase", map[string]any{"base": base})
+}
+
+// WorktreeStepResolveConflicts says "Letting {agent} resolve the conflicts"
+// in the language the app shows.
+func WorktreeStepResolveConflicts(agent string) string {
+	return In(i18n.Locale()).WorktreeStepResolveConflicts(agent)
+}
+
+// WorktreeStepResolveConflicts says "Letting {agent} resolve the conflicts"
+// in the language of msgs.
+func (msgs Messages) WorktreeStepResolveConflicts(agent string) string {
+	return Catalog.Format(msgs.locale, "worktreeStepResolveConflicts", map[string]any{"agent": agent})
+}
+
+// WorktreeStepPushResolution says "Committing and pushing the resolution"
+// in the language the app shows.
+func WorktreeStepPushResolution() string { return In(i18n.Locale()).WorktreeStepPushResolution() }
+
+// WorktreeStepPushResolution says "Committing and pushing the resolution"
+// in the language of msgs.
+func (msgs Messages) WorktreeStepPushResolution() string {
+	return Catalog.Format(msgs.locale, "worktreeStepPushResolution", nil)
+}
+
+// WorktreeStepWaitMergeable says "Waiting for GitHub to recompute"
+// in the language the app shows.
+func WorktreeStepWaitMergeable() string { return In(i18n.Locale()).WorktreeStepWaitMergeable() }
+
+// WorktreeStepWaitMergeable says "Waiting for GitHub to recompute"
+// in the language of msgs.
+func (msgs Messages) WorktreeStepWaitMergeable() string {
+	return Catalog.Format(msgs.locale, "worktreeStepWaitMergeable", nil)
+}
+
+// WorktreeStepMergePR says "Merging on GitHub"
+// in the language the app shows.
+func WorktreeStepMergePR() string { return In(i18n.Locale()).WorktreeStepMergePR() }
+
+// WorktreeStepMergePR says "Merging on GitHub"
+// in the language of msgs.
+func (msgs Messages) WorktreeStepMergePR() string {
+	return Catalog.Format(msgs.locale, "worktreeStepMergePR", nil)
+}
+
+// WorktreeStepSyncBase says "Updating local {base}"
+// in the language the app shows.
+func WorktreeStepSyncBase(base string) string { return In(i18n.Locale()).WorktreeStepSyncBase(base) }
+
+// WorktreeStepSyncBase says "Updating local {base}"
+// in the language of msgs.
+func (msgs Messages) WorktreeStepSyncBase(base string) string {
+	return Catalog.Format(msgs.locale, "worktreeStepSyncBase", map[string]any{"base": base})
+}
+
 // WorktreeResolveConflicts says "Ask {agent} to resolve the conflicts, then merge"
 // in the language the app shows.
 func WorktreeResolveConflicts(agent string) string {

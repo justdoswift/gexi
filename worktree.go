@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/egoist/mygo/plugins/loading"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/justdoswift/gexi/locales"
@@ -52,8 +53,13 @@ type paneWorktree struct {
 	MergedHead string `json:"mergedHead,omitempty"`
 
 	// busy is the operation the header button waits on: "pr", "check", or
-	// "merge". checked throttles the gh lookups when a session is selected.
+	// "merge". busySteps is what that operation goes through, in order, and
+	// busyAt the one it is on, so the hint over the spinner can say where a
+	// long wait is. checked throttles the gh lookups when a session is
+	// selected.
 	busy       string
+	busySteps  []worktreeStep
+	busyAt     worktreeStep
 	checked    time.Time
 	mergeable  string
 	review     string
@@ -74,6 +80,50 @@ const (
 	worktreeBusyResolve = "resolve"
 	worktreeMerged      = "merged"
 )
+
+// worktreeStep is one stage of the pull request or merge the header button is
+// waiting on. The header lists the stages in its hint, so a wait that runs
+// long says which one it is in.
+type worktreeStep int
+
+const (
+	stepNone worktreeStep = iota
+	stepCommit
+	stepPush
+	stepCreatePR
+	stepReadPR
+	stepCheckPR
+	stepFetchBase
+	stepMergeBase
+	stepResolveConflicts
+	stepPushResolution
+	stepWaitMergeable
+	stepMergePR
+	stepSyncBase
+)
+
+// clearWorktreeBusy ends the header's wait and forgets its stages. Main
+// thread.
+func clearWorktreeBusy(wt *paneWorktree) {
+	wt.busy = ""
+	wt.busySteps = nil
+	wt.busyAt = stepNone
+}
+
+// advanceWorktreeStep says which stage a background operation reached, so the
+// hint over the spinner follows it.
+func (w *workspace) advanceWorktreeStep(wt *paneWorktree, step worktreeStep) {
+	w.onMain(func() {
+		wt.busyAt = step
+		w.invalidate()
+	})
+}
+
+// worktreeStepFunc is advanceWorktreeStep as the operation cores take it, or
+// nil where nothing shows the stages.
+func (w *workspace) worktreeStepFunc(wt *paneWorktree) func(worktreeStep) {
+	return func(step worktreeStep) { w.advanceWorktreeStep(wt, step) }
+}
 
 // reopenCheckInterval is how often a merged checkout is looked at for work
 // that landed after the merge; the header returns to PR as soon as there is
@@ -559,8 +609,9 @@ func applyPRStatus(wt *paneWorktree, info prInfo) {
 
 // createPR pushes the worktree branch and opens its pull request. When one
 // is already open, it returns that instead. message commits the pending
-// changes under it; an empty one there is an error.
-func createPR(wt *paneWorktree, message string) (prInfo, string, error) {
+// changes under it; an empty one there is an error. step, when not nil, is
+// told which stage the operation reached.
+func createPR(wt *paneWorktree, message string, step func(worktreeStep)) (prInfo, string, error) {
 	if wt == nil {
 		return prInfo{}, "", errWorktreeGone
 	}
@@ -603,15 +654,27 @@ func createPR(wt *paneWorktree, message string) (prInfo, string, error) {
 		// A merged pull request still answers for the branch: only one that
 		// is open is reused, or the next press would return the old page
 		// instead of opening the next pull request.
+		if step != nil {
+			step(stepReadPR)
+		}
 		if info, err := lookupPR(wt.Path, branch); err == nil && info.Number != 0 && info.State == "open" {
 			return info, branch, nil
 		}
 	}
+	if step != nil {
+		step(stepPush)
+	}
 	if _, err := worktreeGit(wt.Path, "push", "-u", "origin", branch); err != nil {
 		return prInfo{}, branch, err
 	}
+	if step != nil {
+		step(stepCreatePR)
+	}
 	if _, err := ghOutput(wt.Path, "pr", "create", "--fill", "--base", wt.Base, "--head", branch); err != nil {
 		return prInfo{}, branch, err
+	}
+	if step != nil {
+		step(stepReadPR)
 	}
 	info, err := lookupPR(wt.Path, branch)
 	return info, branch, err
@@ -863,22 +926,28 @@ func (w *workspace) resolveConflictsAndMerge(p *pane) {
 	}
 	stopPRTimer(wt)
 	wt.busy = worktreeBusyResolve
+	wt.busySteps = []worktreeStep{
+		stepFetchBase, stepMergeBase, stepResolveConflicts,
+		stepPushResolution, stepWaitMergeable, stepMergePR, stepSyncBase,
+	}
+	wt.busyAt = stepFetchBase
 	w.invalidate()
 	snapshot := *wt
 	kind := p.agent.Kind
 	go func() {
-		if err := resolveConflicts(&snapshot, kind); err != nil {
+		if err := resolveConflicts(&snapshot, kind, w.worktreeStepFunc(wt)); err != nil {
 			w.onMain(func() {
-				wt.busy = ""
+				clearWorktreeBusy(wt)
 				w.flash(locales.WorktreeResolveFailed(err.Error()))
 				w.invalidate()
 				w.scheduleSave()
 			})
 			return
 		}
+		w.advanceWorktreeStep(wt, stepWaitMergeable)
 		info, err := waitMergeable(snapshot.Path, snapshot.Branch)
 		w.onMain(func() {
-			wt.busy = ""
+			clearWorktreeBusy(wt)
 			if err != nil {
 				w.worktreeFailed(err)
 				w.invalidate()
@@ -905,8 +974,9 @@ func (w *workspace) resolveConflictsAndMerge(p *pane) {
 
 // resolveConflicts brings the base into the branch, lets the agent settle what
 // git could not, commits the merge, and pushes it. A failed resolution aborts
-// the merge, so the checkout goes back to how it was.
-func resolveConflicts(wt *paneWorktree, kind agentKind) error {
+// the merge, so the checkout goes back to how it was. step, when not nil, is
+// told which stage the resolution reached.
+func resolveConflicts(wt *paneWorktree, kind agentKind, step func(worktreeStep)) error {
 	clean, err := worktreeIsClean(wt)
 	if err != nil {
 		return err
@@ -917,21 +987,33 @@ func resolveConflicts(wt *paneWorktree, kind agentKind) error {
 	if _, err := worktreeGit(wt.Path, "fetch", "--quiet", "origin", wt.Base); err != nil {
 		return err
 	}
+	if step != nil {
+		step(stepMergeBase)
+	}
 	base := "origin/" + wt.Base
 	var files []string
 	if _, mergeErr := worktreeGit(wt.Path, "merge", "--no-edit", base); mergeErr == nil {
+		if step != nil {
+			step(stepPushResolution)
+		}
 		return pushBranch(wt)
 	} else if files, err = conflictedFiles(wt.Path); err != nil {
 		return err
 	} else if len(files) == 0 {
 		return mergeErr
-	} else if err = agentResolveConflicts(kind, wt.Path, files); err != nil {
+	} else if step != nil {
+		step(stepResolveConflicts)
+	}
+	if err = agentResolveConflicts(kind, wt.Path, files); err != nil {
 		abortMerge(wt)
 		return err
 	}
 	if err = stageResolution(wt.Path, kind, files); err != nil {
 		abortMerge(wt)
 		return err
+	}
+	if step != nil {
+		step(stepPushResolution)
 	}
 	if _, err := worktreeGit(wt.Path, "commit", "-m", "Merge "+base+" into "+wt.Branch); err != nil {
 		abortMerge(wt)
@@ -1144,6 +1226,11 @@ func (w *workspace) createPullRequest(p *pane) {
 			if kind == "" {
 				hint = locales.CommitMessageNoAgent()
 			} else {
+				w.onMain(func() {
+					wt.busySteps = []worktreeStep{stepCommit, stepPush, stepCreatePR, stepReadPR}
+					wt.busyAt = stepCommit
+					w.invalidate()
+				})
 				// Stage first, so the diff includes untracked files.
 				if _, err := worktreeGit(snapshot.Path, "add", "-A"); err != nil {
 					w.onMain(func() { w.finishPullRequest(wt, p, prInfo{}, "", err) })
@@ -1161,7 +1248,7 @@ func (w *workspace) createPullRequest(p *pane) {
 			}
 			if msg == "" {
 				w.onMain(func() {
-					wt.busy = ""
+					clearWorktreeBusy(wt)
 					w.commitTarget = p
 					w.commitText = "Update from Gexi"
 					w.commitHint = hint
@@ -1171,8 +1258,14 @@ func (w *workspace) createPullRequest(p *pane) {
 				})
 				return
 			}
+		} else {
+			w.onMain(func() {
+				wt.busySteps = []worktreeStep{stepPush, stepCreatePR, stepReadPR}
+				wt.busyAt = stepPush
+				w.invalidate()
+			})
 		}
-		info, branch, err := createPR(&snapshot, msg)
+		info, branch, err := createPR(&snapshot, msg, w.worktreeStepFunc(wt))
 		w.onMain(func() { w.finishPullRequest(wt, p, info, branch, err) })
 	}()
 }
@@ -1186,16 +1279,18 @@ func (w *workspace) createPullRequestWithMessage(p *pane, message string) {
 		return
 	}
 	wt.busy = worktreeBusyPR
+	wt.busySteps = []worktreeStep{stepPush, stepCreatePR, stepReadPR}
+	wt.busyAt = stepPush
 	w.invalidate()
 	snapshot := *wt
 	go func() {
-		info, branch, err := createPR(&snapshot, message)
+		info, branch, err := createPR(&snapshot, message, w.worktreeStepFunc(wt))
 		w.onMain(func() { w.finishPullRequest(wt, p, info, branch, err) })
 	}()
 }
 
 func (w *workspace) finishPullRequest(wt *paneWorktree, p *pane, info prInfo, branch string, err error) {
-	wt.busy = ""
+	clearWorktreeBusy(wt)
 	if err != nil {
 		w.worktreeFailed(err)
 	} else {
@@ -1279,22 +1374,25 @@ func (w *workspace) mergePullRequest(p *pane) {
 	}
 	stopPRTimer(wt)
 	wt.busy = worktreeBusyMerge
+	wt.busySteps = []worktreeStep{stepMergePR, stepSyncBase}
+	wt.busyAt = stepMergePR
 	w.invalidate()
 	snapshot := *wt
 	go func() {
 		if err := mergePR(&snapshot); err != nil {
 			w.onMain(func() {
-				wt.busy = ""
+				clearWorktreeBusy(wt)
 				w.worktreeFailed(err)
 				w.invalidate()
 			})
 			return
 		}
+		w.advanceWorktreeStep(wt, stepSyncBase)
 		syncErr := syncLocalBase(&snapshot)
 		headOut, headErr := worktreeGit(snapshot.Path, "rev-parse", "HEAD")
 		head := strings.TrimSpace(headOut)
 		w.onMain(func() {
-			wt.busy = ""
+			clearWorktreeBusy(wt)
 			wt.State = worktreeMerged
 			if headErr == nil && head != "" && wt.MergedHead == "" {
 				wt.MergedHead = head
@@ -1363,12 +1461,14 @@ func (w *workspace) requestMerge(p *pane) {
 		return
 	}
 	wt.busy = worktreeBusyCheck
+	wt.busySteps = []worktreeStep{stepCheckPR}
+	wt.busyAt = stepCheckPR
 	w.invalidate()
 	path, branch := wt.Path, wt.Branch
 	go func() {
 		info, err := lookupPR(path, branch)
 		w.onMain(func() {
-			wt.busy = ""
+			clearWorktreeBusy(wt)
 			if err != nil {
 				w.worktreeFailed(err)
 				w.invalidate()
@@ -2481,7 +2581,8 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 		return
 	}
 	if busy := worktreeBusyLabel(wt); busy != "" {
-		worktreeChip(c, tk).OnClick(func() {}).Children(func() {
+		worktreeChip(c, tk).OnClick(func() {}).
+			Tooltip(worktreeBusyHint(p, busy)).Children(func() {
 			worktreeSpinner(c, tk, busy)
 		})
 		return
@@ -2641,9 +2742,80 @@ func prStatusHint(wt *paneWorktree) string {
 	return hint
 }
 
-// worktreeSpinner is a header button at work: the theme's spinner where the
-// label was, so the wait reads as work rather than a truncated word. label
-// names the operation for assistive technology.
+// worktreeSpinner is a header button at work: loading.dev's morphing square
+// where the label was, so the wait reads as work rather than a truncated
+// word. label names the operation for assistive technology.
 func worktreeSpinner(c *ui.Context, tk tokens, label string) {
-	ui.Spinner(c).Size(12, 12).TextColor(tk.MutedForeground).Label(label)
+	loading.Morph(c, loading.Options{Size: 12, Color: tk.MutedForeground}).Label(label)
+}
+
+// worktreeBusyHint is the tip over the spinning header button: the operation,
+// then the stages it goes through with the one it is on marked, so a wait
+// that runs long says where it is.
+func worktreeBusyHint(p *pane, label string) string {
+	wt := p.Worktree
+	if wt == nil || wt.busyAt == stepNone || len(wt.busySteps) == 0 {
+		return label
+	}
+	at := -1
+	for i, step := range wt.busySteps {
+		if step == wt.busyAt {
+			at = i
+			break
+		}
+	}
+	if at < 0 {
+		return label + "\n→ " + worktreeStepLabel(p, wt.busyAt)
+	}
+	var b strings.Builder
+	b.WriteString(label)
+	for i, step := range wt.busySteps {
+		mark := "·"
+		switch {
+		case i < at:
+			mark = "✓"
+		case i == at:
+			mark = "→"
+		}
+		b.WriteString("\n" + mark + " " + worktreeStepLabel(p, step))
+	}
+	return b.String()
+}
+
+// worktreeStepLabel names one stage in the user's language.
+func worktreeStepLabel(p *pane, step worktreeStep) string {
+	base, agent := "", ""
+	if p.Worktree != nil {
+		base = p.Worktree.Base
+	}
+	if p.agent != nil {
+		agent = p.agent.Kind.name()
+	}
+	switch step {
+	case stepCommit:
+		return locales.WorktreeStepCommit()
+	case stepPush:
+		return locales.WorktreeStepPush()
+	case stepCreatePR:
+		return locales.WorktreeStepCreatePR()
+	case stepReadPR:
+		return locales.WorktreeStepReadPR()
+	case stepCheckPR:
+		return locales.WorktreeStepCheckPR()
+	case stepFetchBase:
+		return locales.WorktreeStepFetchBase(base)
+	case stepMergeBase:
+		return locales.WorktreeStepMergeBase(base)
+	case stepResolveConflicts:
+		return locales.WorktreeStepResolveConflicts(agent)
+	case stepPushResolution:
+		return locales.WorktreeStepPushResolution()
+	case stepWaitMergeable:
+		return locales.WorktreeStepWaitMergeable()
+	case stepMergePR:
+		return locales.WorktreeStepMergePR()
+	case stepSyncBase:
+		return locales.WorktreeStepSyncBase(base)
+	}
+	return ""
 }
