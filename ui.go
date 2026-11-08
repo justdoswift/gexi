@@ -440,7 +440,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	// Flush with the project row: the session card reads as its own row, not
 	// as something hanging under an indent. A session under one of a host's
 	// folders steps in with it, so the folder reads as its parent.
-	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8+indent).PaddingEnd(8).Gap(8).
+	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8 + indent).PaddingEnd(8).Gap(8).
 		Radius(chromeRadius).MarginX(2)
 	hovered := row.Hovered()
 	if sel || hovered {
@@ -486,9 +486,10 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 // sessionLabel is what the sidebar calls a session: its agent when one runs
 // there, the terminal title otherwise.
 func sessionLabel(s *session) string {
-	// A session on another Mac is called what its host calls it.
+	// A session on another Mac is called what its host calls it, with the
+	// host's activity mark dropped: the row already wears the agent's logo.
 	if s.remote != nil && s.remote.title != "" {
-		return s.remote.title
+		return cleanTitle(s.remote.title)
 	}
 	if s.Root != nil {
 		for _, p := range s.Root.panes() {

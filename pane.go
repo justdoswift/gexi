@@ -448,11 +448,13 @@ func (p *pane) foregroundGroup() int {
 	return foregroundGroupOf(p.ptmx.Fd())
 }
 
-// titleSpinners are the progress marks an agent puts in front of the terminal
-// title while it works; Claude Code cycles through these quarter circles.
-// Chrome already says an agent is working with the session label's shimmer,
-// so the mark is noise beside the words and is dropped.
-const titleSpinners = "◐◑◒◓"
+// titleSpinners are the marks an agent puts in front of the terminal title:
+// Claude Code cycles through the quarter circles while it works and rests on
+// a star between turns, and Codex, Amp and OpenCode use the other stars. The
+// set is read off their binaries. Chrome already says an agent is working
+// with the session label's shimmer, so the mark is noise beside the words and
+// is dropped.
+const titleSpinners = "◐◑◒◓✳✻✶✢✦"
 
 // cleanTitle trims a terminal title and drops the agent's leading activity
 // mark, leaving the words themselves.
@@ -467,9 +469,10 @@ func cleanTitle(title string) string {
 }
 
 func (p *pane) title() string {
-	// A pane on another Mac is called what its host calls it.
+	// A pane on another Mac is called what its host calls it, with the
+	// host's activity mark dropped as a local title's is.
 	if p.remote != nil && p.remote.title != "" {
-		return p.remote.title
+		return cleanTitle(p.remote.title)
 	}
 	if t := cleanTitle(p.term.Title()); t != "" {
 		return t
