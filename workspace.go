@@ -45,8 +45,10 @@ type session struct {
 }
 
 func (s *session) title() string {
+	// A session on another Mac is called what its host calls it, with the
+	// host's activity mark dropped: the row already wears the agent's logo.
 	if s.remote != nil && s.remote.title != "" {
-		return s.remote.title
+		return cleanTitle(s.remote.title)
 	}
 	if s.Root == nil {
 		return locales.Terminal()
