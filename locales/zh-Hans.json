@@ -64,7 +64,7 @@
   "themesSearch": "搜索主题",
   "themesNone": "没有匹配的主题",
   "settingsLiquidGlass": "液态玻璃",
-  "settingsLiquidGlassDetail": "用 macOS 26 的 Liquid Glass 绘制窗口、侧栏和窗格。关闭后保持原来的平面样式。",
+  "settingsLiquidGlassDetail": "让侧栏透出桌面的系统材质。关闭后侧栏与画布同色，把窗格包在一起。",
   "settingsRestoreScreen": "恢复上次屏幕",
   "settingsRestoreScreenDetail": "在新 shell 上方重绘上一次的屏幕内容。",
   "worktreeCreateHint": "为此窗格创建 worktree",

@@ -72,35 +72,19 @@ func main() {
 			// lights, which the layout leaves room for.
 			TitleBarStyle:        mygo.TitleBarHidden,
 			TrafficLightPosition: &mygo.Point{X: 20, Y: 17},
-			// The window is glass: the sidebar and the canvas leave the
-			// surface bare, and macOS draws the system's Liquid Glass under
-			// both, over the desktop. The tint is the canvas's own grey, so
-			// the glass reads as the app's surface rather than the
-			// wallpaper's. Before macOS 26 the same place shows the popover
-			// material instead (see mygo.VibrancyGlass).
-			Transparent:  true,
-			Vibrancy:     mygo.VibrancyGlass,
-			VibrancyTint: w.chromeTint(),
+			// The window carries the system's sidebar material for the
+			// optional translucent sidebar. With it off, the view paints the
+			// sidebar and the canvas in the same colour, so one surface wraps
+			// the panes; with it on, the sidebar leaves that surface bare and
+			// the material shows over the desktop.
+			Transparent: true,
+			Vibrancy:    mygo.VibrancySidebar,
 			// Still the window color on the platforms whose material shows
 			// none, where the view paints the same backdrop itself.
 			BackgroundColor: w.chromeBackground(),
 		})
 		w.win = win
 		win.OnShow(func() { win.Invalidate() })
-		// The window is pinned as active, so the system never fades its native
-		// glass views out: that fade, running under the solid frame the app
-		// draws in their place, is what made opening the settings window
-		// flicker. The app tracks the keyboard itself instead (windowFocused).
-		win.SetActiveAppearance(true)
-		win.OnFocus(func() {
-			setWindowFocused(win, true)
-			// The window switches back to its glass when it takes the
-			// keyboard. Re-apply the theme's tint then, so the glass shows
-			// the theme picked while the settings window had the keyboard,
-			// not the tint the window launched with.
-			w.updateChrome()
-		})
-		win.OnBlur(func() { setWindowFocused(win, false) })
 
 		// gexi: closing the window hides it; shells keep running.
 		win.OnClose(func(e *mygo.CloseEvent) {

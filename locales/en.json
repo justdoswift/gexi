@@ -64,7 +64,7 @@
   "themesSearch": "Search themes",
   "themesNone": "No themes match",
   "settingsLiquidGlass": "Liquid Glass",
-  "settingsLiquidGlassDetail": "Draw the window, the sidebar and the panes in macOS 26's Liquid Glass. Off, the window keeps the flat look.",
+  "settingsLiquidGlassDetail": "Let the sidebar show the desktop through the system's material. Off, the sidebar matches the canvas and wraps the panes in one surface.",
   "settingsRestoreScreen": "Restore last screen",
   "settingsRestoreScreenDetail": "Paint the previous screen above the new shell.",
   "worktreeCreateHint": "Create a worktree for this pane",

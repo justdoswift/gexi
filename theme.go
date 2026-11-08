@@ -199,47 +199,12 @@ func legible(c, bg, fg ui.Color, min float32) ui.Color {
 	return c
 }
 
-// windowTint is the window's material tint, in the syntax
-// WindowOptions.VibrancyTint takes: the canvas's own colour, so the glass
-// reads as the app's surface rather than the wallpaper's. It is light enough
-// that the frozen desktop still colours the glass — at 0.8 the sheet is
-// opaque and the glass's lens and rim have nothing to show. It only shows
-// while the window is active: an inactive window's material is frosted by the
-// system, which lifts the tint into a sheet, so the view draws its own
-// surfaces there instead (see liquid).
-func windowTint(light, dark tokens) string {
-	return "light-dark(" + tintColor(light, 0.55) + ", " + tintColor(dark, 0.62) + ")"
-}
-
-func tintColor(tk tokens, alpha float32) string {
-	return fmt.Sprintf("rgba(%d, %d, %d, %.2f)",
-		tk.Background.R, tk.Background.G, tk.Background.B, alpha)
-}
-
 // windowBackground is the colour behind the page, for the platforms whose
 // material shows none.
 func windowBackground(light, dark tokens) string {
 	return fmt.Sprintf("light-dark(#%02x%02x%02x, #%02x%02x%02x)",
 		light.Background.R, light.Background.G, light.Background.B,
 		dark.Background.R, dark.Background.G, dark.Background.B)
-}
-
-// cardTint is the wash a pane card lays on the window's glass. The card is not
-// a second sheet of glass: two frosted layers read as one flat grey panel,
-// because the inner one samples the window's already-frozen desktop. So the
-// card carries only enough of the theme's own colour to seat the terminal, and
-// lets the glass and the desktop's colour show through.
-func cardTint(tk tokens) ui.Color {
-	if !tk.Dark {
-		return tk.Background.Alpha(0.34)
-	}
-	return tk.Background.Alpha(0.5)
-}
-
-// rimTint is the hairline a pane card draws instead of the glass's lit rim,
-// once the card is a tint rather than a glass view of its own.
-func rimTint(tk tokens) ui.Color {
-	return tk.Foreground.Alpha(0.07)
 }
 
 // headerRadius is the pane header's chip corner: a rounded rectangle, the same

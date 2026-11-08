@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -137,60 +135,32 @@ func colorHex(c ui.Color) string {
 	return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B)
 }
 
-// glassUI mirrors the user's Liquid Glass choice for the chrome helpers,
-// which build outside the workspace's methods. loadSettings and the switch
-// in Settings keep it current.
-var glassUI = true
-
-// windowFocused is whether the main window has the keyboard. It is the app's
-// own record rather than Context.WindowActive, because the main window is
-// pinned as active (Window.SetActiveAppearance): the system would otherwise
-// fade the native glass views out as the window loses the keyboard, and that
-// fade, running under the solid frame the app draws in their place, is what
-// made opening the settings window flicker. Pinned, the system fades nothing,
-// and the app switches its own surfaces in one frame. Main thread only.
-var windowFocused = true
+// sidebarMaterial mirrors the user's choice to draw the sidebar in the
+// system's material. It starts off: the sidebar then takes the canvas's
+// colour, so one surface wraps the panes. loadSettings and the switch in
+// Settings keep it current.
+var sidebarMaterial bool
 
 // chromeTheme is whether the current appearance draws a theme the user
-// picked. A themed window paints its own surfaces instead of leaving them to
-// the window's glass: the glass takes its colour from the window's tint,
-// which is set while the settings window has the keyboard and does not always
-// reach the material, so a themed window would read as the neutral chrome
-// once the settings window closes. Painted surfaces also match what the
-// window shows while it is unfocused. Set from the view, main thread only.
+// picked. A themed window paints its own sidebar instead of leaving it to the
+// system's material: the material takes its colour from the system, not from
+// the terminal theme, so a tuned light or dark theme would sit on a neutral
+// blur. Set from the view, main thread only.
 var chromeTheme bool
 
-// setWindowFocused records whether the main window has the keyboard, and has
-// win draw again if that changed: its surfaces switch between glass and the
-// theme's own colours with it.
-func setWindowFocused(win *mygo.Window, on bool) {
-	if windowFocused == on {
-		return
-	}
-	windowFocused = on
-	if win != nil {
-		win.Invalidate()
-	}
-}
-
-// liquid reports whether this window draws the glass look: the setting, a
-// window the system gives a material to, and a window the user is working
-// in. An inactive window's material is frosted by the system, which lifts
-// every light tint into a grey sheet: the panes, the selected row and the
-// search field turn milky the moment the settings window comes forward, or
-// the user switches to another app. There the app draws its own surfaces
-// instead, the colours it has with the glass turned off, so the window reads
-// as the theme rather than as frost.
-func liquid(c *ui.Context) bool { return glassUI && c.Vibrancy() && windowFocused }
+// liquid reports whether the window leaves the sidebar's surface bare for the
+// system's material: the setting and a window the system gives a material to.
+// Off, the sidebar and the canvas paint the theme's own colours.
+func liquid(c *ui.Context) bool { return sidebarMaterial && c.Vibrancy() }
 
 // controlWash paints el with the theme's own ink: a hovered button, the
-// search field or the selected row reads as the theme's wash on the window's
-// glass. It is not a second glass view. A tinted glass there samples the
+// search field or the selected row reads as the theme's wash on the sidebar's
+// material. It is not a second glass view: a tinted glass there samples the
 // already-frozen window and its regular style lightens whatever it sits on,
-// so in light mode the wash vanishes into the glass and in dark mode it lifts
-// into a flat, desaturated grey. wash is how much ink: a hover is 0.045, a
-// selection 0.09. Where the window has no material, or the user turned the
-// glass look off, fallback fills it as before.
+// so in light mode the wash vanishes into the material and in dark mode it
+// lifts into a flat, desaturated grey. wash is how much ink: a hover is
+// 0.045, a selection 0.09. Where the sidebar is painted, fallback fills it as
+// before.
 func controlWash(c *ui.Context, el ui.Element, tk tokens, wash float32, fallback ui.Color) ui.Element {
 	if !liquid(c) {
 		return el.Background(fallback)
@@ -198,24 +168,11 @@ func controlWash(c *ui.Context, el ui.Element, tk tokens, wash float32, fallback
 	return el.Background(tk.Foreground.Alpha(wash))
 }
 
-// glassInFrame is the glass for a surface or control the frame paints, as a
-// pane's card, its header's chips or the drawer: the shader's glass, which
-// samples what the frame drew under it. The system's samples what is behind
-// the window, which would cut a hole through the card rather than sit on it.
-func glassInFrame(el ui.Element, tint ui.Color) ui.Element {
-	return el.Material(glass.Glass{Tint: tint})
-}
-
-// glassChip is glassInFrame for a small control: the glass's own rim is lit
-// on its top and bottom and shaded on its sides, so against a light surface
-// the top and bottom edges disappear and the chip reads as cut. A hairline
-// in the sides' shade gives all four edges the same weight.
-
 // capsule is a control's own light surface, as a header button's hover or a
 // chip: flat, with a hairline on all four sides, so it keeps one colour over
-// the card's glass and matches the reference controls at this size.
+// the surface under it and matches the reference controls at this size.
 func capsule(c *ui.Context, el ui.Element, tk tokens, fill, fallback ui.Color) ui.Element {
-	if !glassUI {
+	if !sidebarMaterial {
 		return el.Background(fallback)
 	}
 	return el.Background(fill).Border(1, tk.Foreground.Alpha(0.06))
@@ -228,24 +185,24 @@ func iconButton(c *ui.Context, tk tokens, name string, action func(), hint ...st
 	iconButtonSized(c, tk, name, iconSize, 17, iconOnMaterial, action, hint...)
 }
 
-// iconGlass is what a button's hover glass sits on.
+// iconGlass is what a button's hover sits on.
 type iconGlass uint8
 
 const (
 	// iconOnMaterial is the window's material, as a sidebar's.
 	iconOnMaterial iconGlass = iota
-	// iconOnCard is a pane card's own system glass.
+	// iconOnCard is a pane card's own surface.
 	iconOnCard
-	// iconInFrame is glass the frame paints, as the drawer's.
+	// iconInFrame is a surface the frame paints, as the drawer's.
 	iconInFrame
 )
 
-// iconButtonOnCard is iconButton over a pane card's system glass.
+// iconButtonOnCard is iconButton over a pane card.
 func iconButtonOnCard(c *ui.Context, tk tokens, name string, action func(), hint ...string) {
 	iconButtonSized(c, tk, name, iconSize, 17, iconOnCard, action, hint...)
 }
 
-// iconButtonInFrame is iconButton over glass the frame paints, as the
+// iconButtonInFrame is iconButton over a surface the frame paints, as the
 // drawer's.
 func iconButtonInFrame(c *ui.Context, tk tokens, name string, action func(), hint ...string) {
 	iconButtonSized(c, tk, name, iconSize, 17, iconInFrame, action, hint...)
@@ -279,16 +236,16 @@ func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu
 	})
 }
 
-func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32, glass iconGlass, action func(), hint ...string) {
+func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32, place iconGlass, action func(), hint ...string) {
 	el := ui.Row(c).Width(size).Height(size).Radius(chromeRadius).
 		Center().Cursor(ui.CursorPointer)
-	if glass != iconOnMaterial {
+	if place != iconOnMaterial {
 		// The hairline the hover adds is reserved while it is away, so the
 		// glyph does not move as the pointer comes and goes.
 		el = el.Border(1, ui.Transparent)
 	}
 	if el.Hovered() {
-		switch glass {
+		switch place {
 		case iconOnCard:
 			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
 		case iconInFrame:

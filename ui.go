@@ -31,27 +31,18 @@ func (w *workspace) view(c *ui.Context) {
 		w.pendingToast, w.pendingToastAction, w.pendingAction = "", "", nil
 	}
 	tk := w.tokens(c)
-	// A themed window paints its surfaces, so the chrome keeps the theme
-	// whether it has the keyboard or not (see liquid).
+	// A themed window paints its sidebar: the system's material is neutral,
+	// not the theme's, so the theme's own colour takes the sidebar instead
+	// (see liquid).
 	chromeTheme = w.appearanceThemeName(c.Theme().Dark) != ""
 	bar := c.TitleBar()
-	// The window's own surface is the one the sidebar and the canvas share,
-	// so in comfortable a pane reads as a panel wrapped by it, not as a card
-	// on a separate backdrop. Over the window's material the root is bare
-	// and the glass itself, tinted by the window's VibrancyTint, is that
-	// surface.
+	// The sidebar is the only surface over the window's material; the canvas
+	// paints the theme's own backdrop, so a comfortable pane reads as a panel
+	// wrapped by it, and a compact one fills it. When the material is off, or
+	// a theme paints the sidebar, the root carries that backdrop instead.
 	root := ui.Row(c).Fill()
-	switch {
-	case !liquid(c):
+	if !liquid(c) || chromeTheme {
 		root = root.Background(w.backdrop(tk))
-	case chromeTheme:
-		// A theme colours the window over its glass too: the native tint
-		// does not always reach the material, so the view lays the theme's
-		// own wash on the glass. The fade when the window loses the keyboard
-		// stays: there it paints the backdrop solid, as before.
-		root = root.Background(w.backdrop(tk).Alpha(0.55))
-	default:
-		root = root.Background(ui.Transparent)
 	}
 
 	target := float32(0)
@@ -70,22 +61,11 @@ func (w *workspace) view(c *ui.Context) {
 		if w.settings.PaneStyle == paneComfortable {
 			inset = canvasInset
 		}
-		// Over the window's material the canvas is bare too: the sidebar
-		// and the canvas share that one glass, so the pane cards read as
-		// wrapped by it, as Rex wraps them. Elsewhere both take the
-		// backdrop, as before.
-		canvas := ui.Column(c).Fill().Padding(inset, inset, inset, 0)
-		// Comfortable panes are cards on the glass. Compact panes are the
-		// canvas itself and their terminals draw no background of their own,
-		// so the canvas carries the card's tint there, and both styles sit on
-		// the same surface. Over the window's glass the tint is what the
-		// desktop reads through; the glass itself stays one layer, the
-		// window's.
-		if !liquid(c) {
-			canvas = canvas.Background(w.backdrop(tk))
-		} else if w.settings.PaneStyle != paneComfortable {
-			canvas = canvas.Background(cardTint(tk))
-		}
+		// The canvas is the theme's own surface, not the window's material:
+		// the material belongs to the sidebar, so the terminal text sits on
+		// the colour its theme was written for.
+		canvas := ui.Column(c).Fill().Padding(inset, inset, inset, 0).
+			Background(w.backdrop(tk))
 		canvas.Children(func() {
 			w.canvas(c, tk)
 		})
@@ -206,24 +186,14 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 	outer.Children(func() {
 		col := ui.Column(c).Fill()
 		// An empty session is a pane card like the ones that hold terminals:
-		// over the window's glass it takes the card's tint and hairline, so
-		// the desktop colours it the same way it colours a live pane.
-		glassCard := liquid(c) && w.settings.PaneStyle == paneComfortable
+		// the theme's own surface, a hairline, and the card's shadow.
 		if w.settings.PaneStyle == paneComfortable {
-			col = col.Radius(windowRadius).Clip()
-			if glassCard {
-				col = col.Border(1, rimTint(tk)).Background(cardTint(tk))
-			} else {
-				col = col.Border(1, tk.Border).Background(tk.Background)
-			}
-			col = col.Shadow(0, 1, 20, 0, paneShadow(tk))
-		}
-		headerBg := tk.Background
-		if glassCard {
-			headerBg = ui.Transparent
+			col = col.Radius(windowRadius).Clip().
+				Border(1, tk.Border).Background(tk.Background).
+				Shadow(0, 1, 20, 0, paneShadow(tk))
 		}
 		col.Children(func() {
-			ui.Row(c).Height(headerHeight).Background(headerBg).DragWindow()
+			ui.Row(c).Height(headerHeight).Background(tk.Background).DragWindow()
 			ui.Column(c).Fill().Center().Children(func() {
 				ui.Text(c, locales.NoProject()).FontSize(13).TextColor(tk.MutedForeground)
 			})
@@ -240,10 +210,11 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 	}
 	bar := c.TitleBar()
 	// Over the window's material the sidebar paints no background of its
-	// own, so the glass is what its rows, search field and labels sit on.
-	// Collapsed, it takes no width and the canvas covers the glass.
+	// own, so the material is what its rows, search field and labels sit on.
+	// A theme paints it instead, and so does a window without a material.
+	// Collapsed, it takes no width and the canvas covers the material.
 	side := ui.Column(c).Width(width).FillHeight().Clip()
-	if !liquid(c) {
+	if !liquid(c) || chromeTheme {
 		side = side.Background(w.backdrop(tk))
 	}
 	side.Children(func() {
@@ -753,31 +724,16 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		}
 		col = col.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
 		if card {
-			col = col.Radius(windowRadius).Clip()
-			if liquid(c) {
-				// The card is a wash on the window's glass, not another glass
-				// view: a second frosted layer would sample the frozen desktop
-				// and settle into a flat grey. The tint seats the terminal and
-				// the hairline is the rim the glass itself would have lit.
-				col = col.Border(1, rimTint(tk)).Background(cardTint(tk))
-			} else {
-				col = col.Border(1, tk.Border).Background(tk.Background)
-			}
-			col = col.Shadow(0, 1, 20, 0, paneShadow(tk))
+			col = col.Radius(windowRadius).Clip().
+				Border(1, tk.Border).Background(tk.Background).
+				Shadow(0, 1, 20, 0, paneShadow(tk))
 		}
 		dragging := false
 		blend := ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut}
-		// The header is part of the card's glass; only a lifted pane fills
-		// it, so the slot it leaves reads as the canvas.
 		// The header is the card's own surface, so it reads as the same
-		// colour as the terminal under it.
-		// Over the window's material the pane draws no fill of its own: a
-		// comfortable card carries the glass, and a compact pane sits on the
-		// canvas's glass, whose header must not paint over it.
+		// colour as the terminal under it; a lifted pane fills it with the
+		// canvas, so the slot it leaves reads as empty.
 		panelBg := tk.Background
-		if liquid(c) {
-			panelBg = ui.Transparent
-		}
 		col.Children(func() {
 			left := float32(10)
 			if underChrome {
@@ -1021,13 +977,9 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				})
 			})
 			// A raised pane takes the canvas colour, so the slot reads as
-			// empty behind the chip the pointer carries; over the window's
-			// material that colour is none at all.
+			// empty behind the chip the pointer carries.
 			if dragging {
 				panelBg = w.backdrop(tk)
-				if liquid(c) {
-					panelBg = ui.Transparent
-				}
 			}
 			header.Background(header.AnimateColor("paneLiftBg", panelBg, blend))
 

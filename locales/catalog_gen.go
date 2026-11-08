@@ -674,11 +674,11 @@ func (msgs Messages) SettingsLiquidGlass() string {
 	return Catalog.Format(msgs.locale, "settingsLiquidGlass", nil)
 }
 
-// SettingsLiquidGlassDetail says "Draw the window, the sidebar and the panes in macOS 26's Liquid Glass. Off, the window keeps the flat look."
+// SettingsLiquidGlassDetail says "Let the sidebar show the desktop through the system's material. Off, the sidebar matches the canvas and wraps the pan…"
 // in the language the app shows.
 func SettingsLiquidGlassDetail() string { return In(i18n.Locale()).SettingsLiquidGlassDetail() }
 
-// SettingsLiquidGlassDetail says "Draw the window, the sidebar and the panes in macOS 26's Liquid Glass. Off, the window keeps the flat look."
+// SettingsLiquidGlassDetail says "Let the sidebar show the desktop through the system's material. Off, the sidebar matches the canvas and wraps the pan…"
 // in the language of msgs.
 func (msgs Messages) SettingsLiquidGlassDetail() string {
 	return Catalog.Format(msgs.locale, "settingsLiquidGlassDetail", nil)
