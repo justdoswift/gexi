@@ -300,7 +300,7 @@ func newWorkspace() *workspace {
 		remoteConns:      map[string]*remoteConn{},
 		worktreeRestores: map[string][]string{},
 	}
-	w.relayProvisioned = loadRelayProvision(&w.settings)
+	w.relayProvisioned = builtinRelayEnabled()
 	return w
 }
 

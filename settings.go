@@ -80,43 +80,6 @@ func defaultSettings() appSettings {
 
 func settingsPath() string { return filepath.Join(supportDir(), "settings.json") }
 
-// relayProvisionPath is where a relay can be set up once, outside the app,
-// so the Mac needs no relay settings in its UI: the code is the only thing
-// anyone types.
-func relayProvisionPath() string { return filepath.Join(supportDir(), "relay.json") }
-
-// relayProvision is what that file holds.
-type relayProvision struct {
-	Address     string `json:"address"`
-	Tunnel      string `json:"tunnel"`
-	Token       string `json:"token"`
-	Fingerprint string `json:"fingerprint"`
-	URL         string `json:"url"`
-}
-
-// loadRelayProvision reads the file and folds it into the settings. It
-// reports whether the Mac has a relay set up for it.
-func loadRelayProvision(s *appSettings) bool {
-	data, err := os.ReadFile(relayProvisionPath())
-	if err != nil {
-		return false
-	}
-	var p relayProvision
-	if json.Unmarshal(data, &p) != nil {
-		return false
-	}
-	if p.Address == "" || p.Token == "" || p.Fingerprint == "" {
-		return false
-	}
-	s.RelayAddress = p.Address
-	s.RelayTunnel = p.Tunnel
-	s.RelayToken = p.Token
-	s.RelayFingerprint = p.Fingerprint
-	s.RelayURL = p.URL
-	s.RelayEnabled = true
-	return true
-}
-
 func loadSettings() appSettings {
 	s := defaultSettings()
 	if data, err := os.ReadFile(settingsPath()); err == nil {
@@ -137,10 +100,9 @@ func loadSettings() appSettings {
 	}
 	// Remote access needs the code clients pair with; a settings file from
 	// before the feature, or a hand-edited one, gets a fresh code.
-	if loadRelayProvision(&s) {
-		// A provisioned relay is already on; nothing in the UI turns it on.
-		s.RelayEnabled = true
-	}
+	// A build with a relay compiled in is already on: no settings page
+	// turns it on, and no file on the Mac is needed for it.
+	applyBuiltinRelay(&s)
 	if (s.RemoteEnabled || s.RelayEnabled) && len(s.RemoteCode) != 6 {
 		s.RemoteCode = newPairingCode()
 		s.RemoteCodeAt = time.Now().Format(time.RFC3339)
