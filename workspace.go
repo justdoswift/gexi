@@ -1220,14 +1220,13 @@ func (w *workspace) flashAction(message, label string, action func()) {
 }
 
 // onMain runs fn on the UI thread and waits, so the control server can read
-// and change the model without touching it off-thread.
+// and change the model without touching it off-thread. The UI thread's own
+// callbacks call it too, as starting the relay does: RunOnMain runs fn on the
+// spot there instead of posting it to a queue only that thread can drain,
+// which would wait forever. The redraw is posted either way.
 func (w *workspace) onMain(fn func()) {
-	done := make(chan struct{})
-	w.win.Update(func() {
-		fn()
-		close(done)
-	})
-	<-done
+	mygo.RunOnMain(fn)
+	w.win.Update(func() {})
 }
 
 func loginShell() string {
