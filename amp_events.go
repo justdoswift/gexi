@@ -90,10 +90,27 @@ export default function (amp: PluginAPI) {
 			lastState = state;
 			if (state === "awaiting-approval") {
 				report("needs-input", "", event.thread.id);
-			} else if (state === "running" && previous === "awaiting-approval") {
-				report("turn.start", "", event.thread.id);
+			} else if (state === "running" && previous !== "running") {
+				report("turn.resume", "", event.thread.id);
 			}
 		});
+		// A pane can open or switch to a thread whose turn is already
+		// running. agent.start fired before this plugin saw the session, so
+		// seed the pane from the thread's current state; otherwise the
+		// sidebar loader would stop while the terminal is still thinking.
+		try {
+			const initial = await ctx.thread.state.get();
+			if (event.thread.id !== current) return;
+			lastState = initial;
+			if (initial === "running") {
+				report("turn.resume", "", event.thread.id);
+			} else if (initial === "awaiting-approval") {
+				report("needs-input", "", event.thread.id);
+			}
+		} catch {
+			// A thread that has gone away has no state to seed; the event
+			// stream above still reports its next transition.
+		}
 	});
 
 	amp.on("agent.start", async (event) => {

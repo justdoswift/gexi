@@ -129,6 +129,8 @@ func TestAmpPluginInstalled(t *testing.T) {
 		`if (!process.env.GEXI_PANE) return`,
 		`amp.on("session.start"`, `report("session.start", "", event.thread.id)`,
 		`ctx.thread.state.subscribe`, `report("needs-input", "", event.thread.id)`,
+		`ctx.thread.state.get`, `if (initial === "running")`, `previous !== "running"`,
+		`report("turn.resume", "", event.thread.id)`,
 		`amp.on("agent.start"`, `await report("turn.start", event.message, event.thread.id)`,
 		`if (current && event.thread.id !== current) return`,
 		`return { message: { content: context } }`,

@@ -29,6 +29,29 @@ func TestCleanTitleDropsAgentSpinner(t *testing.T) {
 	}
 }
 
+// TestTitleShowsWork: only the animated frames count as work. The star is
+// where Claude Code and Amp rest, so it must not keep the sidebar loader on.
+func TestTitleShowsWork(t *testing.T) {
+	cases := []struct {
+		title string
+		want  bool
+	}{
+		{"⠍ Running", true},
+		{"⣩", true},
+		{"  ◐ Working", true},
+		{"✳ Idle", false},
+		{"✻ amp 终端", false},
+		{"✦ opencode", false},
+		{"Claude Code", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := titleShowsWork(c.title); got != c.want {
+			t.Errorf("titleShowsWork(%q) = %v, want %v", c.title, got, c.want)
+		}
+	}
+}
+
 // TestRemoteTitlesDropTheActivityMark: a pane or session on another Mac wears
 // the host's title, whose leading mark would sit beside the agent's logo as a
 // second icon. Both the header and the sidebar call cleanTitle for it.

@@ -462,6 +462,25 @@ func isTitleSpinner(r rune) bool {
 	return strings.ContainsRune(titleSpinners, r) || (r >= 0x2800 && r <= 0x28FF)
 }
 
+// titleShowsWork reports whether a terminal title opens with the animated
+// part of an agent's spinner. A star is where Claude Code and Amp rest
+// between turns, so it is not work; the frames they cycle through are.
+// Hooks are the primary source of the sidebar state, but a pane opened
+// mid-turn can miss agent.start; its title still moves.
+func titleShowsWork(title string) bool {
+	t := strings.TrimSpace(title)
+	if t == "" {
+		return false
+	}
+	r, _ := utf8.DecodeRuneInString(t)
+	return strings.ContainsRune("◐◑◒◓", r) || (r >= 0x2800 && r <= 0x28FF)
+}
+
+// titleShowsWork is the pane's current title, when it has a terminal.
+func (p *pane) titleShowsWork() bool {
+	return p != nil && p.term != nil && titleShowsWork(p.term.Title())
+}
+
 // cleanTitle trims a terminal title and drops the agent's leading activity
 // marks, leaving the words themselves.
 func cleanTitle(title string) string {

@@ -560,10 +560,10 @@ func (w *workspace) projectVisible(pr *project) bool {
 	return false
 }
 
-// sessionActivityState folds the panes' hook events into one sidebar indicator.
-// A running subagent counts as work even when its pane's turn has ended: a
-// background one is exactly the case where the prompt has returned but the
-// session is still busy.
+// sessionActivityState folds the panes' hook events and terminal title marks
+// into one sidebar indicator. A running subagent counts as work even when its
+// pane's turn has ended: a background one is exactly the case where the prompt
+// has returned but the session is still busy.
 func sessionActivityState(s *session) string {
 	working := false
 	if s.Root == nil {
@@ -579,6 +579,12 @@ func sessionActivityState(s *session) string {
 			}
 		}
 		if p.subagentCount() > 0 {
+			working = true
+		}
+		// A pane opened or switched mid-turn can miss the agent.start hook.
+		// Its title still carries the animated spinner while it works, so
+		// the session loader does not stop under a running terminal.
+		if p.titleShowsWork() {
 			working = true
 		}
 	}

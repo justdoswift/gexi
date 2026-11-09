@@ -39,9 +39,12 @@ const (
 var eventState = map[string]string{
 	"session.start": activityIdle,
 	"turn.start":    activityWorking,
-	"turn.end":      activityIdle,
-	"needs-input":   activityWaiting,
-	"session.end":   activityIdle,
+	// turn.resume reports a thread found already running, without a new
+	// prompt to attach the one-time worktree note to.
+	"turn.resume": activityWorking,
+	"turn.end":    activityIdle,
+	"needs-input": activityWaiting,
+	"session.end": activityIdle,
 }
 
 // eventNotifies is where a desktop notification earns its noise. Turn ends
@@ -142,6 +145,10 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 			result["context"] = ctx
 		}
 		// New work takes the stage from the last completion's light.
+		p.stopHalo()
+	case "turn.resume":
+		// A thread found mid-turn has work running, but no prompt for the
+		// carried-changes note.
 		p.stopHalo()
 	case "turn.end":
 		if p.Worktree != nil {
