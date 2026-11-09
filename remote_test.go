@@ -756,3 +756,13 @@ func TestPairingLimiterStopsSpreadGuesses(t *testing.T) {
 		t.Fatal("a fresh address was still allowed after the global cap")
 	}
 }
+
+// TestRemoteEnabledWithRelay: a built-in relay serves the same pages, so
+// pairing must not answer "remote access is off" on a Mac whose LAN switch
+// is off.
+func TestRemoteEnabledWithRelay(t *testing.T) {
+	w := &workspace{settings: appSettings{RelayEnabled: true}}
+	if !w.remoteEnabled() {
+		t.Fatal("a Mac with a relay reported remote access off")
+	}
+}

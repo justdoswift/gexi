@@ -538,7 +538,9 @@ func (w *workspace) remoteOnMain(fn func()) {
 
 func (w *workspace) remoteEnabled() bool {
 	var on bool
-	w.remoteOnMain(func() { on = w.settings.RemoteEnabled })
+	// A relay serves the same pages: a Mac reachable only through one is
+	// still on, even with the LAN switch off (or hidden).
+	w.remoteOnMain(func() { on = w.settings.RemoteEnabled || w.settings.RelayEnabled })
 	return on
 }
 
