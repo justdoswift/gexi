@@ -37,6 +37,9 @@ type remoteClient struct {
 	Name    string
 	Address string
 	Token   string
+	// Secure dials the host over TLS: a self-hosted relay or any other
+	// address the user reached with https://.
+	Secure bool
 }
 
 type remoteSession struct {
@@ -176,6 +179,14 @@ type remoteStreamView struct {
 	ViewH    float32 `json:"viewH"`
 }
 
+// scheme is the one this client dials with.
+func (c remoteClient) scheme() string {
+	if c.Secure {
+		return "https://"
+	}
+	return "http://"
+}
+
 func (c remoteClient) call(method string, params map[string]any, out any) error {
 	if params == nil {
 		params = map[string]any{}
@@ -188,7 +199,7 @@ func (c remoteClient) call(method string, params map[string]any, out any) error 
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPost, "http://"+c.Address+"/api/rpc", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, c.scheme()+c.Address+"/api/rpc", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -227,7 +238,7 @@ func (c remoteClient) call(method string, params map[string]any, out any) error 
 }
 
 // pairRemoteHost trades the code for a token and keeps the host's own name.
-func pairRemoteHost(address, code, name string) (remoteHost, error) {
+func pairRemoteHost(address string, secure bool, code, name string) (remoteHost, error) {
 	body, err := json.Marshal(map[string]string{
 		"code":   code,
 		"device": "gexi on " + deviceName(),
@@ -235,7 +246,11 @@ func pairRemoteHost(address, code, name string) (remoteHost, error) {
 	if err != nil {
 		return remoteHost{}, err
 	}
-	resp, err := remoteHTTP.Post("http://"+address+"/api/pair", "application/json", bytes.NewReader(body))
+	scheme := "http://"
+	if secure {
+		scheme = "https://"
+	}
+	resp, err := remoteHTTP.Post(scheme+address+"/api/pair", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return remoteHost{}, err
 	}
@@ -263,27 +278,56 @@ func pairRemoteHost(address, code, name string) (remoteHost, error) {
 	if name == "" {
 		name = address
 	}
-	return remoteHost{Name: name, Address: address, Token: out.Token}, nil
+	return remoteHost{Name: name, Address: address, Token: out.Token, Secure: secure}, nil
 }
 
 // normalizeRemoteAddress takes what the user typed and makes an address the
 // client can dial: host:port, with the remote port when they left it out.
-func normalizeRemoteAddress(raw string) string {
+// The scheme decides both TLS and the port a bare host gets, so an https://
+// relay address never falls back to the cleartext port.
+func normalizeRemoteAddress(raw string) (string, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return ""
+		return "", false
 	}
-	if !strings.Contains(raw, "://") {
-		raw = "http://" + raw
+	secure := false
+	if strings.Contains(raw, "://") {
+		u, err := url.Parse(raw)
+		if err != nil || u.Hostname() == "" {
+			return "", false
+		}
+		secure = strings.EqualFold(u.Scheme, "https")
+		if port := u.Port(); port != "" {
+			return net.JoinHostPort(u.Hostname(), port), secure
+		}
+		return net.JoinHostPort(u.Hostname(), defaultPortFor(secure)), secure
 	}
-	u, err := url.Parse(raw)
-	if err != nil || u.Hostname() == "" {
-		return ""
+	host := raw
+	if i := strings.IndexByte(host, '/'); i >= 0 {
+		host = host[:i]
 	}
-	if u.Port() != "" {
-		return net.JoinHostPort(u.Hostname(), u.Port())
+	if h, port, err := net.SplitHostPort(host); err == nil {
+		return net.JoinHostPort(h, port), false
 	}
-	return net.JoinHostPort(u.Hostname(), strconv.Itoa(remotePort))
+	return net.JoinHostPort(host, defaultPortFor(false)), false
+}
+
+// defaultPortFor is the port a typed address without one gets: 443 over TLS,
+// and gexi's own port otherwise.
+func defaultPortFor(secure bool) string {
+	if secure {
+		return "443"
+	}
+	return strconv.Itoa(remotePort)
+}
+
+// remoteAddressLabel is how a saved host's address reads in a menu or a list:
+// with the scheme when it is the one that decides TLS.
+func remoteAddressLabel(host remoteHost) string {
+	if host.Secure {
+		return "https://" + host.Address
+	}
+	return host.Address
 }
 
 // MARK: the add-host dialog
@@ -354,7 +398,7 @@ func (w *workspace) submitHost() {
 	if w.hostBusy {
 		return
 	}
-	address := normalizeRemoteAddress(w.hostAddr)
+	address, secure := normalizeRemoteAddress(w.hostAddr)
 	code := strings.TrimSpace(w.hostCode)
 	name := strings.TrimSpace(w.hostName)
 	if address == "" {
@@ -371,7 +415,7 @@ func (w *workspace) submitHost() {
 	w.hostErr = ""
 	w.invalidate()
 	go func() {
-		host, err := pairRemoteHost(address, code, name)
+		host, err := pairRemoteHost(address, secure, code, name)
 		w.onMain(func() {
 			w.hostBusy = false
 			if err != nil {
@@ -396,7 +440,7 @@ func (w *workspace) remoteMenu(m *ui.Menu) {
 	}
 	for _, entry := range w.settings.RemoteHosts {
 		host := entry
-		if m.Item(host.Name + "  " + host.Address).Chosen() {
+		if m.Item(host.Name + "  " + remoteAddressLabel(host)).Chosen() {
 			w.openRemoteHost(host)
 		}
 	}
@@ -577,7 +621,7 @@ func (w *workspace) remoteConn(host remoteHost) *remoteConn {
 	rc := &remoteConn{
 		ws:      w,
 		host:    host,
-		client:  remoteClient{Name: host.Name, Address: host.Address, Token: host.Token},
+		client:  remoteClient{Name: host.Name, Address: host.Address, Token: host.Token, Secure: host.Secure},
 		loading: true,
 		stop:    make(chan struct{}),
 	}

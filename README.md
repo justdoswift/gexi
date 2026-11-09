@@ -16,8 +16,8 @@ into them, and read their screens.
 > shortcuts, screen capture, persistence, agent session resume, a files drawer
 > with changes and diffs, LAN remote for other Macs and phones, and the
 > control CLI work today.
-> Settings has a page each for general options, notifications, shortcuts,
-> worktrees, and storage.
+> Settings has a page each for general options, appearance, notifications,
+> remote access, permissions, keyboard, worktrees, and storage.
 
 ## Build
 
@@ -120,12 +120,19 @@ revoked.
 
 A paired device sees the projects and sessions, reads a session's terminal,
 and types into its panes, with the keys a phone cannot type (Esc, Ctrl-C, Tab,
-the arrows). It cannot create, split, or close anything. Both ends must be on
-the same network — there is no relay, no SSH, and no public port — and the
-Mac being reached has to stay awake with gexi running. macOS asks once whether
-to allow incoming connections; allow it, or the address will not answer. The
-connection is plain HTTP guarded by the token pairing handed out; it is not
-meant for networks you do not trust.
+the arrows). It cannot create, split, or close anything. On the local network
+both ends must be on the same network and the Mac being reached has to stay
+awake with gexi running; macOS asks once whether to allow incoming
+connections; allow it, or the address will not answer. The connection is plain
+HTTP guarded by the token pairing handed out; it is not meant for networks you
+do not trust.
+
+**Settings → Remote → Self-hosted relay** reaches the same Mac from anywhere
+through a relay you run yourself (`cmd/gexi-relay`, also in `deploy/relay`).
+The Mac dials out to the relay over TLS and pins its certificate, so no public
+address or router rule is needed, and clients no longer share a network with
+it. The relay only forwards to the gexi that claimed its tunnel; pairing codes
+and device tokens still live on the Mac. See `deploy/relay/README.md`.
 
 ### Worktrees and pull requests
 

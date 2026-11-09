@@ -264,6 +264,25 @@ type workspace struct {
 	hostCode       string
 	hostErr        string
 	hostBusy       bool
+
+	// Self-hosted relay: the link this Mac keeps to a server the user runs,
+	// its status for the settings page, and the dialog that edits it.
+	relay       *relayLink
+	relayState  string
+	relayDetail string
+	relayOpen   bool
+	relayErr    string
+	relayAddr   string
+	relayTunnel string
+	relayURL    string
+	relayToken  string
+	relayPrint  string
+
+	// Permissions: the rows Settings › Permissions draws, whether they have
+	// been checked this run, and whether a check is in flight.
+	permRows    []*permRow
+	permChecked bool
+	permWorking bool
 }
 
 func newWorkspace() *workspace {
