@@ -152,6 +152,10 @@ type workspace struct {
 	// Settings › Worktrees; worktreesScanned says the cache is current.
 	worktreesScan    []worktreeScanEntry
 	worktreesScanned bool
+	// worktreeRestores remembers how to reopen a checkout whose pane was
+	// closed, keyed by the checkout path. It keeps the agent conversation
+	// the pane had instead of opening a bare shell from the Worktrees page.
+	worktreeRestores map[string][]string
 
 	// The files drawer: the right-hand column of changes and files.
 	drawer drawerState
@@ -188,6 +192,22 @@ type workspace struct {
 	commitHint   string
 	commitErr    string
 
+	// worktreeCreateOpen is the W prompt: a branch name and whether the
+	// project's uncommitted changes move with the pane. The preflight reads
+	// the changes and how many panes share the project before it opens.
+	worktreeCreateOpen   bool
+	worktreeCreateTarget *pane
+	worktreeCreateName   string
+	worktreeCreateCarry  bool
+	worktreeCreateFiles  int
+	worktreeCreateHint   string
+
+	// renameOpen is the branch rename prompt for a checkout gexi made.
+	renameOpen   bool
+	renameTarget *pane
+	renameText   string
+	renameErr    string
+
 	// Remote: the LAN server this Mac runs while it is reachable, the error
 	// that kept it from starting, the add-host dialog, and the Macs this one
 	// reaches. Each paired host is a project in the sidebar; its sessions
@@ -207,13 +227,14 @@ type workspace struct {
 
 func newWorkspace() *workspace {
 	w := &workspace{
-		InstanceID:   newID(),
-		settings:     loadSettings(),
-		collapsed:    map[string]bool{},
-		gitInfo:      map[string]gitSummary{},
-		gitBusy:      map[string]bool{},
-		gitGen:       map[string]int{},
-		remoteConns:  map[string]*remoteConn{},
+		InstanceID:       newID(),
+		settings:         loadSettings(),
+		collapsed:        map[string]bool{},
+		gitInfo:          map[string]gitSummary{},
+		gitBusy:          map[string]bool{},
+		gitGen:           map[string]int{},
+		remoteConns:      map[string]*remoteConn{},
+		worktreeRestores: map[string][]string{},
 	}
 	return w
 }
@@ -423,7 +444,8 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 		p.remote.conn.splitPane(p.remote.id, ax)
 		return nil, nil
 	}
-	if dir == "" {
+	auto := dir == ""
+	if auto {
 		dir = w.splitDir(p)
 	}
 	np, err := newPane(w, "", command, dir, "")
@@ -441,6 +463,12 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 	w.syncStageMirrors()
 	w.FocusedPane = np.ID
 	w.focusReq = np.ID
+	// A gexi worktree belongs to one pane. A split beside it starts in the
+	// project folder so two panes never share its branch and index; say so,
+	// or the new shell looks like it landed in the wrong place.
+	if auto && p.Worktree != nil && !p.Worktree.Detected && dir != p.dir() {
+		w.flash(locales.WorktreeSplitProject())
+	}
 	w.invalidate()
 	w.scheduleSave()
 	return np, nil
@@ -523,7 +551,7 @@ func (w *workspace) closeSessionNow(s *session) {
 				if w.paneByID(p.ID) != nil {
 					w.closePane(p)
 				}
-				w.keepClosedWorktree(p.Worktree)
+				w.keepClosedWorktree(p)
 			}
 			// closePane fixes focus, but a session that was selected and is
 			// now gone still needs the selection moved.
@@ -558,7 +586,7 @@ func (w *workspace) requestClose(p *pane) {
 			if w.paneByID(p.ID) != nil {
 				w.closePane(p)
 			}
-			w.keepClosedWorktree(p.Worktree)
+			w.keepClosedWorktree(p)
 		})
 	})
 }
@@ -787,7 +815,7 @@ func (w *workspace) closeProjectNow(pr *project) {
 				if w.paneByID(p.ID) != nil {
 					w.closePane(p)
 				}
-				w.keepClosedWorktree(p.Worktree)
+				w.keepClosedWorktree(p)
 			}
 			w.removeProject(pr)
 			w.invalidate()
@@ -1028,6 +1056,7 @@ func (w *workspace) paneExited(p *pane) {
 			p.close()
 			w.worktreesScanned = false
 			w.flash(locales.PaneBackgroundExited(title))
+			w.scheduleSave()
 			w.invalidate()
 			return
 		}
@@ -1036,10 +1065,11 @@ func (w *workspace) paneExited(p *pane) {
 		if w.quitting || w.paneByID(p.ID) != p {
 			return
 		}
-		// The worktree button stops the agent before it moves the pane, so
-		// the program can exit mid-flow. The slot stays until the flow
-		// replaces the pane or brings it back in the project folder.
-		if p.worktreeBusy == worktreeBusyCreate {
+		// The worktree button stops the agent before it moves or leaves the
+		// checkout, so the program can exit mid-flow. The slot stays until
+		// the flow replaces the pane or brings it back in the project folder.
+		if p.worktreeBusy == worktreeBusyCreate || p.worktreeBusy == worktreeBusyLeave ||
+			p.Worktree != nil && p.Worktree.busy == worktreeBusyArchive {
 			p.exited = true
 			w.invalidate()
 			return

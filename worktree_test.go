@@ -136,9 +136,6 @@ func TestCreateWorktree(t *testing.T) {
 	if wt.Branch == "" || !strings.HasPrefix(filepath.Dir(wt.Path), worktreesRoot()) {
 		t.Fatalf("worktree outside GEXI_HOME: %+v", wt)
 	}
-	if !wt.Naming {
-		t.Fatal("a new worktree starts out naming its branch")
-	}
 	if info, err := os.Stat(wt.Path); err != nil || !info.IsDir() {
 		t.Fatalf("worktree path missing: %v", err)
 	}
@@ -148,6 +145,191 @@ func TestCreateWorktree(t *testing.T) {
 	// A new branch must not push to the base it started from.
 	if _, err := exec.Command("git", "-C", wt.Path, "rev-parse", "--abbrev-ref", "@{upstream}").CombinedOutput(); err == nil {
 		t.Fatal("worktree branch tracks an upstream")
+	}
+}
+
+func TestSanitizeWorktreeName(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"Fix Login Redirect", "fix-login-redirect"},
+		{"  feat/foo_bar  ", "feat-foo-bar"},
+		{"修复登录", "修复登录"},
+		{"!!!", ""},
+		{"a--b", "a-b"},
+	}
+	for _, c := range cases {
+		if got := sanitizeWorktreeName(c.in); got != c.want {
+			t.Errorf("sanitizeWorktreeName(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestCreateWorktreeNamed(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	wt, err := createWorktreeNamed(root, "Fix Login Redirect")
+	if err != nil || wt == nil {
+		t.Fatalf("create named worktree: %v %+v", err, wt)
+	}
+	if wt.Branch != "fix-login-redirect" || filepath.Base(wt.Path) != wt.Branch {
+		t.Fatalf("branch %q path %q, want fix-login-redirect", wt.Branch, wt.Path)
+	}
+	again, err := createWorktreeNamed(root, "fix-login-redirect")
+	if err != nil || again == nil {
+		t.Fatalf("create second worktree: %v %+v", err, again)
+	}
+	if again.Branch != "fix-login-redirect-2" {
+		t.Fatalf("second branch = %q, want fix-login-redirect-2", again.Branch)
+	}
+}
+
+func TestWorktreeHasIgnored(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".env\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitTest(t, root, "add", ".gitignore")
+	runGitTest(t, root, "commit", "-m", "ignore env")
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %v %+v", err, wt)
+	}
+	if err := os.WriteFile(filepath.Join(wt.Path, ".env"), []byte("SECRET=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ignored, err := worktreeHasIgnored(wt)
+	if err != nil || !ignored {
+		t.Fatalf("ignored = %v, %v; want true", ignored, err)
+	}
+	if err := os.Remove(filepath.Join(wt.Path, ".env")); err != nil {
+		t.Fatal(err)
+	}
+	if ignored, err := worktreeHasIgnored(wt); err != nil || ignored {
+		t.Fatalf("ignored after removal = %v, %v; want false", ignored, err)
+	}
+}
+
+func TestAgentResumeCommand(t *testing.T) {
+	amp := &pane{agent: &agentDetection{Kind: agentAmp, SessionID: "T-123"}}
+	if got, want := strings.Join(agentResumeCommand(amp), "\x00"), strings.Join(agentAmp.resume("T-123"), "\x00"); got != want {
+		t.Fatalf("amp resume = %q, want %q", got, want)
+	}
+	claude := &pane{agent: &agentDetection{Kind: agentClaude, SessionID: "abc"}}
+	if got := agentResumeCommand(claude); got != nil {
+		t.Fatalf("claude resume = %v, want nil: its sessions are per folder", got)
+	}
+	if got := agentResumeCommand(&pane{}); got != nil {
+		t.Fatalf("plain pane resume = %v, want nil", got)
+	}
+}
+
+func TestStagedSummary(t *testing.T) {
+	root := initRepoTest(t)
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitTest(t, root, "add", "a.txt")
+	got := stagedSummary(root)
+	if !strings.Contains(got, "1 file changed") {
+		t.Fatalf("staged summary = %q, want one file", got)
+	}
+}
+
+func TestProjectPaneCount(t *testing.T) {
+	a := &pane{ID: "a", initialDir: "/repo"}
+	b := &pane{ID: "b", initialDir: "/repo/sub"}
+	c := &pane{ID: "c", initialDir: "/elsewhere/wt"}
+	root := &splitNode{
+		axis:  axisHorizontal,
+		ratio: 50,
+		first: leaf(a),
+		second: &splitNode{
+			axis: axisVertical, ratio: 50, first: leaf(b), second: leaf(c),
+		},
+	}
+	pr := &project{ID: "pr", Dir: "/repo", Sessions: []*session{{ID: "s", Root: root}}}
+	w := &workspace{Projects: []*project{pr}}
+	if got := w.projectPaneCount(pr); got != 2 {
+		t.Fatalf("project panes = %d, want 2", got)
+	}
+	w.detached = []*pane{{ID: "d", initialDir: "/repo"}}
+	if got := w.projectPaneCount(pr); got != 3 {
+		t.Fatalf("project panes with background = %d, want 3", got)
+	}
+}
+
+// Leaving a checkout deletes its folder, so a pane kept running in the
+// background must be found along with the panes on stage.
+func TestPanesInWorktreeIncludesBackground(t *testing.T) {
+	wt := &paneWorktree{Path: "/repo/wt"}
+	onStage := &pane{ID: "a", initialDir: "/repo/wt/sub"}
+	elsewhere := &pane{ID: "b", initialDir: "/repo"}
+	background := &pane{ID: "c", initialDir: "/repo/wt"}
+	root := &splitNode{axis: axisHorizontal, ratio: 50, first: leaf(onStage), second: leaf(elsewhere)}
+	pr := &project{ID: "pr", Sessions: []*session{{ID: "s", Root: root}}}
+	w := &workspace{Projects: []*project{pr}, detached: []*pane{background}}
+
+	got := w.panesInWorktree(wt)
+	if len(got) != 2 || got[0].ID != "a" || got[1].ID != "c" {
+		t.Fatalf("panes in worktree = %+v, want a and c", got)
+	}
+}
+
+// A workspace whose last project is closed still has a Worktrees page: the
+// archived branches and the restore commands must survive the relaunch even
+// when no project or background pane remains.
+func TestLoadStateKeepsWorktreeData(t *testing.T) {
+	cases := []struct{ name, body string }{
+		{"archived", `{"version":2,"archivedWorktrees":[{"id":"a","path":"/repo/wt","branch":"kept","kept":true}]}`},
+		{"restore", `{"version":2,"worktreeRestores":{"/repo/wt":["/bin/zsh","-l"]}}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("GEXI_HOME", t.TempDir())
+			if err := os.MkdirAll(filepath.Dir(statePath()), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(statePath(), []byte(tc.body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			state, ok := loadState()
+			if !ok {
+				t.Fatalf("%s-only state was dropped", tc.name)
+			}
+			if tc.name == "archived" && len(state.ArchivedWorktrees) != 1 {
+				t.Fatalf("archived = %+v", state.ArchivedWorktrees)
+			}
+			if tc.name == "restore" && len(state.WorktreeRestores) != 1 {
+				t.Fatalf("restores = %+v", state.WorktreeRestores)
+			}
+		})
+	}
+}
+
+func TestSavedStateKeepsDetachedPane(t *testing.T) {
+	w := newWorkspace()
+	p := &pane{
+		ID: "p", initialDir: "/repo/wt",
+		command:        []string{"/bin/zsh", "-l"},
+		restoreCommand: []string{"/bin/zsh", "-l"},
+		bgProject:      &project{ID: "pr", Dir: "/repo"},
+	}
+	w.detached = []*pane{p}
+	state := w.savedState()
+	if len(state.Detached) != 1 {
+		t.Fatalf("detached = %+v, want one pane", state.Detached)
+	}
+	got := state.Detached[0]
+	if got.ProjectDir != "/repo" || got.Pane.ID != "p" || got.Pane.WorkingDirectory != "/repo/wt" {
+		t.Fatalf("detached pane = %+v", got)
+	}
+}
+
+func TestRestoreDetachedPaneMissingDir(t *testing.T) {
+	w := newWorkspace()
+	sp := savedDetachedPane{Pane: savedPane{ID: "p", WorkingDirectory: "/does/not/exist"}}
+	if p := sp.restore(w); p != nil {
+		t.Fatalf("restored a pane in a missing folder: %+v", p)
 	}
 }
 
@@ -258,11 +440,11 @@ func TestWorktreeCarriedContextIsOneShot(t *testing.T) {
 	s := &session{ID: "s", Root: leaf(p)}
 	w := &workspace{Projects: []*project{{ID: "pr", Dir: "/tmp", Sessions: []*session{s}}}}
 
-	ctx := w.worktreeNamingContext(p)
-	if !strings.Contains(ctx, "/tmp/project") {
+	ctx := w.worktreeCarriedContext(p)
+	if !strings.Contains(ctx, "/tmp/project") || !strings.Contains(ctx, "moved into this worktree") {
 		t.Fatalf("carried context = %q", ctx)
 	}
-	if again := w.worktreeNamingContext(p); again != "" {
+	if again := w.worktreeCarriedContext(p); again != "" {
 		t.Fatalf("carried context repeated: %q", again)
 	}
 }
@@ -318,27 +500,6 @@ func TestSessionLabelUsesPaneWorktreeBranch(t *testing.T) {
 	s := &session{ID: "s", Root: leaf(p)}
 	if got := sessionLabel(s); got != "fix-login" {
 		t.Fatalf("label = %q, want the branch", got)
-	}
-}
-
-func TestWorktreeNamingContextIsOneShot(t *testing.T) {
-	p := &pane{
-		ID: "p",
-		Worktree: &paneWorktree{
-			Path:   "/tmp/wt",
-			Branch: "juggernaut",
-			Naming: true,
-		},
-	}
-	s := &session{ID: "s", Root: leaf(p)}
-	w := &workspace{Projects: []*project{{ID: "pr", Dir: "/tmp", Sessions: []*session{s}}}}
-
-	ctx := w.worktreeNamingContext(p)
-	if !strings.Contains(ctx, "juggernaut") || !strings.Contains(ctx, "git branch -m") {
-		t.Fatalf("naming context = %q", ctx)
-	}
-	if again := w.worktreeNamingContext(p); again != "" {
-		t.Fatalf("naming context repeated: %q", again)
 	}
 }
 
@@ -412,6 +573,44 @@ func TestRemoveWorktreeKeepingBranch(t *testing.T) {
 		t.Fatal("the branch was deleted")
 	}
 	_ = exec.Command("git", "-C", root, "branch", "-D", wt.Branch).Run()
+}
+
+// TestRemoveWorktreeClearsLeftoverFolder checks the removal finishes when
+// git dropped the checkout's metadata but could not delete the folder: the
+// remains are a plain directory no later scan or git command can see.
+func TestRemoveWorktreeClearsLeftoverFolder(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %v %+v", err, wt)
+	}
+	// Git deletes the worktree's gitdir before the folder, so a read-only
+	// subdirectory leaves exactly this: metadata gone, folder still there.
+	if err := os.RemoveAll(filepath.Join(root, ".git", "worktrees", wt.Branch)); err != nil {
+		t.Fatal(err)
+	}
+	locked := filepath.Join(wt.Path, "locked")
+	if err := os.MkdirAll(locked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(locked, "file"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(locked, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+
+	if err := removeWorktreeKeeping(wt, false); err != nil {
+		t.Fatalf("remove worktree: %v", err)
+	}
+	if _, err := os.Stat(wt.Path); !os.IsNotExist(err) {
+		t.Fatalf("the leftover folder is still there: %v", err)
+	}
+	if out := runGitTest(t, root, "branch", "--list", wt.Branch); out != "" {
+		t.Fatalf("branch %q was not deleted: %q", wt.Branch, out)
+	}
 }
 
 func TestReplacingPaneKeepsSlot(t *testing.T) {
@@ -531,6 +730,19 @@ func TestRestoreArchivedWorktreeKeepsExistingCheckout(t *testing.T) {
 	a := &archivedWorktree{ID: "a", Root: wt.Root, Path: wt.Path, Branch: wt.Branch, Base: wt.Base}
 	if err := restoreWorktree(a); err != nil {
 		t.Fatalf("restore over an existing checkout: %v", err)
+	}
+}
+
+// A merged archive restores with the merged header; a branch kept by Leave
+// is still unmerged, so its restored pane must offer PR instead of Archive.
+func TestWorktreeFromArchiveState(t *testing.T) {
+	merged := worktreeFromArchive(archivedWorktree{Branch: "merged", PR: 4})
+	if merged.State != worktreeMerged || merged.PR != 4 {
+		t.Fatalf("merged state = %q, pr = %d", merged.State, merged.PR)
+	}
+	kept := worktreeFromArchive(archivedWorktree{Branch: "kept", Kept: true})
+	if kept.State != "" {
+		t.Fatalf("kept state = %q, want unmerged", kept.State)
 	}
 }
 

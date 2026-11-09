@@ -591,9 +591,18 @@ func TestKeepClosedWorktreeLeavesCheckout(t *testing.T) {
 		t.Fatal(err)
 	}
 	w := &workspace{}
-	w.keepClosedWorktree(wt)
+	p := &pane{
+		ID:             "p",
+		Worktree:       wt,
+		initialDir:     wt.Path,
+		restoreCommand: []string{"claude", "--resume", "abc"},
+	}
+	w.keepClosedWorktree(p)
 	if !worktreeCheckoutExists(wt) {
 		t.Fatal("closing removed the checkout")
+	}
+	if got := w.worktreeRestores[filepath.Clean(wt.Path)]; len(got) != 3 || got[0] != "claude" {
+		t.Fatalf("restore command = %v, want the pane's agent", got)
 	}
 	runGitTest(t, root, "rev-parse", "--verify", "refs/heads/"+wt.Branch)
 }

@@ -24,6 +24,35 @@ type archivedWorktree struct {
 	PR         int       `json:"pr,omitempty"`
 	URL        string    `json:"url,omitempty"`
 	ArchivedAt time.Time `json:"archivedAt"`
+	// Kept marks a branch left behind by Leave because it held commits that
+	// were never merged. The checkout is gone; the entry keeps the branch
+	// findable in Settings › Worktrees until it is restored or deleted.
+	Kept bool `json:"kept,omitempty"`
+	// Restore is the command that reopens the pane's agent in the restored
+	// checkout, so Restore brings the conversation back rather than a shell.
+	Restore []string `json:"restore,omitempty"`
+}
+
+// keepLeftBranch records a branch a leave kept because it held commits that
+// were never merged. The checkout is gone, so without this entry the branch
+// would wait in git where the Worktrees page cannot show it. Main thread.
+func (w *workspace) keepLeftBranch(wt *paneWorktree, projectDir string) {
+	entry := archivedWorktree{
+		ID:         newID(),
+		ProjectDir: projectDir,
+		Root:       wt.Root,
+		Path:       wt.Path,
+		Branch:     wt.Branch,
+		Base:       wt.Base,
+		PR:         wt.PR,
+		URL:        wt.URL,
+		ArchivedAt: time.Now(),
+		Kept:       true,
+		Restore:    append([]string(nil), wt.Restore...),
+	}
+	w.archived = append([]archivedWorktree{entry}, w.archived...)
+	w.scheduleSave()
+	w.invalidateSettings()
 }
 
 // archiveWorktree records the worktree and removes its checkout, keeping the
@@ -40,8 +69,10 @@ func (w *workspace) archiveWorktree(wt *paneWorktree, projectDir string) {
 		PR:         wt.PR,
 		URL:        wt.URL,
 		ArchivedAt: time.Now(),
+		Restore:    append([]string(nil), wt.Restore...),
 	}
 	w.archived = append([]archivedWorktree{entry}, w.archived...)
+	delete(w.worktreeRestores, filepath.Clean(wt.Path))
 	w.worktreesScanned = false
 	w.scheduleSave()
 	w.invalidateSettings()
@@ -49,12 +80,11 @@ func (w *workspace) archiveWorktree(wt *paneWorktree, projectDir string) {
 		if info, err := os.Stat(wt.Path); err == nil && info.IsDir() {
 			// --force: a merged worktree has nothing worth keeping even if
 			// the user left edits in it.
-			if _, err := worktreeGit(wt.Root, "worktree", "remove", "--force", wt.Path); err != nil {
+			if err := removeWorktreeCheckout(wt); err != nil {
 				w.onMain(func() { w.flash(locales.WorktreeError(err.Error())) })
 				return
 			}
 		}
-		_, _ = worktreeGit(wt.Root, "worktree", "prune")
 	}()
 }
 
@@ -125,7 +155,7 @@ func (w *workspace) openArchivedSession(a archivedWorktree) bool {
 		dir = a.Root
 	}
 	pr := w.projectFor(filepath.Clean(dir))
-	s, err := w.newSession(pr, nil, a.Path)
+	s, err := w.newSession(pr, a.Restore, a.Path)
 	if err != nil {
 		w.flash(locales.WorktreeError(err.Error()))
 		return false
@@ -134,19 +164,30 @@ func (w *workspace) openArchivedSession(a archivedWorktree) bool {
 	if len(ps) == 0 {
 		return false
 	}
-	ps[0].Worktree = &paneWorktree{
+	ps[0].Worktree = worktreeFromArchive(a)
+	if w.win != nil {
+		w.win.Focus()
+	}
+	return true
+}
+
+// worktreeFromArchive rebuilds the header metadata of a restored checkout.
+// An archived merged worktree stays merged; a branch kept by Leave is still
+// unmerged and must offer PR again, not Archive.
+func worktreeFromArchive(a archivedWorktree) *paneWorktree {
+	state := worktreeMerged
+	if a.Kept {
+		state = ""
+	}
+	return &paneWorktree{
 		Root:   a.Root,
 		Path:   a.Path,
 		Branch: a.Branch,
 		Base:   a.Base,
 		PR:     a.PR,
 		URL:    a.URL,
-		State:  worktreeMerged,
+		State:  state,
 	}
-	if w.win != nil {
-		w.win.Focus()
-	}
-	return true
 }
 
 // deleteArchivedWorktree removes an archived entry for good. Git runs off
@@ -159,6 +200,7 @@ func (w *workspace) deleteArchivedWorktree(a archivedWorktree) {
 			if err != nil {
 				w.flash(locales.ArchiveDeleteFailed(a.Branch, err.Error()))
 			} else {
+				delete(w.worktreeRestores, filepath.Clean(a.Path))
 				w.dropArchived(a.ID)
 				w.flash(locales.ArchiveDeleted(a.Branch))
 			}

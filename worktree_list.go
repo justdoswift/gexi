@@ -4,8 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/justdoswift/gexi/locales"
@@ -21,6 +23,10 @@ type worktreeScanEntry struct {
 	Path   string
 	Root   string
 	Branch string
+	// Broken marks a folder whose git metadata is gone: the remains of a
+	// checkout git could not finish deleting. It is still listed, so a
+	// leftover can be found and removed instead of sitting invisible.
+	Broken bool
 }
 
 // scanWorktrees lists every checkout gexi made under its worktree folder. The
@@ -48,6 +54,13 @@ func scanWorktrees() []worktreeScanEntry {
 			path := filepath.Join(rootDir, repo.Name(), name.Name())
 			branch, repoRoot := worktreeCheckoutInfo(path)
 			if branch == "" {
+				// Git deletes a worktree's metadata before the folder, so a
+				// folder it failed to delete has no HEAD left to read. The
+				// folder still belongs to gexi, and the page is the only
+				// place it can be found.
+				out = append(out, worktreeScanEntry{
+					Path: path, Root: repoRoot, Branch: name.Name(), Broken: true,
+				})
 				continue
 			}
 			out = append(out, worktreeScanEntry{Path: path, Root: repoRoot, Branch: branch})
@@ -160,17 +173,46 @@ func (r worktreeRow) branch() string {
 	return r.entry.Branch
 }
 
-func (r worktreeRow) detail() string {
+func (r worktreeRow) projectName() string {
 	if r.archived != nil {
-		return archivedDetail(*r.archived)
+		if r.archived.ProjectDir != "" {
+			return filepath.Base(filepath.Clean(r.archived.ProjectDir))
+		}
+		if r.archived.Root != "" {
+			return filepath.Base(filepath.Clean(r.archived.Root))
+		}
 	}
-	return abbreviate(r.entry.Path)
+	if r.entry.Root != "" {
+		return filepath.Base(filepath.Clean(r.entry.Root))
+	}
+	return filepath.Base(filepath.Dir(filepath.Clean(r.entry.Path)))
+}
+
+func (r worktreeRow) detail() string {
+	project := r.projectName()
+	if r.archived != nil {
+		detail := archivedDetail(*r.archived)
+		if project != "" {
+			return project + " · " + detail
+		}
+		return detail
+	}
+	detail := abbreviate(r.entry.Path)
+	if project != "" {
+		return project + " · " + detail
+	}
+	return detail
 }
 
 func (r worktreeRow) status() string {
 	switch {
 	case r.archived != nil:
+		if r.archived.Kept {
+			return locales.WorktreeStatusKept()
+		}
 		return locales.WorktreeStatusArchived()
+	case r.entry.Broken:
+		return locales.WorktreeStatusBroken()
 	case r.background:
 		return locales.WorktreeStatusBackground()
 	case r.pane != nil:
@@ -218,6 +260,18 @@ func (w *workspace) worktreeRows() []worktreeRow {
 	}
 	var rows []worktreeRow
 	for _, e := range w.worktrees() {
+		// A leftover whose git metadata is gone cannot name its repository.
+		// Match its repo folder against the open projects so the page groups
+		// it under the project it came from, not under a hash.
+		if e.Root == "" {
+			repo := filepath.Base(filepath.Dir(e.Path))
+			for _, pr := range w.Projects {
+				if worktreeRepoName(pr.Dir) == repo {
+					e.Root = pr.Dir
+					break
+				}
+			}
+		}
 		key := filepath.Clean(e.Path)
 		if archived[key] != nil {
 			continue
@@ -234,8 +288,37 @@ func (w *workspace) worktreeRows() []worktreeRow {
 	for i := range w.archived {
 		rows = append(rows, worktreeRow{archived: &w.archived[i]})
 	}
-	sort.SliceStable(rows, func(i, j int) bool { return rows[i].rank() < rows[j].rank() })
+	// Group by project first, then keep the live rows ahead of archived ones
+	// within it. The page draws one section per project.
+	sort.SliceStable(rows, func(i, j int) bool {
+		pi, pj := strings.ToLower(rows[i].projectName()), strings.ToLower(rows[j].projectName())
+		if pi != pj {
+			return pi < pj
+		}
+		if rows[i].rank() != rows[j].rank() {
+			return rows[i].rank() < rows[j].rank()
+		}
+		return rows[i].branch() < rows[j].branch()
+	})
 	return rows
+}
+
+// worktreeGroup is one project's rows on the Worktrees page.
+type worktreeGroup struct {
+	name string
+	rows []worktreeRow
+}
+
+func groupWorktreeRows(rows []worktreeRow) []worktreeGroup {
+	var groups []worktreeGroup
+	for _, row := range rows {
+		name := row.projectName()
+		if len(groups) == 0 || groups[len(groups)-1].name != name {
+			groups = append(groups, worktreeGroup{name: name})
+		}
+		groups[len(groups)-1].rows = append(groups[len(groups)-1].rows, row)
+	}
+	return groups
 }
 
 // worktreesPage lists every worktree and keeps the page's cleanup action
@@ -253,6 +336,14 @@ func (w *workspace) worktreesPage(c *ui.Context, tk tokens) {
 			},
 		})
 	})
+	archivedCount, keptCount := 0, 0
+	for _, a := range w.archived {
+		if a.Kept {
+			keptCount++
+		} else {
+			archivedCount++
+		}
+	}
 	sectionLabel(c, tk, locales.SettingsWorktreesMaintenance())
 	settingsCard(c, tk, func() {
 		w.settingActionView(c, tk,
@@ -265,24 +356,47 @@ func (w *workspace) worktreesPage(c *ui.Context, tk tokens) {
 				w.invalidateSettings()
 			},
 		)
+		if archivedCount > 0 {
+			cardDivider(c, tk)
+			w.settingActionView(c, tk,
+				locales.WorktreeClearArchived(),
+				locales.WorktreeClearArchivedDetail(strconv.Itoa(archivedCount)),
+				locales.ArchiveDelete(),
+				func() { w.confirmClearArchived(false) },
+			)
+		}
+		if keptCount > 0 {
+			cardDivider(c, tk)
+			w.settingActionView(c, tk,
+				locales.WorktreeClearKept(),
+				locales.WorktreeClearKeptDetail(strconv.Itoa(keptCount)),
+				locales.ArchiveDelete(),
+				func() { w.confirmClearArchived(true) },
+			)
+		}
 	})
 	sectionLabel(c, tk, locales.SettingsWorktreesAll())
-	settingsCard(c, tk, func() {
-		rows := w.worktreeRows()
-		if len(rows) == 0 {
+	rows := w.worktreeRows()
+	if len(rows) == 0 {
+		settingsCard(c, tk, func() {
 			ui.Row(c).Padding(12, 16, 12, 16).Children(func() {
 				ui.Text(c, locales.SettingsWorktreesEmpty()).FontSize(12).
 					TextColor(tk.MutedForeground)
 			})
-			return
-		}
-		for i, row := range rows {
-			if i > 0 {
-				cardDivider(c, tk)
+		})
+		return
+	}
+	for _, group := range groupWorktreeRows(rows) {
+		sectionLabel(c, tk, group.name)
+		settingsCard(c, tk, func() {
+			for i, row := range group.rows {
+				if i > 0 {
+					cardDivider(c, tk)
+				}
+				w.worktreeRowView(c, tk, row)
 			}
-			w.worktreeRowView(c, tk, row)
-		}
-	})
+		})
+	}
 }
 
 func (w *workspace) worktreeRowView(c *ui.Context, tk tokens, row worktreeRow) {
@@ -311,11 +425,168 @@ func (w *workspace) worktreeRowView(c *ui.Context, tk tokens, row worktreeRow) {
 		case row.pane != nil:
 			p := row.pane
 			outlineButton(c, tk, locales.WorktreeShow(), func() { w.revealPane(p) })
+		case row.entry.Broken:
+			e := row.entry
+			outlineButton(c, tk, locales.ArchiveDelete(), func() { w.confirmDeleteBroken(e) })
 		default:
 			e := row.entry
 			outlineButton(c, tk, locales.WorktreeOpen(), func() { w.openWorktreeAt(e) })
 		}
 	})
+}
+
+// confirmDeleteBroken asks before the remains of a checkout git could not
+// finish deleting go for good. The native alert blocks, so it runs off the UI
+// thread and comes back.
+func (w *workspace) confirmDeleteBroken(e worktreeScanEntry) {
+	parent := w.settingsWin
+	go func() {
+		res, err := mygo.Dialog.Message(mygo.MessageOptions{
+			Parent:             parent,
+			Type:               mygo.MessageWarning,
+			Title:              locales.WorktreeDeleteBrokenTitle(),
+			Message:            locales.WorktreeDeleteBrokenBody(abbreviate(e.Path)),
+			Buttons:            []string{locales.ArchiveDelete(), locales.Cancel()},
+			DefaultButton:      1,
+			CancelButton:       1,
+			DestructiveButtons: []int{0},
+		})
+		if err != nil || res.Button != 0 {
+			return
+		}
+		w.onMain(func() { w.deleteBrokenWorktree(e) })
+	}()
+}
+
+// deleteBrokenWorktree removes a leftover folder that is no longer a git
+// worktree. It can still hold files, so the row asks before it goes.
+func (w *workspace) deleteBrokenWorktree(e worktreeScanEntry) {
+	go func() {
+		err := forceRemoveDir(e.Path)
+		w.onMain(func() {
+			w.worktreesScanned = false
+			if err != nil {
+				w.flash(locales.ArchiveDeleteFailed(e.Branch, err.Error()))
+			} else {
+				delete(w.worktreeRestores, filepath.Clean(e.Path))
+				w.scheduleSave()
+				w.flash(locales.ArchiveDeleted(e.Branch))
+				_ = os.Remove(filepath.Dir(e.Path))
+			}
+			w.invalidateSettings()
+		})
+	}()
+}
+
+// confirmClearArchived asks before every archived entry (kept false) or every
+// branch kept by Leave (kept true) is deleted. The native alert blocks, so it
+// runs off the UI thread and comes back.
+func (w *workspace) confirmClearArchived(kept bool) {
+	var entries []archivedWorktree
+	for _, a := range w.archived {
+		if a.Kept == kept {
+			entries = append(entries, a)
+		}
+	}
+	if len(entries) == 0 {
+		return
+	}
+	title, body := locales.WorktreeClearArchivedTitle(), locales.WorktreeClearArchivedBody(strconv.Itoa(len(entries)))
+	if kept {
+		title, body = locales.WorktreeClearKeptTitle(), locales.WorktreeClearKeptBody(strconv.Itoa(len(entries)))
+	}
+	parent := w.settingsWin
+	go func() {
+		res, err := mygo.Dialog.Message(mygo.MessageOptions{
+			Parent:             parent,
+			Type:               mygo.MessageWarning,
+			Title:              title,
+			Message:            body,
+			Buttons:            []string{locales.ArchiveDelete(), locales.Cancel()},
+			DefaultButton:      1,
+			CancelButton:       1,
+			DestructiveButtons: []int{0},
+		})
+		if err != nil || res.Button != 0 {
+			return
+		}
+		w.onMain(func() { w.clearArchived(entries) })
+	}()
+}
+
+// clearArchived deletes the branches behind the entries and drops the ones
+// that went. Entries whose branch could not be deleted stay on the page.
+func (w *workspace) clearArchived(entries []archivedWorktree) {
+	go func() {
+		var done []string
+		for i := range entries {
+			if deleteArchived(&entries[i]) == nil {
+				done = append(done, entries[i].ID)
+			}
+		}
+		w.onMain(func() {
+			removed := map[string]bool{}
+			for _, id := range done {
+				removed[id] = true
+			}
+			for i := range entries {
+				if removed[entries[i].ID] {
+					delete(w.worktreeRestores, filepath.Clean(entries[i].Path))
+				}
+			}
+			w.archived = dropArchivedIDs(w.archived, removed)
+			w.worktreesScanned = false
+			w.scheduleSave()
+			w.invalidateSettings()
+			if len(done) > 0 {
+				w.flash(locales.WorktreeArchivedCleared(strconv.Itoa(len(done))))
+			} else {
+				w.flash(locales.WorktreeCleanupNothing())
+			}
+		})
+	}()
+}
+
+// dropArchivedIDs removes the entries whose branches were deleted. Entries
+// whose deletion failed keep their place on the page.
+func dropArchivedIDs(entries []archivedWorktree, removed map[string]bool) []archivedWorktree {
+	kept := entries[:0]
+	for _, a := range entries {
+		if !removed[a.ID] {
+			kept = append(kept, a)
+		}
+	}
+	return kept
+}
+
+// worktreeRoots is every repository whose git worktree metadata this window
+// should prune: the open projects and the repositories of scanned checkouts.
+func (w *workspace) worktreeRoots() []string {
+	seen := map[string]bool{}
+	var roots []string
+	add := func(root string) {
+		if root == "" || seen[filepath.Clean(root)] {
+			return
+		}
+		seen[filepath.Clean(root)] = true
+		roots = append(roots, root)
+	}
+	for _, pr := range w.Projects {
+		add(pr.Dir)
+	}
+	for _, e := range w.worktrees() {
+		add(e.Root)
+	}
+	return roots
+}
+
+// pruneWorktrees drops git's records of checkouts that were deleted outside
+// gexi. Without it, a folder removed by hand leaves a worktree entry the page
+// cannot see and the cleanup cannot reach.
+func (w *workspace) pruneWorktrees(roots []string) {
+	for _, root := range roots {
+		_, _ = worktreeGit(root, "worktree", "prune")
+	}
 }
 
 // revealPane brings an open pane to the front, with the settings window out
@@ -350,10 +621,16 @@ func (w *workspace) openWorktreeAt(e worktreeScanEntry) {
 		return
 	}
 	pr := w.projectFor(filepath.Clean(root))
-	s, err := w.newSession(pr, nil, e.Path)
+	key := filepath.Clean(e.Path)
+	command := w.worktreeRestores[key]
+	s, err := w.newSession(pr, command, e.Path)
 	if err != nil {
 		w.flash(locales.WorktreeError(err.Error()))
 		return
+	}
+	if _, ok := w.worktreeRestores[key]; ok {
+		delete(w.worktreeRestores, key)
+		w.scheduleSave()
 	}
 	if ps := s.Root.panes(); len(ps) > 0 {
 		ps[0].Worktree = &paneWorktree{

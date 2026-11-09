@@ -130,17 +130,18 @@ meant for networks you do not trust.
 
 Open a pane and press **W** in its header to give that pane its own git
 worktree, branched from the latest `origin` base branch and kept under the
-app's data folder. The pane moves into the worktree with a fresh shell. When
-an agent is running in the pane, W stops it first, moves the project's
-uncommitted changes into the new checkout, and opens a fresh session of the
-same agent there; Claude Code's first prompt is told where the changes came
-from. The conversation itself is not carried over. The branch starts with a
-placeholder Dota 2 name — a hero, item, or ability; the first prompt asks
-Claude Code to rename it to the task. The header then shows **PR**, which
-pushes the branch and opens a pull request with `gh`; any pending changes are
-committed first, with a message the pane's own agent writes from the diff in
-its headless mode (`claude -p`, `codex exec`, `amp -x`). When the pane runs no
-agent, or it cannot answer, a small dialog asks for the message.
+app's data folder. A prompt asks for the branch name — leave it empty for a
+random one — and whether the project's uncommitted changes move with the pane;
+when other panes share the project folder, it warns that moving the changes
+takes theirs too. The pane moves into the worktree with a fresh shell. When
+an agent is running in the pane, W stops it first and opens a fresh session of
+the same agent there; agents that read a prompt note are told where the
+changes came from. The conversation itself is not carried over. The header
+then shows **PR**, which pushes the branch and opens a pull request with `gh`;
+any pending changes are committed first, with a message the pane's own agent
+writes from the diff in its headless mode (`claude -p`, `codex exec`, `amp -x`). The
+message opens in a dialog for review before the commit. When the pane runs no
+agent, or it cannot answer, the same dialog asks for the message.
 Once it exists, **PR #N**
 opens the pull request on GitHub, and **Merge** reports the state by its
 colour: green when GitHub would merge, amber while checks or reviews are still
@@ -148,25 +149,36 @@ pending, red when something blocks it. Merge merges on the press; a red button
 whose blocker is a conflict asks the pane's agent to settle the files, pushes
 the merge commit, and merges once GitHub sees it. Any other blocked press says
 why. Merging fast-forwards your local base branch and leaves the
-pane in the worktree. The button then becomes **Archive**, which closes the
-pane and clears the checkout away when you press it. The branch is kept, so
-**Settings → Worktrees** lists it until you restore it (the checkout comes
-back and its session opens again) or delete it (the branch goes too). Panes
-that never press W work exactly as before. Opening and merging pull requests
-needs the GitHub CLI, authenticated.
+pane in the worktree. The button then becomes **Archive**, which asks first,
+stops any agent still in the checkout, and clears it away. Uncommitted and
+ignored files are called out in the prompt, and automatic archiving skips a
+checkout that holds either. The branch is kept, so **Settings → Worktrees**
+lists it until you restore it (the checkout comes back and its session opens
+again) or delete it (the branch goes too). Panes that never press W work
+exactly as before.
+Opening and merging pull requests needs the GitHub CLI, authenticated.
 
 **Settings → Worktrees** is the one list of every checkout gexi knows about,
 whether it is running in the background, open in a pane, sitting on disk, or
-archived. A row brings it back: **Restore** for a background pane, **Show**
-for one already open, **Open** for a checkout no pane uses, and **Restore** or
-**Delete** for an archived branch. **Clean up** on the same page removes
-unused checkouts that have nothing to lose; nothing is removed on startup.
+archived. Rows are grouped by project. A row brings it back: **Restore** for a
+background pane, **Show** for one already open, **Open** for a checkout no
+pane uses, and **Restore** or **Delete** for an archived branch; a branch kept
+by Leave says **Branch kept**, and a leftover folder git could not finish
+deleting says **Git data missing**. **Clean up** on the same page removes
+unused checkouts that have nothing to lose; **Clear archived** and **Clear
+kept branches** remove those entries after asking. Nothing is removed on
+startup.
 
-**↩** beside PR leaves the checkout: it returns the pane to the project
-folder and deletes the worktree. A branch with unmerged commits is kept, and
-uncommitted changes ask first. Closing a pane keeps its checkout on disk for
-the Worktrees page to reopen; closing a pane where an agent has run asks
-first, and can keep the agent running in the background instead.
+**↩** beside PR leaves the checkout: it stops any agent in the checkout,
+returns the pane to the project folder, and deletes the worktree; splits and
+background panes in it close with it. A branch with unmerged commits is kept
+and listed as **Branch kept** in the Worktrees page, where it can be restored
+or deleted; uncommitted changes ask first.
+Closing a pane keeps its checkout on disk for the Worktrees page to reopen;
+closing a pane where an agent has run asks first, and can keep the agent
+running in the background instead. A checkout git could not finish deleting
+is still listed there as **Git data missing**, so its leftover folder can be
+removed instead of staying invisible.
 
 ### Shortcuts
 

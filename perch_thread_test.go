@@ -96,14 +96,15 @@ func TestApplyPerchTurn(t *testing.T) {
 	}
 }
 
-func TestWorktreeNamingNoteIsOneShot(t *testing.T) {
-	wt := &paneWorktree{Path: "/tmp/wt", Branch: "placeholder", Naming: true, Carried: "/tmp/project"}
-	note := worktreeNamingNote(wt)
+func TestWorktreeCarriedNoteIsOneShot(t *testing.T) {
+	wt := &paneWorktree{Path: "/tmp/wt", Branch: "placeholder", Carried: "/tmp/project"}
+	note := worktreeCarriedNote(wt)
 	if note == "" {
-		t.Fatal("a fresh worktree should have a note")
+		t.Fatal("a fresh worktree with carried changes should have a note")
 	}
-	// The note builder does not clear the flags; worktreeNamingContext does.
-	if worktreeNamingNote(wt) == "" {
+	// The note builder does not clear the carried flag; worktreeCarriedContext
+	// does.
+	if worktreeCarriedNote(wt) == "" {
 		t.Fatal("the builder is pure and should still produce the note")
 	}
 }
@@ -112,7 +113,7 @@ func TestWritePerchWorktreeRule(t *testing.T) {
 	dir := t.TempDir()
 	wt := &paneWorktree{Path: dir}
 
-	if err := writePerchWorktreeRule(wt, "rename the branch"); err != nil {
+	if err := writePerchWorktreeRule(wt, "the changes moved here"); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(dir, ".perch", "rules", perchRuleName)
@@ -120,7 +121,7 @@ func TestWritePerchWorktreeRule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("rule file not written: %v", err)
 	}
-	if !strings.Contains(string(data), "rename the branch") {
+	if !strings.Contains(string(data), "the changes moved here") {
 		t.Fatalf("rule body = %q", data)
 	}
 

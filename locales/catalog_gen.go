@@ -724,6 +724,226 @@ func (msgs Messages) WorktreeNotRepo() string {
 	return Catalog.Format(msgs.locale, "worktreeNotRepo", nil)
 }
 
+// WorktreeNotRoot says "Open the repository root as the project to create a worktree."
+// in the language the app shows.
+func WorktreeNotRoot() string { return In(i18n.Locale()).WorktreeNotRoot() }
+
+// WorktreeNotRoot says "Open the repository root as the project to create a worktree."
+// in the language of msgs.
+func (msgs Messages) WorktreeNotRoot() string {
+	return Catalog.Format(msgs.locale, "worktreeNotRoot", nil)
+}
+
+// WorktreeNoBase says "Could not find the origin default branch, main, or master to branch from."
+// in the language the app shows.
+func WorktreeNoBase() string { return In(i18n.Locale()).WorktreeNoBase() }
+
+// WorktreeNoBase says "Could not find the origin default branch, main, or master to branch from."
+// in the language of msgs.
+func (msgs Messages) WorktreeNoBase() string {
+	return Catalog.Format(msgs.locale, "worktreeNoBase", nil)
+}
+
+// WorktreeCreateTitle says "Create worktree"
+// in the language the app shows.
+func WorktreeCreateTitle() string { return In(i18n.Locale()).WorktreeCreateTitle() }
+
+// WorktreeCreateTitle says "Create worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeCreateTitle() string {
+	return Catalog.Format(msgs.locale, "worktreeCreateTitle", nil)
+}
+
+// WorktreeCreateName says "Branch name"
+// in the language the app shows.
+func WorktreeCreateName() string { return In(i18n.Locale()).WorktreeCreateName() }
+
+// WorktreeCreateName says "Branch name"
+// in the language of msgs.
+func (msgs Messages) WorktreeCreateName() string {
+	return Catalog.Format(msgs.locale, "worktreeCreateName", nil)
+}
+
+// WorktreeCreateNamePlaceholder says "Leave empty for a random name"
+// in the language the app shows.
+func WorktreeCreateNamePlaceholder() string { return In(i18n.Locale()).WorktreeCreateNamePlaceholder() }
+
+// WorktreeCreateNamePlaceholder says "Leave empty for a random name"
+// in the language of msgs.
+func (msgs Messages) WorktreeCreateNamePlaceholder() string {
+	return Catalog.Format(msgs.locale, "worktreeCreateNamePlaceholder", nil)
+}
+
+// WorktreeCreateCarry says "Move {count} uncommitted changes into it"
+// in the language the app shows.
+func WorktreeCreateCarry(count string) string { return In(i18n.Locale()).WorktreeCreateCarry(count) }
+
+// WorktreeCreateCarry says "Move {count} uncommitted changes into it"
+// in the language of msgs.
+func (msgs Messages) WorktreeCreateCarry(count string) string {
+	return Catalog.Format(msgs.locale, "worktreeCreateCarry", map[string]any{"count": count})
+}
+
+// WorktreeCreateShared says "This project has {count} other panes sharing the folder; moving changes takes theirs too."
+// in the language the app shows.
+func WorktreeCreateShared(count string) string { return In(i18n.Locale()).WorktreeCreateShared(count) }
+
+// WorktreeCreateShared says "This project has {count} other panes sharing the folder; moving changes takes theirs too."
+// in the language of msgs.
+func (msgs Messages) WorktreeCreateShared(count string) string {
+	return Catalog.Format(msgs.locale, "worktreeCreateShared", map[string]any{"count": count})
+}
+
+// WorktreeCreateConfirm says "Create"
+// in the language the app shows.
+func WorktreeCreateConfirm() string { return In(i18n.Locale()).WorktreeCreateConfirm() }
+
+// WorktreeCreateConfirm says "Create"
+// in the language of msgs.
+func (msgs Messages) WorktreeCreateConfirm() string {
+	return Catalog.Format(msgs.locale, "worktreeCreateConfirm", nil)
+}
+
+// WorktreeRename says "Rename branch…"
+// in the language the app shows.
+func WorktreeRename() string { return In(i18n.Locale()).WorktreeRename() }
+
+// WorktreeRename says "Rename branch…"
+// in the language of msgs.
+func (msgs Messages) WorktreeRename() string {
+	return Catalog.Format(msgs.locale, "worktreeRename", nil)
+}
+
+// WorktreeRenameTitle says "Rename branch"
+// in the language the app shows.
+func WorktreeRenameTitle() string { return In(i18n.Locale()).WorktreeRenameTitle() }
+
+// WorktreeRenameTitle says "Rename branch"
+// in the language of msgs.
+func (msgs Messages) WorktreeRenameTitle() string {
+	return Catalog.Format(msgs.locale, "worktreeRenameTitle", nil)
+}
+
+// WorktreeRenameConfirm says "Rename"
+// in the language the app shows.
+func WorktreeRenameConfirm() string { return In(i18n.Locale()).WorktreeRenameConfirm() }
+
+// WorktreeRenameConfirm says "Rename"
+// in the language of msgs.
+func (msgs Messages) WorktreeRenameConfirm() string {
+	return Catalog.Format(msgs.locale, "worktreeRenameConfirm", nil)
+}
+
+// WorktreeRenameEmpty says "Enter a branch name."
+// in the language the app shows.
+func WorktreeRenameEmpty() string { return In(i18n.Locale()).WorktreeRenameEmpty() }
+
+// WorktreeRenameEmpty says "Enter a branch name."
+// in the language of msgs.
+func (msgs Messages) WorktreeRenameEmpty() string {
+	return Catalog.Format(msgs.locale, "worktreeRenameEmpty", nil)
+}
+
+// WorktreeRenameFailed says "Could not rename the branch: {error}"
+// in the language the app shows.
+func WorktreeRenameFailed(error string) string { return In(i18n.Locale()).WorktreeRenameFailed(error) }
+
+// WorktreeRenameFailed says "Could not rename the branch: {error}"
+// in the language of msgs.
+func (msgs Messages) WorktreeRenameFailed(error string) string {
+	return Catalog.Format(msgs.locale, "worktreeRenameFailed", map[string]any{"error": error})
+}
+
+// WorktreeSplitProject says "The new pane opens in the project folder; this worktree belongs to the original pane."
+// in the language the app shows.
+func WorktreeSplitProject() string { return In(i18n.Locale()).WorktreeSplitProject() }
+
+// WorktreeSplitProject says "The new pane opens in the project folder; this worktree belongs to the original pane."
+// in the language of msgs.
+func (msgs Messages) WorktreeSplitProject() string {
+	return Catalog.Format(msgs.locale, "worktreeSplitProject", nil)
+}
+
+// WorktreeArchiving says "Archiving worktree"
+// in the language the app shows.
+func WorktreeArchiving() string { return In(i18n.Locale()).WorktreeArchiving() }
+
+// WorktreeArchiving says "Archiving worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeArchiving() string {
+	return Catalog.Format(msgs.locale, "worktreeArchiving", nil)
+}
+
+// WorktreeArchiveTitle says "Archive worktree?"
+// in the language the app shows.
+func WorktreeArchiveTitle() string { return In(i18n.Locale()).WorktreeArchiveTitle() }
+
+// WorktreeArchiveTitle says "Archive worktree?"
+// in the language of msgs.
+func (msgs Messages) WorktreeArchiveTitle() string {
+	return Catalog.Format(msgs.locale, "worktreeArchiveTitle", nil)
+}
+
+// WorktreeArchiveBody says "This closes every pane in the checkout, then deletes it. The branch is kept, so Restore can bring it back."
+// in the language the app shows.
+func WorktreeArchiveBody() string { return In(i18n.Locale()).WorktreeArchiveBody() }
+
+// WorktreeArchiveBody says "This closes every pane in the checkout, then deletes it. The branch is kept, so Restore can bring it back."
+// in the language of msgs.
+func (msgs Messages) WorktreeArchiveBody() string {
+	return Catalog.Format(msgs.locale, "worktreeArchiveBody", nil)
+}
+
+// WorktreeArchiveDirty says "The checkout also has uncommitted changes; they will be deleted."
+// in the language the app shows.
+func WorktreeArchiveDirty() string { return In(i18n.Locale()).WorktreeArchiveDirty() }
+
+// WorktreeArchiveDirty says "The checkout also has uncommitted changes; they will be deleted."
+// in the language of msgs.
+func (msgs Messages) WorktreeArchiveDirty() string {
+	return Catalog.Format(msgs.locale, "worktreeArchiveDirty", nil)
+}
+
+// WorktreeArchiveDirtySkipped says "The merged worktree has uncommitted changes, so it was not archived automatically."
+// in the language the app shows.
+func WorktreeArchiveDirtySkipped() string { return In(i18n.Locale()).WorktreeArchiveDirtySkipped() }
+
+// WorktreeArchiveDirtySkipped says "The merged worktree has uncommitted changes, so it was not archived automatically."
+// in the language of msgs.
+func (msgs Messages) WorktreeArchiveDirtySkipped() string {
+	return Catalog.Format(msgs.locale, "worktreeArchiveDirtySkipped", nil)
+}
+
+// WorktreeArchiveIgnored says "The checkout also holds ignored files (for example .env); they will be deleted."
+// in the language the app shows.
+func WorktreeArchiveIgnored() string { return In(i18n.Locale()).WorktreeArchiveIgnored() }
+
+// WorktreeArchiveIgnored says "The checkout also holds ignored files (for example .env); they will be deleted."
+// in the language of msgs.
+func (msgs Messages) WorktreeArchiveIgnored() string {
+	return Catalog.Format(msgs.locale, "worktreeArchiveIgnored", nil)
+}
+
+// WorktreeArchiveIgnoredSkipped says "The merged worktree has ignored files, so it was not archived automatically."
+// in the language the app shows.
+func WorktreeArchiveIgnoredSkipped() string { return In(i18n.Locale()).WorktreeArchiveIgnoredSkipped() }
+
+// WorktreeArchiveIgnoredSkipped says "The merged worktree has ignored files, so it was not archived automatically."
+// in the language of msgs.
+func (msgs Messages) WorktreeArchiveIgnoredSkipped() string {
+	return Catalog.Format(msgs.locale, "worktreeArchiveIgnoredSkipped", nil)
+}
+
+// WorktreeLeftAgentStopped says "Worktree removed; back in the project folder. The agent was stopped; start a new conversation here."
+// in the language the app shows.
+func WorktreeLeftAgentStopped() string { return In(i18n.Locale()).WorktreeLeftAgentStopped() }
+
+// WorktreeLeftAgentStopped says "Worktree removed; back in the project folder. The agent was stopped; start a new conversation here."
+// in the language of msgs.
+func (msgs Messages) WorktreeLeftAgentStopped() string {
+	return Catalog.Format(msgs.locale, "worktreeLeftAgentStopped", nil)
+}
+
 // WorktreeAgentRunning says "Stop the agent in this pane first."
 // in the language the app shows.
 func WorktreeAgentRunning() string { return In(i18n.Locale()).WorktreeAgentRunning() }
@@ -1090,6 +1310,26 @@ func WorktreeError(error string) string { return In(i18n.Locale()).WorktreeError
 // in the language of msgs.
 func (msgs Messages) WorktreeError(error string) string {
 	return Catalog.Format(msgs.locale, "worktreeError", map[string]any{"error": error})
+}
+
+// WorktreeStashKept says "The changes could not be put back; they are in git stash. Copy the command to restore them."
+// in the language the app shows.
+func WorktreeStashKept() string { return In(i18n.Locale()).WorktreeStashKept() }
+
+// WorktreeStashKept says "The changes could not be put back; they are in git stash. Copy the command to restore them."
+// in the language of msgs.
+func (msgs Messages) WorktreeStashKept() string {
+	return Catalog.Format(msgs.locale, "worktreeStashKept", nil)
+}
+
+// WorktreeStashCopy says "Copy command"
+// in the language the app shows.
+func WorktreeStashCopy() string { return In(i18n.Locale()).WorktreeStashCopy() }
+
+// WorktreeStashCopy says "Copy command"
+// in the language of msgs.
+func (msgs Messages) WorktreeStashCopy() string {
+	return Catalog.Format(msgs.locale, "worktreeStashCopy", nil)
 }
 
 // CommitMessageTitle says "Commit message"
@@ -1620,6 +1860,48 @@ func (msgs Messages) WorktreeStatusArchived() string {
 	return Catalog.Format(msgs.locale, "worktreeStatusArchived", nil)
 }
 
+// WorktreeStatusKept says "Branch kept"
+// in the language the app shows.
+func WorktreeStatusKept() string { return In(i18n.Locale()).WorktreeStatusKept() }
+
+// WorktreeStatusKept says "Branch kept"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusKept() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusKept", nil)
+}
+
+// WorktreeStatusBroken says "Git data missing"
+// in the language the app shows.
+func WorktreeStatusBroken() string { return In(i18n.Locale()).WorktreeStatusBroken() }
+
+// WorktreeStatusBroken says "Git data missing"
+// in the language of msgs.
+func (msgs Messages) WorktreeStatusBroken() string {
+	return Catalog.Format(msgs.locale, "worktreeStatusBroken", nil)
+}
+
+// WorktreeDeleteBrokenTitle says "Delete leftover worktree?"
+// in the language the app shows.
+func WorktreeDeleteBrokenTitle() string { return In(i18n.Locale()).WorktreeDeleteBrokenTitle() }
+
+// WorktreeDeleteBrokenTitle says "Delete leftover worktree?"
+// in the language of msgs.
+func (msgs Messages) WorktreeDeleteBrokenTitle() string {
+	return Catalog.Format(msgs.locale, "worktreeDeleteBrokenTitle", nil)
+}
+
+// WorktreeDeleteBrokenBody says "The folder {path} is no longer a git worktree. Deleting it removes the files left in it; this cannot be undone."
+// in the language the app shows.
+func WorktreeDeleteBrokenBody(path string) string {
+	return In(i18n.Locale()).WorktreeDeleteBrokenBody(path)
+}
+
+// WorktreeDeleteBrokenBody says "The folder {path} is no longer a git worktree. Deleting it removes the files left in it; this cannot be undone."
+// in the language of msgs.
+func (msgs Messages) WorktreeDeleteBrokenBody(path string) string {
+	return Catalog.Format(msgs.locale, "worktreeDeleteBrokenBody", map[string]any{"path": path})
+}
+
 // WorktreeRestore says "Restore"
 // in the language the app shows.
 func WorktreeRestore() string { return In(i18n.Locale()).WorktreeRestore() }
@@ -1712,6 +1994,106 @@ func WorktreeCleanupNothing() string { return In(i18n.Locale()).WorktreeCleanupN
 // in the language of msgs.
 func (msgs Messages) WorktreeCleanupNothing() string {
 	return Catalog.Format(msgs.locale, "worktreeCleanupNothing", nil)
+}
+
+// WorktreeClearArchived says "Clear archived worktrees"
+// in the language the app shows.
+func WorktreeClearArchived() string { return In(i18n.Locale()).WorktreeClearArchived() }
+
+// WorktreeClearArchived says "Clear archived worktrees"
+// in the language of msgs.
+func (msgs Messages) WorktreeClearArchived() string {
+	return Catalog.Format(msgs.locale, "worktreeClearArchived", nil)
+}
+
+// WorktreeClearArchivedDetail says "Delete the {count} archived branches and their remote branches."
+// in the language the app shows.
+func WorktreeClearArchivedDetail(count string) string {
+	return In(i18n.Locale()).WorktreeClearArchivedDetail(count)
+}
+
+// WorktreeClearArchivedDetail says "Delete the {count} archived branches and their remote branches."
+// in the language of msgs.
+func (msgs Messages) WorktreeClearArchivedDetail(count string) string {
+	return Catalog.Format(msgs.locale, "worktreeClearArchivedDetail", map[string]any{"count": count})
+}
+
+// WorktreeClearArchivedTitle says "Clear archived worktrees?"
+// in the language the app shows.
+func WorktreeClearArchivedTitle() string { return In(i18n.Locale()).WorktreeClearArchivedTitle() }
+
+// WorktreeClearArchivedTitle says "Clear archived worktrees?"
+// in the language of msgs.
+func (msgs Messages) WorktreeClearArchivedTitle() string {
+	return Catalog.Format(msgs.locale, "worktreeClearArchivedTitle", nil)
+}
+
+// WorktreeClearArchivedBody says "This deletes {count} archived branches and their remote branches. This cannot be undone."
+// in the language the app shows.
+func WorktreeClearArchivedBody(count string) string {
+	return In(i18n.Locale()).WorktreeClearArchivedBody(count)
+}
+
+// WorktreeClearArchivedBody says "This deletes {count} archived branches and their remote branches. This cannot be undone."
+// in the language of msgs.
+func (msgs Messages) WorktreeClearArchivedBody(count string) string {
+	return Catalog.Format(msgs.locale, "worktreeClearArchivedBody", map[string]any{"count": count})
+}
+
+// WorktreeClearKept says "Clear kept branches"
+// in the language the app shows.
+func WorktreeClearKept() string { return In(i18n.Locale()).WorktreeClearKept() }
+
+// WorktreeClearKept says "Clear kept branches"
+// in the language of msgs.
+func (msgs Messages) WorktreeClearKept() string {
+	return Catalog.Format(msgs.locale, "worktreeClearKept", nil)
+}
+
+// WorktreeClearKeptDetail says "Delete the {count} branches kept by Leave, including their unmerged commits."
+// in the language the app shows.
+func WorktreeClearKeptDetail(count string) string {
+	return In(i18n.Locale()).WorktreeClearKeptDetail(count)
+}
+
+// WorktreeClearKeptDetail says "Delete the {count} branches kept by Leave, including their unmerged commits."
+// in the language of msgs.
+func (msgs Messages) WorktreeClearKeptDetail(count string) string {
+	return Catalog.Format(msgs.locale, "worktreeClearKeptDetail", map[string]any{"count": count})
+}
+
+// WorktreeClearKeptTitle says "Clear kept branches?"
+// in the language the app shows.
+func WorktreeClearKeptTitle() string { return In(i18n.Locale()).WorktreeClearKeptTitle() }
+
+// WorktreeClearKeptTitle says "Clear kept branches?"
+// in the language of msgs.
+func (msgs Messages) WorktreeClearKeptTitle() string {
+	return Catalog.Format(msgs.locale, "worktreeClearKeptTitle", nil)
+}
+
+// WorktreeClearKeptBody says "This deletes {count} branches kept by Leave, including commits that were never merged. This cannot be undone."
+// in the language the app shows.
+func WorktreeClearKeptBody(count string) string {
+	return In(i18n.Locale()).WorktreeClearKeptBody(count)
+}
+
+// WorktreeClearKeptBody says "This deletes {count} branches kept by Leave, including commits that were never merged. This cannot be undone."
+// in the language of msgs.
+func (msgs Messages) WorktreeClearKeptBody(count string) string {
+	return Catalog.Format(msgs.locale, "worktreeClearKeptBody", map[string]any{"count": count})
+}
+
+// WorktreeArchivedCleared says "Deleted {count} worktree branches."
+// in the language the app shows.
+func WorktreeArchivedCleared(count string) string {
+	return In(i18n.Locale()).WorktreeArchivedCleared(count)
+}
+
+// WorktreeArchivedCleared says "Deleted {count} worktree branches."
+// in the language of msgs.
+func (msgs Messages) WorktreeArchivedCleared(count string) string {
+	return Catalog.Format(msgs.locale, "worktreeArchivedCleared", map[string]any{"count": count})
 }
 
 // SettingsArchived says "Archived"
