@@ -878,6 +878,20 @@ func TestAgentHeadless(t *testing.T) {
 	}
 }
 
+// TestAgentResolveCommand covers every agent a pane can run and that has a
+// headless mode: each one has to be able to edit the files git left in
+// conflict, or the conflict branch offers no way out.
+func TestAgentResolveCommand(t *testing.T) {
+	for _, kind := range []agentKind{agentClaude, agentCodex, agentPerch, agentPi, agentAmp} {
+		if _, ok := agentResolveCommand(kind); !ok {
+			t.Errorf("%s cannot resolve conflicts", kind)
+		}
+	}
+	if _, ok := agentResolveCommand(agentOmp); ok {
+		t.Error("omp should not claim to resolve conflicts")
+	}
+}
+
 // TestMergeConflicting reads GitHub's two ways of saying the branch and its
 // base conflict.
 func TestMergeConflicting(t *testing.T) {
