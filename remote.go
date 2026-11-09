@@ -103,6 +103,7 @@ func newRemoteHandler(b remoteBackend) *remoteHandler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/pair", h.pair)
 	mux.HandleFunc("/api/rpc", h.rpc)
+	mux.HandleFunc("/api/stream", h.stream)
 	mux.Handle("/", noStore(http.FileServer(http.FS(sub))))
 	h.mux = mux
 	return h

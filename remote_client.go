@@ -660,6 +660,12 @@ type remoteConn struct {
 
 	stop chan struct{}
 
+	// stream is the pushed frames connection, when it is up; streamMu
+	// guards it and the retry time after it dies.
+	streamMu    sync.Mutex
+	streamConn  *remoteStream
+	streamRetry time.Time
+
 	// address is the route the calls go to now, and routeAt is when the
 	// routes were last tried: the LAN first, the relay when it does not
 	// answer.
@@ -749,6 +755,9 @@ func (rc *remoteConn) close() {
 	default:
 		close(rc.stop)
 	}
+	if s := rc.streamConn; s != nil {
+		s.fail(errRemoteNotPaired)
+	}
 	// stopRemoteClients runs on the main thread, where the panes live.
 	for _, s := range rc.project.Sessions {
 		rc.dropSession(s)
@@ -783,25 +792,46 @@ func (rc *remoteConn) refreshLoop() {
 // rechecks now and then, and at once after a route fails.
 func (rc *remoteConn) chooseRoute() {
 	if rc.address == "" {
-		rc.address = rc.host.Address
+		rc.setRoute(rc.host.Address, rc.host.Secure)
 	}
-	rc.client.Address = rc.address
-	rc.client.Secure = rc.host.Secure && rc.address == rc.host.Address
+	rc.setRoute(rc.address, rc.host.Secure && rc.address == rc.host.Address)
 	if time.Since(rc.routeAt) < 15*time.Second {
 		return
 	}
 	rc.routeAt = time.Now()
 	for _, addr := range rc.host.LAN {
 		if rc.client.reachable(addr) {
-			rc.address = addr
-			rc.client.Address = addr
-			rc.client.Secure = false
+			rc.setRoute(addr, false)
 			return
 		}
 	}
-	rc.address = rc.host.Address
-	rc.client.Address = rc.address
-	rc.client.Secure = rc.host.Secure
+	rc.setRoute(rc.host.Address, rc.host.Secure)
+}
+
+// setRoute points the link at addr. A stream is redialed when the route
+// changes under it, so a Mac that comes home moves its mirrors to the LAN
+// too instead of keeping the relay's round trip.
+func (rc *remoteConn) setRoute(addr string, secure bool) {
+	if rc.client.Address == addr && rc.client.Secure == secure {
+		rc.address = addr
+		return
+	}
+	rc.address = addr
+	rc.client.Address = addr
+	rc.client.Secure = secure
+	rc.resetStream()
+}
+
+// resetStream drops the pushed frames connection; the next pane that wants
+// a frame dials a new one on the current route.
+func (rc *remoteConn) resetStream() {
+	rc.streamMu.Lock()
+	s := rc.streamConn
+	rc.streamConn = nil
+	rc.streamMu.Unlock()
+	if s != nil {
+		s.fail(errStreamClosed)
+	}
 }
 
 func (rc *remoteConn) refresh() {
@@ -813,7 +843,7 @@ func (rc *remoteConn) refresh() {
 	err := rc.client.call("session.list", nil, &sessions)
 	if err != nil && rc.address != rc.host.Address {
 		// The LAN route just died; the relay is the one to try.
-		rc.address = rc.host.Address
+		rc.setRoute(rc.host.Address, rc.host.Secure)
 		rc.routeAt = time.Time{}
 		rc.chooseRoute()
 		err = rc.client.call("session.list", nil, &sessions)
@@ -1053,9 +1083,10 @@ func includesString(list []string, want string) bool {
 // the delay a keystroke or a program's output takes to show.
 const (
 	remoteStreamInterval = 16 * time.Millisecond
-	// remoteIdleInterval is the tick a pane with nothing on it gets: the
-	// mirror still wakes on the first byte of output, and a key cuts the
-	// tick short through the pane's wake channel.
+	// remoteIdleInterval is the tick a pane with nothing on it gets when the
+	// pushed stream is down and the mirror has to poll: the mirror still
+	// wakes on the first byte of output, and a key cuts the tick short
+	// through the pane's wake channel.
 	remoteIdleInterval = 120 * time.Millisecond
 )
 
@@ -1077,6 +1108,12 @@ func (rc *remoteConn) stopStream(p *pane) {
 	}
 	close(p.remote.stream)
 	p.remote.stream = nil
+	rc.streamMu.Lock()
+	s := rc.streamConn
+	rc.streamMu.Unlock()
+	if s != nil {
+		s.unwatch(p.remote.id)
+	}
 }
 
 func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
@@ -1107,7 +1144,18 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 		if wantCols, wantRows := int(p.remote.wantCols.Load()), int(p.remote.wantRows.Load()); wantCols > 0 && wantRows > 0 {
 			params["cols"], params["rows"] = wantCols, wantRows
 		}
-		err := rc.client.stream("pane.stream", params, &view)
+		wantCols, wantRows := int(p.remote.wantCols.Load()), int(p.remote.wantRows.Load())
+		pushed := false
+		err := error(nil)
+		if v, ok := rc.nextPushedView(p, stop, wantCols, wantRows, snapshot); ok {
+			view = v
+			pushed = true
+		} else {
+			if rc.stopped() {
+				return
+			}
+			err = rc.client.stream("pane.stream", params, &view)
+		}
 		if err != nil {
 			if errors.Is(err, errRemoteNotPaired) {
 				rc.fail(err)
@@ -1158,6 +1206,10 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 		}
 		p.remote.anchor.Store(int32(cursor.low))
 		offset = view.Offset
+		if pushed {
+			// The next frame is already on its way over the open stream.
+			continue
+		}
 		if view.Data != "" || view.Reset {
 			lastOutput = time.Now()
 		}
