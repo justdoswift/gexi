@@ -336,6 +336,15 @@ func defaultPortFor(secure bool) string {
 	return strconv.Itoa(remotePort)
 }
 
+// relayClientURL is where another device reaches this Mac when it goes
+// through the self-hosted relay, and empty when it does not.
+func (w *workspace) relayClientURL() string {
+	if !w.settings.RelayEnabled || !w.settings.relay().ready() {
+		return ""
+	}
+	return strings.TrimSpace(w.settings.RelayURL)
+}
+
 // remoteAddressLabel is how a saved host's address reads in a menu or a list:
 // with the scheme when it is the one that decides TLS.
 func remoteAddressLabel(host remoteHost) string {
@@ -377,6 +386,9 @@ func isPairingCode(s string) bool {
 }
 
 func (w *workspace) hostDialog(c *ui.Context, tk tokens) {
+	// A relay makes the address redundant: another device reaches this Mac
+	// there, so the dialog asks for the code alone.
+	relay := w.relayClientURL()
 	dialogFrame(c, tk, &w.hostOpen, 460, func() {
 		dialogHeading(c, tk, locales.RemoteAddTitle(), locales.RemoteAddBody())
 		dialogBody(c, func() {
@@ -385,6 +397,18 @@ func (w *workspace) hostDialog(c *ui.Context, tk tokens) {
 					dialogLabel(c, tk, label)
 					dialogInput(c, tk, value, placeholder)
 				})
+			}
+			if relay != "" {
+				ui.Text(c, locales.RemoteViaRelay(relay)).FontSize(11).
+					TextColor(tk.MutedForeground)
+				ui.Column(c).FillWidth().Gap(6).Children(func() {
+					dialogLabel(c, tk, locales.RemoteAddCode())
+					dialogInput(c, tk, &w.hostCode, "000000").OnSubmit(func() { w.submitHost() })
+				})
+				ui.Text(c, locales.RemoteCodeOnlyHint()).FontSize(11).
+					TextColor(tk.MutedForeground)
+				dialogError(c, tk, w.hostErr)
+				return
 			}
 			field(locales.RemoteAddName(), locales.RemoteAddNamePlaceholder(), &w.hostName)
 			field(locales.RemoteAddAddress(), "192.168.1.23:"+strconv.Itoa(remotePort), &w.hostAddr)
@@ -413,7 +437,12 @@ func (w *workspace) submitHost() {
 	if w.hostBusy {
 		return
 	}
-	address, secure := normalizeRemoteAddress(w.hostAddr)
+	raw := w.hostAddr
+	if strings.TrimSpace(raw) == "" {
+		// The relay's address stands in for one the user did not type.
+		raw = w.relayClientURL()
+	}
+	address, secure := normalizeRemoteAddress(raw)
 	code := strings.TrimSpace(w.hostCode)
 	name := strings.TrimSpace(w.hostName)
 	if address == "" {

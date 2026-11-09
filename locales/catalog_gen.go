@@ -3699,3 +3699,23 @@ func PermissionsRestartHint() string { return In(i18n.Locale()).PermissionsResta
 func (msgs Messages) PermissionsRestartHint() string {
 	return Catalog.Format(msgs.locale, "permissionsRestartHint", nil)
 }
+
+// RemoteViaRelay says "Connecting through {host}."
+// in the language the app shows.
+func RemoteViaRelay(host string) string { return In(i18n.Locale()).RemoteViaRelay(host) }
+
+// RemoteViaRelay says "Connecting through {host}."
+// in the language of msgs.
+func (msgs Messages) RemoteViaRelay(host string) string {
+	return Catalog.Format(msgs.locale, "remoteViaRelay", map[string]any{"host": host})
+}
+
+// RemoteCodeOnlyHint says "Enter the 6-digit code shown on the other Mac or phone."
+// in the language the app shows.
+func RemoteCodeOnlyHint() string { return In(i18n.Locale()).RemoteCodeOnlyHint() }
+
+// RemoteCodeOnlyHint says "Enter the 6-digit code shown on the other Mac or phone."
+// in the language of msgs.
+func (msgs Messages) RemoteCodeOnlyHint() string {
+	return Catalog.Format(msgs.locale, "remoteCodeOnlyHint", nil)
+}
