@@ -194,11 +194,14 @@ type workspace struct {
 	leaveTarget *pane
 	leaveMsg    string
 
-	// archiveOpen is the alert asking whether a merged checkout should go;
-	// archiveTarget is the pane it belongs to.
-	archiveOpen   bool
-	archiveTarget *pane
-	archiveMsg    string
+	// archiveOpen is the alert asking whether a merged worktree should go;
+	// archiveTarget is the pane it belongs to. The rest describe what the
+	// dialog says: the branch and the files that go with the folder.
+	archiveOpen    bool
+	archiveTarget  *pane
+	archiveBranch  string
+	archiveDirty   bool
+	archiveIgnored bool
 
 	// remoteLeaveOpen is the same alert for a checkout on another Mac: its
 	// host asks nothing there, so the question is asked here instead.

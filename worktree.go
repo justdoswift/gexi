@@ -1729,23 +1729,52 @@ func (w *workspace) confirmArchiveWorktree(p *pane) {
 	go func() {
 		ignored, _ := worktreeHasIgnored(wt)
 		clean, _ := worktreeIsClean(wt)
-		msg := locales.WorktreeArchiveBody()
-		if !clean {
-			msg += "\n\n" + locales.WorktreeArchiveDirty()
-		}
-		if ignored {
-			msg += "\n\n" + locales.WorktreeArchiveIgnored()
-		}
 		w.onMain(func() {
 			if w.paneByID(p.ID) != p || p.Worktree != wt || wt.busy != "" {
 				return
 			}
 			w.archiveTarget = p
-			w.archiveMsg = msg
+			w.archiveBranch = wt.Branch
+			w.archiveDirty = !clean
+			w.archiveIgnored = ignored
 			w.archiveOpen = true
 			w.invalidate()
 		})
 	}()
+}
+
+// archiveWorktreeDialog asks about one worktree: the branch it keeps and the
+// files that go with the folder. The consequences are separate lines rather
+// than one paragraph, so the destructive ones can carry the danger colour.
+func (w *workspace) archiveWorktreeDialog(c *ui.Context, tk tokens) {
+	p := w.archiveTarget
+	if p == nil {
+		return
+	}
+	dialogFrame(c, tk, &w.archiveOpen, 430, func() {
+		dialogHeading(c, tk, locales.WorktreeArchiveTitle(), w.archiveBranch)
+		dialogBody(c, func() {
+			ui.Text(c, locales.WorktreeArchiveBody()).
+				FontSize(13).TextColor(tk.MutedForeground).Width(0).MinWidthPercent(100)
+			ui.Text(c, locales.WorktreeArchiveKeep()).
+				FontSize(13).TextColor(tk.MutedForeground).Width(0).MinWidthPercent(100)
+			if w.archiveDirty {
+				dialogWarning(c, tk, locales.WorktreeArchiveDirty())
+			}
+			if w.archiveIgnored {
+				dialogWarning(c, tk, locales.WorktreeArchiveIgnored())
+			}
+		})
+		dialogFooter(c, tk,
+			dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
+				w.archiveOpen = false
+			}},
+			dialogAction{label: locales.WorktreeArchive(), kind: dialogDanger, run: func() {
+				w.archiveOpen = false
+				w.archiveMergedWorktreeNow(p, false, nil)
+			}},
+		)
+	})
 }
 
 // archiveMergedWorktreeNow stops any agent in the checkout, closes the panes

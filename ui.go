@@ -150,16 +150,7 @@ func (w *workspace) view(c *ui.Context) {
 		}
 	}
 	if w.archiveTarget != nil {
-		p := w.archiveTarget
-		dialogAlert(c, tk, &w.archiveOpen, 430, locales.WorktreeArchiveTitle(), w.archiveMsg,
-			dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
-				w.archiveOpen = false
-			}},
-			dialogAction{label: locales.WorktreeArchive(), kind: dialogDanger, run: func() {
-				w.archiveOpen = false
-				w.archiveMergedWorktreeNow(p, false, nil)
-			}},
-		)
+		w.archiveWorktreeDialog(c, tk)
 		if !w.archiveOpen {
 			w.archiveTarget = nil
 		}
