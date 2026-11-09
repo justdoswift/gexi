@@ -373,6 +373,11 @@ func defaultPortFor(secure bool) string {
 // relayClientURL is where another device reaches this Mac when it goes
 // through the self-hosted relay, and empty when it does not.
 func (w *workspace) relayClientURL() string {
+	// A build that knows a relay answers at it even when this Mac is not the
+	// one hosting the tunnel: the code is still all a device types.
+	if builtinRelayURL != "" {
+		return builtinRelayURL
+	}
 	if !w.settings.RelayEnabled || !w.settings.relay().ready() {
 		return ""
 	}

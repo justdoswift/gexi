@@ -275,6 +275,7 @@ type workspace struct {
 	// relayProvisioned says the Mac's relay came from relay.json, so the
 	// settings page leaves it out entirely.
 	relayProvisioned bool
+	relayHost        bool
 	relayErr         string
 	relayAddr        string
 	relayTunnel      string
@@ -300,7 +301,11 @@ func newWorkspace() *workspace {
 		remoteConns:      map[string]*remoteConn{},
 		worktreeRestores: map[string][]string{},
 	}
-	w.relayProvisioned = builtinRelayEnabled()
+	// A build that knows a relay hides the relay settings everywhere; only
+	// the Mac named in relay_builtin.go hides the LAN switch too, because
+	// only it is reachable through the relay.
+	w.relayProvisioned = builtinRelayURL != ""
+	w.relayHost = builtinRelayEnabled()
 	return w
 }
 

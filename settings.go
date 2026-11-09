@@ -383,7 +383,7 @@ func (w *workspace) remotePage(c *ui.Context, tk tokens) {
 		// A build with a relay compiled in is always reachable through it,
 		// so the LAN toggle would only be a switch that changes nothing the
 		// page above it shows.
-		if !w.relayProvisioned {
+		if !w.relayHost {
 			w.settingRowView(c, tk, settingRow{
 				title:  locales.SettingsRemoteAllow(),
 				detail: locales.SettingsRemoteAllowDetail(),
