@@ -884,21 +884,31 @@ func (msgs Messages) WorktreeArchiveTitle() string {
 	return Catalog.Format(msgs.locale, "worktreeArchiveTitle", nil)
 }
 
-// WorktreeArchiveBody says "This closes every pane in the checkout, then deletes it. The branch is kept, so Restore can bring it back."
+// WorktreeArchiveBody says "This closes every pane in the worktree and deletes its folder."
 // in the language the app shows.
 func WorktreeArchiveBody() string { return In(i18n.Locale()).WorktreeArchiveBody() }
 
-// WorktreeArchiveBody says "This closes every pane in the checkout, then deletes it. The branch is kept, so Restore can bring it back."
+// WorktreeArchiveBody says "This closes every pane in the worktree and deletes its folder."
 // in the language of msgs.
 func (msgs Messages) WorktreeArchiveBody() string {
 	return Catalog.Format(msgs.locale, "worktreeArchiveBody", nil)
 }
 
-// WorktreeArchiveDirty says "The checkout also has uncommitted changes; they will be deleted."
+// WorktreeArchiveKeep says "The branch is kept, so you can restore it from Worktrees."
+// in the language the app shows.
+func WorktreeArchiveKeep() string { return In(i18n.Locale()).WorktreeArchiveKeep() }
+
+// WorktreeArchiveKeep says "The branch is kept, so you can restore it from Worktrees."
+// in the language of msgs.
+func (msgs Messages) WorktreeArchiveKeep() string {
+	return Catalog.Format(msgs.locale, "worktreeArchiveKeep", nil)
+}
+
+// WorktreeArchiveDirty says "Uncommitted changes will be deleted too."
 // in the language the app shows.
 func WorktreeArchiveDirty() string { return In(i18n.Locale()).WorktreeArchiveDirty() }
 
-// WorktreeArchiveDirty says "The checkout also has uncommitted changes; they will be deleted."
+// WorktreeArchiveDirty says "Uncommitted changes will be deleted too."
 // in the language of msgs.
 func (msgs Messages) WorktreeArchiveDirty() string {
 	return Catalog.Format(msgs.locale, "worktreeArchiveDirty", nil)
@@ -914,11 +924,11 @@ func (msgs Messages) WorktreeArchiveDirtySkipped() string {
 	return Catalog.Format(msgs.locale, "worktreeArchiveDirtySkipped", nil)
 }
 
-// WorktreeArchiveIgnored says "The checkout also holds ignored files (for example .env); they will be deleted."
+// WorktreeArchiveIgnored says "Ignored files (such as .env) will be deleted too."
 // in the language the app shows.
 func WorktreeArchiveIgnored() string { return In(i18n.Locale()).WorktreeArchiveIgnored() }
 
-// WorktreeArchiveIgnored says "The checkout also holds ignored files (for example .env); they will be deleted."
+// WorktreeArchiveIgnored says "Ignored files (such as .env) will be deleted too."
 // in the language of msgs.
 func (msgs Messages) WorktreeArchiveIgnored() string {
 	return Catalog.Format(msgs.locale, "worktreeArchiveIgnored", nil)
@@ -2006,13 +2016,13 @@ func (msgs Messages) WorktreeClearArchived() string {
 	return Catalog.Format(msgs.locale, "worktreeClearArchived", nil)
 }
 
-// WorktreeClearArchivedDetail says "Delete the {count} archived branches and their remote branches."
+// WorktreeClearArchivedDetail says "Delete the {count} archived branches and their remote counterparts."
 // in the language the app shows.
 func WorktreeClearArchivedDetail(count string) string {
 	return In(i18n.Locale()).WorktreeClearArchivedDetail(count)
 }
 
-// WorktreeClearArchivedDetail says "Delete the {count} archived branches and their remote branches."
+// WorktreeClearArchivedDetail says "Delete the {count} archived branches and their remote counterparts."
 // in the language of msgs.
 func (msgs Messages) WorktreeClearArchivedDetail(count string) string {
 	return Catalog.Format(msgs.locale, "worktreeClearArchivedDetail", map[string]any{"count": count})
@@ -2028,13 +2038,13 @@ func (msgs Messages) WorktreeClearArchivedTitle() string {
 	return Catalog.Format(msgs.locale, "worktreeClearArchivedTitle", nil)
 }
 
-// WorktreeClearArchivedBody says "This deletes {count} archived branches and their remote branches. This cannot be undone."
+// WorktreeClearArchivedBody says "This deletes {count} archived branches and their remote counterparts. This cannot be undone."
 // in the language the app shows.
 func WorktreeClearArchivedBody(count string) string {
 	return In(i18n.Locale()).WorktreeClearArchivedBody(count)
 }
 
-// WorktreeClearArchivedBody says "This deletes {count} archived branches and their remote branches. This cannot be undone."
+// WorktreeClearArchivedBody says "This deletes {count} archived branches and their remote counterparts. This cannot be undone."
 // in the language of msgs.
 func (msgs Messages) WorktreeClearArchivedBody(count string) string {
 	return Catalog.Format(msgs.locale, "worktreeClearArchivedBody", map[string]any{"count": count})

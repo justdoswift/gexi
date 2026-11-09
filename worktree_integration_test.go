@@ -754,6 +754,34 @@ func TestWorktreesPageShowsClearProgress(t *testing.T) {
 	}
 }
 
+// TestArchiveDialogShowsWhatGoes checks the archive confirmation names the
+// branch and separates the files that go with the folder, so the destructive
+// part is not buried in one paragraph.
+func TestArchiveDialogShowsWhatGoes(t *testing.T) {
+	w := &workspace{
+		archiveTarget:  &pane{ID: "p"},
+		archiveOpen:    true,
+		archiveBranch:  "feat/sidebar-search",
+		archiveDirty:   true,
+		archiveIgnored: true,
+	}
+	tester := ui.NewTester(func(c *ui.Context) {
+		w.archiveWorktreeDialog(c, themeTokens(c.Theme()))
+	}, 600, 500)
+	tester.Frame()
+	for _, text := range []string{
+		"feat/sidebar-search",
+		locales.WorktreeArchiveBody(),
+		locales.WorktreeArchiveKeep(),
+		locales.WorktreeArchiveDirty(),
+		locales.WorktreeArchiveIgnored(),
+	} {
+		if !tester.HasText(text) {
+			t.Fatalf("the dialog does not show %q; it shows %q", text, tester.Texts())
+		}
+	}
+}
+
 // TestCoreGitRefusesMissingCheckout checks the PR and merge cores themselves
 // stop on a deleted checkout, not only the header that calls them.
 func TestCoreGitRefusesMissingCheckout(t *testing.T) {

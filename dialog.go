@@ -135,6 +135,16 @@ func dialogMessage(c *ui.Context, tk tokens, message string) {
 	})
 }
 
+// dialogWarning is one consequence that costs files, marked with a danger
+// dot so it reads apart from the explanation above it.
+func dialogWarning(c *ui.Context, tk tokens, message string) {
+	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Start).Children(func() {
+		ui.Box(c).Width(6).Height(6).Radius(3).Shrink(0).Margin(5, 0, 0, 0).
+			Background(tk.Danger)
+		ui.Text(c, message).FontSize(12.5).TextColor(tk.Danger).Grow(1)
+	})
+}
+
 // dialogInput is a text field on the glass: a faint well whose border takes
 // the text colour when it has the focus.
 func dialogInput(c *ui.Context, tk tokens, value *string, placeholder string) ui.Element {
