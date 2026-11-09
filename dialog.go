@@ -52,7 +52,7 @@ func dialogTheme(tk tokens) *ui.Theme {
 	t.Surface = tk.Background
 	t.SurfaceHover = tk.Background.MixOklab(tk.Foreground, 0.06)
 	t.SurfacePressed = tk.Background.MixOklab(tk.Foreground, 0.1)
-	t.Border = tk.Border
+	t.Border = tk.Foreground.Alpha(0.22)
 	t.Text = tk.Foreground
 	t.TextMuted = tk.MutedForeground
 	t.Accent = tk.Foreground
@@ -79,28 +79,39 @@ func dialogTheme(tk tokens) *ui.Theme {
 // fills the panel. Escape and a press outside close the dialog through
 // *open.
 func dialogFrame(c *ui.Context, tk tokens, open *bool, width float32, build func()) {
-	// Light glass keeps a little more of its own surface than dark, as
-	// AppKit's material does: text behind a white pane would otherwise ghost
-	// through. Clarity lets a pane this large read as glass, not a card.
-	shade, tint, clarity := ui.RGBA(0, 0, 0, 0.35), float32(0.32), float32(0.3)
+	// Nearly clear glass over a frosted backdrop. The glass is drawn larger
+	// than the panel and clipped to it, so its 1px rim, meant for a toolbar,
+	// is cut away: the pane reads as a soft sheet of glass with no drawn
+	// outline around it. Light mode keeps a little more body so dark text
+	// behind it does not ghost through.
+	shade, tint, clarity := ui.RGBA(0, 0, 0, 0.24), float32(0.06), float32(0.5)
 	if !tk.Dark {
-		shade, tint = ui.RGBA(0, 0, 0, 0.22), 0.52
+		shade, tint, clarity = ui.RGBA(0, 0, 0, 0.12), 0.2, 0.5
+	}
+	shadow := alpha(ui.RGB(0, 0, 0), 0.5)
+	if !tk.Dark {
+		shadow = alpha(ui.RGB(0, 0, 0), 0.18)
 	}
 	ui.DialogBase(c, open, func(back, panel ui.Element) {
 		back.Background(shade)
-		panel.Width(width).Clip().Gap(0).Padding(0).
-			Radius(18).Material(glass.Glass{Tint: tk.Background.Alpha(tint), Clarity: clarity}).
-			Border(1, tk.Foreground.Alpha(0.1)).
-			Shadow(0, 30, 70, 0, alpha(ui.RGB(0, 0, 0), 0.45)).
+		panel.Width(width).Clip().Gap(0).Padding(0).Radius(22).
+			Shadow(0, 40, 100, 0, shadow).
 			Children(func() {
-				// A light from above: a faint wash down the top of the glass
-				// and a bright hairline where its rim catches the light, so
-				// the panel reads as a surface rather than a flat card.
-				ui.Box(c).Absolute().Left(1).Right(1).Top(1).Height(72).IgnoreInput(true).
-					Gradient(ui.RGBA(255, 255, 255, 0.07), ui.Transparent, 180)
-				ui.Box(c).Absolute().Left(14).Right(14).Top(0).Height(1).IgnoreInput(true).
-					Background(ui.RGBA(255, 255, 255, 0.28))
-				ui.Themed(c, dialogTheme(tk)).FillWidth().Children(build)
+				ui.Themed(c, dialogTheme(tk)).FillWidth().Children(func() {
+					inner := ui.Column(c).FillWidth().Gap(0).Padding(0).
+						Material(glass.Blur{Radius: 18})
+					inner.Children(func() {
+						// The pane, larger than the clip so its rim falls
+						// outside: only the even middle of the glass shows.
+						ui.Box(c).Absolute().Left(-6).Top(-6).Right(-6).Bottom(-6).
+							Radius(28).ZIndex(-1).IgnoreInput(true).
+							Material(glass.Glass{Tint: tk.Background.Alpha(tint), Clarity: clarity})
+						// A light from above, soft and without an edge.
+						ui.Box(c).Absolute().Left(2).Right(2).Top(2).Height(96).IgnoreInput(true).
+							Gradient(ui.RGBA(255, 255, 255, 0.09), ui.Transparent, 180)
+						build()
+					})
+				})
 			})
 	})
 }
@@ -108,8 +119,8 @@ func dialogFrame(c *ui.Context, tk tokens, open *bool, width float32, build func
 // dialogHeading is the title that every dialog opens with, and the one line
 // of explanation that belongs with it.
 func dialogHeading(c *ui.Context, tk tokens, title, hint string) {
-	ui.Column(c).FillWidth().Padding(16, 20, 14, 20).Gap(6).Children(func() {
-		ui.Text(c, title).FontSize(15).FontWeight(600).TextColor(tk.Foreground)
+	ui.Column(c).FillWidth().Padding(24, 24, 18, 24).Gap(7).Children(func() {
+		ui.Text(c, title).FontSize(16).FontWeight(600).TextColor(tk.Foreground)
 		if hint != "" {
 			ui.Text(c, hint).FontSize(12).TextColor(tk.MutedForeground).
 				Width(0).MinWidthPercent(100)
@@ -119,7 +130,7 @@ func dialogHeading(c *ui.Context, tk tokens, title, hint string) {
 
 // dialogBody is the form between the heading and the footer.
 func dialogBody(c *ui.Context, build func()) {
-	ui.Column(c).FillWidth().Padding(0, 20, 16, 20).Gap(8).Children(build)
+	ui.Column(c).FillWidth().Padding(0, 24, 22, 24).Gap(10).Children(build)
 }
 
 // dialogMessage writes the paragraphs of an alert's message.
@@ -174,9 +185,16 @@ func dialogError(c *ui.Context, tk tokens, message string) {
 // quiet actions come first, and the one the dialog exists for last, where
 // the eye and the Return key expect it.
 func dialogFooter(c *ui.Context, tk tokens, actions ...dialogAction) {
-	ui.Row(c).FillWidth().Height(48).Padding(0, 14).Gap(8).
-		AlignItems(ui.Center).Justify(ui.End).
-		BorderWidth(1, 0, 0, 0).BorderColor(tk.Foreground.Alpha(0.1)).Children(func() {
+	ui.Row(c).FillWidth().Height(60).Padding(0, 18).Gap(8).
+		AlignItems(ui.Center).Justify(ui.End).Children(func() {
+		// The rule fades out toward the corners, so it reads as a fold in
+		// the glass rather than a line drawn across it.
+		ui.Box(c).Absolute().Left(18).Right(18).Top(0).Height(1).IgnoreInput(true).
+			LinearGradient(ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{
+				{Color: ui.Transparent, At: 0},
+				{Color: tk.Foreground.Alpha(0.14), At: 0.5},
+				{Color: ui.Transparent, At: 1},
+			}})
 		for _, a := range actions {
 			dialogButton(c, tk, a)
 		}
@@ -187,34 +205,28 @@ func dialogFooter(c *ui.Context, tk tokens, actions ...dialogAction) {
 // the chrome's own high contrast for the action that carries the dialog, and
 // the danger colour for one that throws work away.
 func dialogButton(c *ui.Context, tk tokens, a dialogAction) {
-	b := ui.Button(c, "").Label(a.label).Height(30).Padding(0, 14).
-		Radius(7).Cursor(ui.CursorPointer).OnClick(a.run).
+	b := ui.Button(c, "").Label(a.label).Height(32).Padding(0, 16).
+		Radius(16).Cursor(ui.CursorPointer).OnClick(a.run).
 		Children(func() {
 			ui.Text(c, a.label).FontSize(12.5).FontWeight(500)
 		})
 	if a.auto {
 		b = b.AutoFocus()
 	}
-	hovered := b.Hovered()
 	switch a.kind {
 	case dialogPrimary:
-		bg := tk.Foreground
-		if hovered {
-			bg = bg.MixOklab(tk.Background, 0.14)
-		}
-		b.Background(bg).TextColor(tk.Background)
+		// A prominent glass button: the system accent tinting the glass,
+		// with the press growing it, as AppKit's.
+		b.Material(glass.Glass{Tint: tk.SystemAccent, Interactive: true}).
+			TextColor(ui.RGB(255, 255, 255)).
+			Border(1, ui.RGBA(255, 255, 255, 0.28))
 	case dialogDanger:
-		bg := tk.Danger
-		if hovered {
-			bg = bg.MixOklab(ui.RGB(255, 255, 255), 0.14)
-		}
-		b.Background(bg).TextColor(ui.RGB(255, 255, 255))
+		b.Material(glass.Glass{Tint: tk.Danger, Interactive: true}).
+			TextColor(ui.RGB(255, 255, 255)).
+			Border(1, ui.RGBA(255, 255, 255, 0.24))
 	default:
-		bg := ui.Transparent
-		if hovered {
-			bg = tk.Foreground.Alpha(0.09)
-		}
-		b.Background(bg).TextColor(tk.Foreground).Border(1, tk.Foreground.Alpha(0.14))
+		b.Material(glass.Glass{Tint: tk.Foreground.Alpha(0.06), Interactive: true}).
+			TextColor(tk.Foreground).Border(1, tk.Foreground.Alpha(0.14))
 	}
 }
 
@@ -224,8 +236,8 @@ func dialogButton(c *ui.Context, tk tokens, a dialogAction) {
 // another look.
 func dialogAlert(c *ui.Context, tk tokens, open *bool, width float32, title, message string, actions ...dialogAction) {
 	dialogFrame(c, tk, open, width, func() {
-		ui.Column(c).FillWidth().Padding(18, 20, 16, 20).Gap(8).Children(func() {
-			ui.Text(c, title).FontSize(15).FontWeight(600).TextColor(tk.Foreground)
+		ui.Column(c).FillWidth().Padding(24, 24, 20, 24).Gap(10).Children(func() {
+			ui.Text(c, title).FontSize(16).FontWeight(600).TextColor(tk.Foreground)
 			if message != "" {
 				dialogMessage(c, tk, message)
 			}
