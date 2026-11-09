@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/egoist/mygo/plugins/loading"
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
@@ -209,11 +208,12 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 		return
 	}
 	bar := c.TitleBar()
-	// Over the window's material the sidebar paints no background of its
-	// own, so the material is what its rows, search field and labels sit on.
-	// A theme paints it instead, and so does a window without a material.
-	// Collapsed, it takes no width and the canvas covers the material.
-	side := ui.Column(c).Width(width).FillHeight().Clip()
+	// The sidebar and the canvas share one backdrop, wrapping the panes in a
+	// single surface. Over the window's material the sidebar paints no
+	// background of its own, so the material is that surface. A theme paints
+	// it instead. Collapsed, it takes no width and the canvas covers the
+	// material.
+	side := ui.Column(c).Width(width).FillHeight().Clip().Shrink(0)
 	if !liquid(c) || chromeTheme {
 		side = side.Background(w.backdrop(tk))
 	}
@@ -228,27 +228,31 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 		// under the header, so the title bar keeps only the drag area.
 		ui.Row(c).Height(searchHeight).Padding(8, 8, 0, 8).Gap(6).Children(func() {
 			w.projectSearch(c, tk)
-			iconButtonSized(c, tk, "plus", 24, 19, iconOnMaterial, func() { w.pickProject() },
+			iconButtonSized(c, tk, "plus", iconSize, 16, iconOnMaterial, func() { w.pickProject() },
 				locales.ShortcutNewProject()+" (⌘⇧N)")
 		})
-		ui.Column(c).Fill().Padding(8).Gap(3).Children(func() {
+		ui.Column(c).Fill().Padding(10, 6, 8, 8).Gap(2).Children(func() {
 			shown := false
-			for _, pr := range w.Projects {
+			first := true
+			drawProject := func(pr *project) {
 				if !w.projectVisible(pr) {
-					continue
+					return
 				}
+				if !first {
+					ui.Box(c).Height(8)
+				}
+				first = false
 				shown = true
 				w.projectRow(c, tk, pr)
+			}
+			for _, pr := range w.Projects {
+				drawProject(pr)
 			}
 			// Paired Macs sit under the projects as projects of their own:
 			// their sessions are sessions, and the canvas draws them with
 			// the same code.
 			for _, pr := range w.remoteProjects {
-				if !w.projectVisible(pr) {
-					continue
-				}
-				shown = true
-				w.projectRow(c, tk, pr)
+				drawProject(pr)
 			}
 			if !shown {
 				ui.Text(c, locales.NoProjects()).FontSize(12).
@@ -258,7 +262,8 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 			// The footer holds the sidebar's two menus: remote Macs on the
 			// left, settings on the right, off the search row so the field
 			// can run nearly as wide as the sessions.
-			ui.Row(c).Height(iconSize).Gap(2).Children(func() {
+			ui.Box(c).Height(1).FillWidth().Background(tk.Border)
+			ui.Row(c).Height(iconSize).Gap(2).Padding(0, 2, 0, 2).Children(func() {
 				iconMenuButton(c, tk, "monitor", w.remoteMenu, locales.RemoteMenuHint())
 				ui.Spacer(c)
 				iconButton(c, tk, "setting", func() { w.openSettings() },
@@ -268,23 +273,29 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 	})
 }
 
-// projectSearch is the field that filters the project list. It is a pill of
-// the list's own size and tint, so it reads as the first row of the list.
+// projectSearch is the field that filters the project list: a quiet input on
+// the sidebar's surface, with the list's own corner and a hairline that
+// darkens while it has the keyboard.
 func (w *workspace) projectSearch(c *ui.Context, tk tokens) {
 	field := ui.Row(c).Height(searchHeight).FillWidth().AlignItems(ui.Center).Gap(6).
 		PaddingStart(9).PaddingEnd(8).Radius(chromeRadius).
-		Border(1, ui.RGBA(0, 0, 0, 0)).Cursor(ui.CursorText)
-	field = controlWash(c, field, tk, 0.06, tk.Active)
+		Border(1, tk.Border).Background(tk.Background).Cursor(ui.CursorText)
+	if liquid(c) {
+		// On the window's material a solid field would sit on the glass as
+		// a card; the material takes the theme's own ink instead.
+		field = field.Background(tk.Foreground.Alpha(0.06)).
+			BorderColor(tk.Foreground.Alpha(0.08))
+	}
 	var in ui.Element
 	field.OnClick(func() { in.Focus() }).Children(func() {
 		if src := iconSource("search", colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(16).Height(16).IgnoreInput(true)
+			ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
 		}
 		in = ui.TextInputBase(c, &w.searchQuery).Label(locales.SearchProjects()).
 			Placeholder(locales.SearchPlaceholder()).PlaceholderColor(tk.MutedForeground).
-			FontSize(11).FillWidth()
+			FontSize(12).FillWidth()
 	})
-	// The pill lights its border while the query has the focus; the input
+	// The field lights its edge while the query has the focus; the input
 	// itself draws no chrome, so this is the only focus cue it needs.
 	if in.Focused() {
 		field.BorderColor(tk.MutedForeground)
@@ -300,19 +311,17 @@ func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
 }
 
 // projectRow is a folder header: it folds its sessions in and out, and offers
-// another session or closing the project on hover. The header needs no folder
-// glyph: it is a folder.
+// another session or closing the project on hover. The header reads as a
+// label above its sessions, lighter and smaller than them, with no fill of
+// its own: the session card is the only thing that takes a surface.
 func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 	open := !w.collapsed[pr.ID] || strings.TrimSpace(w.searchQuery) != ""
-	row := ui.Row(c).Height(rowHeightPx).Padding(0, 8, 0, 8).Gap(6).Radius(chromeRadius).
+	row := ui.Row(c).Height(groupRowHeight).Padding(0, 8, 0, 8).Gap(5).Radius(chromeRadius).
 		MarginX(2)
 	hovered := row.Hovered()
 	color := tk.MutedForeground
 	if pr.sessionsSelected(w) || hovered {
 		color = tk.Foreground
-	}
-	if hovered {
-		row = controlWash(c, row, tk, 0.045, tk.Active)
 	}
 	toggle := func() { w.toggleProject(pr) }
 	row.OnClick(toggle).Children(func() {
@@ -320,20 +329,21 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 		if open {
 			chevron = "chevron-down"
 		}
-		if src := iconSource(chevron, colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(15).Height(15).OnClick(toggle)
+		if src := iconSource(chevron, colorHex(color)); src != nil {
+			ui.Image(c, src).Width(12).Height(12).OnClick(toggle)
 		}
 		// A paired Mac wears the monitor its menu does, so it reads as a
 		// host rather than another checkout.
 		if pr.remote != nil {
 			if src := iconSource("monitor", colorHex(tk.MutedForeground)); src != nil {
-				ui.Image(c, src).Width(14).Height(14).OnClick(toggle)
+				ui.Image(c, src).Width(13).Height(13).OnClick(toggle)
 			}
 		}
-		ui.Text(c, pr.name()).FontSize(12).FontWeight(500).SingleLine().TextColor(color).OnClick(toggle)
+		ui.Text(c, pr.name()).FontSize(11.5).FontWeight(600).SingleLine().
+			TextColor(color).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		if pr.remote != nil && pr.remote.conn.err != "" {
-			ui.Box(c).Width(7).Height(7).Radius(4).Background(tk.Waiting).
+			ui.Box(c).Width(6).Height(6).Radius(3).Background(tk.Waiting).
 				Tooltip(pr.remote.conn.err).OnClick(toggle)
 		}
 		if hovered {
@@ -383,15 +393,12 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 			break
 		}
 	}
-	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8 + indent).PaddingEnd(8).Gap(6).
+	row := ui.Row(c).Height(groupRowHeight).PaddingStart(8 + indent).PaddingEnd(8).Gap(5).
 		Radius(chromeRadius).MarginX(2)
 	hovered := row.Hovered()
 	color := tk.MutedForeground
 	if selected || hovered {
 		color = tk.Foreground
-	}
-	if hovered {
-		row = controlWash(c, row, tk, 0.045, tk.Active)
 	}
 	toggle := func() {
 		if w.collapsed[key] {
@@ -406,13 +413,13 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 		if open {
 			chevron = "chevron-down"
 		}
-		if src := iconSource(chevron, colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(15).Height(15).OnClick(toggle)
+		if src := iconSource(chevron, colorHex(color)); src != nil {
+			ui.Image(c, src).Width(12).Height(12).OnClick(toggle)
 		}
 		if src := iconSource("folder", colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(14).Height(14).IgnoreInput(true).OnClick(toggle)
+			ui.Image(c, src).Width(13).Height(13).IgnoreInput(true).OnClick(toggle)
 		}
-		ui.Text(c, g.project.Name).FontSize(12).FontWeight(500).SingleLine().
+		ui.Text(c, g.project.Name).FontSize(11.5).FontWeight(600).SingleLine().
 			TextColor(color).Tooltip(g.project.Dir).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		if hovered {
@@ -431,26 +438,34 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 }
 
 // sessionRow is one piece of work in a project: an agent's mark or a terminal
-// glyph, its name, a loader while its agent works, and a close button on
-// hover. The close button's place is kept while the pointer is away, so the
-// loader does not move as the button comes and goes.
+// glyph, its name, a sweep over the name while its agent works, and a close
+// button on hover. The selected row is a card on the sidebar's surface, so
+// the eye finds it without an accent colour. The close button's place is
+// kept while the pointer is away, so the name does not move as the button
+// comes and goes.
 func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session, indent float32) {
 	sel := s.ID == w.SelectedSession
 	color := tk.MutedForeground
-	// Flush with the project row: the session card reads as its own row, not
-	// as something hanging under an indent. A session under one of a host's
-	// folders steps in with it, so the folder reads as its parent.
-	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8+indent).PaddingEnd(8).Gap(8).
-		Radius(chromeRadius).MarginX(2)
+	// Sessions step in from the project header: the header is the label, the
+	// rows under it are its contents. A session under one of a host's
+	// folders steps in once more.
+	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8+indent+16).PaddingEnd(8).Gap(8).
+		Radius(chromeRadius).MarginX(2).Border(1, ui.Transparent)
 	hovered := row.Hovered()
 	if sel || hovered {
 		color = tk.Foreground
 	}
+	// The hairline is reserved on every row, so selecting one does not shift
+	// its contents by a pixel.
 	switch {
 	case sel:
-		row = controlWash(c, row, tk, 0.09, tk.Active)
+		fill, edge := tk.Raised, tk.Border
+		if tk.Dark {
+			fill, edge = tk.Foreground.Alpha(0.10), tk.Foreground.Alpha(0.08)
+		}
+		row = row.Background(fill).BorderColor(edge)
 	case hovered:
-		row = controlWash(c, row, tk, 0.045, tk.Active)
+		row = row.Background(tk.Foreground.Alpha(0.045))
 	}
 	pick := func() { w.selectSession(s.ID) }
 	activity := sessionActivityState(s)
@@ -458,26 +473,31 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		agent := s.agent()
 		if agent != nil {
 			if src := agentLogoSource(agent.Kind, tk); src != nil {
-				ui.Image(c, src).Width(13).Height(13).OnClick(pick)
+				ui.Image(c, src).Width(14).Height(14).OnClick(pick)
 			}
 		} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(16).Height(16).OnClick(pick)
-		}
-		labelColor := color
-		if activity == activityWaiting {
-			labelColor = tk.Foreground
+			ui.Image(c, src).Width(14).Height(14).OnClick(pick)
 		}
 		label := sessionLabel(s)
-		ui.Text(c, label).FontSize(12).FontWeight(500).SingleLine().
-			TextColor(labelColor).OnClick(pick)
-		ui.Spacer(c).OnClick(pick)
-		if activity == activityWorking {
-			loading.Pulse(c, loading.Options{Size: 14, Color: tk.Foreground}).Label(label)
+		var labelEl ui.Element
+		switch activity {
+		case activityWorking:
+			// A sweep across the name says the session is at work, in the
+			// name's own ink rather than a dot beside it.
+			labelEl = shimmerLabel(c, tk, label, 13, 500)
+		case activityWaiting:
+			labelEl = ui.Text(c, label).FontSize(13).FontWeight(500).SingleLine().
+				TextColor(tk.Foreground)
+		default:
+			labelEl = ui.Text(c, label).FontSize(13).FontWeight(500).SingleLine().
+				TextColor(color)
 		}
+		labelEl.OnClick(pick)
+		ui.Spacer(c).OnClick(pick)
 		if hovered {
 			iconButtonSmall(c, tk, "x", func() { w.closeSession(s) }, locales.CloseSession())
 		} else {
-			// Hold the close button's place so the loader beside it stays put.
+			// Hold the close button's place so the name keeps its width.
 			ui.Box(c).Width(iconSmallSize).Height(iconSmallSize).OnClick(pick)
 		}
 	})
