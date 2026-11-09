@@ -1,7 +1,7 @@
 {
   "name": "gexi",
   "identifier": "dev.gexi.app",
-  "version": "0.0.66",
+  "version": "0.0.67",
   "out": "build",
   "i18n": {
     "dir": "locales",
@@ -16,6 +16,7 @@
   },
   "updates": {
     "publicKey": "n2m6KYnuZ5wMY6X1ADIx2KdSY0vVjE5+BvL78/5vZsw=",
-    "github": "justdoswift/gexi"
+    "github": "justdoswift/gexi",
+    "privateKey": "~/Library/Application Support/mygo/update-keys/mygo-update.key"
   }
 }

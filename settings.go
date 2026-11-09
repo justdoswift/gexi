@@ -380,17 +380,22 @@ func (w *workspace) notificationsPage(c *ui.Context, tk tokens) {
 func (w *workspace) remotePage(c *ui.Context, tk tokens) {
 	sectionLabel(c, tk, locales.SettingsRemoteThisMac())
 	settingsCard(c, tk, func() {
-		w.settingRowView(c, tk, settingRow{
-			title:  locales.SettingsRemoteAllow(),
-			detail: locales.SettingsRemoteAllowDetail(),
-			on:     w.settings.RemoteEnabled,
-			toggle: func() { w.setRemoteEnabled(!w.settings.RemoteEnabled) },
-		})
+		// A build with a relay compiled in is always reachable through it,
+		// so the LAN toggle would only be a switch that changes nothing the
+		// page above it shows.
+		if !w.relayProvisioned {
+			w.settingRowView(c, tk, settingRow{
+				title:  locales.SettingsRemoteAllow(),
+				detail: locales.SettingsRemoteAllowDetail(),
+				on:     w.settings.RemoteEnabled,
+				toggle: func() { w.setRemoteEnabled(!w.settings.RemoteEnabled) },
+			})
+			cardDivider(c, tk)
+		}
 		if !w.remoteServerNeeded() {
 			return
 		}
-		cardDivider(c, tk)
-		if w.settings.RemoteEnabled {
+		if w.settings.RemoteEnabled || w.relayClientURL() != "" {
 			w.remoteAddressRow(c, tk)
 			cardDivider(c, tk)
 		}
@@ -524,13 +529,16 @@ func (w *workspace) remotePage(c *ui.Context, tk tokens) {
 func (w *workspace) remoteAddressRow(c *ui.Context, tk tokens) {
 	addresses := lanAddresses()
 	// With a relay up, that address is the one another device types: the
-	// LAN ones would only work under the same roof.
+	// LAN ones would only work under the same roof, and the local port
+	// failing to bind does not change it.
+	throughRelay := false
 	if relay := w.relayClientURL(); relay != "" {
 		addresses = []string{relay}
+		throughRelay = true
 	}
 	detail := strings.Join(addresses, "  ")
 	color := tk.MutedForeground
-	if w.remoteErr != "" {
+	if w.remoteErr != "" && !throughRelay {
 		detail = locales.SettingsRemoteFailed(w.remoteErr)
 		color = tk.Waiting
 	} else if len(addresses) == 0 {
@@ -543,7 +551,7 @@ func (w *workspace) remoteAddressRow(c *ui.Context, tk tokens) {
 			ui.Text(c, detail).FontSize(11).TextColor(color)
 		})
 		ui.Spacer(c)
-		if w.remoteErr == "" && len(addresses) > 0 {
+		if (w.remoteErr == "" || throughRelay) && len(addresses) > 0 {
 			outlineButton(c, tk, locales.SettingsRemoteCopy(), func() {
 				writeClipboard(addresses[0])
 			})
