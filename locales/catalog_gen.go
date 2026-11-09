@@ -2704,6 +2704,56 @@ func (msgs Messages) DrawerOpenChanges() string {
 	return Catalog.Format(msgs.locale, "drawerOpenChanges", nil)
 }
 
+// DrawerUncommitted says "Uncommitted"
+// in the language the app shows.
+func DrawerUncommitted() string { return In(i18n.Locale()).DrawerUncommitted() }
+
+// DrawerUncommitted says "Uncommitted"
+// in the language of msgs.
+func (msgs Messages) DrawerUncommitted() string {
+	return Catalog.Format(msgs.locale, "drawerUncommitted", nil)
+}
+
+// DrawerBranch says "Branch"
+// in the language the app shows.
+func DrawerBranch() string { return In(i18n.Locale()).DrawerBranch() }
+
+// DrawerBranch says "Branch"
+// in the language of msgs.
+func (msgs Messages) DrawerBranch() string {
+	return Catalog.Format(msgs.locale, "drawerBranch", nil)
+}
+
+// DrawerAgainst says "vs {base}"
+// in the language the app shows.
+func DrawerAgainst(base string) string { return In(i18n.Locale()).DrawerAgainst(base) }
+
+// DrawerAgainst says "vs {base}"
+// in the language of msgs.
+func (msgs Messages) DrawerAgainst(base string) string {
+	return Catalog.Format(msgs.locale, "drawerAgainst", map[string]any{"base": base})
+}
+
+// DrawerNoBase says "No base branch to compare against."
+// in the language the app shows.
+func DrawerNoBase() string { return In(i18n.Locale()).DrawerNoBase() }
+
+// DrawerNoBase says "No base branch to compare against."
+// in the language of msgs.
+func (msgs Messages) DrawerNoBase() string {
+	return Catalog.Format(msgs.locale, "drawerNoBase", nil)
+}
+
+// DrawerNoBranchChanges says "No changes against {base}"
+// in the language the app shows.
+func DrawerNoBranchChanges(base string) string { return In(i18n.Locale()).DrawerNoBranchChanges(base) }
+
+// DrawerNoBranchChanges says "No changes against {base}"
+// in the language of msgs.
+func (msgs Messages) DrawerNoBranchChanges(base string) string {
+	return Catalog.Format(msgs.locale, "drawerNoBranchChanges", map[string]any{"base": base})
+}
+
 // CloseProject says "Close Project"
 // in the language the app shows.
 func CloseProject() string { return In(i18n.Locale()).CloseProject() }

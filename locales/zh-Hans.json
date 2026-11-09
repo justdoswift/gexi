@@ -263,6 +263,11 @@
   "drawerTooLarge": "文件太大，无法显示。",
   "drawerLoading": "加载中…",
   "drawerOpenChanges": "查看改动",
+  "drawerUncommitted": "未提交",
+  "drawerBranch": "分支",
+  "drawerAgainst": "相对 {base}",
+  "drawerNoBase": "没有可对比的基线分支。",
+  "drawerNoBranchChanges": "相对 {base} 没有改动",
   "closeProject": "关闭项目",
   "closeSession": "关闭会话",
 

@@ -111,6 +111,102 @@ func TestGitChangesNotRepo(t *testing.T) {
 	}
 }
 
+// TestParseNameStatus reads the NUL-separated records a branch diff prints: a
+// letter and a path, and a rename's old path before the new one.
+func TestParseNameStatus(t *testing.T) {
+	out := []byte("M\x00a.txt\x00R100\x00old.go\x00new.go\x00A\x00added.txt\x00")
+	got := parseNameStatus(out)
+	want := []changedFile{
+		{Path: "a.txt", Status: 'M'},
+		{Path: "new.go", OldPath: "old.go", Status: 'R'},
+		{Path: "added.txt", Status: 'A'},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d, want %d: %+v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("file %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+// TestGitBranchChanges measures from the merge base, not from base's tip: work
+// that landed on main after the branch started is not the branch's, and the
+// list carries the branch's commits and its uncommitted work alike.
+func TestGitBranchChanges(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=T", "GIT_AUTHOR_EMAIL=t@example.com",
+			"GIT_COMMITTER_NAME=T", "GIT_COMMITTER_EMAIL=t@example.com",
+		)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	write := func(name, text string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git("init", "-q", "-b", "main")
+	write("keep.txt", "base\n")
+	git("add", ".")
+	git("commit", "-qm", "base")
+
+	git("checkout", "-qb", "feature")
+	write("keep.txt", "branch\n")
+	git("commit", "-qam", "branch work")
+
+	// main moves on after the branch was cut; its file must stay out of the
+	// branch's list even though `git diff main` would call it a deletion.
+	git("checkout", "-q", "main")
+	write("landed.txt", "main only\n")
+	git("add", ".")
+	git("commit", "-qm", "landed")
+	git("checkout", "-q", "feature")
+
+	// Uncommitted work counts too: an edit and a file Git has never seen.
+	write("keep.txt", "branch and dirty\n")
+	write("dirty.txt", "new\n")
+
+	files, mb, err := gitBranchChanges(dir, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mb == "" {
+		t.Error("no merge base returned")
+	}
+	byPath := map[string]changedFile{}
+	for _, f := range files {
+		byPath[f.Path] = f
+	}
+	if len(files) != 2 {
+		t.Fatalf("files = %+v, want keep.txt and dirty.txt", files)
+	}
+	if f, ok := byPath["keep.txt"]; !ok || f.Status != 'M' {
+		t.Errorf("keep.txt = %+v, want modified", f)
+	}
+	if f, ok := byPath["dirty.txt"]; !ok || f.Status != 'A' {
+		t.Errorf("dirty.txt = %+v, want added", f)
+	}
+	if _, ok := byPath["landed.txt"]; ok {
+		t.Error("landed.txt belongs to main, not this branch")
+	}
+
+	d := loadDiffAt(dir, byPath["keep.txt"], mb)
+	if d.Old != "base\n" || d.New != "branch and dirty\n" {
+		t.Errorf("diff = %+v, want the merge base against the file", d)
+	}
+}
+
 // The tree lists folders before files, each alphabetical, and leaves .git
 // out of the way.
 func TestReadDrawerDir(t *testing.T) {

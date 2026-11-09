@@ -919,6 +919,12 @@ func agentResolveCommand(kind agentKind) ([]string, bool) {
 		// is what a conflict resolution needs: nothing is there to answer a
 		// prompt. The prompt itself goes on the command line, as runAgent does.
 		return []string{"perch", "run", "--json", "--thread", "gexi-worktree", "--permission", "take_the_wheel"}, true
+	case agentPi:
+		return []string{"pi", "-p", "--no-session"}, true
+	case agentAmp:
+		// Execute mode edits without a permission prompt, like it does for the
+		// commit message; only the files it is told about are touched.
+		return []string{"amp", "-x"}, true
 	}
 	return nil, false
 }

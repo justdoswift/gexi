@@ -20,6 +20,10 @@ import (
 // errNotRepo separates a folder Git does not track from Git failing.
 var errNotRepo = errors.New("not a git repository")
 
+// errNoBase is a checkout whose base branch gexi cannot name: no origin HEAD,
+// no main or master.
+var errNoBase = errors.New("no base branch")
+
 // changedFile is one entry of `git status --porcelain`: the path relative to
 // the project, the path it came from when it was renamed or copied, and the
 // letter the row shows.
@@ -52,6 +56,95 @@ func gitChanges(dir string) ([]changedFile, error) {
 	}
 	files, _ := parseGitStatus(out)
 	return files, nil
+}
+
+// gitBranchChanges lists what the branch would bring to base: everything
+// since the merge base, uncommitted work included, and returns that base
+// commit so the drawer can read each file's old side. Measuring from the
+// merge base keeps work that landed on base after the branch started out of
+// the list, which `git diff base` would not.
+func gitBranchChanges(dir, base string) ([]changedFile, string, error) {
+	if base == "" {
+		return nil, "", errNoBase
+	}
+	mb, err := gitMergeBase(dir, base)
+	if err != nil {
+		return nil, "", err
+	}
+	out, err := gitOutput(dir, "diff", "--name-status", "-z", "-M", mb)
+	if err != nil {
+		return nil, "", err
+	}
+	files := parseNameStatus(out)
+	// A diff leaves untracked files out; they are work the branch carries too.
+	if status, err := gitOutput(dir, "status", "--porcelain=v1", "-z", "--untracked-files=all"); err == nil {
+		untracked, _ := parseGitStatus(status)
+		for _, f := range untracked {
+			if f.Status == 'U' {
+				f.Status = 'A'
+				files = append(files, f)
+			}
+		}
+	}
+	sort.Slice(files, func(i, j int) bool {
+		return strings.ToLower(files[i].Path) < strings.ToLower(files[j].Path)
+	})
+	return files, mb, nil
+}
+
+// gitMergeBase resolves where the branch left base, preferring the remote
+// base branch when the repository has one.
+func gitMergeBase(dir, base string) (string, error) {
+	rev := base
+	if _, err := gitOutput(dir, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+base); err == nil {
+		rev = "origin/" + base
+	}
+	out, err := gitOutput(dir, "merge-base", rev, "HEAD")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// parseNameStatus reads `git diff --name-status -z`: a letter and a path per
+// record, and a rename or copy carrying the old path before the new one.
+func parseNameStatus(out []byte) []changedFile {
+	var files []changedFile
+	next := func() (string, bool) {
+		if len(out) == 0 {
+			return "", false
+		}
+		i := bytes.IndexByte(out, 0)
+		if i < 0 {
+			rec := string(out)
+			out = nil
+			return rec, true
+		}
+		rec := string(out[:i])
+		out = out[i+1:]
+		return rec, true
+	}
+	for {
+		status, ok := next()
+		if !ok {
+			break
+		}
+		if status == "" {
+			continue
+		}
+		path, ok := next()
+		if !ok {
+			break
+		}
+		f := changedFile{Path: path, Status: status[0]}
+		if f.Status == 'R' || f.Status == 'C' {
+			if newPath, ok := next(); ok {
+				f.OldPath, f.Path = f.Path, newPath
+			}
+		}
+		files = append(files, f)
+	}
+	return files
 }
 
 // gitSummary is what a pane header's branch pill shows: the branch the
@@ -228,6 +321,16 @@ func gitText(dir, path string) string {
 	return string(out)
 }
 
+// gitTextAt reads one file as it was at rev, empty when it did not exist
+// there.
+func gitTextAt(dir, rev, path string) string {
+	out, err := gitOutput(dir, "show", rev+":"+filepath.ToSlash(path))
+	if err != nil {
+		return ""
+	}
+	return string(out)
+}
+
 // tooLarge is where a file is shown as a note instead of its text: a diff of
 // tens of megabytes is not worth the frame it would cost.
 const tooLarge = 4 << 20
@@ -244,13 +347,24 @@ type fileDiff struct {
 // a deleted change has none; the old side is HEAD's text, so an untracked one
 // has none.
 func loadDiff(dir string, f changedFile) fileDiff {
+	return loadDiffAt(dir, f, "HEAD")
+}
+
+// loadDiffAt reads the two sides against rev instead of the working tree's
+// HEAD, so the branch view can show each file as it was where the branch
+// left its base.
+func loadDiffAt(dir string, f changedFile, rev string) fileDiff {
 	var d fileDiff
 	if f.Status != 'U' {
 		oldPath := f.Path
 		if f.OldPath != "" {
 			oldPath = f.OldPath
 		}
-		d.Old = gitText(dir, oldPath)
+		if rev == "HEAD" {
+			d.Old = gitText(dir, oldPath)
+		} else if rev != "" {
+			d.Old = gitTextAt(dir, rev, oldPath)
+		}
 	}
 	if data, err := os.ReadFile(filepath.Join(dir, f.Path)); err == nil {
 		d.New = string(data)

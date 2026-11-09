@@ -263,6 +263,11 @@
   "drawerTooLarge": "This file is too large to show.",
   "drawerLoading": "Loading…",
   "drawerOpenChanges": "Open changes",
+  "drawerUncommitted": "Uncommitted",
+  "drawerBranch": "Branch",
+  "drawerAgainst": "vs {base}",
+  "drawerNoBase": "No base branch to compare against.",
+  "drawerNoBranchChanges": "No changes against {base}",
   "closeProject": "Close Project",
   "closeSession": "Close Session",
 

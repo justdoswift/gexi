@@ -30,6 +30,13 @@ const (
 	drawerFileWidth float32 = 620
 )
 
+// The two scopes of the changes tab: the working tree's uncommitted work, and
+// everything the branch would bring to its base.
+const (
+	drawerScopeWorktree = iota
+	drawerScopeBranch
+)
+
 // drawerEntry is one row of the files tree. path is relative to the project,
 // slash-separated as the tree walks it.
 type drawerEntry struct {
@@ -64,6 +71,18 @@ type drawerState struct {
 	changes []changedFile
 	err     string
 
+	// The changes tab's scope, and the branch side's own read: the files the
+	// branch would bring to base, the merge base their old side comes from,
+	// and the base branch's name for the row's hint.
+	scope       int
+	branchFiles []changedFile
+	branchErr   string
+	branchBusy  bool
+	branchGen   int
+	branchName  string
+	branchBase  string
+	branchDir   string
+
 	// The files tree: the folders opened, and the listings read so far.
 	expanded map[string]bool
 	dirs     map[string][]drawerEntry
@@ -95,12 +114,25 @@ func (w *workspace) syncDrawerDir() string {
 		d.dir = dir
 		d.changes = nil
 		d.err = ""
+		d.clearBranch()
 		d.expanded = map[string]bool{}
 		d.dirs = map[string][]drawerEntry{}
 		d.file = nil
 		d.viewGen++
 	}
 	return dir
+}
+
+// clearBranch drops the branch side's read for a checkout the drawer no
+// longer shows.
+func (d *drawerState) clearBranch() {
+	d.branchFiles = nil
+	d.branchErr = ""
+	d.branchBusy = false
+	d.branchGen++
+	d.branchName = ""
+	d.branchBase = ""
+	d.branchDir = ""
 }
 
 // drawerProject is the folder the drawer reads: the selected session's local
@@ -312,6 +344,9 @@ func (w *workspace) openDrawer(tab int) {
 	w.scheduleSave()
 	if tab == drawerTabChanges {
 		w.refreshGit()
+		if w.drawer.scope == drawerScopeBranch {
+			w.refreshBranch()
+		}
 	}
 }
 
@@ -344,6 +379,7 @@ func (w *workspace) resetDrawer() {
 	d.dir = ""
 	d.changes = nil
 	d.err = ""
+	d.clearBranch()
 	d.expanded = map[string]bool{}
 	d.dirs = map[string][]drawerEntry{}
 	d.file = nil
@@ -365,6 +401,9 @@ func (w *workspace) setDrawerTab(tab int) {
 	w.scheduleSave()
 	if tab == drawerTabChanges {
 		w.refreshGit()
+		if d.scope == drawerScopeBranch {
+			w.refreshBranch()
+		}
 	}
 }
 
@@ -406,8 +445,69 @@ func (w *workspace) refreshGitDir(dir string) {
 			if changed || showing {
 				w.invalidate()
 			}
+			if changed && showing && d.scope == drawerScopeBranch {
+				w.refreshBranch()
+			}
+			if showing && d.scope == drawerScopeBranch && d.branchDir != dir {
+				w.refreshBranch()
+			}
 		})
 	}()
+}
+
+// refreshBranch reads what the branch would bring to its base, off the UI
+// thread. The base is the pane's worktree base for that checkout, else the
+// repository's own default.
+func (w *workspace) refreshBranch() {
+	d := &w.drawer
+	dir := w.syncDrawerDir()
+	if dir == "" {
+		return
+	}
+	if d.branchBusy && d.branchDir == dir {
+		return
+	}
+	base := w.drawerBase(dir)
+	d.branchName = base
+	d.branchDir = dir
+	d.branchBusy = true
+	d.branchGen++
+	gen := d.branchGen
+	go func() {
+		files, mb, err := gitBranchChanges(dir, base)
+		w.onMain(func() {
+			if d.branchGen != gen {
+				return
+			}
+			d.branchBusy = false
+			if err != nil {
+				d.branchFiles, d.branchBase, d.branchErr = nil, "", ""
+				if err != errNoBase {
+					d.branchErr = drawerError(err)
+				}
+				w.invalidate()
+				return
+			}
+			d.branchFiles, d.branchErr, d.branchBase = files, "", mb
+			w.invalidate()
+		})
+	}()
+}
+
+// drawerBase is the branch the drawer measures against: the focused pane's
+// worktree base when that is the checkout, else the repository's default.
+func (w *workspace) drawerBase(dir string) string {
+	if s := w.selected(); s != nil && s.Root != nil {
+		for _, p := range s.Root.panes() {
+			if p.ID == w.FocusedPane && p.Worktree != nil && sameDir(p.Worktree.Path, dir) {
+				if p.Worktree.Base != "" {
+					return p.Worktree.Base
+				}
+				break
+			}
+		}
+	}
+	return detectBaseBranch(dir)
 }
 
 // drawerError is what to say when the read failed.
@@ -446,9 +546,16 @@ func (w *workspace) openChange(f changedFile) {
 	w.drawer.file = file
 	w.drawer.viewGen++
 	gen := w.drawer.viewGen
+	rev := ""
+	if w.drawer.scope == drawerScopeBranch {
+		rev = w.drawer.branchBase
+	}
 	w.invalidate()
 	go func() {
 		diff := loadDiff(dir, f)
+		if rev != "" {
+			diff = loadDiffAt(dir, f, rev)
+		}
 		w.onMain(func() {
 			if w.drawer.viewGen != gen || w.drawer.file != file {
 				return
@@ -521,6 +628,9 @@ func (w *workspace) closeDrawerFile() {
 	w.invalidate()
 	if w.drawer.tab == drawerTabChanges {
 		w.refreshGit()
+		if w.drawer.scope == drawerScopeBranch {
+			w.refreshBranch()
+		}
 	}
 }
 
@@ -566,6 +676,7 @@ func (w *workspace) drawerView(c *ui.Context, tk tokens) {
 		case w.drawerProject() == nil:
 			w.drawerNote(c, tk, locales.DrawerNoProject())
 		case d.tab == drawerTabChanges:
+			w.drawerScopeRow(c, tk)
 			w.drawerChanges(c, tk)
 		default:
 			w.drawerFiles(c, tk)
@@ -624,23 +735,95 @@ func (w *workspace) drawerHeader(c *ui.Context, tk tokens) {
 	})
 }
 
-// drawerChanges lists the working tree's changes. A click opens the diff
-// over the list.
+// drawerScopeRow switches the changes list between the working tree and the
+// branch, and names the base the branch is measured against.
+func (w *workspace) drawerScopeRow(c *ui.Context, tk tokens) {
+	d := &w.drawer
+	ui.Row(c).Height(34).Shrink(0).FillWidth().Padding(5, 8, 5, 8).
+		Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Height(24).Padding(2).Radius(7).Background(tk.Active).Gap(2).
+			Children(func() {
+				for _, opt := range []struct {
+					scope int
+					label string
+				}{
+					{drawerScopeWorktree, locales.DrawerUncommitted()},
+					{drawerScopeBranch, locales.DrawerBranch()},
+				} {
+					opt := opt
+					selected := d.scope == opt.scope
+					color := tk.MutedForeground
+					el := ui.Row(c).Height(20).Padding(0, 8, 0, 8).Radius(5).
+						Cursor(ui.CursorPointer)
+					if selected {
+						color = tk.Foreground
+						el = el.Background(tk.Raised).Border(1, tk.Border)
+					}
+					pick := func() { w.setDrawerScope(opt.scope) }
+					el.OnClick(pick).Children(func() {
+						ui.Text(c, opt.label).FontSize(11).FontWeight(500).
+							TextColor(color).OnClick(pick)
+					})
+				}
+			})
+		ui.Spacer(c)
+		if d.scope == drawerScopeBranch && d.branchName != "" {
+			ui.Text(c, locales.DrawerAgainst(d.branchName)).FontSize(11).
+				SingleLine().TextColor(tk.MutedForeground)
+		}
+	})
+}
+
+// setDrawerScope puts the other scope up and reads the branch side when it
+// has not been read for this checkout yet.
+func (w *workspace) setDrawerScope(scope int) {
+	d := &w.drawer
+	if d.scope == scope {
+		return
+	}
+	d.scope = scope
+	d.file = nil
+	d.viewGen++
+	w.invalidate()
+	if scope == drawerScopeBranch {
+		w.refreshBranch()
+	}
+}
+
+// drawerChanges lists the working tree's changes, or the branch's against its
+// base. A click opens the diff over the list.
 func (w *workspace) drawerChanges(c *ui.Context, tk tokens) {
 	d := &w.drawer
+	files, err, busy := d.changes, d.err, w.gitBusy[d.dir]
+	if d.scope == drawerScopeBranch {
+		files, err, busy = d.branchFiles, d.branchErr, d.branchBusy
+		// A folder Git does not track says that, rather than inventing a
+		// missing base for it.
+		if err == "" && d.err != "" {
+			err = d.err
+		}
+	}
 	switch {
-	case d.err != "":
-		w.drawerNote(c, tk, d.err)
+	case err != "":
+		w.drawerNote(c, tk, err)
 		return
-	case len(d.changes) == 0 && w.gitBusy[d.dir]:
+	case len(files) == 0 && busy:
 		w.drawerNote(c, tk, locales.DrawerLoading())
 		return
-	case len(d.changes) == 0:
+	case len(files) == 0:
+		if d.scope == drawerScopeBranch {
+			if d.branchName == "" {
+				w.drawerNote(c, tk, locales.DrawerNoBase())
+			} else {
+				w.drawerNote(c, tk, locales.DrawerNoBranchChanges(d.branchName))
+			}
+			return
+		}
 		w.drawerNote(c, tk, locales.DrawerNoChanges())
 		return
 	}
 	ui.Scroll(c).Fill().Padding(6, 6, 6, 6).Children(func() {
-		for _, f := range d.changes {
+		for _, f := range files {
 			f := f
 			row := ui.Row(c).FillWidth().Height(28).Padding(0, 8, 0, 8).Gap(8).
 				Radius(chromeRadius).Cursor(ui.CursorPointer)
