@@ -588,6 +588,9 @@ type remotePaneLink struct {
 	// the top of an empty screen, a full-screen program's input row at the
 	// bottom. The stream loop writes it, the canvas reads it.
 	anchor atomic.Int32
+	// wake cuts an idle stream's sleep short when a key goes out, so the
+	// echo does not wait for the slow tick.
+	wake chan struct{}
 }
 
 // mirrorSize is the size the host's view of the pane is laid out at, before
@@ -970,9 +973,9 @@ func (rc *remoteConn) newPane(s *session, paneID string) *pane {
 	p := &pane{
 		ID:     remotePaneID(rc.host.Address, paneID),
 		ws:     rc.ws,
-		remote: &remotePaneLink{conn: rc, id: paneID},
+		remote: &remotePaneLink{conn: rc, id: paneID, wake: make(chan struct{}, 1)},
 	}
-	sink := newRemoteSink(rc, paneID)
+	sink := newRemoteSink(rc, paneID, p.remote.wake)
 	lightTheme, darkTheme := rc.ws.terminalThemes()
 	term, err := terminal.New(terminal.Options{
 		Conn:         sink,
@@ -1048,7 +1051,13 @@ func includesString(list []string, want string) bool {
 
 // remoteStreamInterval paces the mirror's polls: a frame of the display,
 // the delay a keystroke or a program's output takes to show.
-const remoteStreamInterval = 16 * time.Millisecond
+const (
+	remoteStreamInterval = 16 * time.Millisecond
+	// remoteIdleInterval is the tick a pane with nothing on it gets: the
+	// mirror still wakes on the first byte of output, and a key cuts the
+	// tick short through the pane's wake channel.
+	remoteIdleInterval = 120 * time.Millisecond
+)
 
 // startStream polls the pane's mirror while the canvas shows it. The
 // terminal keeps the size the host drew it at, so the text stays the size it
@@ -1077,6 +1086,7 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 	cols, rows := 0, 0
 	viewW, viewH := float32(0), float32(0)
 	var cursor streamCursor
+	var lastOutput time.Time
 	for {
 		select {
 		case <-stop:
@@ -1148,10 +1158,28 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 		}
 		p.remote.anchor.Store(int32(cursor.low))
 		offset = view.Offset
-		// The mirror polls on its own clock: a held request would carry the
-		// grid this window had when it went out, and a resize during the
-		// hold would come back as a redraw at the old size.
-		time.Sleep(remoteStreamInterval)
+		if view.Data != "" || view.Reset {
+			lastOutput = time.Now()
+		}
+		// A quiet pane is cheap to watch at a slow tick; one with output, or
+		// one where a key just went out, is watched at full speed.
+		wait := remoteStreamInterval
+		if view.Data == "" && view.Snapshot == "" && !view.Reset &&
+			time.Since(lastOutput) > time.Second {
+			wait = remoteIdleInterval
+		}
+		timer := time.NewTimer(wait)
+		select {
+		case <-stop:
+			timer.Stop()
+			return
+		case <-rc.stop:
+			timer.Stop()
+			return
+		case <-p.remote.wake:
+			timer.Stop()
+		case <-timer.C:
+		}
 	}
 }
 
@@ -1663,6 +1691,7 @@ func (w *workspace) removeRemoteHost(address string) {
 type remoteSink struct {
 	rc     *remoteConn
 	paneID string
+	wake   chan struct{}
 	mu     sync.Mutex
 	cond   *sync.Cond
 	buf    [][]byte
@@ -1671,10 +1700,11 @@ type remoteSink struct {
 	once   sync.Once
 }
 
-func newRemoteSink(rc *remoteConn, paneID string) *remoteSink {
+func newRemoteSink(rc *remoteConn, paneID string, wake chan struct{}) *remoteSink {
 	c := &remoteSink{
 		rc:     rc,
 		paneID: paneID,
+		wake:   wake,
 		out:    make(chan []byte, 64),
 		done:   make(chan struct{}),
 	}
@@ -1770,5 +1800,12 @@ func (c *remoteSink) sendLoop() {
 			"pane": c.paneID,
 			"text": string(b),
 		}, nil)
+		// The echo is the next frame; do not wait out an idle tick for it.
+		if c.wake != nil {
+			select {
+			case c.wake <- struct{}{}:
+			default:
+			}
+		}
 	}
 }
