@@ -21,6 +21,23 @@ var remoteStreamClient = &http.Client{}
 
 var errStreamClosed = errors.New("the remote stream closed")
 
+// mergeViews folds the frames that queued behind the first into it: the
+// output of a terminal is a byte stream, so the chunks join in order, and a
+// frame that starts the mirror over replaces what came before it.
+func mergeViews(a, b remoteStreamView) remoteStreamView {
+	if b.Reset {
+		// b starts the mirror over, so what a carried is already on b's
+		// screen.
+		return b
+	}
+	a.Data += b.Data
+	a.Offset = b.Offset
+	a.Cols, a.Rows = b.Cols, b.Rows
+	a.ViewW, a.ViewH = b.ViewW, b.ViewH
+	a.Title, a.Cwd = b.Title, b.Cwd
+	return a
+}
+
 type remoteStream struct {
 	rc     *remoteConn
 	done   chan struct{}
@@ -268,6 +285,15 @@ func (rc *remoteConn) nextPushedView(p *pane, stop chan struct{}, cols, rows int
 	defer tick.Stop()
 	for {
 		if v, ok := f.pop(); ok {
+			// Whatever piled up behind it goes in the same write: one
+			// repaint covers the whole burst.
+			for {
+				next, more := f.pop()
+				if !more {
+					break
+				}
+				v = mergeViews(v, next)
+			}
 			s.confirmed(p.remote.id, v.Reset)
 			return v, true
 		}

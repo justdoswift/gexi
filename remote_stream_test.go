@@ -233,3 +233,29 @@ func TestRemoteStreamRejectsUnpaired(t *testing.T) {
 		t.Fatal("an unpaired device should not get frames")
 	}
 }
+
+func TestMergeViews(t *testing.T) {
+	a := remoteStreamView{Data: "ab", Offset: 2, Cols: 80, Rows: 24, Title: "one"}
+	b := remoteStreamView{Data: "cd", Offset: 4, Cols: 100, Rows: 30, Title: "two"}
+	got := mergeViews(a, b)
+	if got.Data != "abcd" {
+		t.Fatalf("data = %q, want the frames joined in order", got.Data)
+	}
+	if got.Offset != 4 || got.Cols != 100 || got.Rows != 30 || got.Title != "two" {
+		t.Fatalf("merged view kept %+v, want the later frame's size and offset", got)
+	}
+
+	reset := remoteStreamView{Data: "x", Offset: 9, Reset: true, Snapshot: "screen"}
+	if got := mergeViews(a, reset); got.Data != "x" || got.Snapshot != "screen" {
+		t.Fatalf("a reset frame should replace what was queued, got %+v", got)
+	}
+
+	first := remoteStreamView{Data: "y", Offset: 1, Reset: true, Snapshot: "screen"}
+	merged := mergeViews(first, b)
+	if merged.Snapshot != "screen" {
+		t.Fatalf("merging after a reset lost the snapshot: %+v", merged)
+	}
+	if merged.Data != "ycd" {
+		t.Fatalf("data after a reset frame = %q, want the output that followed it", merged.Data)
+	}
+}

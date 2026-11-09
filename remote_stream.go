@@ -19,9 +19,10 @@ const (
 	// for the changes that do not write to it: a title, a directory, the
 	// size the host drew it at.
 	streamIdleCheck = 250 * time.Millisecond
-	// streamFrameGap keeps a burst of output from becoming a frame per byte
-	// read: the terminal's writes are already coalesced by this gap.
-	streamFrameGap = 4 * time.Millisecond
+	// streamFrameGap caps a pane's frames at the display's own rate: the Mac
+	// watching repaints once per frame it gets, and a program that writes in
+	// a tight loop would otherwise cost it a repaint per write.
+	streamFrameGap = 16 * time.Millisecond
 	// streamBeat keeps a quiet stream from looking dead to a proxy that
 	// would close it; it is also the ping that fails a dropped link.
 	streamBeat = 20 * time.Second
