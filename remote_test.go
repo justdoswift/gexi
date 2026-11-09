@@ -73,6 +73,10 @@ func (f *fakeRemoteBackend) paramsOf(name string) map[string]json.RawMessage {
 
 func (f *fakeRemoteBackend) remoteName() string { return "test-mac" }
 
+func (f *fakeRemoteBackend) remoteWake(string) (<-chan struct{}, func()) {
+	return make(chan struct{}), func() {}
+}
+
 func newTestRemote(t *testing.T) (*httptest.Server, *fakeRemoteBackend) {
 	t.Helper()
 	backend := &fakeRemoteBackend{enabled: true, code: "123456"}

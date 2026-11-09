@@ -15,9 +15,13 @@ import (
 // has it, so a key's echo pays one trip through the network, not three.
 
 const (
-	// streamTick is how often the watched panes are read: the terminal may
-	// have output any moment, and a frame is only written when it does.
-	streamTick = 16 * time.Millisecond
+	// streamIdleCheck is how often a pane with no output is looked at anyway,
+	// for the changes that do not write to it: a title, a directory, the
+	// size the host drew it at.
+	streamIdleCheck = 250 * time.Millisecond
+	// streamFrameGap keeps a burst of output from becoming a frame per byte
+	// read: the terminal's writes are already coalesced by this gap.
+	streamFrameGap = 4 * time.Millisecond
 	// streamBeat keeps a quiet stream from looking dead to a proxy that
 	// would close it; it is also the ping that fails a dropped link.
 	streamBeat = 20 * time.Second
@@ -46,6 +50,10 @@ type streamWatch struct {
 	offset   int64
 	snapshot bool
 
+	// dirty carries a change the client asked for: a new grid, or a mirror
+	// that starts over. A pane with nothing to say waits on the program's
+	// output instead, so a quiet mirror costs the main thread nothing.
+	dirty     chan struct{}
 	sent      bool
 	lastCols  int
 	lastRows  int
@@ -57,6 +65,8 @@ type streamWatch struct {
 
 type streamServer struct {
 	backend remoteBackend
+	ctx     context.Context
+	cancel  context.CancelFunc
 	mu      sync.Mutex
 	panes   map[string]*streamWatch
 	out     chan []byte
@@ -94,10 +104,11 @@ func (h *remoteHandler) stream(rw http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	s := &streamServer{
 		backend: h.backend,
+		ctx:     ctx,
+		cancel:  cancel,
 		panes:   map[string]*streamWatch{},
 		out:     make(chan []byte, 512),
 	}
-	go s.pump(ctx)
 	go func() {
 		defer cancel()
 		dec := json.NewDecoder(http.MaxBytesReader(rw, r.Body, 64<<20))
@@ -134,20 +145,59 @@ func (s *streamServer) watch(pane string, cols, rows int, snapshot bool) {
 		return
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	w := s.panes[pane]
 	if w == nil {
 		if len(s.panes) >= streamMaxPanes {
+			s.mu.Unlock()
 			return
 		}
-		w = &streamWatch{id: pane, snapshot: true}
+		w = &streamWatch{id: pane, snapshot: true, dirty: make(chan struct{}, 1)}
 		s.panes[pane] = w
+		go s.runPane(pane, w)
 	}
-	if cols > 0 && rows > 0 {
+	changed := false
+	if cols > 0 && rows > 0 && (w.cols != cols || w.rows != rows) {
 		w.cols, w.rows = cols, rows
+		changed = true
 	}
-	if snapshot {
+	if snapshot && !w.snapshot {
 		w.snapshot = true
+		changed = true
+	}
+	s.mu.Unlock()
+	if changed {
+		select {
+		case w.dirty <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// runPane pushes one pane's frames: the program's own writes wake it, so a
+// quiet pane asks nothing of the main thread, and the first byte of output
+// is a frame instead of waiting for the next look.
+func (s *streamServer) runPane(pane string, w *streamWatch) {
+	for {
+		if s.ctx.Err() != nil {
+			return
+		}
+		ch, cancel := s.backend.remoteWake(pane)
+		timer := time.NewTimer(streamIdleCheck)
+		select {
+		case <-s.ctx.Done():
+			timer.Stop()
+			cancel()
+			return
+		case <-w.dirty:
+		case <-ch:
+		case <-timer.C:
+		}
+		timer.Stop()
+		cancel()
+		if !s.frame(pane, w) {
+			return
+		}
+		time.Sleep(streamFrameGap)
 	}
 }
 
@@ -161,6 +211,7 @@ func (s *streamServer) close() {
 	s.mu.Lock()
 	s.closed = true
 	s.mu.Unlock()
+	s.cancel()
 }
 
 func (s *streamServer) writes() bool {
@@ -169,66 +220,39 @@ func (s *streamServer) writes() bool {
 	return !s.closed
 }
 
-// watches copies the watched panes so a read does not hold the lock the
-// client's watch requests need.
-func (s *streamServer) watches() []*streamWatch {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]*streamWatch, 0, len(s.panes))
-	for _, w := range s.panes {
-		c := *w
-		out = append(out, &c)
-	}
-	return out
-}
-
-func (s *streamServer) pump(ctx context.Context) {
-	tick := time.NewTicker(streamTick)
-	defer tick.Stop()
-	beat := time.NewTicker(streamBeat)
-	defer beat.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-beat.C:
-			s.emit([]byte("{\"beat\":true}\n"))
-		case <-tick.C:
-			if !s.writes() {
-				return
-			}
-			ws := s.watches()
-			for _, w := range ws {
-				s.frame(w)
-			}
-		}
-	}
-}
-
 // frame reads one watched pane and writes the frame when it has output, a
-// new screen, or a size the client has not been told.
-func (s *streamServer) frame(w *streamWatch) {
-	params := map[string]any{"pane": w.id, "offset": w.offset}
+// new screen, or a size the client has not been told. It reports false when
+// the pane is no longer watched or the stream is done.
+func (s *streamServer) frame(pane string, watching *streamWatch) bool {
+	s.mu.Lock()
+	w := s.panes[pane]
+	if w == nil || w != watching || s.closed {
+		s.mu.Unlock()
+		return false
+	}
+	params := map[string]any{"pane": pane, "offset": w.offset}
 	if w.cols > 0 && w.rows > 0 {
 		params["cols"], params["rows"] = w.cols, w.rows
 	}
 	if w.snapshot {
 		params["snapshot"] = true
 	}
+	s.mu.Unlock()
+
 	resp := s.backend.remoteDispatch(controlRequest{
 		ID:     newID(),
 		Method: "pane.stream",
 		Params: rawParams(params),
 	})
 	if !resp.OK {
-		b, _ := json.Marshal(map[string]any{"pane": w.id, "error": resp.Error})
+		b, _ := json.Marshal(map[string]any{"pane": pane, "error": resp.Error})
 		s.emit(append(b, '\n'))
-		s.unwatch(w.id)
-		return
+		s.unwatch(pane)
+		return false
 	}
 	m, ok := resp.Result.(map[string]any)
 	if !ok {
-		return
+		return true
 	}
 	data, _ := m["data"].(string)
 	snapshot, _ := m["snapshot"].(string)
@@ -242,14 +266,16 @@ func (s *streamServer) frame(w *streamWatch) {
 	offset := int64Value(m["offset"])
 
 	s.mu.Lock()
-	cur := s.panes[w.id]
-	if cur != nil {
-		cur.offset = offset
-		cur.snapshot = false
+	cur := s.panes[pane]
+	if cur == nil || cur != watching {
+		s.mu.Unlock()
+		return false
 	}
-	changed := cur != nil && (!cur.sent || cols != cur.lastCols || rows != cur.lastRows ||
+	cur.offset = offset
+	cur.snapshot = false
+	changed := !cur.sent || cols != cur.lastCols || rows != cur.lastRows ||
 		viewW != cur.lastViewW || viewH != cur.lastViewH ||
-		title != cur.lastTitle || cwd != cur.lastCwd)
+		title != cur.lastTitle || cwd != cur.lastCwd
 	if changed {
 		cur.lastCols, cur.lastRows = cols, rows
 		cur.lastViewW, cur.lastViewH = viewW, viewH
@@ -258,21 +284,33 @@ func (s *streamServer) frame(w *streamWatch) {
 	}
 	s.mu.Unlock()
 	if data == "" && snapshot == "" && !reset && !changed {
-		return
+		return true
 	}
 	b, err := json.Marshal(m)
 	if err != nil {
-		return
+		return true
 	}
 	s.emit(append(b, '\n'))
+	return true
 }
 
 func (s *streamServer) emit(b []byte) {
 	select {
 	case s.out <- b:
+		return
 	default:
-		// A client that cannot keep up loses frames, not the link: the
-		// next one carries an offset it can start over from.
+	}
+	// A client that cannot keep up would lose the text a frame carries, so
+	// every watched pane is told to start over from its screen: the next
+	// frame is a snapshot instead of the delta that did not fit.
+	s.mu.Lock()
+	for _, w := range s.panes {
+		w.snapshot = true
+	}
+	s.mu.Unlock()
+	select {
+	case s.out <- b:
+	case <-s.ctx.Done():
 	}
 }
 

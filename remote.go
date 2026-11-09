@@ -85,6 +85,9 @@ type remoteBackend interface {
 	remoteDevices() []remoteDevice
 	remoteAddDevice(remoteDevice)
 	remoteDispatch(controlRequest) controlResponse
+	// remoteWake parks on the pane until its program writes, so a pushed
+	// mirror costs a main-thread visit per output instead of per tick.
+	remoteWake(pane string) (<-chan struct{}, func())
 	remoteName() string
 }
 
@@ -585,6 +588,24 @@ func (w *workspace) remoteDispatch(req controlRequest) controlResponse {
 }
 
 func (w *workspace) remoteName() string { return deviceName() }
+
+// remoteWake waits for the pane's program to write. A pane that is gone
+// parks on a channel that never fires, and the caller's idle check covers it.
+func (w *workspace) remoteWake(id string) (<-chan struct{}, func()) {
+	var ch <-chan struct{}
+	var cancel func()
+	w.onMain(func() {
+		p, err := w.resolvePane(id)
+		if err != nil || p.conn == nil {
+			return
+		}
+		ch, cancel = p.conn.waitOutput()
+	})
+	if ch == nil {
+		return make(chan struct{}), func() {}
+	}
+	return ch, cancel
+}
 
 // remoteWatchTTL is how long a pane keeps the size a paired Mac asked for
 // after its last look. The client polls while it shows the pane, so the size

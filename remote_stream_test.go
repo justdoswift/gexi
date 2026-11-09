@@ -18,6 +18,28 @@ type streamBackend struct {
 	reads  int
 	sizes  [][2]int
 	panes  []string
+	wakeCh chan struct{}
+}
+
+// remoteWake is the program writing to the pane: a closed channel wakes the
+// push loop at once, and the next call parks on a fresh one.
+func (s *streamBackend) remoteWake(string) (<-chan struct{}, func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.wakeCh == nil {
+		s.wakeCh = make(chan struct{})
+	}
+	return s.wakeCh, func() {}
+}
+
+// poke stands in for the program's next write.
+func (s *streamBackend) poke() {
+	s.mu.Lock()
+	if s.wakeCh != nil {
+		close(s.wakeCh)
+	}
+	s.wakeCh = make(chan struct{})
+	s.mu.Unlock()
 }
 
 func (s *streamBackend) remoteEnabled() bool { return true }
@@ -143,12 +165,29 @@ func TestRemoteStreamPushesFrames(t *testing.T) {
 		t.Fatalf("second frame = %q, want %q", raw, "world")
 	}
 
-	// Once the pane is quiet the frames stop; the host keeps reading, but
-	// nothing is written to this Mac.
+	// A quiet pane is not polled: the push waits on the program instead.
+	backend.mu.Lock()
+	backend.chunks = append(backend.chunks, "quiet")
+	backend.mu.Unlock()
 	before := backend.count()
 	time.Sleep(120 * time.Millisecond)
-	if after := backend.count(); after-before < 2 {
-		t.Fatalf("host read %d times while watching, want it to keep looking", after-before)
+	if after := backend.count(); after-before != 0 {
+		t.Fatalf("host read %d times while the pane was quiet, want the push to wait", after-before)
+	}
+
+	// And the next write wakes it at once, without waiting out the idle
+	// check.
+	start := time.Now()
+	backend.poke()
+	quick, ok := rc.nextPushedView(p, stop, 80, 24, false)
+	if !ok {
+		t.Fatal("write after quiet: stream did not come up")
+	}
+	if waited := time.Since(start); waited > 150*time.Millisecond {
+		t.Fatalf("frame took %v after the program wrote, want the wake to push it", waited)
+	}
+	if raw, err := base64.StdEncoding.DecodeString(quick.Data); err != nil || string(raw) != "quiet" {
+		t.Fatalf("frame after quiet = %q (%v), want %q", raw, err, "quiet")
 	}
 
 	// A mirror waiting on the next frame carries a resize to the host.
