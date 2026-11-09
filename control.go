@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+
+	"github.com/justdoswift/gexi/locales"
 )
 
 // The wire format is gexi's: one JSON request line per connection, one
@@ -286,19 +288,35 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		}
 		switch action := str(p, "action"); action {
 		case "", "create":
-			w.createPaneWorktree(pane)
+			// A paired Mac cannot see this window's W prompt, so its press
+			// creates with the default name and no carried changes, as it
+			// did before the prompt existed.
+			if pane.Worktree != nil || pane.worktreeBusy != "" {
+				return nil, fmt.Errorf("pane already has a worktree or is busy")
+			}
+			w.startPaneWorktree(pane, "", false)
 		case "pr":
 			w.createPullRequest(pane)
 		case "merge":
 			w.requestMerge(pane)
 		case "archive":
-			w.archiveMergedWorktree(pane)
+			// A paired Mac cannot see this window's Archive prompt, so its
+			// press archives outright, as it did before the prompt existed.
+			w.archiveMergedWorktreeNow(pane, false, nil)
 		case "drop":
 			w.dropGoneWorktree(pane)
 		case "leave":
 			return w.leaveWorktreeFromRemote(pane), nil
 		case "leaveConfirm":
-			w.leaveWorktree(pane)
+			// Stop the agent here so a failure can answer the client; the
+			// host's toast would be invisible to it.
+			if pane.agent != nil {
+				if !stopAgentGroup(pane.foregroundGroup()) {
+					return nil, fmt.Errorf("%s", locales.WorktreeAgentStuck())
+				}
+				pane.applyAgent(nil)
+			}
+			w.leaveConfirmed(pane)
 		default:
 			return nil, fmt.Errorf("unknown worktree action: %s", action)
 		}
