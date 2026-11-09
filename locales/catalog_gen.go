@@ -384,6 +384,16 @@ func (msgs Messages) PaneCloseProjectBody() string {
 	return Catalog.Format(msgs.locale, "paneCloseProjectBody", nil)
 }
 
+// PaneCloseProjectBodyIdle says "Closing the project closes every session and pane in it."
+// in the language the app shows.
+func PaneCloseProjectBodyIdle() string { return In(i18n.Locale()).PaneCloseProjectBodyIdle() }
+
+// PaneCloseProjectBodyIdle says "Closing the project closes every session and pane in it."
+// in the language of msgs.
+func (msgs Messages) PaneCloseProjectBodyIdle() string {
+	return Catalog.Format(msgs.locale, "paneCloseProjectBodyIdle", nil)
+}
+
 // PaneCloseBackground says "Keep Running"
 // in the language the app shows.
 func PaneCloseBackground() string { return In(i18n.Locale()).PaneCloseBackground() }

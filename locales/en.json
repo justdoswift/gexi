@@ -35,6 +35,7 @@
   "paneCloseAgentOpened": "An agent was opened in this pane. Closing it ends the panel.",
   "paneCloseSessionBody": "This session has an agent in it. Closing the session ends it.",
   "paneCloseProjectBody": "This project has an agent in it. Closing the project ends it.",
+  "paneCloseProjectBodyIdle": "Closing the project closes every session and pane in it.",
   "paneCloseBackground": "Keep Running",
   "paneDetached": "Moved to the background; restore it in Settings › Worktrees.",
   "paneBackgroundExited": "Background pane {title} exited.",

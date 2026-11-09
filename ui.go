@@ -117,6 +117,9 @@ func (w *workspace) view(c *ui.Context) {
 			w.closeTarget = nil
 		}
 	}
+	if w.closeProjectTarget != nil {
+		w.closeProjectDialog(c, tk)
+	}
 	if w.leaveTarget != nil {
 		p := w.leaveTarget
 		dialogAlert(c, tk, &w.leaveOpen, 420, locales.WorktreeLeaveTitle(), w.leaveMsg,

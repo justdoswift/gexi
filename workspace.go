@@ -164,6 +164,13 @@ type workspace struct {
 	closeTarget *pane
 	closeMsg    string
 
+	// closeProjectOpen is the alert asking before a project goes;
+	// closeProjectTarget is its project, and closeProjectMsg the
+	// consequence it shows.
+	closeProjectOpen   bool
+	closeProjectTarget *project
+	closeProjectMsg    string
+
 	// worktreesScan caches the checkouts under the app's worktree folder for
 	// Settings › Worktrees; worktreesScanned says the cache is current.
 	worktreesScan    []worktreeScanEntry
@@ -537,8 +544,8 @@ func panesHaveAgent(panes []*pane) bool {
 	return false
 }
 
-// confirmClose asks before a session or project with agents goes. The native
-// alert blocks, so it runs off the UI thread and comes back.
+// confirmClose asks before a session with agents goes. The native alert
+// blocks, so it runs off the UI thread and comes back.
 func (w *workspace) confirmClose(title, message string, action func()) {
 	parent := w.win
 	go func() {
@@ -547,7 +554,7 @@ func (w *workspace) confirmClose(title, message string, action func()) {
 			Type:               mygo.MessageWarning,
 			Title:              title,
 			Message:            message,
-			Buttons:            []string{locales.MenuClosePane(), locales.Cancel()},
+			Buttons:            []string{locales.CloseSession(), locales.Cancel()},
 			DefaultButton:      1,
 			CancelButton:       1,
 			DestructiveButtons: []int{0},
@@ -796,8 +803,19 @@ func (w *workspace) closePane(p *pane) {
 	w.scheduleSave()
 }
 
-// closeProject closes every pane under the project, asking first when one of
-// them has an agent in it.
+// projectPanes is every pane under the project, across its sessions.
+func projectPanes(pr *project) []*pane {
+	panes := []*pane{}
+	for _, s := range pr.Sessions {
+		if s.Root != nil {
+			panes = append(panes, s.Root.panes()...)
+		}
+	}
+	return panes
+}
+
+// closeProject asks before closing every pane under the project: a project
+// close takes its sessions with it, and an agent in one of them ends too.
 func (w *workspace) closeProject(pr *project) {
 	if pr == nil {
 		return
@@ -807,29 +825,42 @@ func (w *workspace) closeProject(pr *project) {
 		w.removeRemoteHost(pr.remote.host.Address)
 		return
 	}
-	panes := []*pane{}
-	for _, s := range pr.Sessions {
-		if s.Root != nil {
-			panes = append(panes, s.Root.panes()...)
-		}
+	w.closeProjectTarget = pr
+	w.closeProjectMsg = locales.PaneCloseProjectBodyIdle()
+	if panesHaveAgent(projectPanes(pr)) {
+		w.closeProjectMsg = locales.PaneCloseProjectBody()
 	}
-	if panesHaveAgent(panes) {
-		w.confirmClose(locales.PaneCloseProjectTitle(), locales.PaneCloseProjectBody(), func() { w.closeProjectNow(pr) })
+	w.closeProjectOpen = true
+	w.invalidate()
+}
+
+// closeProjectDialog draws the alert that asks before the project closes.
+func (w *workspace) closeProjectDialog(c *ui.Context, tk tokens) {
+	pr := w.closeProjectTarget
+	if pr == nil {
 		return
 	}
-	w.closeProjectNow(pr)
+	dialogAlert(c, tk, &w.closeProjectOpen, 420, locales.PaneCloseProjectTitle(), w.closeProjectMsg,
+		dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
+			w.closeProjectOpen = false
+		}},
+		dialogAction{label: locales.CloseProject(), kind: dialogDanger, run: func() {
+			w.closeProjectOpen = false
+			if w.hasProject(pr) {
+				w.closeProjectNow(pr)
+			}
+		}},
+	)
+	if !w.closeProjectOpen {
+		w.closeProjectTarget = nil
+	}
 }
 
 func (w *workspace) closeProjectNow(pr *project) {
 	if pr == nil {
 		return
 	}
-	panes := []*pane{}
-	for _, s := range pr.Sessions {
-		if s.Root != nil {
-			panes = append(panes, s.Root.panes()...)
-		}
-	}
+	panes := projectPanes(pr)
 	if len(panes) == 0 {
 		w.removeProject(pr)
 		return

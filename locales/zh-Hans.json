@@ -35,6 +35,7 @@
   "paneCloseAgentOpened": "这个窗格里打开过 agent。关闭会结束面板。",
   "paneCloseSessionBody": "这个会话里有 agent。关闭会话会结束它。",
   "paneCloseProjectBody": "这个项目里有 agent。关闭项目会结束它。",
+  "paneCloseProjectBodyIdle": "关闭项目会关闭其中的所有会话和窗格。",
   "paneCloseBackground": "后台运行",
   "paneDetached": "已转到后台运行，可在设置 › 工作树中恢复。",
   "paneBackgroundExited": "后台窗格 {title} 已退出。",
