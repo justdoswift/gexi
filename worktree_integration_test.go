@@ -829,3 +829,61 @@ func TestRequestCloseByUserAsks(t *testing.T) {
 		t.Fatal("a plain shell did not close at once")
 	}
 }
+
+// TestCloseProjectAsks checks every project close stops at the alert, even
+// with no agent in it, and that the alert says what the close takes with it.
+func TestCloseProjectAsks(t *testing.T) {
+	plain := &pane{ID: "plain"}
+	pr := &project{ID: "pr", Dir: t.TempDir(), Sessions: []*session{{ID: "s", Root: leaf(plain)}}}
+	w := &workspace{Projects: []*project{pr}}
+	w.closeProject(pr)
+	if !w.closeProjectOpen || w.closeProjectTarget != pr {
+		t.Fatalf("the project closed without asking: open=%v target=%v", w.closeProjectOpen, w.closeProjectTarget)
+	}
+	if plain.closing {
+		t.Fatal("the panes started closing while the alert is up")
+	}
+	if w.closeProjectMsg != locales.PaneCloseProjectBodyIdle() {
+		t.Fatalf("message = %q, want the plain close consequence", w.closeProjectMsg)
+	}
+
+	agent := &pane{ID: "agent", sawAgent: true}
+	pr = &project{ID: "pr", Dir: t.TempDir(), Sessions: []*session{{ID: "s", Root: leaf(agent)}}}
+	w = &workspace{Projects: []*project{pr}}
+	w.closeProject(pr)
+	if w.closeProjectMsg != locales.PaneCloseProjectBody() {
+		t.Fatalf("message = %q, want the agent close consequence", w.closeProjectMsg)
+	}
+}
+
+// TestCloseProjectDialogActions checks Cancel leaves the project in place and
+// Close removes it, through the buttons the alert actually draws.
+func TestCloseProjectDialogActions(t *testing.T) {
+	pr := &project{ID: "pr", Dir: t.TempDir()}
+	w := &workspace{Projects: []*project{pr}}
+	w.closeProject(pr)
+	tester := ui.NewTester(func(c *ui.Context) {
+		w.closeProjectDialog(c, themeTokens(c.Theme()))
+	}, 600, 500)
+	tester.Frame()
+	if !tester.HasText(locales.PaneCloseProjectTitle()) || !tester.HasText(locales.PaneCloseProjectBodyIdle()) {
+		t.Fatalf("the alert does not show the close question; it shows %q", tester.Texts())
+	}
+	if err := tester.Click(locales.Cancel()); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if w.closeProjectTarget != nil || len(w.Projects) != 1 {
+		t.Fatal("Cancel closed the project")
+	}
+
+	w.closeProject(pr)
+	tester.Frame()
+	if err := tester.Click(locales.CloseProject()); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if len(w.Projects) != 0 || w.closeProjectTarget != nil {
+		t.Fatal("Close left the project open")
+	}
+}

@@ -102,8 +102,9 @@ back.
 
 Closing a pane where an agent has run asks first. **Keep Running** takes the
 pane off the stage without ending its program, and **Settings → Worktrees**
-brings it back with its session intact; **Close** ends it. Closing a session
-or project with an agent in it asks the same way.
+brings it back with its session intact; **Close** ends it. Closing a project
+always asks first, because its sessions go with it; closing a session asks the
+same way when an agent has run in it.
 
 ### Remote Macs and phones
 
