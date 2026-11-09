@@ -20,7 +20,7 @@ import (
 var updateIcon []byte
 
 // Version is what ping and info report.
-const Version = "0.0.64"
+const Version = "0.0.65"
 
 func main() {
 	// Hooks call back into this same binary (`gexi event turn.start`), so it
