@@ -29,7 +29,12 @@ import (
 // so colors, the cursor, full-screen programs and the keys typed work as
 // they do on the host.
 
-var remoteHTTP = &http.Client{Timeout: 15 * time.Second}
+var (
+	remoteHTTP = &http.Client{Timeout: 15 * time.Second}
+	// remoteStreamHTTP waits out a pane.stream hold, which runs longer than
+	// an ordinary call and must not be cut off mid-quiet.
+	remoteStreamHTTP = &http.Client{Timeout: 60 * time.Second}
+)
 
 var errRemoteNotPaired = errors.New("this Mac is no longer paired; add it again")
 
@@ -188,6 +193,16 @@ func (c remoteClient) scheme() string {
 }
 
 func (c remoteClient) call(method string, params map[string]any, out any) error {
+	return c.do(remoteHTTP, method, params, out)
+}
+
+// stream is call for the pane mirror, which the host may hold open while the
+// pane is quiet.
+func (c remoteClient) stream(method string, params map[string]any, out any) error {
+	return c.do(remoteStreamHTTP, method, params, out)
+}
+
+func (c remoteClient) do(client *http.Client, method string, params map[string]any, out any) error {
 	if params == nil {
 		params = map[string]any{}
 	}
@@ -205,7 +220,7 @@ func (c remoteClient) call(method string, params map[string]any, out any) error 
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.Token)
-	resp, err := remoteHTTP.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -965,6 +980,9 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 			"pane":     p.remote.id,
 			"offset":   offset,
 			"snapshot": snapshot,
+			// Wait for output rather than answer an empty frame: the host
+			// holds the request, so a quiet pane costs one call per hold.
+			"wait": true,
 		}
 		// The grid this card fits goes with every poll: the host keeps the
 		// pane at that size while this Mac watches, and lets it go when the
@@ -972,7 +990,8 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 		if wantCols, wantRows := int(p.remote.wantCols.Load()), int(p.remote.wantRows.Load()); wantCols > 0 && wantRows > 0 {
 			params["cols"], params["rows"] = wantCols, wantRows
 		}
-		err := rc.client.call("pane.stream", params, &view)
+		started := time.Now()
+		err := rc.client.stream("pane.stream", params, &view)
 		if err != nil {
 			if errors.Is(err, errRemoteNotPaired) {
 				rc.fail(err)
@@ -1023,7 +1042,13 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 		}
 		p.remote.anchor.Store(int32(cursor.low))
 		offset = view.Offset
-		time.Sleep(remoteStreamInterval)
+		// A host that does not wait answers at once with nothing; keep that
+		// loop off the CPU. A host that waits only returns on output or on
+		// its hold running out, so the next call goes out immediately.
+		if view.Data == "" && view.Snapshot == "" && !view.Reset &&
+			time.Since(started) < 50*time.Millisecond {
+			time.Sleep(remoteStreamInterval)
+		}
 	}
 }
 
