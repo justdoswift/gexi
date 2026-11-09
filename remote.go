@@ -44,6 +44,9 @@ type remoteHost struct {
 	Name    string `json:"name"`
 	Address string `json:"address"`
 	Token   string `json:"token"`
+	// LAN are the addresses the Mac had on its own networks when we paired;
+	// the link tries them before the relay, and drops them when it moves.
+	LAN []string `json:"lan,omitempty"`
 	// Secure dials the host over TLS, as a self-hosted relay or any other
 	// https:// address does.
 	Secure bool `json:"secure,omitempty"`
@@ -150,9 +153,12 @@ func (h *remoteHandler) pair(rw http.ResponseWriter, r *http.Request) {
 		TokenHash: hashRemoteToken(token),
 		PairedAt:  time.Now().Format(time.RFC3339),
 	})
+	// The Mac's LAN addresses come back with the token, so a client that
+	// paired through the relay can try the local network first next time.
 	writeJSON(rw, http.StatusOK, map[string]any{
-		"token": token,
-		"host":  h.backend.remoteName(),
+		"token":     token,
+		"host":      h.backend.remoteName(),
+		"addresses": lanAddresses(),
 	})
 }
 

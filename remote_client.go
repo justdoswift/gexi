@@ -184,6 +184,33 @@ type remoteStreamView struct {
 	ViewH    float32 `json:"viewH"`
 }
 
+// remoteProbeHTTP is the short dial a route check gets: a LAN address that
+// is not there should not hold the link up.
+var remoteProbeHTTP = &http.Client{Timeout: 700 * time.Millisecond}
+
+// reachable reports whether addr answers as this host, over plain HTTP: the
+// LAN addresses a Mac reports are its own server, not the relay.
+func (c remoteClient) reachable(addr string) bool {
+	body, err := json.Marshal(map[string]any{
+		"id": newID(), "method": "ping", "params": map[string]any{},
+	})
+	if err != nil {
+		return false
+	}
+	req, err := http.NewRequest(http.MethodPost, "http://"+addr+"/api/rpc", bytes.NewReader(body))
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	resp, err := remoteProbeHTTP.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
 // scheme is the one this client dials with.
 func (c remoteClient) scheme() string {
 	if c.Secure {
@@ -271,9 +298,10 @@ func pairRemoteHost(address string, secure bool, code, name string) (remoteHost,
 	}
 	defer resp.Body.Close()
 	var out struct {
-		Token string `json:"token"`
-		Host  string `json:"host"`
-		Error string `json:"error"`
+		Token     string   `json:"token"`
+		Host      string   `json:"host"`
+		Addresses []string `json:"addresses"`
+		Error     string   `json:"error"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return remoteHost{}, err
@@ -293,7 +321,13 @@ func pairRemoteHost(address string, secure bool, code, name string) (remoteHost,
 	if name == "" {
 		name = address
 	}
-	return remoteHost{Name: name, Address: address, Token: out.Token, Secure: secure}, nil
+	lan := make([]string, 0, len(out.Addresses))
+	for _, addr := range out.Addresses {
+		if addr != address {
+			lan = append(lan, addr)
+		}
+	}
+	return remoteHost{Name: name, Address: address, Token: out.Token, Secure: secure, LAN: lan}, nil
 }
 
 // normalizeRemoteAddress takes what the user typed and makes an address the
@@ -617,6 +651,12 @@ type remoteConn struct {
 	panes    []remotePane
 
 	stop chan struct{}
+
+	// address is the route the calls go to now, and routeAt is when the
+	// routes were last tried: the LAN first, the relay when it does not
+	// answer.
+	address string
+	routeAt time.Time
 }
 
 // remoteProjectID names the project a host takes in the sidebar, and the
@@ -668,6 +708,7 @@ func (w *workspace) remoteConn(host remoteHost) *remoteConn {
 		client:  remoteClient{Name: host.Name, Address: host.Address, Token: host.Token, Secure: host.Secure},
 		loading: true,
 		stop:    make(chan struct{}),
+		address: host.Address,
 	}
 	pr := &project{
 		ID:     remoteProjectID(host.Address),
@@ -729,12 +770,47 @@ func (rc *remoteConn) refreshLoop() {
 	}
 }
 
+// chooseRoute keeps the link on the route that answers: the Mac's LAN
+// address when this machine shares its network, the relay otherwise. It
+// rechecks now and then, and at once after a route fails.
+func (rc *remoteConn) chooseRoute() {
+	if rc.address == "" {
+		rc.address = rc.host.Address
+	}
+	rc.client.Address = rc.address
+	rc.client.Secure = rc.host.Secure && rc.address == rc.host.Address
+	if time.Since(rc.routeAt) < 15*time.Second {
+		return
+	}
+	rc.routeAt = time.Now()
+	for _, addr := range rc.host.LAN {
+		if rc.client.reachable(addr) {
+			rc.address = addr
+			rc.client.Address = addr
+			rc.client.Secure = false
+			return
+		}
+	}
+	rc.address = rc.host.Address
+	rc.client.Address = rc.address
+	rc.client.Secure = rc.host.Secure
+}
+
 func (rc *remoteConn) refresh() {
 	if rc.stopped() || rc.ws.quitting {
 		return
 	}
+	rc.chooseRoute()
 	var sessions []remoteSession
-	if err := rc.client.call("session.list", nil, &sessions); err != nil {
+	err := rc.client.call("session.list", nil, &sessions)
+	if err != nil && rc.address != rc.host.Address {
+		// The LAN route just died; the relay is the one to try.
+		rc.address = rc.host.Address
+		rc.routeAt = time.Time{}
+		rc.chooseRoute()
+		err = rc.client.call("session.list", nil, &sessions)
+	}
+	if err != nil {
 		rc.fail(err)
 		return
 	}

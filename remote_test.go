@@ -766,3 +766,33 @@ func TestRemoteEnabledWithRelay(t *testing.T) {
 		t.Fatal("a Mac with a relay reported remote access off")
 	}
 }
+
+// TestChooseRoutePrefersLAN: the link picks the Mac's LAN address when it
+// answers, and the relay when it does not.
+func TestChooseRoutePrefersLAN(t *testing.T) {
+	ok := func(rw http.ResponseWriter, r *http.Request) {
+		writeJSON(rw, http.StatusOK, map[string]any{"id": "x", "ok": true})
+	}
+	lan := httptest.NewServer(http.HandlerFunc(ok))
+	defer lan.Close()
+	relay := httptest.NewServer(http.HandlerFunc(ok))
+	defer relay.Close()
+
+	strip := func(u string) string { return strings.TrimPrefix(u, "http://") }
+	rc := &remoteConn{
+		host:   remoteHost{Address: strip(relay.URL), Token: "t", LAN: []string{strip(lan.URL)}},
+		client: remoteClient{Name: "h", Address: strip(relay.URL), Token: "t"},
+	}
+	rc.chooseRoute()
+	if rc.address != strip(lan.URL) {
+		t.Fatalf("route = %q, want the LAN address", rc.address)
+	}
+
+	// The LAN goes away: the next check falls back to the relay.
+	lan.Close()
+	rc.routeAt = time.Time{}
+	rc.chooseRoute()
+	if rc.address != strip(relay.URL) {
+		t.Fatalf("route = %q, want the relay", rc.address)
+	}
+}
