@@ -267,16 +267,20 @@ type workspace struct {
 
 	// Self-hosted relay: the link this Mac keeps to a server the user runs,
 	// its status for the settings page, and the dialog that edits it.
-	relay       *relayLink
-	relayState  string
-	relayDetail string
-	relayOpen   bool
-	relayErr    string
-	relayAddr   string
-	relayTunnel string
-	relayURL    string
-	relayToken  string
-	relayPrint  string
+	relay         *relayLink
+	relayState    string
+	relayDetail   string
+	relayOpen     bool
+	relayAdvanced bool
+	// relayProvisioned says the Mac's relay came from relay.json, so the
+	// settings page leaves it out entirely.
+	relayProvisioned bool
+	relayErr         string
+	relayAddr        string
+	relayTunnel      string
+	relayURL         string
+	relayToken       string
+	relayPrint       string
 
 	// Permissions: the rows Settings › Permissions draws, whether they have
 	// been checked this run, and whether a check is in flight.
@@ -296,6 +300,7 @@ func newWorkspace() *workspace {
 		remoteConns:      map[string]*remoteConn{},
 		worktreeRestores: map[string][]string{},
 	}
+	w.relayProvisioned = loadRelayProvision(&w.settings)
 	return w
 }
 

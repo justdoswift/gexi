@@ -361,5 +361,7 @@
   "permissionsGuide": "Open Settings",
   "permissionsRecheck": "Check again",
   "permissionsWorking": "Waiting…",
-  "permissionsRestartHint": "Screen Recording takes effect after gexi starts again."
+  "permissionsRestartHint": "Screen Recording takes effect after gexi starts again.",
+  "remoteViaRelay": "Connecting through {host}.",
+  "remoteCodeOnlyHint": "Enter the 6-digit code shown on the other Mac or phone."
 }

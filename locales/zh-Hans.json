@@ -361,5 +361,7 @@
   "permissionsGuide": "打开设置",
   "permissionsRecheck": "重新检查",
   "permissionsWorking": "等待中…",
-  "permissionsRestartHint": "屏幕录制需要重启 gexi 后才生效。"
+  "permissionsRestartHint": "屏幕录制需要重启 gexi 后才生效。",
+  "remoteViaRelay": "将通过 {host} 连接。",
+  "remoteCodeOnlyHint": "输入另一台 Mac 或手机上显示的 6 位配对码。"
 }

@@ -80,6 +80,43 @@ func defaultSettings() appSettings {
 
 func settingsPath() string { return filepath.Join(supportDir(), "settings.json") }
 
+// relayProvisionPath is where a relay can be set up once, outside the app,
+// so the Mac needs no relay settings in its UI: the code is the only thing
+// anyone types.
+func relayProvisionPath() string { return filepath.Join(supportDir(), "relay.json") }
+
+// relayProvision is what that file holds.
+type relayProvision struct {
+	Address     string `json:"address"`
+	Tunnel      string `json:"tunnel"`
+	Token       string `json:"token"`
+	Fingerprint string `json:"fingerprint"`
+	URL         string `json:"url"`
+}
+
+// loadRelayProvision reads the file and folds it into the settings. It
+// reports whether the Mac has a relay set up for it.
+func loadRelayProvision(s *appSettings) bool {
+	data, err := os.ReadFile(relayProvisionPath())
+	if err != nil {
+		return false
+	}
+	var p relayProvision
+	if json.Unmarshal(data, &p) != nil {
+		return false
+	}
+	if p.Address == "" || p.Token == "" || p.Fingerprint == "" {
+		return false
+	}
+	s.RelayAddress = p.Address
+	s.RelayTunnel = p.Tunnel
+	s.RelayToken = p.Token
+	s.RelayFingerprint = p.Fingerprint
+	s.RelayURL = p.URL
+	s.RelayEnabled = true
+	return true
+}
+
 func loadSettings() appSettings {
 	s := defaultSettings()
 	if data, err := os.ReadFile(settingsPath()); err == nil {
@@ -100,6 +137,10 @@ func loadSettings() appSettings {
 	}
 	// Remote access needs the code clients pair with; a settings file from
 	// before the feature, or a hand-edited one, gets a fresh code.
+	if loadRelayProvision(&s) {
+		// A provisioned relay is already on; nothing in the UI turns it on.
+		s.RelayEnabled = true
+	}
 	if (s.RemoteEnabled || s.RelayEnabled) && len(s.RemoteCode) != 6 {
 		s.RemoteCode = newPairingCode()
 		s.RemoteCodeAt = time.Now().Format(time.RFC3339)
@@ -418,54 +459,6 @@ func (w *workspace) remotePage(c *ui.Context, tk tokens) {
 		}
 	})
 
-	sectionLabel(c, tk, locales.SettingsRelaySection())
-	settingsCard(c, tk, func() {
-		w.settingRowView(c, tk, settingRow{
-			title:  locales.SettingsRelayEnable(),
-			detail: locales.SettingsRelayEnableDetail(),
-			on:     w.settings.RelayEnabled,
-			toggle: func() { w.setRelayEnabled(!w.settings.RelayEnabled) },
-		})
-		if !w.settings.RelayEnabled {
-			return
-		}
-		cardDivider(c, tk)
-		status, color := w.relayStatus(tk)
-		ui.Row(c).Padding(10, 16, 10, 16).Gap(12).Children(func() {
-			ui.Column(c).Gap(2).Children(func() {
-				ui.Text(c, status).FontSize(13).TextColor(color)
-				detail := w.settings.RelayAddress
-				if w.settings.RelayTunnel != "" {
-					detail += "  ·  " + w.settings.RelayTunnel
-				}
-				if w.relayDetail != "" {
-					detail += "  ·  " + w.relayDetail
-				}
-				ui.Text(c, detail).FontSize(11).TextColor(tk.MutedForeground).
-					SingleLine()
-			})
-			ui.Spacer(c)
-			outlineButton(c, tk, locales.SettingsRelayEdit(), func() {
-				w.openRelayDialog()
-			})
-		})
-		if w.settings.RelayURL != "" {
-			cardDivider(c, tk)
-			ui.Row(c).Padding(10, 16, 10, 16).Gap(12).Children(func() {
-				ui.Column(c).Gap(2).Children(func() {
-					ui.Text(c, locales.SettingsRelayURLLabel()).FontSize(13).
-						TextColor(tk.Foreground)
-					ui.Text(c, w.settings.RelayURL).FontSize(11).
-						TextColor(tk.MutedForeground).SingleLine()
-				})
-				ui.Spacer(c)
-				outlineButton(c, tk, locales.SettingsRemoteCopy(), func() {
-					writeClipboard(w.settings.RelayURL)
-				})
-			})
-		}
-	})
-
 	sectionLabel(c, tk, locales.SettingsRemoteHosts())
 	settingsCard(c, tk, func() {
 		if len(w.settings.RemoteHosts) == 0 {
@@ -499,12 +492,80 @@ func (w *workspace) remotePage(c *ui.Context, tk tokens) {
 			outlineButton(c, tk, locales.SettingsRemoteAdd(), func() { w.openHostDialog() })
 		})
 	})
+
+	// The relay's plumbing stays folded away: a Mac that has one set up
+	// only ever needs the code; the rest is setup nobody reads twice.
+	relayIncomplete := w.settings.RelayEnabled && !w.settings.relay().ready()
+	if !w.relayProvisioned {
+		ui.Row(c).Padding(2, 2, 6, 0).Children(func() {
+			ui.Text(c, locales.SettingsAdvanced()).FontSize(11).
+				TextColor(tk.MutedForeground).Cursor(ui.CursorPointer).
+				OnClick(func() {
+					w.relayAdvanced = !w.relayAdvanced
+					w.invalidateSettings()
+				})
+		})
+	}
+	if !w.relayProvisioned && (w.relayAdvanced || relayIncomplete) {
+		sectionLabel(c, tk, locales.SettingsRelaySection())
+		settingsCard(c, tk, func() {
+			w.settingRowView(c, tk, settingRow{
+				title:  locales.SettingsRelayEnable(),
+				detail: locales.SettingsRelayEnableDetail(),
+				on:     w.settings.RelayEnabled,
+				toggle: func() { w.setRelayEnabled(!w.settings.RelayEnabled) },
+			})
+			if !w.settings.RelayEnabled {
+				return
+			}
+			cardDivider(c, tk)
+			status, color := w.relayStatus(tk)
+			ui.Row(c).Padding(10, 16, 10, 16).Gap(12).Children(func() {
+				ui.Column(c).Gap(2).Children(func() {
+					ui.Text(c, status).FontSize(13).TextColor(color)
+					detail := w.settings.RelayAddress
+					if w.settings.RelayTunnel != "" {
+						detail += "  ·  " + w.settings.RelayTunnel
+					}
+					if w.relayDetail != "" {
+						detail += "  ·  " + w.relayDetail
+					}
+					ui.Text(c, detail).FontSize(11).TextColor(tk.MutedForeground).
+						SingleLine()
+				})
+				ui.Spacer(c)
+				outlineButton(c, tk, locales.SettingsRelayEdit(), func() {
+					w.openRelayDialog()
+				})
+			})
+			if w.settings.RelayURL != "" {
+				cardDivider(c, tk)
+				ui.Row(c).Padding(10, 16, 10, 16).Gap(12).Children(func() {
+					ui.Column(c).Gap(2).Children(func() {
+						ui.Text(c, locales.SettingsRelayURLLabel()).FontSize(13).
+							TextColor(tk.Foreground)
+						ui.Text(c, w.settings.RelayURL).FontSize(11).
+							TextColor(tk.MutedForeground).SingleLine()
+					})
+					ui.Spacer(c)
+					outlineButton(c, tk, locales.SettingsRemoteCopy(), func() {
+						writeClipboard(w.settings.RelayURL)
+					})
+				})
+			}
+		})
+	}
 }
 
 // remoteAddressRow is where another device reaches this Mac, with the
 // addresses in reach and a copy button.
 func (w *workspace) remoteAddressRow(c *ui.Context, tk tokens) {
 	addresses := lanAddresses()
+	// With a relay up, that address is the one another device types: the
+	// LAN ones would only work under the same roof.
+	if relay := w.relayClientURL(); relay != "" {
+		addresses = []string{relay}
+	}
 	detail := strings.Join(addresses, "  ")
 	color := tk.MutedForeground
 	if w.remoteErr != "" {
