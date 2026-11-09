@@ -101,6 +101,62 @@ func TestSubagentCountKeepsASessionWorking(t *testing.T) {
 	}
 }
 
+// TestSessionActivityAnyPaneWorking: a session with three panes keeps its
+// sidebar loader while any one of them is still working, even after the
+// first pane's turn ends.
+func TestSessionActivityAnyPaneWorking(t *testing.T) {
+	a := &pane{ID: "a", activity: &agentActivity{State: activityIdle}}
+	b := &pane{ID: "b", activity: &agentActivity{State: activityWorking}}
+	c := &pane{ID: "c", activity: &agentActivity{State: activityIdle}}
+	root := &splitNode{
+		axis:  axisHorizontal,
+		ratio: 50,
+		first: leaf(a),
+		second: &splitNode{
+			axis: axisVertical, ratio: 50, first: leaf(b), second: leaf(c),
+		},
+	}
+	s := &session{ID: "s", Root: root}
+
+	if got := sessionActivityState(s); got != activityWorking {
+		t.Fatalf("state = %q, want working while one pane works", got)
+	}
+	b.activity = &agentActivity{State: activityIdle}
+	if got := sessionActivityState(s); got != "" {
+		t.Fatalf("state = %q, want idle after all panes stop", got)
+	}
+	c.activity = &agentActivity{State: activityWaiting}
+	a.activity = &agentActivity{State: activityWorking}
+	if got := sessionActivityState(s); got != activityWaiting {
+		t.Fatalf("state = %q, want waiting to outrank working", got)
+	}
+}
+
+// TestTurnResumeKeepsTheNote: a pane found mid-turn becomes working, but the
+// one-time carried-changes note belongs to the real prompt's turn.start, not
+// to this state-only resume.
+func TestTurnResumeKeepsTheNote(t *testing.T) {
+	p := &pane{ID: "ab12", Worktree: &paneWorktree{Carried: "/tmp/project"}}
+	s := &session{ID: "s1", Root: leaf(p)}
+	w := &workspace{Projects: []*project{{Sessions: []*session{s}}}}
+
+	result, err := w.handleEvent(agentEvent{
+		Kind: "turn.resume", Agent: "amp", Pane: "ab12", Session: "T-123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.activity == nil || p.activity.State != activityWorking {
+		t.Fatalf("activity = %+v, want working", p.activity)
+	}
+	if result.(map[string]any)["context"] != nil {
+		t.Fatal("turn.resume consumed the carried-changes note")
+	}
+	if p.Worktree.Carried == "" {
+		t.Fatal("turn.resume cleared the carried-changes note")
+	}
+}
+
 // TestSubagentEventsReachThePane wires the two hook events through the socket
 // handler: a start and its stop pair by id without touching the turn state.
 func TestSubagentEventsReachThePane(t *testing.T) {
