@@ -64,8 +64,11 @@ type savedProject struct {
 }
 
 type savedSession struct {
-	ID   string    `json:"id"`
-	Root savedNode `json:"root"`
+	ID string `json:"id"`
+	// Label is the name the user gave the session, so a rename survives a
+	// launch instead of falling back to the branch or terminal title.
+	Label string    `json:"label,omitempty"`
+	Root  savedNode `json:"root"`
 	// ZoomedPane is the pane the session was left filling it, so the stage
 	// comes back after a launch the way it was left.
 	ZoomedPane string `json:"zoomedPane,omitempty"`
@@ -205,6 +208,7 @@ func (w *workspace) savedState() workspaceState {
 			}
 			saved.Sessions = append(saved.Sessions, savedSession{
 				ID:         s.ID,
+				Label:      s.Label,
 				Root:       s.Root.saved(),
 				ZoomedPane: s.zoomedPane,
 			})
@@ -377,7 +381,7 @@ func (w *workspace) restoreOrCreate() {
 			if err != nil {
 				continue
 			}
-			s := &session{ID: ss.ID, Root: root}
+			s := &session{ID: ss.ID, Label: ss.Label, Root: root}
 			// A zoom that names a pane the layout no longer has would leave
 			// the session blank, so it is dropped.
 			if root.paneByID(ss.ZoomedPane) != nil {

@@ -83,6 +83,7 @@ func (w *workspace) view(c *ui.Context) {
 	ui.Modal(c, &w.commitOpen, func() { w.commitDialog(c, tk) })
 	ui.Modal(c, &w.worktreeCreateOpen, func() { w.worktreeCreateDialog(c, tk) })
 	ui.Modal(c, &w.renameOpen, func() { w.renameBranchDialog(c, tk) })
+	ui.Modal(c, &w.sidebarRenameOpen, func() { w.sidebarRenameDialog(c, tk) })
 	if w.closeTarget != nil {
 		switch ui.AlertDialog(c, &w.closeOpen, locales.PaneCloseTitle(), w.closeMsg,
 			locales.PaneCloseBackground(), locales.MenuClosePane(), locales.Cancel()) {
@@ -326,7 +327,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 		color = tk.Foreground
 	}
 	toggle := func() { w.toggleProject(pr) }
-	row.OnClick(toggle).Children(func() {
+	row.OnClick(toggle).ContextMenu(func(m *ui.Menu) { w.projectRowMenu(m, pr) }).Children(func() {
 		chevron := "chevron-right"
 		if open {
 			chevron = "chevron-down"
@@ -471,7 +472,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	}
 	pick := func() { w.selectSession(s.ID) }
 	activity := sessionActivityState(s)
-	row.OnClick(pick).Children(func() {
+	row.OnClick(pick).ContextMenu(func(m *ui.Menu) { w.sessionRowMenu(m, s) }).Children(func() {
 		agent := s.agent()
 		if agent != nil {
 			if src := agentLogoSource(agent.Kind, tk); src != nil {
@@ -505,9 +506,14 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	})
 }
 
-// sessionLabel is what the sidebar calls a session: its agent when one runs
-// there, the terminal title otherwise.
+// sessionLabel is what the sidebar calls a session: the name the user gave
+// it, else its branch, its agent when one runs there, or the terminal title.
+// The manual name comes first, so an agent renaming the branch or the title
+// cannot change a name the user set.
 func sessionLabel(s *session) string {
+	if s.Label != "" {
+		return s.Label
+	}
 	// A session on another Mac is called what its host calls it, with the
 	// host's activity mark dropped: the row already wears the agent's logo.
 	if s.remote != nil && s.remote.title != "" {

@@ -298,5 +298,13 @@
   "remoteRefresh": "Refresh",
   "remoteNoSessions": "No sessions on this Mac.",
   "remoteInputPlaceholder": "Type, then Return",
-  "remoteSend": "Send"
+  "remoteSend": "Send",
+  "rename": "Rename…",
+  "renameSessionTitle": "Rename Session",
+  "renameSessionPlaceholder": "Session name",
+  "renameSessionHint": "The name you set stays; the agent will not change it.",
+  "renameProjectTitle": "Rename Project",
+  "renameProjectPlaceholder": "Project name",
+  "renameEmpty": "Enter a name.",
+  "renameConfirm": "Rename"
 }

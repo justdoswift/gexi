@@ -3051,3 +3051,83 @@ func RemoteSend() string { return In(i18n.Locale()).RemoteSend() }
 func (msgs Messages) RemoteSend() string {
 	return Catalog.Format(msgs.locale, "remoteSend", nil)
 }
+
+// Rename says "Rename…"
+// in the language the app shows.
+func Rename() string { return In(i18n.Locale()).Rename() }
+
+// Rename says "Rename…"
+// in the language of msgs.
+func (msgs Messages) Rename() string {
+	return Catalog.Format(msgs.locale, "rename", nil)
+}
+
+// RenameSessionTitle says "Rename Session"
+// in the language the app shows.
+func RenameSessionTitle() string { return In(i18n.Locale()).RenameSessionTitle() }
+
+// RenameSessionTitle says "Rename Session"
+// in the language of msgs.
+func (msgs Messages) RenameSessionTitle() string {
+	return Catalog.Format(msgs.locale, "renameSessionTitle", nil)
+}
+
+// RenameSessionPlaceholder says "Session name"
+// in the language the app shows.
+func RenameSessionPlaceholder() string { return In(i18n.Locale()).RenameSessionPlaceholder() }
+
+// RenameSessionPlaceholder says "Session name"
+// in the language of msgs.
+func (msgs Messages) RenameSessionPlaceholder() string {
+	return Catalog.Format(msgs.locale, "renameSessionPlaceholder", nil)
+}
+
+// RenameSessionHint says "The name you set stays; the agent will not change it."
+// in the language the app shows.
+func RenameSessionHint() string { return In(i18n.Locale()).RenameSessionHint() }
+
+// RenameSessionHint says "The name you set stays; the agent will not change it."
+// in the language of msgs.
+func (msgs Messages) RenameSessionHint() string {
+	return Catalog.Format(msgs.locale, "renameSessionHint", nil)
+}
+
+// RenameProjectTitle says "Rename Project"
+// in the language the app shows.
+func RenameProjectTitle() string { return In(i18n.Locale()).RenameProjectTitle() }
+
+// RenameProjectTitle says "Rename Project"
+// in the language of msgs.
+func (msgs Messages) RenameProjectTitle() string {
+	return Catalog.Format(msgs.locale, "renameProjectTitle", nil)
+}
+
+// RenameProjectPlaceholder says "Project name"
+// in the language the app shows.
+func RenameProjectPlaceholder() string { return In(i18n.Locale()).RenameProjectPlaceholder() }
+
+// RenameProjectPlaceholder says "Project name"
+// in the language of msgs.
+func (msgs Messages) RenameProjectPlaceholder() string {
+	return Catalog.Format(msgs.locale, "renameProjectPlaceholder", nil)
+}
+
+// RenameEmpty says "Enter a name."
+// in the language the app shows.
+func RenameEmpty() string { return In(i18n.Locale()).RenameEmpty() }
+
+// RenameEmpty says "Enter a name."
+// in the language of msgs.
+func (msgs Messages) RenameEmpty() string {
+	return Catalog.Format(msgs.locale, "renameEmpty", nil)
+}
+
+// RenameConfirm says "Rename"
+// in the language the app shows.
+func RenameConfirm() string { return In(i18n.Locale()).RenameConfirm() }
+
+// RenameConfirm says "Rename"
+// in the language of msgs.
+func (msgs Messages) RenameConfirm() string {
+	return Catalog.Format(msgs.locale, "renameConfirm", nil)
+}

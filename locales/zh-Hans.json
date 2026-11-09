@@ -298,5 +298,13 @@
   "remoteRefresh": "刷新",
   "remoteNoSessions": "这台 Mac 上还没有会话。",
   "remoteInputPlaceholder": "输入后按回车",
-  "remoteSend": "发送"
+  "remoteSend": "发送",
+  "rename": "重命名…",
+  "renameSessionTitle": "重命名会话",
+  "renameSessionPlaceholder": "会话名称",
+  "renameSessionHint": "手动设置的名称会保持不变，AI 不会自动修改。",
+  "renameProjectTitle": "重命名项目",
+  "renameProjectPlaceholder": "项目名称",
+  "renameEmpty": "请输入名称。",
+  "renameConfirm": "重命名"
 }

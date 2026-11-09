@@ -34,6 +34,11 @@ type project struct {
 type session struct {
 	ID   string
 	Root *splitNode
+	// Label, when set, is the name the user gave the session in the sidebar.
+	// It outranks the branch, agent, and terminal title the session would
+	// otherwise be called, so an agent renaming its branch or title cannot
+	// overwrite a name typed by hand.
+	Label string
 	// zoomedPane fills the session on its own while set, so the other panes
 	// keep their places without being drawn. It belongs to the session, not
 	// the workspace: switching to another session in the sidebar and back
@@ -207,6 +212,15 @@ type workspace struct {
 	renameTarget *pane
 	renameText   string
 	renameErr    string
+
+	// sidebarRenameOpen is the sidebar's rename prompt;
+	// sidebarRenameSession or sidebarRenameProject is the row it names.
+	sidebarRenameOpen    bool
+	sidebarRenameSession *session
+	sidebarRenameProject *project
+	sidebarRenameText    string
+	sidebarRenameErr     string
+	sidebarRenameSelect  bool
 
 	// Remote: the LAN server this Mac runs while it is reachable, the error
 	// that kept it from starting, the add-host dialog, and the Macs this one
