@@ -1745,17 +1745,30 @@ func (c *remoteSink) Close() error {
 	return nil
 }
 
-// sendLoop sends what was typed, in order, to the pane the sink shows.
+// sendLoop sends what was typed, in order, to the pane the sink shows. The
+// keys typed while a send is in flight go out together in the next one: a
+// word typed at a remote pane should cost one round trip, not one per key.
 func (c *remoteSink) sendLoop() {
 	for {
+		var b []byte
 		select {
 		case <-c.done:
 			return
-		case b := <-c.out:
-			_ = c.rc.client.call("pane.send", map[string]any{
-				"pane": c.paneID,
-				"text": string(b),
-			}, nil)
+		case b = <-c.out:
 		}
+		b = append([]byte(nil), b...)
+		for {
+			select {
+			case more := <-c.out:
+				b = append(b, more...)
+				continue
+			default:
+			}
+			break
+		}
+		_ = c.rc.client.call("pane.send", map[string]any{
+			"pane": c.paneID,
+			"text": string(b),
+		}, nil)
 	}
 }
