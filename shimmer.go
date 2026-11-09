@@ -20,12 +20,18 @@ const shimmerBand = 0.4
 // sweep says it is still running. Where the desktop asks for less motion,
 // the label stands still in the color it would have without the sweep.
 func shimmerText(c *ui.Context, tk tokens, label string) ui.Element {
+	return shimmerLabel(c, tk, label, 11, 600)
+}
+
+// shimmerLabel is shimmerText at a caller's own size, for the sidebar's
+// sessions, whose label is the list's reading size rather than a chip's.
+func shimmerLabel(c *ui.Context, tk tokens, label string, size float32, weight int) ui.Element {
 	runes := []rune(label)
 	if len(runes) == 0 {
-		return shimmerRest(c, tk, label)
+		return shimmerLabelRest(c, tk, label, size, weight)
 	}
 	if c.Preferences().ReduceMotion {
-		return shimmerRest(c, tk, label)
+		return shimmerLabelRest(c, tk, label, size, weight)
 	}
 	// The sweep moves the text's colors, not its layout, so the view is
 	// built again each frame for them.
@@ -48,16 +54,16 @@ func shimmerText(c *ui.Context, tk tokens, label string) ui.Element {
 		glow = glow * glow * (3 - 2*glow)
 		spans[i] = ui.Span{
 			Text:   string(r),
-			Size:   11,
-			Weight: 600,
+			Size:   size,
+			Weight: weight,
 			Color:  tk.MutedForeground.Mix(tk.Foreground, float32(glow)),
 		}
 	}
 	return ui.RichText(c, spans...).SingleLine()
 }
 
-// shimmerRest is the label at rest, as the chip's other labels read.
-func shimmerRest(c *ui.Context, tk tokens, label string) ui.Element {
-	return ui.Text(c, label).FontSize(11).FontWeight(600).
+// shimmerLabelRest is the label at rest, as the chip's other labels read.
+func shimmerLabelRest(c *ui.Context, tk tokens, label string, size float32, weight int) ui.Element {
+	return ui.Text(c, label).FontSize(size).FontWeight(weight).
 		TextColor(tk.Foreground).SingleLine()
 }

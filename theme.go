@@ -220,9 +220,12 @@ const sidebarWidth float32 = 240
 
 const (
 	headerHeight float32 = 36
-	searchHeight float32 = 28
-	rowHeightPx  float32 = 30
-	iconSize     float32 = 26
+	searchHeight float32 = 30
+	// groupRowHeight is a project header's line: a label above its
+	// sessions, lighter than the sessions themselves.
+	groupRowHeight float32 = 28
+	rowHeightPx    float32 = 32
+	iconSize       float32 = 26
 	// iconSmallSize is a list-row control's hit area, beside 12pt text.
 	iconSmallSize float32 = 20
 )
