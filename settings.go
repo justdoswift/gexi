@@ -43,10 +43,23 @@ type appSettings struct {
 	// Remote access on the local network: whether this Mac can be reached,
 	// the six-digit code a client pairs with, the devices paired so far, and
 	// the Macs this one reaches.
-	RemoteEnabled bool           `json:"remoteEnabled"`
-	RemoteCode    string         `json:"remoteCode"`
+	RemoteEnabled bool   `json:"remoteEnabled"`
+	RemoteCode    string `json:"remoteCode"`
+	// RemoteCodeAt is when the pairing code was made. A code is good for
+	// pairingCodeTTL, so one left on screen stops working on its own.
+	RemoteCodeAt  string         `json:"remoteCodeAt"`
 	RemoteDevices []remoteDevice `json:"remoteDevices"`
 	RemoteHosts   []remoteHost   `json:"remoteHosts"`
+
+	// The self-hosted relay: a server the user runs, which this Mac keeps a
+	// link to so it can be reached without a public address or a router
+	// rule. RelayURL is what clients type, shown only so it can be copied.
+	RelayEnabled     bool   `json:"relayEnabled"`
+	RelayAddress     string `json:"relayAddress"`
+	RelayTunnel      string `json:"relayTunnel"`
+	RelayToken       string `json:"relayToken"`
+	RelayFingerprint string `json:"relayFingerprint"`
+	RelayURL         string `json:"relayURL"`
 }
 
 const (
@@ -87,8 +100,9 @@ func loadSettings() appSettings {
 	}
 	// Remote access needs the code clients pair with; a settings file from
 	// before the feature, or a hand-edited one, gets a fresh code.
-	if s.RemoteEnabled && len(s.RemoteCode) != 6 {
+	if (s.RemoteEnabled || s.RelayEnabled) && len(s.RemoteCode) != 6 {
 		s.RemoteCode = newPairingCode()
+		s.RemoteCodeAt = time.Now().Format(time.RFC3339)
 	}
 	sidebarMaterial = s.SidebarMaterial
 	return s
@@ -124,6 +138,7 @@ const (
 	settingsThemes
 	settingsNotifications
 	settingsRemote
+	settingsPermissions
 	settingsKeyboard
 	settingsWorktrees
 	settingsAdvanced
@@ -137,6 +152,7 @@ var settingsTabs = []struct {
 	{"themes", locales.SettingsThemes},
 	{"bell", locales.SettingsNotifications},
 	{"monitor", locales.SettingsRemote},
+	{"file-lock", locales.SettingsPermissions},
 	{"keyboard", locales.SettingsKeyboard},
 	{"branch", locales.SettingsWorktrees},
 	{"sliders", locales.SettingsAdvanced},
@@ -272,6 +288,8 @@ func (w *workspace) settingsPage(c *ui.Context, tk tokens) {
 		w.notificationsPage(c, tk)
 	case settingsRemote:
 		w.remotePage(c, tk)
+	case settingsPermissions:
+		w.permissionsPage(c, tk)
 	case settingsKeyboard:
 		w.keyboardPage(c, tk)
 	case settingsWorktrees:
@@ -365,11 +383,14 @@ func (w *workspace) remotePage(c *ui.Context, tk tokens) {
 			on:     w.settings.RemoteEnabled,
 			toggle: func() { w.setRemoteEnabled(!w.settings.RemoteEnabled) },
 		})
-		if !w.settings.RemoteEnabled {
+		if !w.remoteServerNeeded() {
 			return
 		}
 		cardDivider(c, tk)
-		w.remoteAddressRow(c, tk)
+		if w.settings.RemoteEnabled {
+			w.remoteAddressRow(c, tk)
+			cardDivider(c, tk)
+		}
 		cardDivider(c, tk)
 		w.remoteCodeRow(c, tk)
 		cardDivider(c, tk)
@@ -397,6 +418,54 @@ func (w *workspace) remotePage(c *ui.Context, tk tokens) {
 		}
 	})
 
+	sectionLabel(c, tk, locales.SettingsRelaySection())
+	settingsCard(c, tk, func() {
+		w.settingRowView(c, tk, settingRow{
+			title:  locales.SettingsRelayEnable(),
+			detail: locales.SettingsRelayEnableDetail(),
+			on:     w.settings.RelayEnabled,
+			toggle: func() { w.setRelayEnabled(!w.settings.RelayEnabled) },
+		})
+		if !w.settings.RelayEnabled {
+			return
+		}
+		cardDivider(c, tk)
+		status, color := w.relayStatus(tk)
+		ui.Row(c).Padding(10, 16, 10, 16).Gap(12).Children(func() {
+			ui.Column(c).Gap(2).Children(func() {
+				ui.Text(c, status).FontSize(13).TextColor(color)
+				detail := w.settings.RelayAddress
+				if w.settings.RelayTunnel != "" {
+					detail += "  ·  " + w.settings.RelayTunnel
+				}
+				if w.relayDetail != "" {
+					detail += "  ·  " + w.relayDetail
+				}
+				ui.Text(c, detail).FontSize(11).TextColor(tk.MutedForeground).
+					SingleLine()
+			})
+			ui.Spacer(c)
+			outlineButton(c, tk, locales.SettingsRelayEdit(), func() {
+				w.openRelayDialog()
+			})
+		})
+		if w.settings.RelayURL != "" {
+			cardDivider(c, tk)
+			ui.Row(c).Padding(10, 16, 10, 16).Gap(12).Children(func() {
+				ui.Column(c).Gap(2).Children(func() {
+					ui.Text(c, locales.SettingsRelayURLLabel()).FontSize(13).
+						TextColor(tk.Foreground)
+					ui.Text(c, w.settings.RelayURL).FontSize(11).
+						TextColor(tk.MutedForeground).SingleLine()
+				})
+				ui.Spacer(c)
+				outlineButton(c, tk, locales.SettingsRemoteCopy(), func() {
+					writeClipboard(w.settings.RelayURL)
+				})
+			})
+		}
+	})
+
 	sectionLabel(c, tk, locales.SettingsRemoteHosts())
 	settingsCard(c, tk, func() {
 		if len(w.settings.RemoteHosts) == 0 {
@@ -410,7 +479,7 @@ func (w *workspace) remotePage(c *ui.Context, tk tokens) {
 			ui.Row(c).Padding(10, 16, 10, 16).Gap(12).Children(func() {
 				ui.Column(c).Gap(1).Children(func() {
 					ui.Text(c, host.Name).FontSize(13).TextColor(tk.Foreground)
-					ui.Text(c, host.Address).FontSize(11).TextColor(tk.MutedForeground)
+					ui.Text(c, remoteAddressLabel(host)).FontSize(11).TextColor(tk.MutedForeground)
 				})
 				ui.Spacer(c)
 				outlineButton(c, tk, locales.SettingsRemoteOpen(), func() {
@@ -461,15 +530,27 @@ func (w *workspace) remoteAddressRow(c *ui.Context, tk tokens) {
 
 // remoteCodeRow shows the six digits a client pairs with.
 func (w *workspace) remoteCodeRow(c *ui.Context, tk tokens) {
+	fresh := codeFresh(w.settings.RemoteCodeAt)
+	code := w.settings.RemoteCode
+	detail := locales.SettingsRemoteCodeDetail()
+	detailColor := tk.MutedForeground
+	if fresh {
+		detail += " " + locales.SettingsRemoteCodeValid()
+	} else {
+		// A code left on screen stops working, so the row stops showing
+		// digits that would not pair anyone.
+		code = "------"
+		detail = locales.SettingsRemoteCodeExpired()
+		detailColor = tk.Waiting
+	}
 	ui.Row(c).Padding(10, 16, 10, 16).Gap(12).Children(func() {
 		ui.Column(c).Gap(2).Children(func() {
 			ui.Text(c, locales.SettingsRemoteCode()).FontSize(13).
 				TextColor(tk.Foreground)
-			ui.Text(c, locales.SettingsRemoteCodeDetail()).FontSize(11).
-				TextColor(tk.MutedForeground)
+			ui.Text(c, detail).FontSize(11).TextColor(detailColor)
 		})
 		ui.Spacer(c)
-		ui.Text(c, w.settings.RemoteCode).Font("SF Mono, Menlo, monospace").
+		ui.Text(c, code).Font("SF Mono, Menlo, monospace").
 			FontSize(18).TextColor(tk.Foreground)
 		outlineButton(c, tk, locales.SettingsRemoteRegenerate(), func() {
 			w.regenerateRemoteCode()

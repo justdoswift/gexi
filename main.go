@@ -116,10 +116,12 @@ func main() {
 		w.startWorktreeMonitor()
 		w.startGitMonitor()
 		w.startRemoteServer()
+		w.startRelay()
 		w.startRemoteClients()
 		stop := startControl(w)
 		mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
 			w.quitting = true
+			w.stopRelay()
 			w.stopRemoteServer()
 			w.stopRemoteClients()
 			w.saveNow()

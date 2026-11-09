@@ -3203,3 +3203,489 @@ func RenameConfirm() string { return In(i18n.Locale()).RenameConfirm() }
 func (msgs Messages) RenameConfirm() string {
 	return Catalog.Format(msgs.locale, "renameConfirm", nil)
 }
+
+// SettingsRelaySection says "Self-hosted relay"
+// in the language the app shows.
+func SettingsRelaySection() string { return In(i18n.Locale()).SettingsRelaySection() }
+
+// SettingsRelaySection says "Self-hosted relay"
+// in the language of msgs.
+func (msgs Messages) SettingsRelaySection() string {
+	return Catalog.Format(msgs.locale, "settingsRelaySection", nil)
+}
+
+// SettingsRelayEnable says "Use a relay"
+// in the language the app shows.
+func SettingsRelayEnable() string { return In(i18n.Locale()).SettingsRelayEnable() }
+
+// SettingsRelayEnable says "Use a relay"
+// in the language of msgs.
+func (msgs Messages) SettingsRelayEnable() string {
+	return Catalog.Format(msgs.locale, "settingsRelayEnable", nil)
+}
+
+// SettingsRelayEnableDetail says "Keep a link to a server you run, so this Mac is reachable from anywhere without a public address or a router rule."
+// in the language the app shows.
+func SettingsRelayEnableDetail() string { return In(i18n.Locale()).SettingsRelayEnableDetail() }
+
+// SettingsRelayEnableDetail says "Keep a link to a server you run, so this Mac is reachable from anywhere without a public address or a router rule."
+// in the language of msgs.
+func (msgs Messages) SettingsRelayEnableDetail() string {
+	return Catalog.Format(msgs.locale, "settingsRelayEnableDetail", nil)
+}
+
+// SettingsRelayEdit says "Edit…"
+// in the language the app shows.
+func SettingsRelayEdit() string { return In(i18n.Locale()).SettingsRelayEdit() }
+
+// SettingsRelayEdit says "Edit…"
+// in the language of msgs.
+func (msgs Messages) SettingsRelayEdit() string {
+	return Catalog.Format(msgs.locale, "settingsRelayEdit", nil)
+}
+
+// SettingsRelayAddressLabel says "Relay address"
+// in the language the app shows.
+func SettingsRelayAddressLabel() string { return In(i18n.Locale()).SettingsRelayAddressLabel() }
+
+// SettingsRelayAddressLabel says "Relay address"
+// in the language of msgs.
+func (msgs Messages) SettingsRelayAddressLabel() string {
+	return Catalog.Format(msgs.locale, "settingsRelayAddressLabel", nil)
+}
+
+// SettingsRelayTunnelLabel says "Tunnel"
+// in the language the app shows.
+func SettingsRelayTunnelLabel() string { return In(i18n.Locale()).SettingsRelayTunnelLabel() }
+
+// SettingsRelayTunnelLabel says "Tunnel"
+// in the language of msgs.
+func (msgs Messages) SettingsRelayTunnelLabel() string {
+	return Catalog.Format(msgs.locale, "settingsRelayTunnelLabel", nil)
+}
+
+// SettingsRelayURLLabel says "Client address"
+// in the language the app shows.
+func SettingsRelayURLLabel() string { return In(i18n.Locale()).SettingsRelayURLLabel() }
+
+// SettingsRelayURLLabel says "Client address"
+// in the language of msgs.
+func (msgs Messages) SettingsRelayURLLabel() string {
+	return Catalog.Format(msgs.locale, "settingsRelayURLLabel", nil)
+}
+
+// SettingsRelayStatusLabel says "Status"
+// in the language the app shows.
+func SettingsRelayStatusLabel() string { return In(i18n.Locale()).SettingsRelayStatusLabel() }
+
+// SettingsRelayStatusLabel says "Status"
+// in the language of msgs.
+func (msgs Messages) SettingsRelayStatusLabel() string {
+	return Catalog.Format(msgs.locale, "settingsRelayStatusLabel", nil)
+}
+
+// SettingsRelayOnline says "Connected"
+// in the language the app shows.
+func SettingsRelayOnline() string { return In(i18n.Locale()).SettingsRelayOnline() }
+
+// SettingsRelayOnline says "Connected"
+// in the language of msgs.
+func (msgs Messages) SettingsRelayOnline() string {
+	return Catalog.Format(msgs.locale, "settingsRelayOnline", nil)
+}
+
+// SettingsRelayConnecting says "Connecting"
+// in the language the app shows.
+func SettingsRelayConnecting() string { return In(i18n.Locale()).SettingsRelayConnecting() }
+
+// SettingsRelayConnecting says "Connecting"
+// in the language of msgs.
+func (msgs Messages) SettingsRelayConnecting() string {
+	return Catalog.Format(msgs.locale, "settingsRelayConnecting", nil)
+}
+
+// SettingsRelayOffline says "Not running"
+// in the language the app shows.
+func SettingsRelayOffline() string { return In(i18n.Locale()).SettingsRelayOffline() }
+
+// SettingsRelayOffline says "Not running"
+// in the language of msgs.
+func (msgs Messages) SettingsRelayOffline() string {
+	return Catalog.Format(msgs.locale, "settingsRelayOffline", nil)
+}
+
+// SettingsRelayIncomplete says "Fill in the relay address, tunnel, token and fingerprint first."
+// in the language the app shows.
+func SettingsRelayIncomplete() string { return In(i18n.Locale()).SettingsRelayIncomplete() }
+
+// SettingsRelayIncomplete says "Fill in the relay address, tunnel, token and fingerprint first."
+// in the language of msgs.
+func (msgs Messages) SettingsRelayIncomplete() string {
+	return Catalog.Format(msgs.locale, "settingsRelayIncomplete", nil)
+}
+
+// SettingsRelayReconnecting says "Reconnecting…"
+// in the language the app shows.
+func SettingsRelayReconnecting() string { return In(i18n.Locale()).SettingsRelayReconnecting() }
+
+// SettingsRelayReconnecting says "Reconnecting…"
+// in the language of msgs.
+func (msgs Messages) SettingsRelayReconnecting() string {
+	return Catalog.Format(msgs.locale, "settingsRelayReconnecting", nil)
+}
+
+// SettingsRelayClosed says "The relay closed the connection."
+// in the language the app shows.
+func SettingsRelayClosed() string { return In(i18n.Locale()).SettingsRelayClosed() }
+
+// SettingsRelayClosed says "The relay closed the connection."
+// in the language of msgs.
+func (msgs Messages) SettingsRelayClosed() string {
+	return Catalog.Format(msgs.locale, "settingsRelayClosed", nil)
+}
+
+// RelayDialogTitle says "Self-hosted relay"
+// in the language the app shows.
+func RelayDialogTitle() string { return In(i18n.Locale()).RelayDialogTitle() }
+
+// RelayDialogTitle says "Self-hosted relay"
+// in the language of msgs.
+func (msgs Messages) RelayDialogTitle() string {
+	return Catalog.Format(msgs.locale, "relayDialogTitle", nil)
+}
+
+// RelayDialogBody says "Run gexi-relay on a server you own, then paste what `gexi-relay init` prints."
+// in the language the app shows.
+func RelayDialogBody() string { return In(i18n.Locale()).RelayDialogBody() }
+
+// RelayDialogBody says "Run gexi-relay on a server you own, then paste what `gexi-relay init` prints."
+// in the language of msgs.
+func (msgs Messages) RelayDialogBody() string {
+	return Catalog.Format(msgs.locale, "relayDialogBody", nil)
+}
+
+// RelayAddressPlaceholder says "relay.example.com:47825"
+// in the language the app shows.
+func RelayAddressPlaceholder() string { return In(i18n.Locale()).RelayAddressPlaceholder() }
+
+// RelayAddressPlaceholder says "relay.example.com:47825"
+// in the language of msgs.
+func (msgs Messages) RelayAddressPlaceholder() string {
+	return Catalog.Format(msgs.locale, "relayAddressPlaceholder", nil)
+}
+
+// RelayTunnelPlaceholder says "mac"
+// in the language the app shows.
+func RelayTunnelPlaceholder() string { return In(i18n.Locale()).RelayTunnelPlaceholder() }
+
+// RelayTunnelPlaceholder says "mac"
+// in the language of msgs.
+func (msgs Messages) RelayTunnelPlaceholder() string {
+	return Catalog.Format(msgs.locale, "relayTunnelPlaceholder", nil)
+}
+
+// RelayURLPlaceholder says "https://relay.example.com"
+// in the language the app shows.
+func RelayURLPlaceholder() string { return In(i18n.Locale()).RelayURLPlaceholder() }
+
+// RelayURLPlaceholder says "https://relay.example.com"
+// in the language of msgs.
+func (msgs Messages) RelayURLPlaceholder() string {
+	return Catalog.Format(msgs.locale, "relayURLPlaceholder", nil)
+}
+
+// RelayTokenPlaceholder says "Token from gexi-relay init"
+// in the language the app shows.
+func RelayTokenPlaceholder() string { return In(i18n.Locale()).RelayTokenPlaceholder() }
+
+// RelayTokenPlaceholder says "Token from gexi-relay init"
+// in the language of msgs.
+func (msgs Messages) RelayTokenPlaceholder() string {
+	return Catalog.Format(msgs.locale, "relayTokenPlaceholder", nil)
+}
+
+// RelayFingerprintPlaceholder says "SHA-256 fingerprint"
+// in the language the app shows.
+func RelayFingerprintPlaceholder() string { return In(i18n.Locale()).RelayFingerprintPlaceholder() }
+
+// RelayFingerprintPlaceholder says "SHA-256 fingerprint"
+// in the language of msgs.
+func (msgs Messages) RelayFingerprintPlaceholder() string {
+	return Catalog.Format(msgs.locale, "relayFingerprintPlaceholder", nil)
+}
+
+// RelayTokenLabel says "Token"
+// in the language the app shows.
+func RelayTokenLabel() string { return In(i18n.Locale()).RelayTokenLabel() }
+
+// RelayTokenLabel says "Token"
+// in the language of msgs.
+func (msgs Messages) RelayTokenLabel() string {
+	return Catalog.Format(msgs.locale, "relayTokenLabel", nil)
+}
+
+// RelayFingerprintLabel says "Certificate fingerprint"
+// in the language the app shows.
+func RelayFingerprintLabel() string { return In(i18n.Locale()).RelayFingerprintLabel() }
+
+// RelayFingerprintLabel says "Certificate fingerprint"
+// in the language of msgs.
+func (msgs Messages) RelayFingerprintLabel() string {
+	return Catalog.Format(msgs.locale, "relayFingerprintLabel", nil)
+}
+
+// RelayAddressMissing says "Enter the relay address."
+// in the language the app shows.
+func RelayAddressMissing() string { return In(i18n.Locale()).RelayAddressMissing() }
+
+// RelayAddressMissing says "Enter the relay address."
+// in the language of msgs.
+func (msgs Messages) RelayAddressMissing() string {
+	return Catalog.Format(msgs.locale, "relayAddressMissing", nil)
+}
+
+// RelayTunnelMissing says "Enter the tunnel name."
+// in the language the app shows.
+func RelayTunnelMissing() string { return In(i18n.Locale()).RelayTunnelMissing() }
+
+// RelayTunnelMissing says "Enter the tunnel name."
+// in the language of msgs.
+func (msgs Messages) RelayTunnelMissing() string {
+	return Catalog.Format(msgs.locale, "relayTunnelMissing", nil)
+}
+
+// RelayTokenMissing says "Enter the tunnel token."
+// in the language the app shows.
+func RelayTokenMissing() string { return In(i18n.Locale()).RelayTokenMissing() }
+
+// RelayTokenMissing says "Enter the tunnel token."
+// in the language of msgs.
+func (msgs Messages) RelayTokenMissing() string {
+	return Catalog.Format(msgs.locale, "relayTokenMissing", nil)
+}
+
+// RelayFingerprintMissing says "The fingerprint must be 64 hex characters; copy the one gexi-relay printed."
+// in the language the app shows.
+func RelayFingerprintMissing() string { return In(i18n.Locale()).RelayFingerprintMissing() }
+
+// RelayFingerprintMissing says "The fingerprint must be 64 hex characters; copy the one gexi-relay printed."
+// in the language of msgs.
+func (msgs Messages) RelayFingerprintMissing() string {
+	return Catalog.Format(msgs.locale, "relayFingerprintMissing", nil)
+}
+
+// RelaySave says "Save"
+// in the language the app shows.
+func RelaySave() string { return In(i18n.Locale()).RelaySave() }
+
+// RelaySave says "Save"
+// in the language of msgs.
+func (msgs Messages) RelaySave() string {
+	return Catalog.Format(msgs.locale, "relaySave", nil)
+}
+
+// SettingsRemoteCodeValid says "Valid for 10 minutes."
+// in the language the app shows.
+func SettingsRemoteCodeValid() string { return In(i18n.Locale()).SettingsRemoteCodeValid() }
+
+// SettingsRemoteCodeValid says "Valid for 10 minutes."
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteCodeValid() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteCodeValid", nil)
+}
+
+// SettingsRemoteCodeExpired says "Expired; make a new one."
+// in the language the app shows.
+func SettingsRemoteCodeExpired() string { return In(i18n.Locale()).SettingsRemoteCodeExpired() }
+
+// SettingsRemoteCodeExpired says "Expired; make a new one."
+// in the language of msgs.
+func (msgs Messages) SettingsRemoteCodeExpired() string {
+	return Catalog.Format(msgs.locale, "settingsRemoteCodeExpired", nil)
+}
+
+// SettingsPermissions says "Permissions"
+// in the language the app shows.
+func SettingsPermissions() string { return In(i18n.Locale()).SettingsPermissions() }
+
+// SettingsPermissions says "Permissions"
+// in the language of msgs.
+func (msgs Messages) SettingsPermissions() string {
+	return Catalog.Format(msgs.locale, "settingsPermissions", nil)
+}
+
+// PermissionsIntro says "These belong to gexi. Terminals and agents running inside it inherit them, so granting once is enough."
+// in the language the app shows.
+func PermissionsIntro() string { return In(i18n.Locale()).PermissionsIntro() }
+
+// PermissionsIntro says "These belong to gexi. Terminals and agents running inside it inherit them, so granting once is enough."
+// in the language of msgs.
+func (msgs Messages) PermissionsIntro() string {
+	return Catalog.Format(msgs.locale, "permissionsIntro", nil)
+}
+
+// PermissionsScreenRecording says "Screen Recording"
+// in the language the app shows.
+func PermissionsScreenRecording() string { return In(i18n.Locale()).PermissionsScreenRecording() }
+
+// PermissionsScreenRecording says "Screen Recording"
+// in the language of msgs.
+func (msgs Messages) PermissionsScreenRecording() string {
+	return Catalog.Format(msgs.locale, "permissionsScreenRecording", nil)
+}
+
+// PermissionsScreenRecordingDetail says "Window captures, interface checks, and anything that needs to see the screen."
+// in the language the app shows.
+func PermissionsScreenRecordingDetail() string {
+	return In(i18n.Locale()).PermissionsScreenRecordingDetail()
+}
+
+// PermissionsScreenRecordingDetail says "Window captures, interface checks, and anything that needs to see the screen."
+// in the language of msgs.
+func (msgs Messages) PermissionsScreenRecordingDetail() string {
+	return Catalog.Format(msgs.locale, "permissionsScreenRecordingDetail", nil)
+}
+
+// PermissionsFullDiskAccess says "Full Disk Access"
+// in the language the app shows.
+func PermissionsFullDiskAccess() string { return In(i18n.Locale()).PermissionsFullDiskAccess() }
+
+// PermissionsFullDiskAccess says "Full Disk Access"
+// in the language of msgs.
+func (msgs Messages) PermissionsFullDiskAccess() string {
+	return Catalog.Format(msgs.locale, "permissionsFullDiskAccess", nil)
+}
+
+// PermissionsFullDiskAccessDetail says "Mail, Safari, other apps' data, and the system's protected folders."
+// in the language the app shows.
+func PermissionsFullDiskAccessDetail() string {
+	return In(i18n.Locale()).PermissionsFullDiskAccessDetail()
+}
+
+// PermissionsFullDiskAccessDetail says "Mail, Safari, other apps' data, and the system's protected folders."
+// in the language of msgs.
+func (msgs Messages) PermissionsFullDiskAccessDetail() string {
+	return Catalog.Format(msgs.locale, "permissionsFullDiskAccessDetail", nil)
+}
+
+// PermissionsAccessibility says "Accessibility"
+// in the language the app shows.
+func PermissionsAccessibility() string { return In(i18n.Locale()).PermissionsAccessibility() }
+
+// PermissionsAccessibility says "Accessibility"
+// in the language of msgs.
+func (msgs Messages) PermissionsAccessibility() string {
+	return Catalog.Format(msgs.locale, "permissionsAccessibility", nil)
+}
+
+// PermissionsAccessibilityDetail says "Read other apps' windows and controls, and operate their interface."
+// in the language the app shows.
+func PermissionsAccessibilityDetail() string {
+	return In(i18n.Locale()).PermissionsAccessibilityDetail()
+}
+
+// PermissionsAccessibilityDetail says "Read other apps' windows and controls, and operate their interface."
+// in the language of msgs.
+func (msgs Messages) PermissionsAccessibilityDetail() string {
+	return Catalog.Format(msgs.locale, "permissionsAccessibilityDetail", nil)
+}
+
+// PermissionsGranted says "Granted"
+// in the language the app shows.
+func PermissionsGranted() string { return In(i18n.Locale()).PermissionsGranted() }
+
+// PermissionsGranted says "Granted"
+// in the language of msgs.
+func (msgs Messages) PermissionsGranted() string {
+	return Catalog.Format(msgs.locale, "permissionsGranted", nil)
+}
+
+// PermissionsDenied says "Not granted"
+// in the language the app shows.
+func PermissionsDenied() string { return In(i18n.Locale()).PermissionsDenied() }
+
+// PermissionsDenied says "Not granted"
+// in the language of msgs.
+func (msgs Messages) PermissionsDenied() string {
+	return Catalog.Format(msgs.locale, "permissionsDenied", nil)
+}
+
+// PermissionsNotAsked says "Not asked yet"
+// in the language the app shows.
+func PermissionsNotAsked() string { return In(i18n.Locale()).PermissionsNotAsked() }
+
+// PermissionsNotAsked says "Not asked yet"
+// in the language of msgs.
+func (msgs Messages) PermissionsNotAsked() string {
+	return Catalog.Format(msgs.locale, "permissionsNotAsked", nil)
+}
+
+// PermissionsUnknown says "Cannot tell"
+// in the language the app shows.
+func PermissionsUnknown() string { return In(i18n.Locale()).PermissionsUnknown() }
+
+// PermissionsUnknown says "Cannot tell"
+// in the language of msgs.
+func (msgs Messages) PermissionsUnknown() string {
+	return Catalog.Format(msgs.locale, "permissionsUnknown", nil)
+}
+
+// PermissionsFailed says "Check failed: {error}"
+// in the language the app shows.
+func PermissionsFailed(error string) string { return In(i18n.Locale()).PermissionsFailed(error) }
+
+// PermissionsFailed says "Check failed: {error}"
+// in the language of msgs.
+func (msgs Messages) PermissionsFailed(error string) string {
+	return Catalog.Format(msgs.locale, "permissionsFailed", map[string]any{"error": error})
+}
+
+// PermissionsRequest says "Ask"
+// in the language the app shows.
+func PermissionsRequest() string { return In(i18n.Locale()).PermissionsRequest() }
+
+// PermissionsRequest says "Ask"
+// in the language of msgs.
+func (msgs Messages) PermissionsRequest() string {
+	return Catalog.Format(msgs.locale, "permissionsRequest", nil)
+}
+
+// PermissionsGuide says "Open Settings"
+// in the language the app shows.
+func PermissionsGuide() string { return In(i18n.Locale()).PermissionsGuide() }
+
+// PermissionsGuide says "Open Settings"
+// in the language of msgs.
+func (msgs Messages) PermissionsGuide() string {
+	return Catalog.Format(msgs.locale, "permissionsGuide", nil)
+}
+
+// PermissionsRecheck says "Check again"
+// in the language the app shows.
+func PermissionsRecheck() string { return In(i18n.Locale()).PermissionsRecheck() }
+
+// PermissionsRecheck says "Check again"
+// in the language of msgs.
+func (msgs Messages) PermissionsRecheck() string {
+	return Catalog.Format(msgs.locale, "permissionsRecheck", nil)
+}
+
+// PermissionsWorking says "Waiting…"
+// in the language the app shows.
+func PermissionsWorking() string { return In(i18n.Locale()).PermissionsWorking() }
+
+// PermissionsWorking says "Waiting…"
+// in the language of msgs.
+func (msgs Messages) PermissionsWorking() string {
+	return Catalog.Format(msgs.locale, "permissionsWorking", nil)
+}
+
+// PermissionsRestartHint says "Screen Recording takes effect after gexi starts again."
+// in the language the app shows.
+func PermissionsRestartHint() string { return In(i18n.Locale()).PermissionsRestartHint() }
+
+// PermissionsRestartHint says "Screen Recording takes effect after gexi starts again."
+// in the language of msgs.
+func (msgs Messages) PermissionsRestartHint() string {
+	return Catalog.Format(msgs.locale, "permissionsRestartHint", nil)
+}

@@ -82,6 +82,9 @@ func (w *workspace) view(c *ui.Context) {
 	if w.hostOpen {
 		w.hostDialog(c, tk)
 	}
+	if w.relayOpen {
+		w.relayDialog(c, tk)
+	}
 	if w.commitOpen {
 		w.commitDialog(c, tk)
 	}

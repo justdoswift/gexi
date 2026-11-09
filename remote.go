@@ -44,6 +44,9 @@ type remoteHost struct {
 	Name    string `json:"name"`
 	Address string `json:"address"`
 	Token   string `json:"token"`
+	// Secure dials the host over TLS, as a self-hosted relay or any other
+	// https:// address does.
+	Secure bool `json:"secure,omitempty"`
 }
 
 // remoteMethods is what a paired device may call: read a session and type
@@ -192,11 +195,19 @@ func (h *remoteHandler) authorized(token string) bool {
 type pairLimiter struct {
 	mu    sync.Mutex
 	fails map[string][]time.Time
+	// all counts every refusal in the window, whatever address it came
+	// from: one host walking a six-digit space must not be stoppable only
+	// by the per-address cap, which a spread of addresses gets around.
+	all []time.Time
 }
 
 const (
-	pairWindow   = time.Minute
-	pairMaxFails = 5
+	pairWindow = time.Minute
+	// pairMaxFails is one address's share of wrong codes a minute;
+	// pairGlobalFails is the whole server's, so a distributed guess runs
+	// into a wall too.
+	pairMaxFails    = 5
+	pairGlobalFails = 30
 )
 
 func newPairLimiter() *pairLimiter {
@@ -214,13 +225,22 @@ func (l *pairLimiter) allow(ip string) bool {
 		}
 	}
 	l.fails[ip] = kept
-	return len(kept) < pairMaxFails
+	all := l.all[:0]
+	for _, t := range l.all {
+		if t.After(cutoff) {
+			all = append(all, t)
+		}
+	}
+	l.all = all
+	return len(kept) < pairMaxFails && len(all) < pairGlobalFails
 }
 
 func (l *pairLimiter) fail(ip string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.fails[ip] = append(l.fails[ip], time.Now())
+	now := time.Now()
+	l.fails[ip] = append(l.fails[ip], now)
+	l.all = append(l.all, now)
 }
 
 func (l *pairLimiter) reset(ip string) {
@@ -240,6 +260,20 @@ func newRemoteToken() string {
 func hashRemoteToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
+}
+
+// pairingCodeTTL is how long the six digits stay good. A code is meant to be
+// read off one screen and typed on another; one that has been in a settings
+// file for a week is a password, and a weak one.
+const pairingCodeTTL = 10 * time.Minute
+
+// codeFresh reports whether a pairing code made at rfc is still good.
+func codeFresh(rfc string) bool {
+	t, err := time.Parse(time.RFC3339, rfc)
+	if err != nil {
+		return false
+	}
+	return time.Since(t) < pairingCodeTTL
 }
 
 // newPairingCode is the six digits the settings page shows.
@@ -372,7 +406,7 @@ func lanAddresses() []string {
 func (w *workspace) startRemoteServer() {
 	w.stopRemoteServer()
 	w.remoteErr = ""
-	if !w.settings.RemoteEnabled {
+	if !w.remoteServerNeeded() {
 		return
 	}
 	// IPv4, which is what the LAN addresses shown in Settings are: a plain
@@ -410,23 +444,42 @@ func (w *workspace) stopRemoteServer() {
 // setRemoteEnabled turns the LAN server on or off. Main thread.
 func (w *workspace) setRemoteEnabled(on bool) {
 	w.settings.RemoteEnabled = on
-	if on && w.settings.RemoteCode == "" {
-		w.settings.RemoteCode = newPairingCode()
+	if on && !codeFresh(w.settings.RemoteCodeAt) {
+		w.regenerateRemoteCodeLocked()
 	}
 	w.settings.save()
-	if on {
-		w.startRemoteServer()
-	} else {
-		w.stopRemoteServer()
-	}
+	// The relay may still need the server: turning LAN access off must not
+	// take it away from a link that is up.
+	w.syncRemoteServer()
 	w.invalidate()
 	w.invalidateSettings()
 }
 
+// remoteServerNeeded reports whether anything is asking for this Mac's HTTP
+// server: the local network, or a self-hosted relay.
+func (w *workspace) remoteServerNeeded() bool {
+	return w.settings.RemoteEnabled || w.settings.RelayEnabled
+}
+
+// syncRemoteServer starts or stops the server to match the settings.
+func (w *workspace) syncRemoteServer() {
+	if w.remoteServerNeeded() {
+		w.startRemoteServer()
+	} else {
+		w.stopRemoteServer()
+	}
+}
+
 func (w *workspace) regenerateRemoteCode() {
-	w.settings.RemoteCode = newPairingCode()
-	w.settings.save()
+	w.regenerateRemoteCodeLocked()
 	w.invalidateSettings()
+}
+
+// regenerateRemoteCodeLocked makes a new code with its clock and saves both.
+func (w *workspace) regenerateRemoteCodeLocked() {
+	w.settings.RemoteCode = newPairingCode()
+	w.settings.RemoteCodeAt = time.Now().Format(time.RFC3339)
+	w.settings.save()
 }
 
 func (w *workspace) removeRemoteDevice(id string) {
@@ -491,7 +544,11 @@ func (w *workspace) remoteEnabled() bool {
 
 func (w *workspace) remoteCode() string {
 	var code string
-	w.remoteOnMain(func() { code = w.settings.RemoteCode })
+	w.remoteOnMain(func() {
+		if codeFresh(w.settings.RemoteCodeAt) {
+			code = w.settings.RemoteCode
+		}
+	})
 	return code
 }
 

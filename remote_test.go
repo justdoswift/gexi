@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -214,18 +215,25 @@ func TestRemoteRPC(t *testing.T) {
 }
 
 func TestNormalizeRemoteAddress(t *testing.T) {
-	cases := map[string]string{
-		"192.168.1.23":               "192.168.1.23:47823",
-		"192.168.1.23:1234":          "192.168.1.23:1234",
-		"http://192.168.1.23":        "192.168.1.23:47823",
-		"http://192.168.1.23:5000/":  "192.168.1.23:5000",
-		"  https://mac.local:8000  ": "mac.local:8000",
-		"":                           "",
-		"http://":                    "",
+	cases := []struct {
+		in     string
+		want   string
+		secure bool
+	}{
+		{"192.168.1.23", "192.168.1.23:47823", false},
+		{"192.168.1.23:1234", "192.168.1.23:1234", false},
+		{"http://192.168.1.23", "192.168.1.23:47823", false},
+		{"http://192.168.1.23:5000/", "192.168.1.23:5000", false},
+		// An https address keeps TLS and takes 443, never gexi's cleartext port.
+		{"https://relay.example.com", "relay.example.com:443", true},
+		{"  https://mac.local:8000  ", "mac.local:8000", true},
+		{"", "", false},
+		{"http://", "", false},
 	}
-	for in, want := range cases {
-		if got := normalizeRemoteAddress(in); got != want {
-			t.Errorf("normalizeRemoteAddress(%q) = %q, want %q", in, got, want)
+	for _, c := range cases {
+		got, secure := normalizeRemoteAddress(c.in)
+		if got != c.want || secure != c.secure {
+			t.Errorf("normalizeRemoteAddress(%q) = %q, %v; want %q, %v", c.in, got, secure, c.want, c.secure)
 		}
 	}
 }
@@ -320,7 +328,7 @@ func TestRemoteClientPairAndCall(t *testing.T) {
 	defer srv.Close()
 	address := strings.TrimPrefix(srv.URL, "http://")
 
-	host, err := pairRemoteHost(address, "123456", "")
+	host, err := pairRemoteHost(address, false, "123456", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +358,7 @@ func TestRemoteClientRejectsWrongCode(t *testing.T) {
 	defer srv.Close()
 	address := strings.TrimPrefix(srv.URL, "http://")
 
-	if _, err := pairRemoteHost(address, "000000", ""); err == nil {
+	if _, err := pairRemoteHost(address, false, "000000", ""); err == nil {
 		t.Fatal("pairing with a wrong code succeeded")
 	}
 }
@@ -361,7 +369,7 @@ func TestRemoteProjectNewSessionAsksTheHost(t *testing.T) {
 	srv, backend := newTestRemote(t)
 	defer srv.Close()
 	address := strings.TrimPrefix(srv.URL, "http://")
-	host, err := pairRemoteHost(address, "123456", "")
+	host, err := pairRemoteHost(address, false, "123456", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -512,7 +520,7 @@ func TestRemoteNewSessionNamesTheProject(t *testing.T) {
 	srv, backend := newTestRemote(t)
 	defer srv.Close()
 	address := strings.TrimPrefix(srv.URL, "http://")
-	host, err := pairRemoteHost(address, "123456", "")
+	host, err := pairRemoteHost(address, false, "123456", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -716,5 +724,35 @@ func TestLeaveWorktreeFromRemoteRefusals(t *testing.T) {
 	running := &pane{ID: "c", Worktree: wt, agent: &agentDetection{Kind: agentClaude}}
 	if out, _ := w.leaveWorktreeFromRemote(running).(map[string]any); out["left"] != true {
 		t.Fatalf("a clean checkout with an agent was not left: %+v", out)
+	}
+}
+
+// TestPairingCodeExpires: a code left in the settings file stops pairing on
+// its own, so an old screenshot is worth nothing.
+func TestPairingCodeExpires(t *testing.T) {
+	w := &workspace{}
+	w.settings.RemoteCode = "123456"
+	w.settings.RemoteCodeAt = time.Now().Add(-pairingCodeTTL - time.Minute).Format(time.RFC3339)
+	if got := w.remoteCode(); got != "" {
+		t.Fatalf("expired code still pairs: %q", got)
+	}
+	w.settings.RemoteCodeAt = time.Now().Format(time.RFC3339)
+	if got := w.remoteCode(); got != "123456" {
+		t.Fatalf("fresh code = %q, want 123456", got)
+	}
+}
+
+// TestPairingLimiterStopsSpreadGuesses: the per-address cap alone would let a
+// guess walk six digits from many addresses, so the whole server has a cap.
+func TestPairingLimiterStopsSpreadGuesses(t *testing.T) {
+	l := newPairLimiter()
+	for i := 0; i < pairGlobalFails; i++ {
+		if !l.allow(fmt.Sprintf("10.0.0.%d", i)) {
+			t.Fatalf("refused too early at %d", i)
+		}
+		l.fail(fmt.Sprintf("10.0.0.%d", i))
+	}
+	if l.allow("192.0.2.1") {
+		t.Fatal("a fresh address was still allowed after the global cap")
 	}
 }
