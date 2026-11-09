@@ -32,7 +32,81 @@ type controlResponse struct {
 	Result any    `json:"result,omitempty"`
 }
 
+// streamWait is how long a pane.stream call may hold its request open while
+// the program has nothing to say. A mirror that is watching a quiet pane
+// then costs one request per hold instead of sixty a second, and the first
+// byte the program writes still comes back at once.
+const streamWait = 25 * time.Second
+
 func (w *workspace) handle(req controlRequest) controlResponse {
+	if req.Method == "pane.stream" && boolParam(req.Params, "wait") {
+		return w.handleStreamWait(req)
+	}
+	return w.handleOnce(req)
+}
+
+// handleStreamWait holds a pane.stream request until the pane has output or
+// the hold runs out, then answers with whatever it has. Parking happens off
+// the main thread: the dispatch only reads the log, and the wait itself is
+// the mirror's to spend.
+func (w *workspace) handleStreamWait(req controlRequest) controlResponse {
+	deadline := time.Now().Add(streamWait)
+	for {
+		wake, cancel := w.paneWake(req)
+		resp := w.handleOnce(req)
+		if !resp.OK || !streamIdle(resp.Result) || time.Now().After(deadline) {
+			if cancel != nil {
+				cancel()
+			}
+			return resp
+		}
+		if wake == nil {
+			// No pane to park on: answer the empty frame rather than hang.
+			return resp
+		}
+		select {
+		case <-wake:
+			// Output arrived; read it with a fresh offset.
+		case <-time.After(time.Until(deadline)):
+			if cancel != nil {
+				cancel()
+			}
+			return resp
+		}
+	}
+}
+
+// paneWake registers a wake-up for the pane a pane.stream names.
+func (w *workspace) paneWake(req controlRequest) (<-chan struct{}, func()) {
+	var (
+		wake   <-chan struct{}
+		cancel func()
+	)
+	w.onMain(func() {
+		p, err := w.resolvePane(str(req.Params, "pane"))
+		if err != nil || p == nil || p.conn == nil {
+			return
+		}
+		wake, cancel = p.conn.waitOutput()
+	})
+	return wake, cancel
+}
+
+// streamIdle reports whether a pane.stream answer carries nothing new: no
+// output and no screen to resend.
+func streamIdle(result any) bool {
+	m, ok := result.(map[string]any)
+	if !ok {
+		return false
+	}
+	if reset, _ := m["reset"].(bool); reset {
+		return false
+	}
+	data, _ := m["data"].(string)
+	return data == ""
+}
+
+func (w *workspace) handleOnce(req controlRequest) controlResponse {
 	resp := controlResponse{ID: req.ID}
 	var (
 		result any

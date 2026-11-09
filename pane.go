@@ -41,6 +41,12 @@ type ptyConn struct {
 	outStart int64
 	outEnd   int64
 	busy     bool
+
+	// waiters are the mirrors parked on this pane's output. A write closes
+	// and forgets them all, which is what wakes a long poll the moment the
+	// program has something to say.
+	waitMu  sync.Mutex
+	waiters []chan struct{}
 }
 
 func newPTYConn() *ptyConn { return &ptyConn{ready: make(chan struct{})} }
@@ -80,6 +86,7 @@ func (c *ptyConn) log(b []byte) {
 	c.out = append(c.out, append([]byte(nil), b...))
 	c.outBytes += len(b)
 	c.outEnd += int64(len(b))
+	c.wake()
 	for c.outBytes > paneOutputLog && len(c.out) > 1 {
 		c.outBytes -= len(c.out[0])
 		c.outStart += int64(len(c.out[0]))
@@ -106,6 +113,36 @@ func (c *ptyConn) snapshot(term *terminal.Terminal) (int64, []byte) {
 		c.cutMu.Unlock()
 		return off, snap
 	}
+}
+
+// waitOutput parks a mirror until the program writes. The returned cancel
+// drops the registration, for a poll that leaves without being woken.
+func (c *ptyConn) waitOutput() (<-chan struct{}, func()) {
+	c.waitMu.Lock()
+	ch := make(chan struct{})
+	c.waiters = append(c.waiters, ch)
+	c.waitMu.Unlock()
+	return ch, func() {
+		c.waitMu.Lock()
+		for i, w := range c.waiters {
+			if w == ch {
+				c.waiters = append(c.waiters[:i], c.waiters[i+1:]...)
+				break
+			}
+		}
+		c.waitMu.Unlock()
+	}
+}
+
+// wake releases every parked mirror. A channel closed here is closed once:
+// the waiters list is emptied as it is released.
+func (c *ptyConn) wake() {
+	c.waitMu.Lock()
+	for _, ch := range c.waiters {
+		close(ch)
+	}
+	c.waiters = nil
+	c.waitMu.Unlock()
 }
 
 // outputSince returns the output logged from offset on, and false when the
