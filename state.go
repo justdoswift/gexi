@@ -36,6 +36,20 @@ type workspaceState struct {
 	// are gone but their branches are kept, so Settings › Archived can put
 	// them back.
 	ArchivedWorktrees []archivedWorktree `json:"archivedWorktrees,omitempty"`
+	// Detached are panes kept running in the background. Their commands come
+	// back on launch, so "Keep Running" survives a restart as far as a new
+	// process can: the agent resumes in the same checkout.
+	Detached []savedDetachedPane `json:"detached,omitempty"`
+	// WorktreeRestores remembers the command of a pane whose checkout was
+	// kept when the pane closed, keyed by the checkout path.
+	WorktreeRestores map[string][]string `json:"worktreeRestores,omitempty"`
+}
+
+// savedDetachedPane is a background pane and the project it returns to when
+// reattached.
+type savedDetachedPane struct {
+	Pane       savedPane `json:"pane"`
+	ProjectDir string    `json:"projectDir,omitempty"`
 }
 
 type savedProject struct {
@@ -87,16 +101,21 @@ func snapshotsDir() string {
 	return filepath.Join(supportDir(), "snapshots")
 }
 
+func (p *pane) saved() savedPane {
+	return savedPane{
+		ID:               p.ID,
+		Command:          p.savedCommand(),
+		WorkingDirectory: p.dir(),
+		Worktree:         p.Worktree,
+	}
+}
+
 func (n *splitNode) saved() savedNode {
 	if n.isLeaf() {
+		pane := n.pane.saved()
 		return savedNode{
 			Type: "leaf",
-			Pane: &savedPane{
-				ID:               n.pane.ID,
-				Command:          n.pane.savedCommand(),
-				WorkingDirectory: n.pane.dir(),
-				Worktree:         n.pane.Worktree,
-			},
+			Pane: &pane,
 		}
 	}
 	ax := "horizontal"
@@ -168,6 +187,7 @@ func (w *workspace) savedState() workspaceState {
 		DrawerListWidth:   w.drawer.listWidth,
 		DrawerFileWidth:   w.drawer.fileWidth,
 		ArchivedWorktrees: w.archived,
+		WorktreeRestores:  w.worktreeRestores,
 	}
 	if w.drawer.tab == drawerTabFiles {
 		state.DrawerTab = "files"
@@ -194,6 +214,16 @@ func (w *workspace) savedState() workspaceState {
 		}
 		state.Projects = append(state.Projects, saved)
 	}
+	for _, p := range w.detached {
+		projectDir := ""
+		if p.bgProject != nil {
+			projectDir = p.bgProject.Dir
+		}
+		state.Detached = append(state.Detached, savedDetachedPane{
+			Pane:       p.saved(),
+			ProjectDir: projectDir,
+		})
+	}
 	return state
 }
 
@@ -203,7 +233,7 @@ func (w *workspace) saveNow() {
 		return
 	}
 	if w.settings.RestoreScreen {
-		for _, p := range w.allPanes() {
+		for _, p := range w.livePanes() {
 			if text := normalizeSnapshot(p.text()); text != "" {
 				_ = os.WriteFile(filepath.Join(snapshotsDir(), p.ID+".txt"), []byte(text), 0o644)
 			}
@@ -243,7 +273,38 @@ func loadState() (workspaceState, bool) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return state, false
 	}
-	return state, len(state.Projects) > 0 || len(state.Tabs) > 0
+	return state, len(state.Projects) > 0 || len(state.Tabs) > 0 || len(state.Detached) > 0 ||
+		len(state.ArchivedWorktrees) > 0 || len(state.WorktreeRestores) > 0
+}
+
+// restore brings a background pane back with the command it was saved with.
+// A checkout that is gone drops the worktree binding rather than opening a
+// pane in a missing folder.
+func (sp savedDetachedPane) restore(w *workspace) *pane {
+	pane := sp.Pane
+	dir := pane.WorkingDirectory
+	if pane.Worktree != nil {
+		if info, err := os.Stat(pane.Worktree.Path); err != nil || !info.IsDir() {
+			pane.Worktree = nil
+			if sp.ProjectDir != "" {
+				dir = sp.ProjectDir
+			}
+		}
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return nil
+	}
+	snapshot := ""
+	if w.settings.RestoreScreen {
+		snapshot = loadSnapshot(pane.ID)
+	}
+	p, err := newPane(w, pane.ID, pane.Command, dir, snapshot)
+	if err != nil {
+		return nil
+	}
+	p.restored = true
+	p.Worktree = pane.Worktree
+	return p
 }
 
 func (n *savedNode) restore(w *workspace) (*splitNode, error) {
@@ -299,6 +360,10 @@ func (w *workspace) restoreOrCreate() {
 	}
 
 	w.archived = state.ArchivedWorktrees
+	w.worktreeRestores = state.WorktreeRestores
+	if w.worktreeRestores == nil {
+		w.worktreeRestores = map[string][]string{}
+	}
 
 	for _, sp := range state.Projects {
 		// Remote projects are gone; their panes were ssh sessions.
@@ -345,7 +410,25 @@ func (w *workspace) restoreOrCreate() {
 		}
 	}
 
-	if len(w.Projects) == 0 {
+	// Background panes come back with their saved command, so a pane kept
+	// running is still in the Worktrees page after a restart.
+	for _, sp := range state.Detached {
+		p := sp.restore(w)
+		if p == nil {
+			continue
+		}
+		if sp.ProjectDir != "" {
+			for _, pr := range w.Projects {
+				if pr.Dir == sp.ProjectDir {
+					p.bgProject = pr
+					break
+				}
+			}
+		}
+		w.detached = append(w.detached, p)
+	}
+
+	if len(w.Projects) == 0 && len(w.detached) == 0 {
 		_, _, _ = w.openProject("")
 		return
 	}

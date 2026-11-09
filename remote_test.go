@@ -693,8 +693,9 @@ func TestRemoteMirrorTop(t *testing.T) {
 }
 
 // TestLeaveWorktreeFromRemoteRefusals: leaving a checkout the host did not
-// make, one that is busy, or one whose agent still runs is refused, and the
-// answer says which so the client can say it too.
+// make or one that is busy is refused, and the answer says which so the
+// client can say it too. An agent in the pane no longer refuses: the host
+// stops it as the local Leave button does.
 func TestLeaveWorktreeFromRemoteRefusals(t *testing.T) {
 	w := &workspace{}
 	detected := &pane{ID: "a", Worktree: &paneWorktree{Detected: true}}
@@ -705,9 +706,15 @@ func TestLeaveWorktreeFromRemoteRefusals(t *testing.T) {
 	if out, _ := w.leaveWorktreeFromRemote(busy).(map[string]any); out["left"] != false {
 		t.Fatalf("a busy checkout was left: %+v", out)
 	}
-	running := &pane{ID: "c", Worktree: &paneWorktree{}, agent: &agentDetection{Kind: agentClaude}}
-	out, _ := w.leaveWorktreeFromRemote(running).(map[string]any)
-	if out["agent"] != true {
-		t.Fatalf("an agent's checkout was left: %+v", out)
+
+	t.Setenv("GEXI_HOME", t.TempDir())
+	root := initRepoTest(t)
+	wt, err := createWorktree(root)
+	if err != nil || wt == nil {
+		t.Fatalf("create worktree: %v %+v", err, wt)
+	}
+	running := &pane{ID: "c", Worktree: wt, agent: &agentDetection{Kind: agentClaude}}
+	if out, _ := w.leaveWorktreeFromRemote(running).(map[string]any); out["left"] != true {
+		t.Fatalf("a clean checkout with an agent was not left: %+v", out)
 	}
 }

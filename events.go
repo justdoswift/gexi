@@ -137,8 +137,8 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 	switch ev.Kind {
 	case "turn.start":
 		// The hook's stdout becomes context for this prompt, which is where
-		// the one-time branch rename note reaches the agent.
-		if ctx := w.worktreeNamingContext(p); ctx != "" {
+		// the one-time carried-changes note reaches the agent.
+		if ctx := w.worktreeCarriedContext(p); ctx != "" {
 			result["context"] = ctx
 		}
 		// New work takes the stage from the last completion's light.

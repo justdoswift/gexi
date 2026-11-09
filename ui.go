@@ -81,6 +81,8 @@ func (w *workspace) view(c *ui.Context) {
 	})
 	ui.Modal(c, &w.hostOpen, func() { w.hostDialog(c, tk) })
 	ui.Modal(c, &w.commitOpen, func() { w.commitDialog(c, tk) })
+	ui.Modal(c, &w.worktreeCreateOpen, func() { w.worktreeCreateDialog(c, tk) })
+	ui.Modal(c, &w.renameOpen, func() { w.renameBranchDialog(c, tk) })
 	if w.closeTarget != nil {
 		switch ui.AlertDialog(c, &w.closeOpen, locales.PaneCloseTitle(), w.closeMsg,
 			locales.PaneCloseBackground(), locales.MenuClosePane(), locales.Cancel()) {
@@ -106,7 +108,7 @@ func (w *workspace) view(c *ui.Context) {
 		case 0:
 			p := w.leaveTarget
 			w.leaveTarget = nil
-			w.leaveWorktree(p)
+			w.leaveConfirmed(p)
 		case 1, ui.AlertDismissed:
 			w.leaveTarget = nil
 		}

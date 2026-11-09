@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/justdoswift/gexi/locales"
 )
 
 // A linked worktree keeps its branch and repository root in the git directory
@@ -57,6 +59,72 @@ func TestWorktreeCheckoutInfoDetachedHead(t *testing.T) {
 	branch, _ := worktreeCheckoutInfo(wt)
 	if branch != "0123456" {
 		t.Fatalf("branch = %q, want the short commit", branch)
+	}
+}
+
+// TestScanWorktreesListsLeftoverFolder checks a folder left by a checkout
+// git could not finish deleting is still on the page: git drops the metadata
+// first, so its HEAD is gone and the old scan skipped it.
+func TestScanWorktreesListsLeftoverFolder(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	path := filepath.Join(worktreesRoot(), "repo-1234", "leftover")
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	entries := scanWorktrees()
+	if len(entries) != 1 {
+		t.Fatalf("entries = %+v, want the leftover folder", entries)
+	}
+	if e := entries[0]; !e.Broken || e.Path != path || e.Branch != "leftover" {
+		t.Fatalf("entry = %+v, want a broken leftover at %s", e, path)
+	}
+}
+
+// TestKeepLeftBranchIsListed checks a branch kept by Leave is on the page
+// with its own status, rather than waiting in git where nothing shows it.
+func TestKeepLeftBranchIsListed(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	w := &workspace{}
+	wt := &paneWorktree{Root: "/repo", Path: "/repo-kept", Branch: "kept", Base: "main"}
+	w.keepLeftBranch(wt, "/repo")
+	rows := w.worktreeRows()
+	if len(rows) != 1 || rows[0].archived == nil {
+		t.Fatalf("rows = %+v, want the kept branch", rows)
+	}
+	if !rows[0].archived.Kept || rows[0].branch() != "kept" {
+		t.Fatalf("archived = %+v, want the kept branch", rows[0].archived)
+	}
+	if got := rows[0].status(); got != locales.WorktreeStatusKept() {
+		t.Fatalf("status = %q, want %q", got, locales.WorktreeStatusKept())
+	}
+}
+
+func TestGroupWorktreeRowsByProject(t *testing.T) {
+	rows := []worktreeRow{
+		{entry: worktreeScanEntry{Path: "/a/alpha/wt1", Root: "/a/alpha", Branch: "one"}},
+		{entry: worktreeScanEntry{Path: "/a/alpha/wt2", Root: "/a/alpha", Branch: "two"}},
+		{archived: &archivedWorktree{ProjectDir: "/b/beta", Path: "/b/beta/wt", Branch: "three"}},
+	}
+	groups := groupWorktreeRows(rows)
+	if len(groups) != 2 {
+		t.Fatalf("groups = %+v, want alpha and beta", groups)
+	}
+	if groups[0].name != "alpha" || len(groups[0].rows) != 2 {
+		t.Fatalf("first group = %+v, want alpha with two rows", groups[0])
+	}
+	if groups[1].name != "beta" || groups[1].rows[0].branch() != "three" {
+		t.Fatalf("second group = %+v, want beta with three", groups[1])
+	}
+	if got := rows[2].projectName(); got != "beta" {
+		t.Fatalf("archived project = %q, want beta", got)
+	}
+}
+
+func TestDropArchivedIDs(t *testing.T) {
+	entries := []archivedWorktree{{ID: "a"}, {ID: "b"}, {ID: "c"}}
+	kept := dropArchivedIDs(entries, map[string]bool{"b": true})
+	if len(kept) != 2 || kept[0].ID != "a" || kept[1].ID != "c" {
+		t.Fatalf("kept = %+v, want a and c", kept)
 	}
 }
 

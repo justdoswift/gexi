@@ -155,6 +155,7 @@ type worktreeResult struct {
 	Dirty  bool   `json:"dirty"`
 	Ahead  int    `json:"ahead"`
 	Agent  bool   `json:"agent"`
+	Error  string `json:"error,omitempty"`
 	Branch string `json:"branch"`
 }
 
@@ -1217,6 +1218,8 @@ func (rc *remoteConn) paneWorktree(p *pane, action string) {
 		}
 		rc.update(func() {
 			switch {
+			case out.Error != "":
+				rc.ws.flash(out.Error)
 			case out.Agent:
 				rc.ws.flash(locales.WorktreeAgentRunning())
 			case !out.Left && (out.Dirty || out.Ahead > 0):
