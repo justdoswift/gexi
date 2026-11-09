@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"log"
 	"os"
 
@@ -10,6 +11,13 @@ import (
 
 	"github.com/justdoswift/gexi/locales"
 )
+
+// updateIcon is the app's mark without its paper backdrop: the update window
+// draws the icon as a square against the system's own background, where the
+// icon's cream edges would read as a box pasted onto the window.
+//
+//go:embed resources/icon-update.png
+var updateIcon []byte
 
 // Version is what ping and info report.
 const Version = "0.0.60"
@@ -26,8 +34,9 @@ func main() {
 	go interactivePath()
 
 	// Daily background checks in the manner of Sparkle; the menu item below
-	// opens the same window on demand.
-	mygo.Use(updater.Plugin)
+	// opens the same window on demand. The window shows the mark without the
+	// paper backdrop of the app icon, so it sits on the system background.
+	mygo.Use(updater.New(updater.Options{Icon: updateIcon}))
 
 	w := newWorkspace()
 

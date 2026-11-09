@@ -183,6 +183,12 @@ type workspace struct {
 	leaveTarget *pane
 	leaveMsg    string
 
+	// archiveOpen is the alert asking whether a merged checkout should go;
+	// archiveTarget is the pane it belongs to.
+	archiveOpen   bool
+	archiveTarget *pane
+	archiveMsg    string
+
 	// remoteLeaveOpen is the same alert for a checkout on another Mac: its
 	// host asks nothing there, so the question is asked here instead.
 	remoteLeaveOpen   bool

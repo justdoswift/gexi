@@ -318,40 +318,34 @@ func isPairingCode(s string) bool {
 }
 
 func (w *workspace) hostDialog(c *ui.Context, tk tokens) {
-	ui.Column(c).Width(440).Padding(20).Gap(8).Children(func() {
-		ui.Text(c, locales.RemoteAddTitle()).FontSize(14).FontWeight(600).
-			TextColor(tk.Foreground)
-		ui.Text(c, locales.RemoteAddBody()).FontSize(11).TextColor(tk.MutedForeground)
-
-		ui.Text(c, locales.RemoteAddName()).FontSize(11).
-			TextColor(tk.MutedForeground).Padding(6, 0, 0, 0)
-		ui.TextInput(c, &w.hostName).Height(28).FontSize(12).
-			Placeholder(locales.RemoteAddNamePlaceholder())
-
-		ui.Text(c, locales.RemoteAddAddress()).FontSize(11).
-			TextColor(tk.MutedForeground).Padding(6, 0, 0, 0)
-		ui.TextInput(c, &w.hostAddr).Height(28).FontSize(12).
-			Placeholder("192.168.1.23:" + strconv.Itoa(remotePort))
-
-		ui.Text(c, locales.RemoteAddCode()).FontSize(11).
-			TextColor(tk.MutedForeground).Padding(6, 0, 0, 0)
-		ui.TextInput(c, &w.hostCode).Height(28).FontSize(12).Placeholder("000000")
-
-		if w.hostErr != "" {
-			ui.Text(c, w.hostErr).FontSize(11).TextColor(tk.Waiting)
+	dialogFrame(c, tk, &w.hostOpen, 460, func() {
+		dialogHeading(c, tk, locales.RemoteAddTitle(), locales.RemoteAddBody())
+		dialogBody(c, func() {
+			field := func(label, placeholder string, value *string) {
+				ui.Column(c).FillWidth().Gap(6).Children(func() {
+					dialogLabel(c, tk, label)
+					dialogInput(c, tk, value, placeholder)
+				})
+			}
+			field(locales.RemoteAddName(), locales.RemoteAddNamePlaceholder(), &w.hostName)
+			field(locales.RemoteAddAddress(), "192.168.1.23:"+strconv.Itoa(remotePort), &w.hostAddr)
+			ui.Column(c).FillWidth().Gap(6).Children(func() {
+				dialogLabel(c, tk, locales.RemoteAddCode())
+				dialogInput(c, tk, &w.hostCode, "000000").OnSubmit(func() { w.submitHost() })
+			})
+			dialogError(c, tk, w.hostErr)
+		})
+		label := locales.RemoteConnect()
+		if w.hostBusy {
+			label = locales.RemoteConnecting()
 		}
-		ui.Row(c).Gap(8).Padding(8, 0, 0, 0).Children(func() {
-			ui.Spacer(c)
-			ui.Button(c, locales.Cancel()).OnClick(func() {
+		dialogFooter(c, tk,
+			dialogAction{label: locales.Cancel(), kind: dialogQuiet, run: func() {
 				w.hostOpen = false
 				w.invalidate()
-			})
-			label := locales.RemoteConnect()
-			if w.hostBusy {
-				label = locales.RemoteConnecting()
-			}
-			ui.Button(c, label).OnClick(func() { w.submitHost() })
-		})
+			}},
+			dialogAction{label: label, kind: dialogPrimary, run: w.submitHost},
+		)
 	})
 }
 

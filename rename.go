@@ -118,25 +118,21 @@ func (w *workspace) sidebarRenameDialog(c *ui.Context, tk tokens) {
 		placeholder = locales.RenameProjectPlaceholder()
 		hint = ""
 	}
-	ui.Column(c).Width(380).Padding(20).Gap(8).Children(func() {
-		ui.Text(c, title).FontSize(14).FontWeight(600).TextColor(tk.Foreground)
-		if hint != "" {
-			ui.Text(c, hint).FontSize(11).TextColor(tk.MutedForeground)
-		}
-		input := ui.TextInput(c, &w.sidebarRenameText).Placeholder(placeholder).
-			Label(placeholder).Height(28).FontSize(12).AutoFocus()
-		if w.sidebarRenameSelect {
-			input.SetTextSelection(0, utf8.RuneCountInString(w.sidebarRenameText))
-			w.sidebarRenameSelect = false
-		}
-		input.OnSubmit(func() { w.submitSidebarRename() })
-		if w.sidebarRenameErr != "" {
-			ui.Text(c, w.sidebarRenameErr).FontSize(11).TextColor(tk.Waiting)
-		}
-		ui.Row(c).Gap(8).Padding(8, 0, 0, 0).Children(func() {
-			ui.Spacer(c)
-			ui.Button(c, locales.Cancel()).OnClick(func() { w.cancelSidebarRename() })
-			ui.Button(c, locales.RenameConfirm()).OnClick(func() { w.submitSidebarRename() })
+	dialogFrame(c, tk, &w.sidebarRenameOpen, 400, func() {
+		dialogHeading(c, tk, title, hint)
+		dialogBody(c, func() {
+			input := dialogInput(c, tk, &w.sidebarRenameText, placeholder).
+				Label(placeholder).AutoFocus()
+			if w.sidebarRenameSelect {
+				input.SetTextSelection(0, utf8.RuneCountInString(w.sidebarRenameText))
+				w.sidebarRenameSelect = false
+			}
+			input.OnSubmit(func() { w.submitSidebarRename() })
+			dialogError(c, tk, w.sidebarRenameErr)
 		})
+		dialogFooter(c, tk,
+			dialogAction{label: locales.Cancel(), kind: dialogQuiet, run: w.cancelSidebarRename},
+			dialogAction{label: locales.RenameConfirm(), kind: dialogPrimary, run: w.submitSidebarRename},
+		)
 	})
 }

@@ -28,6 +28,28 @@ func initRepoTest(t *testing.T) string {
 	return dir
 }
 
+// TestReturnToBaseSwitchesTheProjectCheckout checks that leaving or archiving
+// a worktree ends with the project's own checkout back on the branch the
+// worktree was branched from, and that a checkout holding the user's changes
+// is left alone.
+func TestReturnToBaseSwitchesTheProjectCheckout(t *testing.T) {
+	root := initRepoTest(t)
+	runGitTest(t, root, "checkout", "-b", "side")
+	returnToBase(&paneWorktree{Root: root, Base: "main"})
+	if got := currentBranch(root); got != "main" {
+		t.Fatalf("clean checkout on %q, want main", got)
+	}
+
+	runGitTest(t, root, "checkout", "-b", "side-2")
+	if err := os.WriteFile(filepath.Join(root, "own.txt"), []byte("mine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	returnToBase(&paneWorktree{Root: root, Base: "main"})
+	if got := currentBranch(root); got != "side-2" {
+		t.Fatalf("a checkout with changes moved to %q, want side-2", got)
+	}
+}
+
 // TestDetectWorktreeAt finds a linked worktree from a folder inside it, and
 // tells it apart from the repository's main checkout.
 func TestDetectWorktreeAt(t *testing.T) {

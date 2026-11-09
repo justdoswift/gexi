@@ -85,6 +85,15 @@ func (w *workspace) archiveWorktree(wt *paneWorktree, projectDir string) {
 				return
 			}
 		}
+		// The checkout is gone; the project's own checkout goes back to the
+		// branch the worktree was branched from.
+		returnToBase(wt)
+		w.onMain(func() {
+			w.worktreesScanned = false
+			w.invalidate()
+			w.invalidateSettings()
+			w.scheduleSave()
+		})
 	}()
 }
 

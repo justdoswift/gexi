@@ -17,7 +17,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/loading"
 	"github.com/egoist/mygo/ui"
 
@@ -1204,6 +1203,24 @@ func syncLocalBase(wt *paneWorktree) error {
 	return err
 }
 
+// returnToBase puts the project's own checkout back on the branch the
+// worktree was branched from once its checkout is gone, so leaving or
+// archiving a worktree ends in the project on main rather than on whatever
+// branch the checkout was left on. A checkout with changes of its own is
+// left alone: the user's work outranks the switch.
+func returnToBase(wt *paneWorktree) {
+	if wt == nil || wt.Root == "" || wt.Base == "" {
+		return
+	}
+	if clean, err := checkoutIsClean(wt.Root); err != nil || !clean {
+		return
+	}
+	if currentBranch(wt.Root) == wt.Base {
+		return
+	}
+	_, _ = worktreeGit(wt.Root, "checkout", wt.Base)
+}
+
 func removeWorktree(wt *paneWorktree) error {
 	stopPRTimer(wt)
 	if err := removeWorktreeCheckout(wt); err != nil {
@@ -1499,21 +1516,17 @@ func (w *workspace) cancelCommitMessage() {
 }
 
 func (w *workspace) commitDialog(c *ui.Context, tk tokens) {
-	ui.Column(c).Width(440).Padding(20).Gap(8).Children(func() {
-		ui.Text(c, locales.CommitMessageTitle()).FontSize(14).FontWeight(600).TextColor(tk.Foreground)
-		if w.commitHint != "" {
-			ui.Text(c, w.commitHint).FontSize(11).TextColor(tk.MutedForeground)
-		}
-		ui.TextInput(c, &w.commitText).Placeholder(locales.CommitMessagePlaceholder()).
-			Height(28).FontSize(12)
-		if w.commitErr != "" {
-			ui.Text(c, w.commitErr).FontSize(11).TextColor(tk.Waiting)
-		}
-		ui.Row(c).Gap(8).Padding(8, 0, 0, 0).Children(func() {
-			ui.Spacer(c)
-			ui.Button(c, locales.Cancel()).OnClick(func() { w.cancelCommitMessage() })
-			ui.Button(c, locales.CommitMessageConfirm()).OnClick(func() { w.submitCommitMessage() })
+	dialogFrame(c, tk, &w.commitOpen, 480, func() {
+		dialogHeading(c, tk, locales.CommitMessageTitle(), w.commitHint)
+		dialogBody(c, func() {
+			in := dialogInput(c, tk, &w.commitText, locales.CommitMessagePlaceholder()).AutoFocus()
+			in.OnSubmit(func() { w.submitCommitMessage() })
+			dialogError(c, tk, w.commitErr)
 		})
+		dialogFooter(c, tk,
+			dialogAction{label: locales.Cancel(), kind: dialogQuiet, run: w.cancelCommitMessage},
+			dialogAction{label: locales.CommitMessageConfirm(), kind: dialogPrimary, run: w.submitCommitMessage},
+		)
 	})
 }
 
@@ -1705,14 +1718,14 @@ func (w *workspace) archiveMergedWorktree(p *pane) {
 	w.confirmArchiveWorktree(p)
 }
 
-// confirmArchiveWorktree asks before the checkout goes. The native alert
-// blocks, so it runs off the UI thread and comes back.
+// confirmArchiveWorktree asks before the checkout goes. The files that make
+// the answer worth asking about are read off the UI thread; the alert itself
+// is the app's own, like the one Leave shows.
 func (w *workspace) confirmArchiveWorktree(p *pane) {
 	wt := p.Worktree
 	if wt == nil {
 		return
 	}
-	parent := w.win
 	go func() {
 		ignored, _ := worktreeHasIgnored(wt)
 		clean, _ := worktreeIsClean(wt)
@@ -1723,20 +1736,15 @@ func (w *workspace) confirmArchiveWorktree(p *pane) {
 		if ignored {
 			msg += "\n\n" + locales.WorktreeArchiveIgnored()
 		}
-		res, err := mygo.Dialog.Message(mygo.MessageOptions{
-			Parent:             parent,
-			Type:               mygo.MessageWarning,
-			Title:              locales.WorktreeArchiveTitle(),
-			Message:            msg,
-			Buttons:            []string{locales.WorktreeArchive(), locales.Cancel()},
-			DefaultButton:      1,
-			CancelButton:       1,
-			DestructiveButtons: []int{0},
+		w.onMain(func() {
+			if w.paneByID(p.ID) != p || p.Worktree != wt || wt.busy != "" {
+				return
+			}
+			w.archiveTarget = p
+			w.archiveMsg = msg
+			w.archiveOpen = true
+			w.invalidate()
 		})
-		if err != nil || res.Button != 0 {
-			return
-		}
-		w.onMain(func() { w.archiveMergedWorktreeNow(p, false, nil) })
 	}()
 }
 
@@ -1841,30 +1849,15 @@ func (w *workspace) archiveMergedAndReturn(p *pane) {
 	if pr == nil {
 		return
 	}
-	root, base, dir := wt.Root, wt.Base, pr.Dir
+	dir := pr.Dir
 	w.archiveMergedWorktreeNow(p, true, func() {
 		// The merged pane is gone; a project with nothing left to show gets
 		// a fresh shell in its folder, which is where the work continues.
+		// archiveWorktree puts the checkout back on the base branch once the
+		// checkout it branched from is gone.
 		if !projectHasPane(pr) {
 			_, _ = w.newSession(pr, nil, dir)
 		}
-		go func() {
-			// Only a clean checkout follows the merge: the user's own changes
-			// outrank a branch switch.
-			if clean, err := checkoutIsClean(root); err != nil || !clean {
-				return
-			}
-			if currentBranch(root) == base {
-				return
-			}
-			if _, err := worktreeGit(root, "checkout", base); err != nil {
-				return
-			}
-			w.onMain(func() {
-				w.invalidate()
-				w.scheduleSave()
-			})
-		}()
 	})
 }
 
@@ -2480,23 +2473,28 @@ func (w *workspace) cancelWorktreeCreate() {
 // worktreeCreateDialog is the W prompt: a branch name and whether the
 // project's uncommitted changes move with the pane.
 func (w *workspace) worktreeCreateDialog(c *ui.Context, tk tokens) {
-	ui.Column(c).Width(460).Padding(20).Gap(8).Children(func() {
-		ui.Text(c, locales.WorktreeCreateTitle()).FontSize(14).FontWeight(600).TextColor(tk.Foreground)
-		ui.Text(c, locales.WorktreeCreateName()).FontSize(11).TextColor(tk.MutedForeground)
-		ui.TextInput(c, &w.worktreeCreateName).
-			Placeholder(locales.WorktreeCreateNamePlaceholder()).Height(28).FontSize(12)
-		if w.worktreeCreateFiles > 0 {
-			ui.Checkbox(c, &w.worktreeCreateCarry,
-				locales.WorktreeCreateCarry(strconv.Itoa(w.worktreeCreateFiles)))
-		}
-		if w.worktreeCreateHint != "" {
-			ui.Text(c, w.worktreeCreateHint).FontSize(11).TextColor(tk.Waiting)
-		}
-		ui.Row(c).Gap(8).Padding(8, 0, 0, 0).Children(func() {
-			ui.Spacer(c)
-			ui.Button(c, locales.Cancel()).OnClick(func() { w.cancelWorktreeCreate() })
-			ui.Button(c, locales.WorktreeCreateConfirm()).OnClick(func() { w.submitWorktreeCreate() })
+	dialogFrame(c, tk, &w.worktreeCreateOpen, 480, func() {
+		dialogHeading(c, tk, locales.WorktreeCreateTitle(), "")
+		dialogBody(c, func() {
+			ui.Column(c).FillWidth().Gap(6).Children(func() {
+				dialogLabel(c, tk, locales.WorktreeCreateName())
+				in := dialogInput(c, tk, &w.worktreeCreateName,
+					locales.WorktreeCreateNamePlaceholder()).AutoFocus()
+				in.OnSubmit(func() { w.submitWorktreeCreate() })
+			})
+			if w.worktreeCreateFiles > 0 {
+				ui.Checkbox(c, &w.worktreeCreateCarry,
+					locales.WorktreeCreateCarry(strconv.Itoa(w.worktreeCreateFiles)))
+			}
+			if w.worktreeCreateHint != "" {
+				ui.Text(c, w.worktreeCreateHint).FontSize(12).TextColor(tk.Waiting).
+					Width(0).MinWidthPercent(100)
+			}
 		})
+		dialogFooter(c, tk,
+			dialogAction{label: locales.Cancel(), kind: dialogQuiet, run: w.cancelWorktreeCreate},
+			dialogAction{label: locales.WorktreeCreateConfirm(), kind: dialogPrimary, run: w.submitWorktreeCreate},
+		)
 	})
 }
 
@@ -2563,17 +2561,17 @@ func (w *workspace) cancelRenameBranch() {
 }
 
 func (w *workspace) renameBranchDialog(c *ui.Context, tk tokens) {
-	ui.Column(c).Width(420).Padding(20).Gap(8).Children(func() {
-		ui.Text(c, locales.WorktreeRenameTitle()).FontSize(14).FontWeight(600).TextColor(tk.Foreground)
-		ui.TextInput(c, &w.renameText).Height(28).FontSize(12)
-		if w.renameErr != "" {
-			ui.Text(c, w.renameErr).FontSize(11).TextColor(tk.Waiting)
-		}
-		ui.Row(c).Gap(8).Padding(8, 0, 0, 0).Children(func() {
-			ui.Spacer(c)
-			ui.Button(c, locales.Cancel()).OnClick(func() { w.cancelRenameBranch() })
-			ui.Button(c, locales.WorktreeRenameConfirm()).OnClick(func() { w.submitRenameBranch() })
+	dialogFrame(c, tk, &w.renameOpen, 420, func() {
+		dialogHeading(c, tk, locales.WorktreeRenameTitle(), "")
+		dialogBody(c, func() {
+			in := dialogInput(c, tk, &w.renameText, "").AutoFocus()
+			in.OnSubmit(func() { w.submitRenameBranch() })
+			dialogError(c, tk, w.renameErr)
 		})
+		dialogFooter(c, tk,
+			dialogAction{label: locales.Cancel(), kind: dialogQuiet, run: w.cancelRenameBranch},
+			dialogAction{label: locales.WorktreeRenameConfirm(), kind: dialogPrimary, run: w.submitRenameBranch},
+		)
 	})
 }
 
@@ -2879,6 +2877,12 @@ func (w *workspace) leaveWorktreeAfter(p *pane, confirmed bool) {
 			wt.Restore = append([]string(nil), restore...)
 			go func() {
 				err := removeWorktreeKeeping(wt, ahead > 0)
+				if err == nil {
+					// The merged or abandoned branch is gone from the disk;
+					// the project's own checkout goes back to the branch it
+					// was branched from.
+					returnToBase(wt)
+				}
 				w.onMain(func() {
 					w.worktreesScanned = false
 					w.invalidateSettings()

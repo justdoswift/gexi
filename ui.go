@@ -79,52 +79,89 @@ func (w *workspace) view(c *ui.Context) {
 		// thing drawn, so it slides over the canvas rather than resizing it.
 		w.drawerView(c, tk)
 	})
-	ui.Modal(c, &w.hostOpen, func() { w.hostDialog(c, tk) })
-	ui.Modal(c, &w.commitOpen, func() { w.commitDialog(c, tk) })
-	ui.Modal(c, &w.worktreeCreateOpen, func() { w.worktreeCreateDialog(c, tk) })
-	ui.Modal(c, &w.renameOpen, func() { w.renameBranchDialog(c, tk) })
-	ui.Modal(c, &w.sidebarRenameOpen, func() { w.sidebarRenameDialog(c, tk) })
+	if w.hostOpen {
+		w.hostDialog(c, tk)
+	}
+	if w.commitOpen {
+		w.commitDialog(c, tk)
+	}
+	if w.worktreeCreateOpen {
+		w.worktreeCreateDialog(c, tk)
+	}
+	if w.renameOpen {
+		w.renameBranchDialog(c, tk)
+	}
+	if w.sidebarRenameOpen {
+		w.sidebarRenameDialog(c, tk)
+	}
 	if w.closeTarget != nil {
-		switch ui.AlertDialog(c, &w.closeOpen, locales.PaneCloseTitle(), w.closeMsg,
-			locales.PaneCloseBackground(), locales.MenuClosePane(), locales.Cancel()) {
-		case 0:
-			p := w.closeTarget
-			w.closeTarget = nil
-			if w.paneByID(p.ID) == p {
-				w.detachPane(p)
-			}
-		case 1:
-			p := w.closeTarget
-			w.closeTarget = nil
-			if w.paneByID(p.ID) == p {
-				w.requestClose(p)
-			}
-		case 2, ui.AlertDismissed:
+		p := w.closeTarget
+		dialogAlert(c, tk, &w.closeOpen, 420, locales.PaneCloseTitle(), w.closeMsg,
+			dialogAction{label: locales.Cancel(), kind: dialogQuiet, run: func() {
+				w.closeOpen = false
+			}},
+			dialogAction{label: locales.MenuClosePane(), kind: dialogDanger, run: func() {
+				w.closeOpen = false
+				if w.paneByID(p.ID) == p {
+					w.requestClose(p)
+				}
+			}},
+			dialogAction{label: locales.PaneCloseBackground(), kind: dialogPrimary, auto: true, run: func() {
+				w.closeOpen = false
+				if w.paneByID(p.ID) == p {
+					w.detachPane(p)
+				}
+			}},
+		)
+		if !w.closeOpen {
 			w.closeTarget = nil
 		}
 	}
 	if w.leaveTarget != nil {
-		switch ui.AlertDialog(c, &w.leaveOpen, locales.WorktreeLeaveTitle(), w.leaveMsg,
-			locales.WorktreeLeaveConfirm(), locales.Cancel()) {
-		case 0:
-			p := w.leaveTarget
-			w.leaveTarget = nil
-			w.leaveConfirmed(p)
-		case 1, ui.AlertDismissed:
+		p := w.leaveTarget
+		dialogAlert(c, tk, &w.leaveOpen, 420, locales.WorktreeLeaveTitle(), w.leaveMsg,
+			dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
+				w.leaveOpen = false
+			}},
+			dialogAction{label: locales.WorktreeLeaveConfirm(), kind: dialogDanger, run: func() {
+				w.leaveOpen = false
+				w.leaveConfirmed(p)
+			}},
+		)
+		if !w.leaveOpen {
 			w.leaveTarget = nil
 		}
 	}
 	if w.remoteLeaveTarget != nil {
-		switch ui.AlertDialog(c, &w.remoteLeaveOpen, locales.WorktreeLeaveTitle(), w.remoteLeaveMsg,
-			locales.WorktreeLeaveConfirm(), locales.Cancel()) {
-		case 0:
-			p := w.remoteLeaveTarget
+		p := w.remoteLeaveTarget
+		dialogAlert(c, tk, &w.remoteLeaveOpen, 420, locales.WorktreeLeaveTitle(), w.remoteLeaveMsg,
+			dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
+				w.remoteLeaveOpen = false
+			}},
+			dialogAction{label: locales.WorktreeLeaveConfirm(), kind: dialogDanger, run: func() {
+				w.remoteLeaveOpen = false
+				if p.remote != nil {
+					p.remote.conn.paneWorktree(p, "leaveConfirm")
+				}
+			}},
+		)
+		if !w.remoteLeaveOpen {
 			w.remoteLeaveTarget = nil
-			if p.remote != nil {
-				p.remote.conn.paneWorktree(p, "leaveConfirm")
-			}
-		case 1, ui.AlertDismissed:
-			w.remoteLeaveTarget = nil
+		}
+	}
+	if w.archiveTarget != nil {
+		p := w.archiveTarget
+		dialogAlert(c, tk, &w.archiveOpen, 430, locales.WorktreeArchiveTitle(), w.archiveMsg,
+			dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
+				w.archiveOpen = false
+			}},
+			dialogAction{label: locales.WorktreeArchive(), kind: dialogDanger, run: func() {
+				w.archiveOpen = false
+				w.archiveMergedWorktreeNow(p, false, nil)
+			}},
+		)
+		if !w.archiveOpen {
+			w.archiveTarget = nil
 		}
 	}
 }

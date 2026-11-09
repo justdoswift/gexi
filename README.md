@@ -152,7 +152,10 @@ why. Merging fast-forwards your local base branch and leaves the
 pane in the worktree. The button then becomes **Archive**, which asks first,
 stops any agent still in the checkout, and clears it away. Uncommitted and
 ignored files are called out in the prompt, and automatic archiving skips a
-checkout that holds either. The branch is kept, so **Settings → Worktrees**
+checkout that holds either. **Leave** in the header's menu clears the checkout
+the same way; both end with the project's own checkout back on the base
+branch, unless it held changes of yours, which are left exactly as they were.
+The branch is kept, so **Settings → Worktrees**
 lists it until you restore it (the checkout comes back and its session opens
 again) or delete it (the branch goes too). Panes that never press W work
 exactly as before.
