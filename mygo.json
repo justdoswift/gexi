@@ -16,7 +16,6 @@
   },
   "updates": {
     "publicKey": "n2m6KYnuZ5wMY6X1ADIx2KdSY0vVjE5+BvL78/5vZsw=",
-    "github": "justdoswift/gexi",
-    "privateKey": "~/Library/Application Support/mygo/update-keys/mygo-update.key"
+    "github": "justdoswift/gexi"
   }
 }
