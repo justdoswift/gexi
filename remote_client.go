@@ -424,7 +424,11 @@ func (w *workspace) hostDialog(c *ui.Context, tk tokens) {
 	// there, so the dialog asks for the code alone.
 	relay := w.relayClientURL()
 	dialogFrame(c, tk, &w.hostOpen, 460, func() {
-		dialogHeading(c, tk, locales.RemoteAddTitle(), locales.RemoteAddBody())
+		body := locales.RemoteAddBody()
+		if relay != "" {
+			body = ""
+		}
+		dialogHeading(c, tk, locales.RemoteAddTitle(), body)
 		dialogBody(c, func() {
 			field := func(label, placeholder string, value *string) {
 				ui.Column(c).FillWidth().Gap(6).Children(func() {
@@ -433,14 +437,10 @@ func (w *workspace) hostDialog(c *ui.Context, tk tokens) {
 				})
 			}
 			if relay != "" {
-				ui.Text(c, locales.RemoteViaRelay(relay)).FontSize(11).
-					TextColor(tk.MutedForeground)
-				ui.Column(c).FillWidth().Gap(6).Children(func() {
-					dialogLabel(c, tk, locales.RemoteAddCode())
-					dialogInput(c, tk, &w.hostCode, "000000").OnSubmit(func() { w.submitHost() })
+				ui.Column(c).FillWidth().Children(func() {
+					dialogInput(c, tk, &w.hostCode, locales.RemoteAddCode()).
+						OnSubmit(func() { w.submitHost() })
 				})
-				ui.Text(c, locales.RemoteCodeOnlyHint()).FontSize(11).
-					TextColor(tk.MutedForeground)
 				dialogError(c, tk, w.hostErr)
 				return
 			}
@@ -1085,9 +1085,6 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 			"pane":     p.remote.id,
 			"offset":   offset,
 			"snapshot": snapshot,
-			// Wait for output rather than answer an empty frame: the host
-			// holds the request, so a quiet pane costs one call per hold.
-			"wait": true,
 		}
 		// The grid this card fits goes with every poll: the host keeps the
 		// pane at that size while this Mac watches, and lets it go when the
@@ -1095,7 +1092,6 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 		if wantCols, wantRows := int(p.remote.wantCols.Load()), int(p.remote.wantRows.Load()); wantCols > 0 && wantRows > 0 {
 			params["cols"], params["rows"] = wantCols, wantRows
 		}
-		started := time.Now()
 		err := rc.client.stream("pane.stream", params, &view)
 		if err != nil {
 			if errors.Is(err, errRemoteNotPaired) {
@@ -1147,13 +1143,10 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 		}
 		p.remote.anchor.Store(int32(cursor.low))
 		offset = view.Offset
-		// A host that does not wait answers at once with nothing; keep that
-		// loop off the CPU. A host that waits only returns on output or on
-		// its hold running out, so the next call goes out immediately.
-		if view.Data == "" && view.Snapshot == "" && !view.Reset &&
-			time.Since(started) < 50*time.Millisecond {
-			time.Sleep(remoteStreamInterval)
-		}
+		// The mirror polls on its own clock: a held request would carry the
+		// grid this window had when it went out, and a resize during the
+		// hold would come back as a redraw at the old size.
+		time.Sleep(remoteStreamInterval)
 	}
 }
 
