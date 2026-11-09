@@ -712,6 +712,48 @@ func TestWorktreesPageDrawsEveryState(t *testing.T) {
 	}
 }
 
+// TestWorktreesPageShowsClearProgress checks a batch deletion reports how far
+// it has got in the row that started it, with the spinner where the delete
+// button was, instead of leaving the page looking idle while git works. It
+// also checks the button asks first in the app's own dialog.
+func TestWorktreesPageShowsClearProgress(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	w := &workspace{settingsTab: settingsWorktrees}
+	w.archived = []archivedWorktree{
+		{ID: "a", ProjectDir: "/tmp/project", Root: "/tmp/project", Path: "/tmp/project/a", Branch: "a"},
+		{ID: "b", ProjectDir: "/tmp/project", Root: "/tmp/project", Path: "/tmp/project/b", Branch: "b"},
+	}
+	w.archivedClear = &archivedClearProgress{done: 1, total: 2}
+	tester := ui.NewTester(w.settingsView, 880, 700)
+	tester.Frame()
+	progress := locales.WorktreeClearProgress("1", "2")
+	r, ok := tester.Find(progress)
+	if !ok {
+		t.Fatalf("the page does not show %q; it shows %q", progress, tester.Texts())
+	}
+	if r.W != 12 || r.H != 12 {
+		t.Fatalf("the progress spinner takes %vx%v, want 12x12", r.W, r.H)
+	}
+	if !tester.HasText(locales.WorktreeClearArchivedDetail("2")) {
+		t.Fatalf("the row lost its detail while clearing; it shows %q", tester.Texts())
+	}
+
+	// Once the batch is done, the button asks first, in the app's own
+	// dialog rather than a system sheet.
+	w.archivedClear = nil
+	tester.Frame()
+	if err := tester.Click(locales.ArchiveDelete()); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if !w.clearArchivedOpen {
+		t.Fatal("Delete started the batch without asking")
+	}
+	if !tester.HasText(locales.WorktreeClearArchivedTitle()) {
+		t.Fatalf("the confirmation is not drawn; the page shows %q", tester.Texts())
+	}
+}
+
 // TestCoreGitRefusesMissingCheckout checks the PR and merge cores themselves
 // stop on a deleted checkout, not only the header that calls them.
 func TestCoreGitRefusesMissingCheckout(t *testing.T) {

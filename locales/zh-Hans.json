@@ -198,6 +198,7 @@
   "worktreeClearArchivedDetail": "删除 {count} 个已归档分支及其远程分支。",
   "worktreeClearArchivedTitle": "清理已归档的工作树？",
   "worktreeClearArchivedBody": "将删除 {count} 个已归档分支及其远程分支，且无法撤销。",
+  "worktreeClearProgress": "正在删除 {done}/{total}…",
   "worktreeClearKept": "清理保留的分支",
   "worktreeClearKeptDetail": "删除 {count} 个离开时保留的分支，包括未合并的提交。",
   "worktreeClearKeptTitle": "清理保留的分支？",

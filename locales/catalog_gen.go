@@ -2040,6 +2040,18 @@ func (msgs Messages) WorktreeClearArchivedBody(count string) string {
 	return Catalog.Format(msgs.locale, "worktreeClearArchivedBody", map[string]any{"count": count})
 }
 
+// WorktreeClearProgress says "Deleting {done}/{total}…"
+// in the language the app shows.
+func WorktreeClearProgress(done string, total string) string {
+	return In(i18n.Locale()).WorktreeClearProgress(done, total)
+}
+
+// WorktreeClearProgress says "Deleting {done}/{total}…"
+// in the language of msgs.
+func (msgs Messages) WorktreeClearProgress(done string, total string) string {
+	return Catalog.Format(msgs.locale, "worktreeClearProgress", map[string]any{"done": done, "total": total})
+}
+
 // WorktreeClearKept says "Clear kept branches"
 // in the language the app shows.
 func WorktreeClearKept() string { return In(i18n.Locale()).WorktreeClearKept() }

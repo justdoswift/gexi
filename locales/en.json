@@ -198,6 +198,7 @@
   "worktreeClearArchivedDetail": "Delete the {count} archived branches and their remote branches.",
   "worktreeClearArchivedTitle": "Clear archived worktrees?",
   "worktreeClearArchivedBody": "This deletes {count} archived branches and their remote branches. This cannot be undone.",
+  "worktreeClearProgress": "Deleting {done}/{total}…",
   "worktreeClearKept": "Clear kept branches",
   "worktreeClearKeptDetail": "Delete the {count} branches kept by Leave, including their unmerged commits.",
   "worktreeClearKeptTitle": "Clear kept branches?",

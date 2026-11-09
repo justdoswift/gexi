@@ -358,28 +358,44 @@ func (w *workspace) worktreesPage(c *ui.Context, tk tokens) {
 		)
 		if archivedCount > 0 {
 			cardDivider(c, tk)
-			w.settingActionView(c, tk,
-				locales.WorktreeClearArchived(),
-				locales.WorktreeClearArchivedDetail(strconv.Itoa(archivedCount)),
-				locales.ArchiveDelete(),
-				func() { w.confirmClearArchived(false) },
-			)
+			if clearing := w.archivedClear; clearing != nil && !clearing.kept {
+				w.settingProgressView(c, tk,
+					locales.WorktreeClearArchived(),
+					locales.WorktreeClearArchivedDetail(strconv.Itoa(archivedCount)),
+					locales.WorktreeClearProgress(strconv.Itoa(clearing.done), strconv.Itoa(clearing.total)),
+				)
+			} else {
+				w.settingActionView(c, tk,
+					locales.WorktreeClearArchived(),
+					locales.WorktreeClearArchivedDetail(strconv.Itoa(archivedCount)),
+					locales.ArchiveDelete(),
+					func() { w.confirmClearArchived(false) },
+				)
+			}
 		}
 		if keptCount > 0 {
 			cardDivider(c, tk)
-			w.settingActionView(c, tk,
-				locales.WorktreeClearKept(),
-				locales.WorktreeClearKeptDetail(strconv.Itoa(keptCount)),
-				locales.ArchiveDelete(),
-				func() { w.confirmClearArchived(true) },
-			)
+			if clearing := w.archivedClear; clearing != nil && clearing.kept {
+				w.settingProgressView(c, tk,
+					locales.WorktreeClearKept(),
+					locales.WorktreeClearKeptDetail(strconv.Itoa(keptCount)),
+					locales.WorktreeClearProgress(strconv.Itoa(clearing.done), strconv.Itoa(clearing.total)),
+				)
+			} else {
+				w.settingActionView(c, tk,
+					locales.WorktreeClearKept(),
+					locales.WorktreeClearKeptDetail(strconv.Itoa(keptCount)),
+					locales.ArchiveDelete(),
+					func() { w.confirmClearArchived(true) },
+				)
+			}
 		}
 	})
 	sectionLabel(c, tk, locales.SettingsWorktreesAll())
 	rows := w.worktreeRows()
 	if len(rows) == 0 {
 		settingsCard(c, tk, func() {
-			ui.Row(c).Padding(12, 16, 12, 16).Children(func() {
+			ui.Row(c).Padding(10, 16, 10, 16).Children(func() {
 				ui.Text(c, locales.SettingsWorktreesEmpty()).FontSize(12).
 					TextColor(tk.MutedForeground)
 			})
@@ -400,7 +416,7 @@ func (w *workspace) worktreesPage(c *ui.Context, tk tokens) {
 }
 
 func (w *workspace) worktreeRowView(c *ui.Context, tk tokens, row worktreeRow) {
-	ui.Row(c).Padding(12, 16, 12, 16).Gap(8).Children(func() {
+	ui.Row(c).Padding(10, 16, 10, 16).Gap(8).Children(func() {
 		ui.Column(c).Gap(2).Children(func() {
 			ui.Row(c).Gap(6).Children(func() {
 				ui.Text(c, row.branch()).FontSize(13).TextColor(tk.Foreground)
@@ -478,10 +494,22 @@ func (w *workspace) deleteBrokenWorktree(e worktreeScanEntry) {
 	}()
 }
 
+// archivedClearProgress is one batch deletion from Settings › Worktrees:
+// kept says which row started it, and done of total entries have been
+// tried.
+type archivedClearProgress struct {
+	kept  bool
+	done  int
+	total int
+}
+
 // confirmClearArchived asks before every archived entry (kept false) or every
-// branch kept by Leave (kept true) is deleted. The native alert blocks, so it
-// runs off the UI thread and comes back.
+// branch kept by Leave (kept true) is deleted. The alert is the app's own,
+// drawn over the settings window like the rest of its dialogs.
 func (w *workspace) confirmClearArchived(kept bool) {
+	if w.archivedClear != nil || w.clearArchivedOpen {
+		return
+	}
 	var entries []archivedWorktree
 	for _, a := range w.archived {
 		if a.Kept == kept {
@@ -491,40 +519,65 @@ func (w *workspace) confirmClearArchived(kept bool) {
 	if len(entries) == 0 {
 		return
 	}
-	title, body := locales.WorktreeClearArchivedTitle(), locales.WorktreeClearArchivedBody(strconv.Itoa(len(entries)))
+	body := locales.WorktreeClearArchivedBody(strconv.Itoa(len(entries)))
 	if kept {
-		title, body = locales.WorktreeClearKeptTitle(), locales.WorktreeClearKeptBody(strconv.Itoa(len(entries)))
+		body = locales.WorktreeClearKeptBody(strconv.Itoa(len(entries)))
 	}
-	parent := w.settingsWin
-	go func() {
-		res, err := mygo.Dialog.Message(mygo.MessageOptions{
-			Parent:             parent,
-			Type:               mygo.MessageWarning,
-			Title:              title,
-			Message:            body,
-			Buttons:            []string{locales.ArchiveDelete(), locales.Cancel()},
-			DefaultButton:      1,
-			CancelButton:       1,
-			DestructiveButtons: []int{0},
-		})
-		if err != nil || res.Button != 0 {
-			return
-		}
-		w.onMain(func() { w.clearArchived(entries) })
-	}()
+	w.clearArchivedOpen = true
+	w.clearArchivedKept = kept
+	w.clearArchivedMsg = body
+	w.clearArchivedEntries = entries
+	w.invalidateSettings()
+}
+
+// clearArchivedDialog is the batch deletion's confirmation, over the page
+// that asked for it. Cancel holds Return, since Enter must not delete a
+// batch of branches.
+func (w *workspace) clearArchivedDialog(c *ui.Context, tk tokens) {
+	title := locales.WorktreeClearArchivedTitle()
+	if w.clearArchivedKept {
+		title = locales.WorktreeClearKeptTitle()
+	}
+	entries, kept := w.clearArchivedEntries, w.clearArchivedKept
+	dialogAlert(c, tk, &w.clearArchivedOpen, 430, title, w.clearArchivedMsg,
+		dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
+			w.clearArchivedOpen = false
+			w.clearArchivedEntries = nil
+		}},
+		dialogAction{label: locales.ArchiveDelete(), kind: dialogDanger, run: func() {
+			w.clearArchivedOpen = false
+			w.clearArchivedEntries = nil
+			w.clearArchived(entries, kept)
+		}},
+	)
 }
 
 // clearArchived deletes the branches behind the entries and drops the ones
-// that went. Entries whose branch could not be deleted stay on the page.
-func (w *workspace) clearArchived(entries []archivedWorktree) {
+// that went. Entries whose branch could not be deleted stay on the page. Each
+// entry reports back to the page as it finishes, so a batch that takes a
+// while says how far it has got.
+func (w *workspace) clearArchived(entries []archivedWorktree, kept bool) {
+	if w.archivedClear != nil || len(entries) == 0 {
+		return
+	}
+	w.archivedClear = &archivedClearProgress{kept: kept, total: len(entries)}
+	w.invalidateSettings()
 	go func() {
 		var done []string
 		for i := range entries {
 			if deleteArchived(&entries[i]) == nil {
 				done = append(done, entries[i].ID)
 			}
+			w.onMain(func() {
+				if w.archivedClear == nil {
+					return
+				}
+				w.archivedClear.done++
+				w.refreshSettings()
+			})
 		}
 		w.onMain(func() {
+			w.archivedClear = nil
 			removed := map[string]bool{}
 			for _, id := range done {
 				removed[id] = true
@@ -537,7 +590,7 @@ func (w *workspace) clearArchived(entries []archivedWorktree) {
 			w.archived = dropArchivedIDs(w.archived, removed)
 			w.worktreesScanned = false
 			w.scheduleSave()
-			w.invalidateSettings()
+			w.refreshSettings()
 			if len(done) > 0 {
 				w.flash(locales.WorktreeArchivedCleared(strconv.Itoa(len(done))))
 			} else {

@@ -141,6 +141,17 @@ type workspace struct {
 	// are listed in Settings › Worktrees, where they can be restored or
 	// deleted for good.
 	archived []archivedWorktree
+	// archivedClear is the batch deletion running from Settings ›
+	// Worktrees, so the page can show how far it has got instead of
+	// looking stuck while git deletes each branch.
+	archivedClear *archivedClearProgress
+	// clearArchivedOpen is the app's own alert asking before that batch
+	// goes; clearArchivedEntries is the batch it will delete, and
+	// clearArchivedKept says which row asked.
+	clearArchivedOpen    bool
+	clearArchivedKept    bool
+	clearArchivedMsg     string
+	clearArchivedEntries []archivedWorktree
 
 	// detached are panes whose panel was closed while their program kept
 	// running. Settings › Worktrees lists them, and reattachPane brings one

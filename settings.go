@@ -167,7 +167,13 @@ func (w *workspace) openSettings() {
 		Content:         ui.View(w.settingsView),
 	})
 	w.settingsWin.OnShow(func() { w.settingsWin.Invalidate() })
-	w.settingsWin.OnClosed(func() { w.settingsWin = nil })
+	w.settingsWin.OnClosed(func() {
+		w.settingsWin = nil
+		// A confirmation left open when the window closes must not greet
+		// the next visit.
+		w.clearArchivedOpen = false
+		w.clearArchivedEntries = nil
+	})
 }
 
 func (w *workspace) settingsView(c *ui.Context) {
@@ -190,6 +196,11 @@ func (w *workspace) settingsView(c *ui.Context) {
 			})
 		})
 	})
+	// The page's own alerts sit over it, in the same glass frame as the
+	// dialogs on the main window.
+	if w.clearArchivedOpen {
+		w.clearArchivedDialog(c, tk)
+	}
 }
 
 // settingsSidebar is the window's left rail: the pages above, the config
@@ -412,7 +423,7 @@ func (w *workspace) remotePage(c *ui.Context, tk tokens) {
 			})
 		}
 		cardDivider(c, tk)
-		ui.Row(c).Padding(12, 16, 12, 16).Children(func() {
+		ui.Row(c).Padding(10, 16, 10, 16).Children(func() {
 			ui.Text(c, locales.SettingsRemoteAddHost()).FontSize(13).
 				TextColor(tk.Foreground)
 			ui.Spacer(c)
@@ -487,7 +498,7 @@ func (w *workspace) keyboardPage(c *ui.Context, tk tokens) {
 			if i > 0 {
 				cardDivider(c, tk)
 			}
-			ui.Row(c).Padding(11, 16, 11, 16).Gap(16).Children(func() {
+			ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
 				ui.Text(c, row[0]).FontSize(13).TextColor(tk.Foreground)
 				ui.Spacer(c)
 				ui.Text(c, row[1]).FontSize(12).TextColor(tk.MutedForeground)
@@ -531,7 +542,7 @@ func (w *workspace) advancedPage(c *ui.Context, tk tokens) {
 	settingsCard(c, tk, func() {
 		w.pathRow(c, tk, locales.SettingsSocketPath(), socketPath())
 		cardDivider(c, tk)
-		ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
+		ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
 			ui.Column(c).Gap(2).Children(func() {
 				ui.Text(c, locales.SettingsDataFolder()).FontSize(13).TextColor(tk.Foreground)
 				ui.Text(c, abbreviate(supportDir())).FontSize(11).
@@ -541,7 +552,7 @@ func (w *workspace) advancedPage(c *ui.Context, tk tokens) {
 			outlineButton(c, tk, locales.SettingsOpenFolder(), func() { openPath(supportDir()) })
 		})
 		cardDivider(c, tk)
-		ui.Row(c).Padding(11, 16, 11, 16).Children(func() {
+		ui.Row(c).Padding(10, 16, 10, 16).Children(func() {
 			ui.Text(c, locales.SettingsVersion()).FontSize(13).TextColor(tk.Foreground)
 			ui.Spacer(c)
 			ui.Text(c, Version).FontSize(12).TextColor(tk.MutedForeground).Selectable()
@@ -551,7 +562,7 @@ func (w *workspace) advancedPage(c *ui.Context, tk tokens) {
 
 // pathRow shows a path the user can copy, with no control beside it.
 func (w *workspace) pathRow(c *ui.Context, tk tokens, title, path string) {
-	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
+	ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
 		ui.Column(c).Gap(2).Children(func() {
 			ui.Text(c, title).FontSize(13).TextColor(tk.Foreground)
 			ui.Text(c, abbreviate(path)).FontSize(11).TextColor(tk.MutedForeground).
@@ -562,7 +573,7 @@ func (w *workspace) pathRow(c *ui.Context, tk tokens, title, path string) {
 
 // paneStyleRow is the segmented switch between the two pane layouts.
 func (w *workspace) paneStyleRow(c *ui.Context, tk tokens) {
-	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
+	ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
 		ui.Text(c, locales.SettingsPaneStyle()).FontSize(13).TextColor(tk.Foreground)
 		ui.Spacer(c)
 		w.segmented(c, tk, []segment{
@@ -578,7 +589,7 @@ func (w *workspace) paneStyleRow(c *ui.Context, tk tokens) {
 
 // appearanceRow pins the app's light or dark look, or follows the system's.
 func (w *workspace) appearanceRow(c *ui.Context, tk tokens) {
-	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
+	ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
 		ui.Text(c, locales.SettingsAppearance()).FontSize(13).TextColor(tk.Foreground)
 		ui.Spacer(c)
 		w.segmented(c, tk, []segment{
@@ -599,7 +610,7 @@ func (w *workspace) setAppearance(value string) {
 
 // languageRow pins the app's language, or leaves it to the system's.
 func (w *workspace) languageRow(c *ui.Context, tk tokens) {
-	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
+	ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
 		ui.Text(c, locales.SettingsLanguage()).FontSize(13).TextColor(tk.Foreground)
 		ui.Spacer(c)
 		w.segmented(c, tk, []segment{
@@ -672,7 +683,7 @@ type settingRow struct {
 }
 
 func (w *workspace) settingRowView(c *ui.Context, tk tokens, row settingRow) {
-	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
+	ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
 		ui.Column(c).Gap(2).Children(func() {
 			ui.Text(c, row.title).FontSize(13).TextColor(tk.Foreground)
 			ui.Text(c, row.detail).FontSize(11).TextColor(tk.MutedForeground)
@@ -685,13 +696,33 @@ func (w *workspace) settingRowView(c *ui.Context, tk tokens, row settingRow) {
 // settingActionView is a setting row whose control is a button: same
 // title/detail pair, no switch to hold.
 func (w *workspace) settingActionView(c *ui.Context, tk tokens, title, detail, label string, action func()) {
-	ui.Row(c).Padding(12, 16, 12, 16).Gap(16).Children(func() {
+	w.settingActionRow(c, tk, title, detail, func() {
+		outlineButton(c, tk, label, action)
+	})
+}
+
+// settingProgressView is settingActionView while its action runs: the button
+// gives way to a spinner and the progress it has made, so a batch that takes
+// a while says where it is instead of looking stuck.
+func (w *workspace) settingProgressView(c *ui.Context, tk tokens, title, detail, progress string) {
+	w.settingActionRow(c, tk, title, detail, func() {
+		ui.Row(c).Height(28).Shrink(0).Gap(6).AlignItems(ui.Center).Children(func() {
+			worktreeSpinner(c, tk, progress)
+			ui.Text(c, progress).FontSize(12).TextColor(tk.MutedForeground).SingleLine()
+		})
+	})
+}
+
+// settingActionRow is the title/detail pair both forms share, with the
+// control at the row's right edge.
+func (w *workspace) settingActionRow(c *ui.Context, tk tokens, title, detail string, control func()) {
+	ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
 		ui.Column(c).Gap(2).Children(func() {
 			ui.Text(c, title).FontSize(13).TextColor(tk.Foreground)
 			ui.Text(c, detail).FontSize(11).TextColor(tk.MutedForeground)
 		})
 		ui.Spacer(c)
-		outlineButton(c, tk, label, action)
+		control()
 	})
 }
 
@@ -758,6 +789,15 @@ func (w *workspace) setLanguage(tag string) {
 func (w *workspace) invalidateSettings() {
 	if w.settingsWin != nil {
 		w.settingsWin.Invalidate()
+	}
+}
+
+// refreshSettings rebuilds the settings page after a background change.
+// Unlike Invalidate, it does not coalesce, so a batch that reports every
+// entry does not lose its last update while an earlier frame is pending.
+func (w *workspace) refreshSettings() {
+	if w.settingsWin != nil {
+		w.settingsWin.Update(func() {})
 	}
 }
 
