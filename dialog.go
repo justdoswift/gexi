@@ -108,7 +108,7 @@ func dialogFrame(c *ui.Context, tk tokens, open *bool, width float32, build func
 // dialogHeading is the title that every dialog opens with, and the one line
 // of explanation that belongs with it.
 func dialogHeading(c *ui.Context, tk tokens, title, hint string) {
-	ui.Column(c).FillWidth().Padding(20, 22, 18, 22).Gap(6).Children(func() {
+	ui.Column(c).FillWidth().Padding(16, 20, 14, 20).Gap(6).Children(func() {
 		ui.Text(c, title).FontSize(15).FontWeight(600).TextColor(tk.Foreground)
 		if hint != "" {
 			ui.Text(c, hint).FontSize(12).TextColor(tk.MutedForeground).
@@ -119,12 +119,12 @@ func dialogHeading(c *ui.Context, tk tokens, title, hint string) {
 
 // dialogBody is the form between the heading and the footer.
 func dialogBody(c *ui.Context, build func()) {
-	ui.Column(c).FillWidth().Padding(0, 22, 20, 22).Gap(10).Children(build)
+	ui.Column(c).FillWidth().Padding(0, 20, 16, 20).Gap(8).Children(build)
 }
 
 // dialogMessage writes the paragraphs of an alert's message.
 func dialogMessage(c *ui.Context, tk tokens, message string) {
-	ui.Column(c).FillWidth().Gap(10).Children(func() {
+	ui.Column(c).FillWidth().Gap(8).Children(func() {
 		for _, para := range strings.Split(message, "\n\n") {
 			if para == "" {
 				continue
@@ -164,7 +164,7 @@ func dialogError(c *ui.Context, tk tokens, message string) {
 // quiet actions come first, and the one the dialog exists for last, where
 // the eye and the Return key expect it.
 func dialogFooter(c *ui.Context, tk tokens, actions ...dialogAction) {
-	ui.Row(c).FillWidth().Height(56).Padding(0, 16).Gap(8).
+	ui.Row(c).FillWidth().Height(48).Padding(0, 14).Gap(8).
 		AlignItems(ui.Center).Justify(ui.End).
 		BorderWidth(1, 0, 0, 0).BorderColor(tk.Foreground.Alpha(0.1)).Children(func() {
 		for _, a := range actions {
@@ -214,7 +214,7 @@ func dialogButton(c *ui.Context, tk tokens, a dialogAction) {
 // another look.
 func dialogAlert(c *ui.Context, tk tokens, open *bool, width float32, title, message string, actions ...dialogAction) {
 	dialogFrame(c, tk, open, width, func() {
-		ui.Column(c).FillWidth().Padding(22, 22, 20, 22).Gap(10).Children(func() {
+		ui.Column(c).FillWidth().Padding(18, 20, 16, 20).Gap(8).Children(func() {
 			ui.Text(c, title).FontSize(15).FontWeight(600).TextColor(tk.Foreground)
 			if message != "" {
 				dialogMessage(c, tk, message)
