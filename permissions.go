@@ -38,7 +38,6 @@ func permissionsAsk() []permissionflow.Permission {
 func (w *workspace) permissionsPage(c *ui.Context, tk tokens) {
 	w.ensurePermissionRows()
 
-	sectionLabel(c, tk, locales.SettingsPermissions())
 	ui.Row(c).Padding(2, 2, 4, 2).Gap(12).Children(func() {
 		ui.Text(c, locales.PermissionsIntro()).FontSize(11).
 			TextColor(tk.MutedForeground).Grow(1)
