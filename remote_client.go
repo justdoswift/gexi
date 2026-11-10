@@ -941,12 +941,11 @@ func (rc *remoteConn) newPane(s *session, paneID string) *pane {
 	sink := newRemoteSink(rc, paneID, p.remote.wake)
 	lightTheme, darkTheme := rc.ws.terminalThemes()
 	term, err := terminal.New(terminal.Options{
-		Conn:         sink,
-		ResizeByConn: true,
-		Scrollback:   4 << 20,
-		Transparent:  true,
-		Theme:        lightTheme,
-		DarkTheme:    darkTheme,
+		Conn:        sink,
+		Scrollback:  4 << 20,
+		Transparent: true,
+		Theme:       lightTheme,
+		DarkTheme:   darkTheme,
 		Font: terminal.Font{
 			Family:     terminalFont + ", SF Mono, Menlo, monospace",
 			Size:       12,
@@ -962,7 +961,6 @@ func (rc *remoteConn) newPane(s *session, paneID string) *pane {
 	}
 	p.term = term
 	p.remote.sink = sink
-	sink.term = term
 	s.remote.panes[paneID] = p
 	return p
 }
@@ -1635,7 +1633,6 @@ type remoteSink struct {
 	rc     *remoteConn
 	paneID string
 	wake   chan struct{}
-	term   *terminal.Terminal
 	mu     sync.Mutex
 	cond   *sync.Cond
 	buf    [][]byte
@@ -1660,18 +1657,10 @@ func newRemoteSink(rc *remoteConn, paneID string, wake chan struct{}) *remoteSin
 // Resize makes the sink a sized connection: the terminal keeps the size the
 // host gave it, and the view tells the host's grid, not its own, where the
 // cells go.
-// Resize lays the mirror out at the size the card fits, as a local pane's
-// pty takes the card's size: the remote pane then looks like any other, and
-// the Mac on the other side is not told anything about it.
-func (c *remoteSink) Resize(cols, rows int) error {
-	if c.term == nil || cols < 1 || rows < 1 {
-		return nil
-	}
-	if cur, r := c.term.Size(); cur != cols || r != rows {
-		c.term.Resize(cols, rows)
-	}
-	return nil
-}
+// Resize is where a local pane's pty would be told the size. The mirror
+// takes the card's size itself, like any other terminal view, so there is
+// nothing to tell and nothing leaves this Mac.
+func (c *remoteSink) Resize(cols, rows int) error { return nil }
 
 func (c *remoteSink) Read(p []byte) (int, error) {
 	c.mu.Lock()
