@@ -103,6 +103,10 @@ func (p *project) name() string {
 // workspace mirrors gexi's model: projects, the session each holds, focus,
 // and the control server that drives it all from outside the process.
 type workspace struct {
+	// windowActive is whether this window is the one being worked in. A
+	// paired Mac's grid only wins while it is not: the window you are
+	// sitting at keeps its own size, as tmux gives it to the last client.
+	windowActive    bool
 	InstanceID      string
 	Projects        []*project
 	SelectedSession string

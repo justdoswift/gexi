@@ -45,6 +45,8 @@ type remoteStream struct {
 	mu    sync.Mutex
 	feeds map[string]*remoteFeed
 	snaps map[string]bool
+	last  map[string]time.Time
+	sizes map[string][2]int
 	// sent is which panes the host was told about: a watch that could not be
 	// written yet goes out on the next tick.
 	sent   map[string]bool
@@ -100,6 +102,8 @@ func (rc *remoteConn) streamSession() *remoteStream {
 		done:  make(chan struct{}),
 		feeds: map[string]*remoteFeed{},
 		snaps: map[string]bool{},
+		last:  map[string]time.Time{},
+		sizes: map[string][2]int{},
 		sent:  map[string]bool{},
 	}
 	rc.streamConn = s
@@ -183,13 +187,17 @@ func (s *remoteStream) feed(id string) *remoteFeed {
 
 // watch tells the host this pane is showed: the mirror starts over from the
 // host's screen, and nothing about this window's layout goes with it.
-func (s *remoteStream) watch(id string, snapshot bool) {
+func (s *remoteStream) watch(id string, cols, rows int, snapshot bool) {
 	if id == "" {
 		return
 	}
 	s.mu.Lock()
 	snap := s.snaps[id]
-	send := !s.sent[id] || (snapshot && !snap)
+	last, known := s.last[id]
+	size, sized := s.sizes[id]
+	send := !s.sent[id] || (snapshot && !snap) || !known ||
+		time.Since(last) > time.Second ||
+		!sized || size != [2]int{cols, rows}
 	w, dead := s.w, s.dead
 	s.mu.Unlock()
 	if !send || dead || w == nil {
@@ -198,6 +206,8 @@ func (s *remoteStream) watch(id string, snapshot bool) {
 	b, err := json.Marshal(map[string]any{
 		"op":       "watch",
 		"pane":     id,
+		"cols":     cols,
+		"rows":     rows,
 		"snapshot": snapshot,
 	})
 	if err != nil {
@@ -208,6 +218,8 @@ func (s *remoteStream) watch(id string, snapshot bool) {
 	}
 	s.mu.Lock()
 	s.sent[id] = true
+	s.last[id] = time.Now()
+	s.sizes[id] = [2]int{cols, rows}
 	if snapshot {
 		s.snaps[id] = true
 	}
@@ -218,6 +230,8 @@ func (s *remoteStream) unwatch(id string) {
 	s.mu.Lock()
 	delete(s.snaps, id)
 	delete(s.sent, id)
+	delete(s.last, id)
+	delete(s.sizes, id)
 	w, dead := s.w, s.dead
 	s.mu.Unlock()
 	if dead || w == nil || id == "" {
@@ -236,6 +250,8 @@ func (s *remoteStream) confirmed(id string, reset bool) {
 	s.mu.Lock()
 	delete(s.snaps, id)
 	delete(s.sent, id)
+	delete(s.last, id)
+	delete(s.sizes, id)
 	s.mu.Unlock()
 }
 
@@ -267,7 +283,7 @@ func (rc *remoteConn) dropStream(s *remoteStream) {
 
 // nextPushedView waits for the host's next frame for the pane. It reports
 // false when the stream is not up, and the caller polls instead.
-func (rc *remoteConn) nextPushedView(p *pane, stop chan struct{}, snapshot bool) (remoteStreamView, bool) {
+func (rc *remoteConn) nextPushedView(p *pane, stop chan struct{}, cols, rows int, snapshot bool) (remoteStreamView, bool) {
 	s := rc.streamSession()
 	if s == nil {
 		return remoteStreamView{}, false
@@ -279,7 +295,7 @@ func (rc *remoteConn) nextPushedView(p *pane, stop chan struct{}, snapshot bool)
 		delete(s.snaps, p.remote.id)
 		s.mu.Unlock()
 	}
-	s.watch(p.remote.id, snapshot)
+	s.watch(p.remote.id, cols, rows, snapshot)
 	tick := time.NewTicker(250 * time.Millisecond)
 	defer tick.Stop()
 	for {
@@ -305,7 +321,9 @@ func (rc *remoteConn) nextPushedView(p *pane, stop chan struct{}, snapshot bool)
 			return remoteStreamView{}, false
 		case <-f.sig:
 		case <-tick.C:
-			s.watch(p.remote.id, false)
+			// The other Mac keeps the watch only while it is refreshed: the
+			// window being used has the grid.
+			s.watch(p.remote.id, cols, rows, false)
 		}
 	}
 }

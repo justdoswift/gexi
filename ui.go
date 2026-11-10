@@ -770,6 +770,7 @@ const zoomShortcut = "⇧⌘↩"
 
 func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	bar := c.TitleBar()
+	w.windowActive = c.WindowActive()
 	focused := p.ID == w.FocusedPane
 	underChrome := leading && w.settings.SidebarCollapsed
 
@@ -1081,23 +1082,35 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			header.Background(header.AnimateColor("paneLiftBg", panelBg, blend))
 
 			var el ui.Element
-			// A pane on another Mac is drawn as one of this window's own:
-			// the card fits its grid, the text is the size every other pane
-			// has, and the bytes the other Mac sends are written into it.
-			// What that Mac draws is its own business; nothing about this
-			// window's layout is sent to it.
-			el = terminal.View(c, p.term).Fill()
-			if b := el.LayoutBounds(); b.W > 0 && b.H > 0 {
-				p.viewW, p.viewH = b.W, b.H
-				if cols, rows := p.term.Size(); cols > 0 && rows > 0 {
-					if cw := (b.W - 24) / float32(cols); cw > 0 {
-						p.cellW = cw
-					}
-					if ch := (b.H - 20) / float32(rows); ch > 0 {
-						p.cellH = ch
-					}
+			// A pane on another Mac shows that Mac's screen at that Mac's
+			// grid, wherever the card has room: letterboxed when the card is
+			// bigger, clipped from the top when it is smaller, so the bottom
+			// of a full-screen program stays in view. The grid this card
+			// fits goes with the watch, and the other Mac takes it while its
+			// own window is not the one being used.
+			area := ui.Box(c).Fill().Clip()
+			area.Children(func() {
+				aw, ah := area.Bounds().W, area.Bounds().H
+				if aw > 0 && ah > 0 {
+					p.remote.measureCell()
+					cols, rows := p.remote.wantGrid(aw, ah)
+					p.remote.wantCols.Store(int32(cols))
+					p.remote.wantRows.Store(int32(rows))
 				}
-			}
+				natW, natH := mirrorSize(p)
+				left, top := float32(0), float32(0)
+				if aw > natW {
+					left = (aw - natW) / 2
+				}
+				if ah > natH {
+					top = (ah - natH) / 2
+				} else {
+					top = ah - natH
+				}
+				el = terminal.View(c, p.term).Width(natW).Height(natH).
+					Absolute().Left(left).Top(top)
+			})
+			el = area
 			if el.Focused() && w.FocusedPane != p.ID {
 				w.FocusedPane = p.ID
 				if p.remote != nil {

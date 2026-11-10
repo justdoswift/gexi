@@ -231,6 +231,11 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		if limit := intParam(p, "limit"); limit > 0 && len(text) > limit {
 			text = text[len(text)-limit:]
 		}
+		// The Mac watching this pane names the grid its window fits; while
+		// this window is in the background, that grid is the one in use.
+		if cols, rows := intParam(p, "cols"), intParam(p, "rows"); cols > 0 && rows > 0 {
+			pane.watchRemoteSize(cols, rows)
+		}
 		cols, rows := pane.term.Size()
 		return map[string]any{
 			"pane":       pane.ID,
@@ -263,7 +268,7 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		cols, rows := pane.term.Size()
 		// The watching Mac measures the cell from these two numbers and
 		// the grid; while it watches, both come from the held grid.
-		viewW, viewH := pane.viewW, pane.viewH
+		viewW, viewH := pane.streamViewSize(cols, rows)
 		out := map[string]any{
 			"pane":   pane.ID,
 			"title":  pane.title(),

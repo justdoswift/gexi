@@ -139,7 +139,7 @@ func TestRemoteStreamPushesFrames(t *testing.T) {
 	stop := make(chan struct{})
 
 	// The mirror starts with a snapshot of the host's screen.
-	v, ok := rc.nextPushedView(p, stop, true)
+	v, ok := rc.nextPushedView(p, stop, 80, 24, true)
 	if !ok {
 		t.Fatal("first pushed view: stream did not come up")
 	}
@@ -148,7 +148,7 @@ func TestRemoteStreamPushesFrames(t *testing.T) {
 	}
 
 	// The next chunk arrives over the same connection, without asking.
-	next, ok := rc.nextPushedView(p, stop, false)
+	next, ok := rc.nextPushedView(p, stop, 80, 24, false)
 	if !ok {
 		t.Fatal("second frame: stream did not come up")
 	}
@@ -174,7 +174,7 @@ func TestRemoteStreamPushesFrames(t *testing.T) {
 	// check.
 	start := time.Now()
 	backend.poke()
-	quick, ok := rc.nextPushedView(p, stop, false)
+	quick, ok := rc.nextPushedView(p, stop, 80, 24, false)
 	if !ok {
 		t.Fatal("write after quiet: stream did not come up")
 	}
@@ -206,7 +206,7 @@ func TestRemoteStreamRejectsUnpaired(t *testing.T) {
 	stop := make(chan struct{})
 	defer close(stop)
 
-	if _, ok := rc.nextPushedView(p, stop, true); ok {
+	if _, ok := rc.nextPushedView(p, stop, 80, 24, true); ok {
 		t.Fatal("an unpaired device should not get frames")
 	}
 }
