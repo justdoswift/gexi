@@ -1082,25 +1082,6 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					top := remoteMirrorTop(ah, natH, gridRows, int(p.remote.anchor.Load()))
 					el = terminal.View(c, p.term).Width(natW).Height(natH).
 						Absolute().Left(0).Top(top)
-					// Keys typed here show at once, before the host's
-					// echo crosses the network: the prediction is drawn at
-					// the cell the cursor holds, and the next frame that
-					// moves the cursor takes it away.
-					if text, row, col := p.remote.prediction(); text != "" {
-						if gw, gh := p.term.Size(); gw > 0 && gh > 0 && row >= 0 && row < gh && col >= 0 && col < gw {
-							cw := (natW - 24) / float32(gw)
-							ch := (natH - 20) / float32(gh)
-							// Only what fits on the row: a prediction that
-							// ran past the card would be cut by its edge
-							// anyway, and half a glyph reads as a glitch.
-							if n := gw - col; n > 0 && len([]rune(text)) > n {
-								text = string([]rune(text)[:n])
-							}
-							ui.Text(c, text).Font(terminalFont).FontSize(ch / 1.2).
-								TextColor(tk.Foreground).SingleLine().
-								Absolute().Left(12 + float32(col)*cw).Top(top + 10 + float32(row)*ch)
-						}
-					}
 				})
 			} else {
 				el = terminal.View(c, p.term)

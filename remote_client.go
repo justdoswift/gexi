@@ -591,94 +591,6 @@ type remotePaneLink struct {
 	// wake cuts an idle stream's sleep short when a key goes out, so the
 	// echo does not wait for the slow tick.
 	wake chan struct{}
-	// cursorRow and cursorCol are the host cursor's cell, as the stream
-	// tracks it: a predicted key is drawn there until the host echoes it.
-	cursorRow, cursorCol atomic.Int32
-	// pending is what was typed here and not yet seen on the host: the card
-	// draws it at the cursor, so a key shows before the round trip ends.
-	pendingMu sync.Mutex
-	pending   string
-	// pendingRow and pendingCol are the cursor when the first pending key
-	// went out; the host's cursor moving off it means the keys were read.
-	pendingRow, pendingCol int
-	pendingAt              time.Time
-}
-
-// remotePredictionLimit is how much typed text is shown ahead of the host: a
-// few words, after which the round trip has clearly not caught up.
-const remotePredictionLimit = 64
-
-// remotePredictionTTL drops a prediction the host never confirmed, so a key
-// the program swallowed does not leave its ghost on the screen.
-const remotePredictionTTL = 1500 * time.Millisecond
-
-// predictText reports whether p is text worth showing ahead of the host: what
-// a program echoes, not the escape sequences or control keys that move it
-// around, which have no place to be drawn in advance.
-func predictText(p []byte) bool {
-	if len(p) == 0 || len(p) > remotePredictionLimit {
-		return false
-	}
-	for _, b := range p {
-		if b < 0x20 || b == 0x7f {
-			return false
-		}
-	}
-	return true
-}
-
-// addPrediction queues the keys just typed. A control key ends whatever was
-// pending: the program acts on it now.
-func (p *remotePaneLink) addPrediction(text []byte) bool {
-	p.pendingMu.Lock()
-	defer p.pendingMu.Unlock()
-	if !predictText(text) {
-		p.pending = ""
-		return false
-	}
-	if p.pending == "" {
-		p.pendingRow = int(p.cursorRow.Load())
-		p.pendingCol = int(p.cursorCol.Load())
-	}
-	p.pending += string(text)
-	if len(p.pending) > remotePredictionLimit {
-		p.pending = p.pending[len(p.pending)-remotePredictionLimit:]
-	}
-	p.pendingAt = time.Now()
-	return true
-}
-
-// clearPrediction drops the pending keys and reports whether there were any.
-func (p *remotePaneLink) clearPrediction() bool {
-	p.pendingMu.Lock()
-	defer p.pendingMu.Unlock()
-	if p.pending == "" {
-		return false
-	}
-	p.pending = ""
-	return true
-}
-
-// prediction is the text to draw ahead of the host, and the cell to draw it
-// at: empty when nothing is waiting, or the host has had it for long enough
-// to have shown it.
-func (p *remotePaneLink) prediction() (string, int, int) {
-	p.pendingMu.Lock()
-	defer p.pendingMu.Unlock()
-	if p.pending == "" || time.Since(p.pendingAt) > remotePredictionTTL {
-		return "", 0, 0
-	}
-	row := int(p.cursorRow.Load())
-	col := int(p.cursorCol.Load())
-	if row == p.pendingRow && col == p.pendingCol {
-		// The host has not read the keys yet, so they belong right where
-		// the cursor is.
-		return p.pending, row, col
-	}
-	// The cursor moved: the host echoed what it was sent, and the pending
-	// text is no longer ahead of it.
-	p.pending = ""
-	return "", 0, 0
 }
 
 // mirrorSize is the size the host's view of the pane is laid out at, before
@@ -1093,7 +1005,7 @@ func (rc *remoteConn) newPane(s *session, paneID string) *pane {
 		ws:     rc.ws,
 		remote: &remotePaneLink{conn: rc, id: paneID, wake: make(chan struct{}, 1)},
 	}
-	sink := newRemoteSink(rc, paneID, p.remote.wake, p.remote)
+	sink := newRemoteSink(rc, paneID, p.remote.wake)
 	lightTheme, darkTheme := rc.ws.terminalThemes()
 	term, err := terminal.New(terminal.Options{
 		Conn:         sink,
@@ -1293,15 +1205,6 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 			cursor.feed(data)
 		}
 		p.remote.anchor.Store(int32(cursor.low))
-		p.remote.cursorRow.Store(int32(cursor.row))
-		p.remote.cursorCol.Store(int32(cursor.col))
-		// The host's frame may carry the echo of what was typed here; the
-		// prediction ends when the cursor has moved past it, which the card
-		// checks as it draws. A reset frame means the screen is not the one
-		// the prediction was made against.
-		if view.Reset && p.remote.clearPrediction() {
-			rc.ws.invalidate()
-		}
 		offset = view.Offset
 		if pushed {
 			// The next frame is already on its way over the open stream.
@@ -1841,7 +1744,6 @@ type remoteSink struct {
 	rc     *remoteConn
 	paneID string
 	wake   chan struct{}
-	link   *remotePaneLink
 	mu     sync.Mutex
 	cond   *sync.Cond
 	buf    [][]byte
@@ -1850,12 +1752,11 @@ type remoteSink struct {
 	once   sync.Once
 }
 
-func newRemoteSink(rc *remoteConn, paneID string, wake chan struct{}, link *remotePaneLink) *remoteSink {
+func newRemoteSink(rc *remoteConn, paneID string, wake chan struct{}) *remoteSink {
 	c := &remoteSink{
 		rc:     rc,
 		paneID: paneID,
 		wake:   wake,
-		link:   link,
 		out:    make(chan []byte, 64),
 		done:   make(chan struct{}),
 	}
@@ -1894,12 +1795,6 @@ func (c *remoteSink) Read(p []byte) (int, error) {
 func (c *remoteSink) Write(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
-	}
-	if c.link != nil {
-		c.link.addPrediction(p)
-		if c.rc.ws != nil {
-			c.rc.ws.invalidate()
-		}
 	}
 	select {
 	case c.out <- append([]byte(nil), p...):
