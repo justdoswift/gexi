@@ -1082,35 +1082,76 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			header.Background(header.AnimateColor("paneLiftBg", panelBg, blend))
 
 			var el ui.Element
-			// A pane on another Mac shows that Mac's screen at that Mac's
-			// grid, wherever the card has room: letterboxed when the card is
-			// bigger, clipped from the top when it is smaller, so the bottom
-			// of a full-screen program stays in view. The grid this card
-			// fits goes with the watch, and the other Mac takes it while its
-			// own window is not the one being used.
-			area := ui.Box(c).Fill().Clip()
-			area.Children(func() {
-				aw, ah := area.Bounds().W, area.Bounds().H
-				if aw > 0 && ah > 0 {
-					p.remote.measureCell()
-					cols, rows := p.remote.wantGrid(aw, ah)
-					p.remote.wantCols.Store(int32(cols))
-					p.remote.wantRows.Store(int32(rows))
-				}
-				natW, natH := mirrorSize(p)
-				left, top := float32(0), float32(0)
-				if aw > natW {
-					left = (aw - natW) / 2
-				}
-				if ah > natH {
-					top = (ah - natH) / 2
+			if p.remote != nil {
+				// A pane on another Mac shows that Mac's screen at that
+				// Mac's grid, wherever the card has room: letterboxed when
+				// the card is bigger, clipped from the top when it is
+				// smaller, so the bottom of a full-screen program stays in
+				// view. The grid this card fits goes with the watch, and the
+				// other Mac takes it while its own window is not in use.
+				area := ui.Box(c).Fill().Clip()
+				area.Children(func() {
+					aw, ah := area.Bounds().W, area.Bounds().H
+					if aw > 0 && ah > 0 {
+						p.remote.measureCell()
+						cols, rows := p.remote.wantGrid(aw, ah)
+						p.remote.wantCols.Store(int32(cols))
+						p.remote.wantRows.Store(int32(rows))
+					}
+					natW, natH := mirrorSize(p)
+					left, top := float32(0), float32(0)
+					if aw > natW {
+						left = (aw - natW) / 2
+					}
+					if ah > natH {
+						top = (ah - natH) / 2
+					} else {
+						top = ah - natH
+					}
+					el = terminal.View(c, p.term).Width(natW).Height(natH).
+						Absolute().Left(left).Top(top)
+				})
+				el = area
+			} else {
+				el = terminal.View(c, p.term)
+				if p.remoteWatched() {
+					// A paired Mac watches this pane at the size its own window
+					// fits, and that window is the one in use: the view holds
+					// the grid the terminal now has, so this card does not
+					// resize it back under that Mac.
+					cols, rows := p.remoteCols, p.remoteRows
+					if cardW, cardH := col.Bounds().W, col.Bounds().H-headerHeight; cardW > 0 && cardH > 0 {
+						cw, ch := p.cellW, p.cellH
+						if cw <= 0 {
+							cw = 7.55
+						}
+						if ch <= 0 {
+							ch = 19.2
+						}
+						if n := int((cardW - 24) / cw); n > 0 && n < cols {
+							cols = n
+						}
+						if n := int((cardH - 20) / ch); n > 0 && n < rows {
+							rows = n
+						}
+					}
+					w, h := remoteViewSize(cols, rows, p.cellW, p.cellH)
+					el = el.Width(w).Height(h)
 				} else {
-					top = ah - natH
+					el = el.Fill()
+					if b := el.LayoutBounds(); b.W > 0 && b.H > 0 {
+						p.viewW, p.viewH = b.W, b.H
+						if cols, rows := p.term.Size(); cols > 0 && rows > 0 {
+							if cw := (b.W - 24) / float32(cols); cw > 0 {
+								p.cellW = cw
+							}
+							if ch := (b.H - 20) / float32(rows); ch > 0 {
+								p.cellH = ch
+							}
+						}
+					}
 				}
-				el = terminal.View(c, p.term).Width(natW).Height(natH).
-					Absolute().Left(left).Top(top)
-			})
-			el = area
+			}
 			if el.Focused() && w.FocusedPane != p.ID {
 				w.FocusedPane = p.ID
 				if p.remote != nil {
