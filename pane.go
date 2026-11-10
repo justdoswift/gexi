@@ -145,6 +145,14 @@ func (c *ptyConn) wake() {
 	c.waitMu.Unlock()
 }
 
+// outputTotal is how many bytes the program has written so far: unchanged
+// between two looks means it has gone quiet.
+func (c *ptyConn) outputTotal() int64 {
+	c.cutMu.Lock()
+	defer c.cutMu.Unlock()
+	return c.outEnd
+}
+
 // outputSince returns the output logged from offset on, and false when the
 // log no longer holds it.
 func (c *ptyConn) outputSince(offset int64) ([]byte, bool) {
@@ -220,6 +228,11 @@ type pane struct {
 	// changed: a spinner mark that stops moving is not work.
 	titleSeen   string
 	titleSeenAt time.Time
+	// outSeen is how much output the pane had the last time it was looked
+	// at, and outAt when that count last moved: an agent marked at work
+	// that neither writes nor animates is done, whatever its hook said.
+	outSeen int64
+	outAt   time.Time
 	// subagents are the Task/Agent calls the agent reports running in this
 	// pane, keyed by the id a start and its stop share. A background one
 	// outlives its turn, which is what keeps the session visibly busy after

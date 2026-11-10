@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/justdoswift/gexi/locales"
 )
@@ -409,5 +410,24 @@ func TestGlobalClaudeHooksMerge(t *testing.T) {
 	}
 	if got := doc.Hooks["Notification"][len(doc.Hooks["Notification"])-1].Matcher; got != "permission_prompt" {
 		t.Fatalf("Notification matcher is %q, want permission_prompt", got)
+	}
+}
+
+// A working mark that nothing backs up must not keep the sidebar sweeping:
+// no output, no animating title, no subagent means the turn is over even if
+// its stop hook never came.
+func TestActivityLapsesWhenNothingMoves(t *testing.T) {
+	p := &pane{}
+	p.outAt = time.Now()
+	if p.activityLapsed() {
+		t.Fatal("a pane that just wrote is not stale")
+	}
+	p.outAt = time.Now().Add(-activityQuiet - time.Second)
+	if !p.activityLapsed() {
+		t.Fatal("a pane quiet for past the window should lapse")
+	}
+	p.subagents = map[string]paneSubagent{"a": {}}
+	if p.activityLapsed() {
+		t.Fatal("a running subagent keeps the turn alive")
 	}
 }

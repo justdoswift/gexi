@@ -604,11 +604,22 @@ func sessionActivityState(s *session) string {
 		return ""
 	}
 	for _, p := range s.Root.panes() {
+		if p.conn != nil {
+			if n := p.conn.outputTotal(); n != p.outSeen {
+				p.outSeen, p.outAt = n, time.Now()
+			}
+		}
+		if p.outAt.IsZero() {
+			p.outAt = time.Now()
+		}
 		if p.activity != nil {
 			switch p.activity.State {
 			case activityWaiting:
 				return activityWaiting
 			case activityWorking:
+				if p.activityLapsed() {
+					break
+				}
 				working = true
 			}
 		}
@@ -626,6 +637,23 @@ func sessionActivityState(s *session) string {
 		return activityWorking
 	}
 	return ""
+}
+
+// activityQuiet is how long a pane marked at work may say nothing at all
+// before the mark is taken as stale: a hook that never came, or one the
+// other Mac told us about and never corrected.
+const activityQuiet = 90 * time.Second
+
+// activityLapsed reports whether a working mark has gone stale: no output,
+// no animating title, and no subagent still running.
+func (p *pane) activityLapsed() bool {
+	if p == nil || p.subagentCount() > 0 {
+		return false
+	}
+	if p.titleWorking() {
+		return false
+	}
+	return time.Since(p.outAt) > activityQuiet
 }
 
 // subagentPillWidth measures the running-subagent chip before it is drawn, so
