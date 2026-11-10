@@ -407,19 +407,6 @@ func TestRemoteProjectNewSessionAsksTheHost(t *testing.T) {
 	t.Fatal("the host was never asked for a session")
 }
 
-// TestMirrorSize: the card lays the mirror out at the size the host named,
-// and has a size to start from before the first stream brings it.
-func TestMirrorSize(t *testing.T) {
-	named := &pane{remote: &remotePaneLink{viewW: 812, viewH: 640}}
-	if w, h := mirrorSize(named); w != 812 || h != 640 {
-		t.Fatalf("named view: %v by %v", w, h)
-	}
-	bare := &pane{remote: &remotePaneLink{}}
-	if w, h := mirrorSize(bare); w <= 0 || h <= 0 {
-		t.Fatalf("estimate: %v by %v", w, h)
-	}
-}
-
 // TestWorktreeJSONRoundTrip: a host sends its panes' checkouts as the
 // fields the paired window's header chips read, so the two names must agree.
 func TestWorktreeJSONRoundTrip(t *testing.T) {
@@ -589,55 +576,6 @@ func TestRemoteTargetProject(t *testing.T) {
 	pr.Sessions = nil
 	if got := w.remoteTargetProject(rc); got != "first" {
 		t.Fatalf("host with no sessions = %q, want %q", got, "first")
-	}
-}
-
-// TestRemoteWantGrid: the card asks the host for the columns and rows it
-// fits at the measured cell size, keeping one of each back for rounding.
-func TestRemoteWantGrid(t *testing.T) {
-	l := &remotePaneLink{cellW: 7.55, cellH: 19.2}
-	cols, rows := l.wantGrid(1285, 809)
-	if cols != 166 || rows != 40 {
-		t.Fatalf("want %vx%v, want 166x40", cols, rows)
-	}
-	// The cell's size comes from the first stream that names the host's view.
-	named := &remotePaneLink{viewW: 1285, viewH: 809, gridCols: 168, gridRows: 41}
-	named.measureCell()
-	if named.cellW <= 0 || named.cellH <= 0 {
-		t.Fatalf("measured cell %vx%v", named.cellW, named.cellH)
-	}
-	if cols, rows := named.wantGrid(1285, 809); cols != 167 || rows != 40 {
-		t.Fatalf("measured want %vx%v, want 167x40", cols, rows)
-	}
-	// A card with no size yet asks for nothing.
-	if cols, rows := l.wantGrid(0, 0); cols != 10 || rows != 3 {
-		t.Fatalf("empty card want %vx%v, want the floor", cols, rows)
-	}
-}
-
-// TestRemoteMirrorTop: a mirror taller than its card shows the lowest row
-// with text at the card's bottom, so a full-screen program's input line stays
-// visible; a shell's prompt near the top leaves the view at the top.
-func TestRemoteMirrorTop(t *testing.T) {
-	// A screen that fits needs no shift.
-	if got := remoteMirrorTop(800, 700, 36, 35); got != 0 {
-		t.Fatalf("a fitting screen shifted by %v", got)
-	}
-	// 40 rows in 800 DIPs: 19.5 a row with the view's 10 a side padding.
-	top := remoteMirrorTop(700, 800, 40, 39)
-	if top >= 0 {
-		t.Fatalf("a taller screen stayed at the top: %v", top)
-	}
-	if bottom := top + 10 + 40*19.5; bottom != 700 {
-		t.Fatalf("the last row ends at %v, want the card's 700", bottom)
-	}
-	// A prompt on row 2 keeps the top of the screen in view.
-	if got := remoteMirrorTop(700, 800, 40, 2); got != 0 {
-		t.Fatalf("a top row shifted the view by %v", got)
-	}
-	// An anchor past the screen is clamped to its last row.
-	if got, want := remoteMirrorTop(700, 800, 40, 99), remoteMirrorTop(700, 800, 40, 39); got != want {
-		t.Fatalf("anchor past the screen = %v, want %v", got, want)
 	}
 }
 

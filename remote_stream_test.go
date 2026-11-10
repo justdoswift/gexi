@@ -130,8 +130,6 @@ func TestRemoteStreamPushesFrames(t *testing.T) {
 		host:   remoteHost{Address: strings.TrimPrefix(srv.URL, "http://"), Token: "token-1"},
 	}
 	p := &pane{remote: &remotePaneLink{conn: rc, id: "p1"}}
-	p.remote.wantCols.Store(80)
-	p.remote.wantRows.Store(24)
 	defer func() {
 		if s := rc.streamConn; s != nil {
 			s.fail(errStreamClosed)
@@ -141,19 +139,16 @@ func TestRemoteStreamPushesFrames(t *testing.T) {
 	stop := make(chan struct{})
 
 	// The mirror starts with a snapshot of the host's screen.
-	v, ok := rc.nextPushedView(p, stop, 80, 24, true)
+	v, ok := rc.nextPushedView(p, stop, true)
 	if !ok {
 		t.Fatal("first pushed view: stream did not come up")
 	}
 	if !v.Reset || v.Snapshot == "" {
 		t.Fatalf("first frame should be a snapshot, got reset=%v snapshot=%q", v.Reset, v.Snapshot)
 	}
-	if v.Cols != 80 || v.Rows != 24 {
-		t.Fatalf("size = %dx%d, want 80x24", v.Cols, v.Rows)
-	}
 
 	// The next chunk arrives over the same connection, without asking.
-	next, ok := rc.nextPushedView(p, stop, 80, 24, false)
+	next, ok := rc.nextPushedView(p, stop, false)
 	if !ok {
 		t.Fatal("second frame: stream did not come up")
 	}
@@ -179,7 +174,7 @@ func TestRemoteStreamPushesFrames(t *testing.T) {
 	// check.
 	start := time.Now()
 	backend.poke()
-	quick, ok := rc.nextPushedView(p, stop, 80, 24, false)
+	quick, ok := rc.nextPushedView(p, stop, false)
 	if !ok {
 		t.Fatal("write after quiet: stream did not come up")
 	}
@@ -190,23 +185,7 @@ func TestRemoteStreamPushesFrames(t *testing.T) {
 		t.Fatalf("frame after quiet = %q (%v), want %q", raw, err, "quiet")
 	}
 
-	// A mirror waiting on the next frame carries a resize to the host.
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		_, _ = rc.nextPushedView(p, stop, 80, 24, false)
-	}()
-	p.remote.wantCols.Store(100)
-	p.remote.wantRows.Store(30)
-	time.Sleep(400 * time.Millisecond)
-	backend.mu.Lock()
-	sizes := append([][2]int(nil), backend.sizes...)
-	backend.mu.Unlock()
-	if len(sizes) == 0 || sizes[len(sizes)-1] != [2]int{100, 30} {
-		t.Fatalf("host was last asked for %v, want the resized grid", sizes)
-	}
 	close(stop)
-	<-done
 }
 
 func TestRemoteStreamRejectsUnpaired(t *testing.T) {
@@ -226,10 +205,8 @@ func TestRemoteStreamRejectsUnpaired(t *testing.T) {
 	}()
 	stop := make(chan struct{})
 	defer close(stop)
-	p.remote.wantCols.Store(80)
-	p.remote.wantRows.Store(24)
 
-	if _, ok := rc.nextPushedView(p, stop, 80, 24, true); ok {
+	if _, ok := rc.nextPushedView(p, stop, true); ok {
 		t.Fatal("an unpaired device should not get frames")
 	}
 }

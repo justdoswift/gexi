@@ -607,28 +607,6 @@ func (w *workspace) remoteWake(id string) (<-chan struct{}, func()) {
 	return ch, cancel
 }
 
-// remoteMirrorTop is where a mirrored screen starts inside its card: 0 when
-// the whole screen fits, and otherwise high enough that the lowest row with
-// text, anchor, sits at the card's bottom. A full-screen program draws its
-// input row there, so a card smaller than the host's screen keeps the input
-// in sight instead of the top rows.
-func remoteMirrorTop(availH, natH float32, rows, anchor int) float32 {
-	if availH <= 0 || natH <= availH || rows < 1 {
-		return 0
-	}
-	anchor = clampInt(anchor, 0, rows-1)
-	// The view's padding, 10 above and 10 below the grid.
-	cellH := (natH - 20) / float32(rows)
-	top := availH - float32(anchor+1)*cellH - 10
-	if full := availH - natH; top < full {
-		top = full
-	}
-	if top > 0 {
-		top = 0
-	}
-	return top
-}
-
 // remoteViewSize is the view's size for a pane held at cols by rows, with a
 // cell cw by ch: the metrics come from the last layout at the card's size,
 // and the terminal's own padding, 12 by 10 a side, is added around them.

@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo/plugins/terminal"
@@ -569,78 +568,12 @@ type remotePaneLink struct {
 	worktree     *remoteWorktree
 	worktreeBusy string
 	sink         *remoteSink
-	// viewW and viewH are the size the host's view of the pane is laid out
-	// at, which the stream names; gridCols and gridRows are the terminal's
-	// own size. cellW and cellH are a cell's size in DIPs, measured from
-	// those, so the mirror can ask the host for the grid this card fits.
-	viewW, viewH       float32
-	gridCols, gridRows int
-	cellW, cellH       float32
-	// wantCols and wantRows are the grid the card fits, written by the canvas
-	// and sent with every stream poll: the host takes that size for the pane,
-	// so its lines wrap where this card ends, at the same text size.
-	wantCols, wantRows atomic.Int32
 	// stream is the pane's poll loop while the canvas shows it, nil while it
 	// is off stage.
 	stream chan struct{}
-	// anchor is the lowest row the host's screen has text on, which a card
-	// smaller than the host's screen keeps in view: a shell's prompt sits at
-	// the top of an empty screen, a full-screen program's input row at the
-	// bottom. The stream loop writes it, the canvas reads it.
-	anchor atomic.Int32
 	// wake cuts an idle stream's sleep short when a key goes out, so the
 	// echo does not wait for the slow tick.
 	wake chan struct{}
-}
-
-// mirrorSize is the size the host's view of the pane is laid out at, before
-// the card scales it down. Before the first stream names it, an estimate
-// from the grid's cells: the embedded terminal font at 12 DIPs is about
-// 7.55 by 19.2 a cell, with the grid's padding around it.
-func mirrorSize(p *pane) (float32, float32) {
-	if p != nil && p.remote != nil && p.remote.viewW > 0 && p.remote.viewH > 0 {
-		return p.remote.viewW, p.remote.viewH
-	}
-	cols, rows := 0, 0
-	if p != nil && p.term != nil {
-		cols, rows = p.term.Size()
-	}
-	return float32(max(cols, 80))*7.55 + 24, float32(max(rows, 24))*19.2 + 20
-}
-
-// measureCell takes the cell's size from the first stream that names the
-// host's view: the same font draws both ends, so one measurement serves
-// while the host takes the size this Mac asks for.
-func (l *remotePaneLink) measureCell() {
-	if l.cellW == 0 && l.viewW > 24 && l.gridCols > 0 {
-		l.cellW = (l.viewW - 24) / float32(l.gridCols)
-	}
-	if l.cellH == 0 && l.viewH > 20 && l.gridRows > 0 {
-		l.cellH = (l.viewH - 20) / float32(l.gridRows)
-	}
-}
-
-// wantGrid is the terminal size the card aw by ah fits: what the host's pane
-// is asked to take, so its lines wrap where the card ends at the text size
-// this Mac's own panes have. One column and row are kept back, since the
-// host lays the same cells out at the same font and rounds by a pixel.
-func (l *remotePaneLink) wantGrid(aw, ah float32) (int, int) {
-	cw, ch := l.cellW, l.cellH
-	if cw <= 0 {
-		cw = 7.55
-	}
-	if ch <= 0 {
-		ch = 19.2
-	}
-	cols := int((aw-24)/cw) - 1
-	rows := int((ah-20)/ch) - 1
-	if cols < 10 {
-		cols = 10
-	}
-	if rows < 3 {
-		rows = 3
-	}
-	return cols, rows
 }
 
 // remoteConn is this Mac's link to one paired host: the transport under the
@@ -1029,6 +962,7 @@ func (rc *remoteConn) newPane(s *session, paneID string) *pane {
 	}
 	p.term = term
 	p.remote.sink = sink
+	sink.term = term
 	s.remote.panes[paneID] = p
 	return p
 }
@@ -1120,9 +1054,6 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 	sink := p.remote.sink
 	offset := int64(0)
 	snapshot := true
-	cols, rows := 0, 0
-	viewW, viewH := float32(0), float32(0)
-	var cursor streamCursor
 	var lastOutput time.Time
 	for {
 		select {
@@ -1138,16 +1069,11 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 			"offset":   offset,
 			"snapshot": snapshot,
 		}
-		// The grid this card fits goes with every poll: the host keeps the
-		// pane at that size while this Mac watches, and lets it go when the
-		// polls stop.
-		if wantCols, wantRows := int(p.remote.wantCols.Load()), int(p.remote.wantRows.Load()); wantCols > 0 && wantRows > 0 {
-			params["cols"], params["rows"] = wantCols, wantRows
-		}
-		wantCols, wantRows := int(p.remote.wantCols.Load()), int(p.remote.wantRows.Load())
+		// The host keeps its own screen size: this pane is laid out like a
+		// local one, at this window's size, and the bytes are shown in it.
 		pushed := false
 		err := error(nil)
-		if v, ok := rc.nextPushedView(p, stop, wantCols, wantRows, snapshot); ok {
+		if v, ok := rc.nextPushedView(p, stop, snapshot); ok {
 			view = v
 			pushed = true
 		} else {
@@ -1165,56 +1091,21 @@ func (rc *remoteConn) streamLoop(p *pane, stop chan struct{}) {
 			continue
 		}
 		snapshot = false
-		gridChanged := view.Reset || view.Cols != cols || view.Rows != rows
-		if gridChanged {
-			cols, rows = view.Cols, view.Rows
-			if cols > 0 && rows > 0 {
-				p.term.Resize(cols, rows)
-				cursor.resize(rows, cols)
-			}
-			// The screen changed shape, and the host's did too: start over
-			// from a snapshot of it rather than feed the old grid's output
-			// into the new one. A response that already brought one (reset)
-			// has done it.
-			if !view.Reset {
-				snapshot = true
-			}
-		}
-		// The size the host lays its view out at comes with the stream; the
-		// card lays the mirror out at it, and the pane's stage card too.
-		// The pane's fields are read on the main thread, so they change there.
-		if view.ViewW != viewW || view.ViewH != viewH || gridChanged {
-			w, h := view.ViewW, view.ViewH
-			gridCols, gridRows := cols, rows
-			viewW, viewH = w, h
-			rc.update(func() {
-				p.remote.viewW, p.remote.viewH = w, h
-				p.remote.gridCols, p.remote.gridRows = gridCols, gridRows
-				p.viewW, p.viewH = w, h
-			})
-		}
 		if view.Reset {
 			if snap, err := base64.StdEncoding.DecodeString(view.Snapshot); err == nil {
 				sink.push(snap)
-				row, col, alt := snapshotCursor(snap)
-				cursor.start(row, col, view.Rows, view.Cols, alt)
 			}
 		}
 		if data, err := base64.StdEncoding.DecodeString(view.Data); err == nil {
 			sink.push(data)
-			cursor.feed(data)
 		}
-		p.remote.anchor.Store(int32(cursor.low))
 		offset = view.Offset
 		if pushed {
-			// The next frame is already on its way over the open stream.
 			continue
 		}
 		if view.Data != "" || view.Reset {
 			lastOutput = time.Now()
 		}
-		// A quiet pane is cheap to watch at a slow tick; one with output, or
-		// one where a key just went out, is watched at full speed.
 		wait := remoteStreamInterval
 		if view.Data == "" && view.Snapshot == "" && !view.Reset &&
 			time.Since(lastOutput) > time.Second {
@@ -1744,6 +1635,7 @@ type remoteSink struct {
 	rc     *remoteConn
 	paneID string
 	wake   chan struct{}
+	term   *terminal.Terminal
 	mu     sync.Mutex
 	cond   *sync.Cond
 	buf    [][]byte
@@ -1768,7 +1660,18 @@ func newRemoteSink(rc *remoteConn, paneID string, wake chan struct{}) *remoteSin
 // Resize makes the sink a sized connection: the terminal keeps the size the
 // host gave it, and the view tells the host's grid, not its own, where the
 // cells go.
-func (c *remoteSink) Resize(cols, rows int) error { return nil }
+// Resize lays the mirror out at the size the card fits, as a local pane's
+// pty takes the card's size: the remote pane then looks like any other, and
+// the Mac on the other side is not told anything about it.
+func (c *remoteSink) Resize(cols, rows int) error {
+	if c.term == nil || cols < 1 || rows < 1 {
+		return nil
+	}
+	if cur, r := c.term.Size(); cur != cols || r != rows {
+		c.term.Resize(cols, rows)
+	}
+	return nil
+}
 
 func (c *remoteSink) Read(p []byte) (int, error) {
 	c.mu.Lock()

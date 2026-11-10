@@ -39,13 +39,15 @@ func mergeViews(a, b remoteStreamView) remoteStreamView {
 }
 
 type remoteStream struct {
-	rc     *remoteConn
-	done   chan struct{}
-	once   sync.Once
-	mu     sync.Mutex
-	feeds  map[string]*remoteFeed
-	sizes  map[string][2]int
-	snaps  map[string]bool
+	rc    *remoteConn
+	done  chan struct{}
+	once  sync.Once
+	mu    sync.Mutex
+	feeds map[string]*remoteFeed
+	snaps map[string]bool
+	// sent is which panes the host was told about: a watch that could not be
+	// written yet goes out on the next tick.
+	sent   map[string]bool
 	w      *io.PipeWriter
 	cancel context.CancelFunc
 	dead   bool
@@ -97,8 +99,8 @@ func (rc *remoteConn) streamSession() *remoteStream {
 		rc:    rc,
 		done:  make(chan struct{}),
 		feeds: map[string]*remoteFeed{},
-		sizes: map[string][2]int{},
 		snaps: map[string]bool{},
+		sent:  map[string]bool{},
 	}
 	rc.streamConn = s
 	go s.run()
@@ -179,17 +181,15 @@ func (s *remoteStream) feed(id string) *remoteFeed {
 	return f
 }
 
-// watch tells the host this pane is showed at cols by rows. The host is told
-// once per change, not once per frame; a watch that could not be written yet
-// is sent on the next tick.
-func (s *remoteStream) watch(id string, cols, rows int, snapshot bool) {
-	if id == "" || cols <= 0 || rows <= 0 {
+// watch tells the host this pane is showed: the mirror starts over from the
+// host's screen, and nothing about this window's layout goes with it.
+func (s *remoteStream) watch(id string, snapshot bool) {
+	if id == "" {
 		return
 	}
 	s.mu.Lock()
-	last, known := s.sizes[id]
 	snap := s.snaps[id]
-	send := !known || last != [2]int{cols, rows} || (snapshot && !snap)
+	send := !s.sent[id] || (snapshot && !snap)
 	w, dead := s.w, s.dead
 	s.mu.Unlock()
 	if !send || dead || w == nil {
@@ -198,8 +198,6 @@ func (s *remoteStream) watch(id string, cols, rows int, snapshot bool) {
 	b, err := json.Marshal(map[string]any{
 		"op":       "watch",
 		"pane":     id,
-		"cols":     cols,
-		"rows":     rows,
 		"snapshot": snapshot,
 	})
 	if err != nil {
@@ -209,7 +207,7 @@ func (s *remoteStream) watch(id string, cols, rows int, snapshot bool) {
 		return
 	}
 	s.mu.Lock()
-	s.sizes[id] = [2]int{cols, rows}
+	s.sent[id] = true
 	if snapshot {
 		s.snaps[id] = true
 	}
@@ -218,8 +216,8 @@ func (s *remoteStream) watch(id string, cols, rows int, snapshot bool) {
 
 func (s *remoteStream) unwatch(id string) {
 	s.mu.Lock()
-	delete(s.sizes, id)
 	delete(s.snaps, id)
+	delete(s.sent, id)
 	w, dead := s.w, s.dead
 	s.mu.Unlock()
 	if dead || w == nil || id == "" {
@@ -237,6 +235,7 @@ func (s *remoteStream) confirmed(id string, reset bool) {
 	}
 	s.mu.Lock()
 	delete(s.snaps, id)
+	delete(s.sent, id)
 	s.mu.Unlock()
 }
 
@@ -268,7 +267,7 @@ func (rc *remoteConn) dropStream(s *remoteStream) {
 
 // nextPushedView waits for the host's next frame for the pane. It reports
 // false when the stream is not up, and the caller polls instead.
-func (rc *remoteConn) nextPushedView(p *pane, stop chan struct{}, cols, rows int, snapshot bool) (remoteStreamView, bool) {
+func (rc *remoteConn) nextPushedView(p *pane, stop chan struct{}, snapshot bool) (remoteStreamView, bool) {
 	s := rc.streamSession()
 	if s == nil {
 		return remoteStreamView{}, false
@@ -280,7 +279,7 @@ func (rc *remoteConn) nextPushedView(p *pane, stop chan struct{}, cols, rows int
 		delete(s.snaps, p.remote.id)
 		s.mu.Unlock()
 	}
-	s.watch(p.remote.id, cols, rows, snapshot)
+	s.watch(p.remote.id, snapshot)
 	tick := time.NewTicker(250 * time.Millisecond)
 	defer tick.Stop()
 	for {
@@ -306,13 +305,7 @@ func (rc *remoteConn) nextPushedView(p *pane, stop chan struct{}, cols, rows int
 			return remoteStreamView{}, false
 		case <-f.sig:
 		case <-tick.C:
-			// A pane that was resized while quiet still needs its new grid
-			// on the host.
-			c, r := int(p.remote.wantCols.Load()), int(p.remote.wantRows.Load())
-			if c != cols || r != rows {
-				cols, rows = c, r
-			}
-			s.watch(p.remote.id, cols, rows, false)
+			s.watch(p.remote.id, false)
 		}
 	}
 }
