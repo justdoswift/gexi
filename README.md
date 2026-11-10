@@ -147,8 +147,11 @@ the same agent there; agents that read a prompt note are told where the
 changes came from. The conversation itself is not carried over. The header
 then shows **PR**, which pushes the branch and opens a pull request with `gh`;
 any pending changes are committed first, with a message the pane's own agent
-writes from the diff in its headless mode (`claude -p`, `codex exec`, `amp -x`). The
-message opens in a dialog for review before the commit. When the pane runs no
+writes from the diff in its headless mode (`claude -p`, `codex exec`, `amp -x`).
+The agent writes the pull request's description the same way, from the commits
+and the pending work. Both open in one dialog first: the message before it is
+committed, the description before it is published, and a description left empty
+keeps whatever the commits say. When the pane runs no
 agent, or it cannot answer, the same dialog asks for the message.
 Once it exists, **PR #N**
 opens the pull request on GitHub, and **Merge** reports the state by its

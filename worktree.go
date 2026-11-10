@@ -91,6 +91,7 @@ type worktreeStep int
 const (
 	stepNone worktreeStep = iota
 	stepCommit
+	stepWritePR
 	stepPush
 	stepCreatePR
 	stepReadPR
@@ -668,9 +669,10 @@ func applyPRStatus(wt *paneWorktree, info prInfo) {
 
 // createPR pushes the worktree branch and opens its pull request. When one
 // is already open, it returns that instead. message commits the pending
-// changes under it; an empty one there is an error. step, when not nil, is
-// told which stage the operation reached.
-func createPR(wt *paneWorktree, message string, step func(worktreeStep)) (prInfo, string, error) {
+// changes under it; an empty one there is an error. body is the description
+// GitHub shows with the pull request, and an empty one keeps the commits'
+// own text. step, when not nil, is told which stage the operation reached.
+func createPR(wt *paneWorktree, message, body string, step func(worktreeStep)) (prInfo, string, error) {
 	if wt == nil {
 		return prInfo{}, "", errWorktreeGone
 	}
@@ -729,7 +731,14 @@ func createPR(wt *paneWorktree, message string, step func(worktreeStep)) (prInfo
 	if step != nil {
 		step(stepCreatePR)
 	}
-	if _, err := ghOutput(wt.Path, "pr", "create", "--fill", "--base", wt.Base, "--head", branch); err != nil {
+	// --fill still names the pull request after the commits; the description
+	// the user reviewed takes the place of the commits' own text.
+	args := []string{"pr", "create", "--fill"}
+	if body = strings.TrimSpace(body); body != "" {
+		args = append(args, "--body", body)
+	}
+	args = append(args, "--base", wt.Base, "--head", branch)
+	if _, err := ghOutput(wt.Path, args...); err != nil {
 		return prInfo{}, branch, err
 	}
 	if step != nil {
@@ -759,12 +768,46 @@ func stagedSummary(dir string) string {
 	return strings.TrimSpace(out)
 }
 
+// clipped cuts s to n characters, saying so when it had to. A prompt that
+// carries a whole diff needs a ceiling; the agent only needs the shape.
+func clipped(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "\n… (truncated)"
+}
+
+// prDiffText is what a pull request will carry, for the agent that writes its
+// description: the commits on the branch, and the work this press commits.
+func prDiffText(wt *paneWorktree, pending string) string {
+	committed := ""
+	for _, base := range []string{"origin/" + wt.Base, wt.Base} {
+		if out, err := worktreeGit(wt.Path, "diff", "--no-color", "--unified=1", base+"...HEAD"); err == nil {
+			committed = out
+			break
+		}
+	}
+	if pending != "" {
+		committed += "\nChanges this pull request commits:\n" + pending
+	}
+	return clipped(committed, 6000)
+}
+
 // commitPrompt asks for one line, the shape the agent and the manual prompt
 // both use.
 func commitPrompt(diff string) string {
 	return "Write one git commit message for the staged diff below. " +
 		"Use the imperative mood, keep it under 72 characters, write it in English, " +
 		"and output only the message, with no quotes or markdown.\n\n" + diff
+}
+
+// prBodyPrompt asks for the pull request's description: the problem first,
+// then how the change answers it, in the prose the dialog shows.
+func prBodyPrompt(diff string) string {
+	return "Write the description for a pull request from what it carries below. " +
+		"Two or three sentences of plain prose: first the problem the change solves, " +
+		"then how it solves it. No title, no headings, no bullet lists, no markdown, " +
+		"no quotes around it, in English, and under 600 characters.\n\n" + diff
 }
 
 func cleanCommitMessage(s string) string {
@@ -816,10 +859,66 @@ func agentHeadless(kind agentKind) ([]string, bool) {
 	return nil, false
 }
 
+// cleanPRBody trims what an agent wrote down to the description itself: the
+// code fences and quotes models add around prose, and a ceiling so one
+// runaway answer cannot fill the dialog.
+func cleanPRBody(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "```") {
+		if i := strings.IndexByte(s, '\n'); i >= 0 {
+			s = s[i+1:]
+		}
+		s = strings.TrimSuffix(strings.TrimSpace(s), "```")
+	}
+	s = strings.TrimSpace(s)
+	for _, q := range []string{"\"", "'"} {
+		if len(s) > 2 && strings.HasPrefix(s, q) && strings.HasSuffix(s, q) {
+			s = strings.TrimSpace(s[1 : len(s)-1])
+		}
+	}
+	if len(s) > 2000 {
+		s = strings.TrimSpace(s[:2000])
+		if i := strings.LastIndexByte(s, ' '); i > 0 {
+			s = s[:i]
+		}
+		s += "…"
+	}
+	return s
+}
+
 // agentCommitMessage asks the same agent the pane already runs for one line,
 // through its own binary rather than a service of gexi's: the user's login
 // and model write the message, and gexi stores no provider key.
 func agentCommitMessage(kind agentKind, dir, prompt string) (string, error) {
+	answer, err := agentAnswer(kind, dir, prompt)
+	if err != nil {
+		return "", err
+	}
+	msg := cleanCommitMessage(answer)
+	if msg == "" {
+		return "", fmt.Errorf("%s returned nothing", kind.name())
+	}
+	return msg, nil
+}
+
+// agentPRBody asks the pane's agent for the description of the pull request
+// the branch is about to open.
+func agentPRBody(kind agentKind, dir, prompt string) (string, error) {
+	answer, err := agentAnswer(kind, dir, prompt)
+	if err != nil {
+		return "", err
+	}
+	body := cleanPRBody(answer)
+	if body == "" {
+		return "", fmt.Errorf("%s returned nothing", kind.name())
+	}
+	return body, nil
+}
+
+// agentAnswer runs kind's one-shot agent on prompt and returns what it said,
+// with the JSON envelope Claude Code and Perch wrap their answers in taken
+// off.
+func agentAnswer(kind agentKind, dir, prompt string) (string, error) {
 	command, ok := agentHeadless(kind)
 	if !ok {
 		return "", fmt.Errorf("%s cannot write one automatically", kind.name())
@@ -828,8 +927,8 @@ func agentCommitMessage(kind agentKind, dir, prompt string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	msg := cleanCommitMessage(answer)
-	if kind == agentClaude {
+	switch kind {
+	case agentClaude:
 		var result struct {
 			Result  string `json:"result"`
 			IsError bool   `json:"is_error"`
@@ -838,10 +937,9 @@ func agentCommitMessage(kind agentKind, dir, prompt string) (string, error) {
 			if result.IsError {
 				return "", fmt.Errorf("%s: %s", kind.name(), cleanCommitMessage(result.Result))
 			}
-			msg = cleanCommitMessage(result.Result)
+			answer = result.Result
 		}
-	}
-	if kind == agentPerch {
+	case agentPerch:
 		var result struct {
 			OK            bool   `json:"ok"`
 			AssistantText string `json:"assistantText"`
@@ -851,13 +949,10 @@ func agentCommitMessage(kind agentKind, dir, prompt string) (string, error) {
 			if !result.OK {
 				return "", fmt.Errorf("%s: %s", kind.name(), cleanCommitMessage(result.Error))
 			}
-			msg = cleanCommitMessage(result.AssistantText)
+			answer = result.AssistantText
 		}
 	}
-	if msg == "" {
-		return "", fmt.Errorf("%s returned nothing", kind.name())
-	}
-	return msg, nil
+	return answer, nil
 }
 
 // runAgent runs one agent command with prompt on stdin, in dir, and returns
@@ -1382,79 +1477,92 @@ func (w *workspace) createPullRequest(p *pane) {
 		kind = p.agent.Kind
 	}
 	go func() {
-		msg, hint := "", ""
-		review := false
+		msg, body, hint := "", "", ""
 		clean, err := worktreeIsClean(&snapshot)
 		if err != nil {
 			w.onMain(func() { w.finishPullRequest(wt, p, prInfo{}, "", err) })
 			return
 		}
+		ahead, aheadErr := commitsAhead(&snapshot)
+		if aheadErr == nil && ahead == 0 && clean {
+			// Nothing to open a pull request with: createPR says so, and no
+			// agent is asked to describe an empty branch.
+			info, branch, err := createPR(&snapshot, "", "", w.worktreeStepFunc(wt))
+			w.onMain(func() { w.finishPullRequest(wt, p, info, branch, err) })
+			return
+		}
+		pending := ""
 		if !clean {
+			w.onMain(func() {
+				wt.busySteps = []worktreeStep{stepCommit, stepWritePR, stepPush, stepCreatePR, stepReadPR}
+				wt.busyAt = stepCommit
+				w.invalidate()
+			})
+			// Stage first, so the diff includes untracked files.
+			if _, err := worktreeGit(snapshot.Path, "add", "-A"); err != nil {
+				w.onMain(func() { w.finishPullRequest(wt, p, prInfo{}, "", err) })
+				return
+			}
+			pending, _ = worktreeGit(snapshot.Path, "diff", "--cached", "--no-color", "--unified=1")
 			if kind == "" {
 				hint = locales.CommitMessageNoAgent()
 			} else {
-				w.onMain(func() {
-					wt.busySteps = []worktreeStep{stepCommit, stepPush, stepCreatePR, stepReadPR}
-					wt.busyAt = stepCommit
-					w.invalidate()
-				})
-				// Stage first, so the diff includes untracked files.
-				if _, err := worktreeGit(snapshot.Path, "add", "-A"); err != nil {
-					w.onMain(func() { w.finishPullRequest(wt, p, prInfo{}, "", err) })
-					return
-				}
-				diff, _ := worktreeGit(snapshot.Path, "diff", "--cached", "--no-color", "--unified=1")
-				if len(diff) > 6000 {
-					diff = diff[:6000] + "\n… (truncated)"
-				}
-				msg, err = agentCommitMessage(kind, snapshot.Path, commitPrompt(diff))
+				msg, err = agentCommitMessage(kind, snapshot.Path, commitPrompt(clipped(pending, 6000)))
 				if err != nil {
 					hint = locales.CommitMessageAgentFailed(kind.name(), err.Error())
 					msg = ""
-				} else {
-					review = true
 				}
-			}
-			if msg == "" {
-				w.onMain(func() {
-					clearWorktreeBusy(wt)
-					w.commitTarget = p
-					w.commitText = "Update from Gexi"
-					w.commitHint = hint
-					w.commitErr = ""
-					w.commitOpen = true
-					w.invalidate()
-				})
-				return
-			}
-			if review {
-				// The agent wrote a message; let the user read it and the
-				// diff it describes before it is committed and pushed.
-				summary := stagedSummary(snapshot.Path)
-				w.onMain(func() {
-					clearWorktreeBusy(wt)
-					w.commitTarget = p
-					w.commitText = msg
-					w.commitHint = summary
-					w.commitErr = ""
-					w.commitOpen = true
-					w.invalidate()
-				})
-				return
 			}
 		} else {
 			w.onMain(func() {
-				wt.busySteps = []worktreeStep{stepPush, stepCreatePR, stepReadPR}
-				wt.busyAt = stepPush
+				wt.busySteps = []worktreeStep{stepWritePR, stepPush, stepCreatePR, stepReadPR}
+				wt.busyAt = stepWritePR
 				w.invalidate()
 			})
 		}
-		info, branch, err := createPR(&snapshot, msg, w.worktreeStepFunc(wt))
+		if kind != "" {
+			// The description covers everything the pull request carries: the
+			// commits on the branch, and the work this press commits.
+			w.advanceWorktreeStep(wt, stepWritePR)
+			if diff := prDiffText(&snapshot, pending); diff != "" {
+				body, err = agentPRBody(kind, snapshot.Path, prBodyPrompt(diff))
+				if err != nil {
+					body = ""
+					if hint == "" {
+						hint = locales.WorktreePRBodyAgentFailed(kind.name(), err.Error())
+					}
+				}
+			}
+		}
+		if !clean || body != "" {
+			// Something to read before it goes out: the message about to be
+			// committed, the description about to be published, or both.
+			hintText := hint
+			if !clean && hintText == "" {
+				hintText = stagedSummary(snapshot.Path)
+			}
+			if !clean && msg == "" {
+				msg = "Update from Gexi"
+			}
+			w.onMain(func() {
+				clearWorktreeBusy(wt)
+				w.commitTarget = p
+				w.commitText = msg
+				w.commitNeeds = !clean
+				w.prBody = body
+				w.commitHint = hintText
+				w.commitErr = ""
+				w.commitOpen = true
+				w.invalidate()
+			})
+			return
+		}
+		info, branch, err := createPR(&snapshot, msg, body, w.worktreeStepFunc(wt))
 		w.onMain(func() { w.finishPullRequest(wt, p, info, branch, err) })
 	}()
 }
 
-func (w *workspace) createPullRequestWithMessage(p *pane, message string) {
+func (w *workspace) createPullRequestWithDraft(p *pane, message, body string) {
 	wt := p.Worktree
 	if wt == nil || wt.busy != "" || wt.PR != 0 || wt.State == worktreeMerged || w.paneByID(p.ID) != p {
 		return
@@ -1468,7 +1576,7 @@ func (w *workspace) createPullRequestWithMessage(p *pane, message string) {
 	w.invalidate()
 	snapshot := *wt
 	go func() {
-		info, branch, err := createPR(&snapshot, message, w.worktreeStepFunc(wt))
+		info, branch, err := createPR(&snapshot, message, body, w.worktreeStepFunc(wt))
 		w.onMain(func() { w.finishPullRequest(wt, p, info, branch, err) })
 	}()
 }
@@ -1498,40 +1606,65 @@ func (w *workspace) submitCommitMessage() {
 		w.cancelCommitMessage()
 		return
 	}
-	if message == "" {
+	if w.commitNeeds && message == "" {
 		w.commitErr = locales.CommitMessageEmpty()
 		w.invalidate()
 		return
 	}
-	w.commitOpen = false
-	w.commitTarget = nil
-	w.commitText = ""
-	w.commitHint = ""
-	w.commitErr = ""
-	w.invalidate()
-	w.createPullRequestWithMessage(p, message)
+	body := strings.TrimSpace(w.prBody)
+	needs := w.commitNeeds
+	w.closeCommitDialog()
+	if !needs {
+		message = ""
+	}
+	w.createPullRequestWithDraft(p, message, body)
 }
 
 func (w *workspace) cancelCommitMessage() {
+	w.closeCommitDialog()
+}
+
+// closeCommitDialog puts the pull request prompt and everything it held away.
+func (w *workspace) closeCommitDialog() {
 	w.commitOpen = false
 	w.commitTarget = nil
 	w.commitText = ""
+	w.commitNeeds = false
+	w.prBody = ""
 	w.commitHint = ""
 	w.commitErr = ""
 	w.invalidate()
 }
 
+// commitDialog is the pull request prompt: the commit message when the
+// checkout holds work that has not been committed, and the description
+// GitHub shows with the pull request. Both open holding what the pane's
+// agent wrote, so the user reads them before they are pushed.
 func (w *workspace) commitDialog(c *ui.Context, tk tokens) {
 	dialogFrame(c, tk, &w.commitOpen, 480, func() {
-		dialogHeading(c, tk, locales.CommitMessageTitle(), w.commitHint)
+		dialogHeading(c, tk, locales.WorktreePRDialogTitle(), w.commitHint)
 		dialogBody(c, func() {
-			in := dialogInput(c, tk, &w.commitText, locales.CommitMessagePlaceholder()).AutoFocus()
-			in.OnSubmit(func() { w.submitCommitMessage() })
+			if w.commitNeeds {
+				dialogLabel(c, tk, locales.CommitMessageTitle())
+				in := dialogInput(c, tk, &w.commitText, locales.CommitMessagePlaceholder()).AutoFocus()
+				in.OnSubmit(func() { w.submitCommitMessage() })
+			}
+			dialogLabel(c, tk, locales.WorktreePRBodyLabel())
+			body := ui.TextArea(c, &w.prBody).FillWidth().Height(88).FontSize(13).
+				Padding(8, 10).Radius(chromeRadius).
+				Background(tk.Foreground.Alpha(0.06)).
+				Border(1, tk.Foreground.Alpha(0.12)).
+				Placeholder(locales.WorktreePRBodyPlaceholder()).
+				PlaceholderColor(tk.MutedForeground).
+				FocusRingColor(alpha(tk.Foreground, 0.35))
+			if !w.commitNeeds {
+				body.AutoFocus()
+			}
 			dialogError(c, tk, w.commitErr)
 		})
 		dialogFooter(c, tk,
 			dialogAction{label: locales.Cancel(), kind: dialogQuiet, run: w.cancelCommitMessage},
-			dialogAction{label: locales.CommitMessageConfirm(), kind: dialogPrimary, run: w.submitCommitMessage},
+			dialogAction{label: locales.WorktreeOpenPR(), kind: dialogPrimary, run: w.submitCommitMessage},
 		)
 	})
 }
@@ -3619,6 +3752,8 @@ func worktreeStepLabel(p *pane, step worktreeStep) string {
 	switch step {
 	case stepCommit:
 		return locales.WorktreeStepCommit()
+	case stepWritePR:
+		return locales.WorktreeStepWritePR()
 	case stepPush:
 		return locales.WorktreeStepPush()
 	case stepCreatePR:

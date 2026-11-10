@@ -363,6 +363,7 @@ func fakeGHTEST(t *testing.T) (stateFile string) {
 	script := `#!/bin/sh
 case "$1 $2" in
 "pr create")
+  if [ -n "$FAKE_GH_LOG" ]; then printf '%s\n' "$*" >> "$FAKE_GH_LOG"; fi
   if [ "$FAKE_GH_CREATE_FAIL" = "1" ]; then echo "create failed" >&2; exit 1; fi
   printf '{"number":17,"url":"https://example.invalid/pr/17","state":"OPEN","mergeable":"MERGEABLE","reviewDecision":"","mergeStateStatus":"CLEAN","statusCheckRollup":[]}\n' > "$FAKE_GH_STATE_FILE"
   ;;
@@ -411,7 +412,7 @@ func TestCreatePRFlow(t *testing.T) {
 	if err := commitStaged(wt, "the change"); err != nil {
 		t.Fatal(err)
 	}
-	info, branch, err := createPR(wt, "", nil)
+	info, branch, err := createPR(wt, "", "", nil)
 	if err != nil {
 		t.Fatalf("create PR: %v", err)
 	}
@@ -436,12 +437,72 @@ func TestCreatePRFlow(t *testing.T) {
 	if err := os.WriteFile(stateFile, []byte(`{"number":23,"url":"https://example.invalid/pr/23","state":"OPEN","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	reused, _, err := createPR(early, "", nil)
+	reused, _, err := createPR(early, "", "", nil)
 	if err != nil || reused.Number != 23 {
 		t.Fatalf("existing PR = %+v, %v, want #23", reused, err)
 	}
 	if _, err := exec.Command("git", "-C", origin, "rev-parse", "--verify", "refs/heads/"+early.Branch).CombinedOutput(); err == nil {
 		t.Fatal("reusing an open PR pushed the branch again")
+	}
+}
+
+// TestCreatePRDescription checks that the description the dialog reviewed
+// reaches gh, and that a branch with none keeps the commits' own text.
+func TestCreatePRDescription(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	stateFile := fakeGHTEST(t)
+	logFile := filepath.Join(t.TempDir(), "gh-args")
+	t.Setenv("FAKE_GH_LOG", logFile)
+	root := initRepoWithOriginTest(t)
+
+	described, err := createWorktree(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(described.Path, "change.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitTest(t, described.Path, "add", "-A")
+	if err := commitStaged(described, "read the size once"); err != nil {
+		t.Fatal(err)
+	}
+	body := "The pane flickered on launch.\nIt now reads the size once."
+	if _, _, err := createPR(described, "", body, nil); err != nil {
+		t.Fatalf("create PR with a description: %v", err)
+	}
+	log, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(log), "--body "+body) {
+		t.Fatalf("gh pr create was called with %q, want the description", string(log))
+	}
+	if !strings.Contains(string(log), "--fill") {
+		t.Fatalf("gh pr create was called with %q, want --fill to name the pull request", string(log))
+	}
+
+	// Nothing written for the next branch: the commits' own text stands.
+	os.Remove(stateFile)
+	os.Remove(logFile)
+	plain, err := createWorktree(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plain.Path, "other.txt"), []byte("y\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitTest(t, plain.Path, "add", "-A")
+	if err := commitStaged(plain, "another change"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := createPR(plain, "", "", nil); err != nil {
+		t.Fatalf("create PR without a description: %v", err)
+	}
+	if log, err = os.ReadFile(logFile); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(log), "--body") {
+		t.Fatalf("gh pr create was called with %q, want no --body", string(log))
 	}
 }
 
@@ -458,10 +519,10 @@ func TestCreatePRDirtyFlow(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(wt.Path, "dirty.txt"), []byte("x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := createPR(wt, "", nil); err == nil || !strings.Contains(err.Error(), "commit message") {
+	if _, _, err := createPR(wt, "", "", nil); err == nil || !strings.Contains(err.Error(), "commit message") {
 		t.Fatalf("dirty with no message = %v, want the message refusal", err)
 	}
-	info, _, err := createPR(wt, "commit the dirty file", nil)
+	info, _, err := createPR(wt, "commit the dirty file", "", nil)
 	if err != nil || info.Number != 17 {
 		t.Fatalf("dirty with a message = %+v, %v", info, err)
 	}
@@ -479,14 +540,14 @@ func TestCreatePRRefusals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := createPR(wt, "", nil); err == nil || !strings.Contains(err.Error(), "no commits") {
+	if _, _, err := createPR(wt, "", "", nil); err == nil || !strings.Contains(err.Error(), "no commits") {
 		t.Fatalf("a branch with no commits = %v, want the no-commits error", err)
 	}
 
 	// A failing gh carries its message through.
 	runGitTest(t, wt.Path, "commit", "--allow-empty", "-m", "work")
 	t.Setenv("FAKE_GH_CREATE_FAIL", "1")
-	if _, _, err := createPR(wt, "", nil); err == nil || !strings.Contains(err.Error(), "create failed") {
+	if _, _, err := createPR(wt, "", "", nil); err == nil || !strings.Contains(err.Error(), "create failed") {
 		t.Fatalf("a failing gh = %v, want create failed", err)
 	}
 }
@@ -527,7 +588,7 @@ func TestGhMissingCheck(t *testing.T) {
 		t.Fatal("the missing-gh override was not used")
 	}
 	root := initRepoTest(t)
-	if _, _, err := createPR(&paneWorktree{Root: root, Path: root, Branch: "x", Base: "main"}, "", nil); !errors.Is(err, errGhMissing) {
+	if _, _, err := createPR(&paneWorktree{Root: root, Path: root, Branch: "x", Base: "main"}, "", "", nil); !errors.Is(err, errGhMissing) {
 		t.Fatalf("create PR without gh = %v, want errGhMissing", err)
 	}
 }
@@ -790,7 +851,7 @@ func TestCoreGitRefusesMissingCheckout(t *testing.T) {
 		Path:   filepath.Join(t.TempDir(), "gone"),
 		Branch: "gone", Base: "main", PR: 5,
 	}
-	if _, _, err := createPR(gone, "message", nil); !errors.Is(err, errWorktreeGone) {
+	if _, _, err := createPR(gone, "message", "", nil); !errors.Is(err, errWorktreeGone) {
 		t.Fatalf("create PR in a missing folder = %v, want errWorktreeGone", err)
 	}
 	if err := mergePR(gone); !errors.Is(err, errWorktreeGone) {

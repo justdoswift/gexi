@@ -1044,6 +1044,48 @@ func (msgs Messages) WorktreePROpening() string {
 	return Catalog.Format(msgs.locale, "worktreePROpening", nil)
 }
 
+// WorktreePRDialogTitle says "Open pull request"
+// in the language the app shows.
+func WorktreePRDialogTitle() string { return In(i18n.Locale()).WorktreePRDialogTitle() }
+
+// WorktreePRDialogTitle says "Open pull request"
+// in the language of msgs.
+func (msgs Messages) WorktreePRDialogTitle() string {
+	return Catalog.Format(msgs.locale, "worktreePRDialogTitle", nil)
+}
+
+// WorktreePRBodyLabel says "Description"
+// in the language the app shows.
+func WorktreePRBodyLabel() string { return In(i18n.Locale()).WorktreePRBodyLabel() }
+
+// WorktreePRBodyLabel says "Description"
+// in the language of msgs.
+func (msgs Messages) WorktreePRBodyLabel() string {
+	return Catalog.Format(msgs.locale, "worktreePRBodyLabel", nil)
+}
+
+// WorktreePRBodyPlaceholder says "What this fixes, and how"
+// in the language the app shows.
+func WorktreePRBodyPlaceholder() string { return In(i18n.Locale()).WorktreePRBodyPlaceholder() }
+
+// WorktreePRBodyPlaceholder says "What this fixes, and how"
+// in the language of msgs.
+func (msgs Messages) WorktreePRBodyPlaceholder() string {
+	return Catalog.Format(msgs.locale, "worktreePRBodyPlaceholder", nil)
+}
+
+// WorktreePRBodyAgentFailed says "Could not ask {agent} for a description: {error}"
+// in the language the app shows.
+func WorktreePRBodyAgentFailed(agent string, error string) string {
+	return In(i18n.Locale()).WorktreePRBodyAgentFailed(agent, error)
+}
+
+// WorktreePRBodyAgentFailed says "Could not ask {agent} for a description: {error}"
+// in the language of msgs.
+func (msgs Messages) WorktreePRBodyAgentFailed(agent string, error string) string {
+	return Catalog.Format(msgs.locale, "worktreePRBodyAgentFailed", map[string]any{"agent": agent, "error": error})
+}
+
 // WorktreeMerge says "Merge"
 // in the language the app shows.
 func WorktreeMerge() string { return In(i18n.Locale()).WorktreeMerge() }
@@ -1174,6 +1216,16 @@ func WorktreeStepCommit() string { return In(i18n.Locale()).WorktreeStepCommit()
 // in the language of msgs.
 func (msgs Messages) WorktreeStepCommit() string {
 	return Catalog.Format(msgs.locale, "worktreeStepCommit", nil)
+}
+
+// WorktreeStepWritePR says "Writing the pull request"
+// in the language the app shows.
+func WorktreeStepWritePR() string { return In(i18n.Locale()).WorktreeStepWritePR() }
+
+// WorktreeStepWritePR says "Writing the pull request"
+// in the language of msgs.
+func (msgs Messages) WorktreeStepWritePR() string {
+	return Catalog.Format(msgs.locale, "worktreeStepWritePR", nil)
 }
 
 // WorktreeStepPush says "Pushing the branch"
@@ -1402,16 +1454,6 @@ func CommitMessageEmpty() string { return In(i18n.Locale()).CommitMessageEmpty()
 // in the language of msgs.
 func (msgs Messages) CommitMessageEmpty() string {
 	return Catalog.Format(msgs.locale, "commitMessageEmpty", nil)
-}
-
-// CommitMessageConfirm says "Commit"
-// in the language the app shows.
-func CommitMessageConfirm() string { return In(i18n.Locale()).CommitMessageConfirm() }
-
-// CommitMessageConfirm says "Commit"
-// in the language of msgs.
-func (msgs Messages) CommitMessageConfirm() string {
-	return Catalog.Format(msgs.locale, "commitMessageConfirm", nil)
 }
 
 // WorktreeCheckingPR says "Checking pull request"

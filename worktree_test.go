@@ -845,6 +845,24 @@ func TestCleanCommitMessage(t *testing.T) {
 	}
 }
 
+func TestCleanPRBody(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"The pane flickered on launch.\nIt now reads the size once.\n", "The pane flickered on launch.\nIt now reads the size once."},
+		{"```\nThe pane flickered on launch.\n```", "The pane flickered on launch."},
+		{"\"The pane flickered on launch.\"", "The pane flickered on launch."},
+		{"One paragraph.\n\nAnother one.", "One paragraph.\n\nAnother one."},
+		{"", ""},
+	}
+	for _, c := range cases {
+		if got := cleanPRBody(c.in); got != c.want {
+			t.Fatalf("cleanPRBody(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+	if got := cleanPRBody(strings.Repeat("word ", 1000)); !strings.HasSuffix(got, "…") || len(got) > 2010 {
+		t.Fatalf("cleanPRBody kept a runaway answer as %d characters", len(got))
+	}
+}
+
 // TestWorktreePaneName shortens only the checkouts gexi made itself: the
 // folder exactly one level under worktrees/<repo>/.
 func TestWorktreePaneName(t *testing.T) {
