@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/plugins/loading"
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
@@ -508,12 +509,20 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	activity := sessionActivityState(s)
 	row.OnClick(pick).ContextMenu(func(m *ui.Menu) { w.sessionRowMenu(m, s) }).Children(func() {
 		agent := s.agent()
-		if agent != nil {
+		switch {
+		case activity == activityWorking:
+			// A spinner where the session's mark sits, so a glance reads the
+			// session as working; the sweep across the name alone is easy to
+			// miss.
+			loading.Trace(c, loading.Options{Size: 15, Color: tk.Foreground}).OnClick(pick)
+		case agent != nil:
 			if src := agentLogoSource(agent.Kind, tk); src != nil {
 				ui.Image(c, src).Width(14).Height(14).OnClick(pick)
 			}
-		} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(14).Height(14).OnClick(pick)
+		default:
+			if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
+				ui.Image(c, src).Width(14).Height(14).OnClick(pick)
+			}
 		}
 		label := sessionLabel(s)
 		var labelEl ui.Element

@@ -431,3 +431,50 @@ func TestActivityLapsesWhenNothingMoves(t *testing.T) {
 		t.Fatal("a running subagent keeps the turn alive")
 	}
 }
+
+// A clicked banner opens the pane it was about: the session comes forward,
+// the pane takes the keyboard, and a click that arrives before the panes are
+// back waits for the restore to finish.
+func TestNotificationClickOpensItsPane(t *testing.T) {
+	a, b := &pane{ID: "a"}, &pane{ID: "b"}
+	first := &session{ID: "first", Root: leaf(a)}
+	second := &session{ID: "second", Root: leaf(b)}
+	w := &workspace{
+		Projects:        []*project{{ID: "p", Sessions: []*session{first, second}}},
+		SelectedSession: "first",
+		FocusedPane:     "a",
+	}
+
+	if got := notificationID(b); got != "pane:b" {
+		t.Fatalf("notificationID = %q, want pane:b", got)
+	}
+	w.openNotification("pane:b")
+	if w.pendingNotificationPane != "b" {
+		t.Fatalf("a click before the window is up was not kept: %q", w.pendingNotificationPane)
+	}
+	w.revealPendingNotification()
+	if w.SelectedSession != "second" || w.FocusedPane != "b" || w.pendingNotificationPane != "" {
+		t.Fatalf("session %q pane %q pending %q, want second/b/none",
+			w.SelectedSession, w.FocusedPane, w.pendingNotificationPane)
+	}
+
+	// Something else on the Mac: a banner's ID is not a pane.
+	w.openNotification("elsewhere")
+	if w.pendingNotificationPane != "" {
+		t.Fatal("an ID that names no pane was taken for one")
+	}
+}
+
+func TestNotificationPaneID(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"pane:abc", "abc"},
+		{"", ""},
+		{"abc", ""},
+		{"pane:", ""},
+	}
+	for _, c := range cases {
+		if got := notificationPaneID(c.in); got != c.want {
+			t.Fatalf("notificationPaneID(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

@@ -180,7 +180,7 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 
 	if w.settings.Notifications && eventNotifies[ev.Kind] && w.shouldNotify(p, ev.Kind) {
 		title, subtitle, body := notificationCopy(ev, w.panePlace(p))
-		notifyUser(title, subtitle, body)
+		notifyUser(notificationID(p), title, subtitle, body)
 	}
 	return result, nil
 }
@@ -293,10 +293,11 @@ func (w *workspace) panePlace(p *pane) string {
 // carries gexi's name and icon. osascript is the fallback for a build that
 // runs outside a bundle: it works, but the banner shows up as Script
 // Editor, with its icon.
-func notifyUser(title, subtitle, body string) {
+func notifyUser(id, title, subtitle, body string) {
 	if mygo.NotificationsSupported() {
 		go func() {
 			n := mygo.NewNotification(mygo.NotificationOptions{
+				ID:       id,
 				Title:    title,
 				Subtitle: subtitle,
 				Body:     body,
@@ -315,6 +316,24 @@ func notifyUser(title, subtitle, body string) {
 		appleScriptString("gexi · "+title),
 	)
 	go func() { _ = exec.Command("osascript", "-e", script).Run() }()
+}
+
+// notificationID names the pane a banner is about, so a click on it can open
+// that pane, also in a launch the click started: the ID outlives the run.
+func notificationID(p *pane) string {
+	if p == nil || p.ID == "" {
+		return ""
+	}
+	return "pane:" + p.ID
+}
+
+// notificationPaneID is the pane a banner's ID names, or "".
+func notificationPaneID(id string) string {
+	paneID, ok := strings.CutPrefix(id, "pane:")
+	if !ok {
+		return ""
+	}
+	return paneID
 }
 
 func appleScriptString(s string) string {

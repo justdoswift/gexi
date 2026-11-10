@@ -252,6 +252,12 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		// The Mac watching this pane names the grid its window fits; while
+		// this pane is not the one being worked in here, that grid is the
+		// one in use, and the frame below reports it.
+		if cols, rows := intParam(p, "cols"), intParam(p, "rows"); cols > 0 && rows > 0 {
+			pane.watchRemoteSize(cols, rows)
+		}
 		offset := int64(intParam(p, "offset"))
 		var snap []byte
 		reset := offset <= 0 || boolParam(p, "snapshot")

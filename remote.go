@@ -637,14 +637,25 @@ func (p *pane) watchRemoteSize(cols, rows int) {
 	}
 }
 
+// remoteInputHold is how long a key press keeps this pane the one being
+// worked in here: a window that has focus with nobody typing is not in use,
+// so the Mac watching the pane keeps its own grid instead of a clipped one.
+const remoteInputHold = 20 * time.Second
+
 // remoteWatched reports whether the other Mac's grid is the one to use: it
-// asked recently, and this window is not the one being worked in.
+// asked recently, and this pane is not the one being worked in here.
 func (p *pane) remoteWatched() bool {
-	if p == nil || p.ws == nil || p.ws.windowActive {
+	if p == nil || p.ws == nil || p.workedInHere() {
 		return false
 	}
 	return p.remoteCols > 0 && p.remoteRows > 0 &&
 		time.Since(p.remoteWatchAt) < remoteWatchTTL
+}
+
+// workedInHere reports whether this pane is being used at this Mac: its
+// window has the keyboard, and a key went to the pane a moment ago.
+func (p *pane) workedInHere() bool {
+	return p != nil && p.ws != nil && p.ws.windowActive && time.Since(p.lastKeyAt) < remoteInputHold
 }
 
 // streamViewSize is the size the pane's view is laid out at, for the stream

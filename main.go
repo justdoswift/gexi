@@ -29,6 +29,10 @@ func main() {
 		return
 	}
 
+	// A bundle can hold a newer version than the process that is running;
+	// start it rather than report and update as the older one.
+	relaunchIntoUpdatedBundle()
+
 	// Panes start their shells with the interactive shell's PATH; look it up
 	// off the UI thread so the first restored pane does not wait on it.
 	go interactivePath()
@@ -39,6 +43,10 @@ func main() {
 	mygo.Use(updater.New(updater.Options{Icon: updateIcon}))
 
 	w := newWorkspace()
+
+	// A banner names the pane it is about: clicking it opens that pane, also
+	// when the click is what launched the app.
+	mygo.App.OnNotificationClick(func(id string) { w.openNotification(id) })
 
 	// Start in the appearance the user pinned, so the first frame is right
 	// instead of flashing the system's. "" follows the system.
@@ -111,6 +119,7 @@ func main() {
 
 		mygo.App.SetMenu(mainMenu(w))
 		w.restoreOrCreate()
+		w.revealPendingNotification()
 		w.refreshGit()
 		w.startAgentMonitor()
 		w.startWorktreeMonitor()

@@ -675,3 +675,33 @@ func TestChooseRoutePrefersLAN(t *testing.T) {
 		t.Fatalf("route = %q, want the relay", rc.address)
 	}
 }
+
+// A pane gives its grid to the Mac watching it unless someone here is typing
+// in it: focus alone, with nobody at the keyboard, is not being worked in.
+func TestRemoteWatchedFollowsTyping(t *testing.T) {
+	ws := &workspace{windowActive: true}
+	p := &pane{ws: ws, remoteCols: 100, remoteRows: 30, remoteWatchAt: time.Now()}
+
+	p.lastKeyAt = time.Now()
+	if p.remoteWatched() {
+		t.Fatal("a pane being typed in kept the watching Mac's grid")
+	}
+
+	p.lastKeyAt = time.Now().Add(-remoteInputHold - time.Second)
+	if !p.remoteWatched() {
+		t.Fatal("a window with nobody typing did not give the pane to the watching Mac")
+	}
+
+	ws.windowActive = false
+	p.lastKeyAt = time.Now()
+	if !p.remoteWatched() {
+		t.Fatal("a background window did not give the pane to the watching Mac")
+	}
+
+	ws.windowActive = true
+	p.lastKeyAt = time.Time{}
+	p.remoteWatchAt = time.Now().Add(-remoteWatchTTL - time.Second)
+	if p.remoteWatched() {
+		t.Fatal("a Mac that stopped watching kept the grid")
+	}
+}

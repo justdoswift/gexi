@@ -122,6 +122,9 @@ type workspace struct {
 	// stageW is the stage's last layout width; a narrow stage leaves the
 	// rail off rather than cover most of the terminal with it.
 	stageW float32
+	// pendingNotificationPane is the pane a clicked banner named while the
+	// panes were still restoring; restoreOrCreate goes there once they are.
+	pendingNotificationPane string
 
 	win         *mygo.Window
 	settingsWin *mygo.Window
@@ -1002,6 +1005,42 @@ func (w *workspace) toggleProject(pr *project) {
 	}
 	w.invalidate()
 	w.scheduleSave()
+}
+
+// openNotification goes to the pane a banner was about. The click can arrive
+// before the window exists: one that launches the app is answered while the
+// panes are still coming back, so the pane it names waits for
+// revealPendingNotification.
+func (w *workspace) openNotification(id string) {
+	paneID := notificationPaneID(id)
+	if paneID == "" {
+		return
+	}
+	if w.win == nil {
+		w.pendingNotificationPane = paneID
+		return
+	}
+	w.onMain(func() { w.openNotificationPane(paneID) })
+}
+
+// openNotificationPane brings the pane's session forward and focuses the
+// pane, showing the window if it was closed.
+func (w *workspace) openNotificationPane(paneID string) {
+	p := w.paneByID(paneID)
+	if p == nil {
+		w.pendingNotificationPane = paneID
+		return
+	}
+	w.pendingNotificationPane = ""
+	w.revealPane(p)
+}
+
+// revealPendingNotification goes to the pane a click named while the panes
+// were still coming back.
+func (w *workspace) revealPendingNotification() {
+	if id := w.pendingNotificationPane; id != "" {
+		w.openNotificationPane(id)
+	}
 }
 
 func (w *workspace) focusPane(p *pane) {

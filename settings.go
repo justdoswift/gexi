@@ -370,7 +370,7 @@ func (w *workspace) notificationsPage(c *ui.Context, tk tokens) {
 			locales.SettingsNotifyTest(),
 			locales.SettingsNotifyTestDetail(),
 			locales.SettingsSendTest(),
-			func() { notifyUser(locales.TestNotificationTitle(), "gexi", locales.TestNotificationBody()) },
+			func() { notifyUser("", locales.TestNotificationTitle(), "gexi", locales.TestNotificationBody()) },
 		)
 	})
 }
