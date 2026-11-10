@@ -618,7 +618,7 @@ func sessionActivityState(s *session) string {
 		// A pane opened or switched mid-turn can miss the agent.start hook.
 		// Its title still carries the animated spinner while it works, so
 		// the session loader does not stop under a running terminal.
-		if p.titleShowsWork() {
+		if p.titleWorking() {
 			working = true
 		}
 	}

@@ -216,6 +216,10 @@ type pane struct {
 	restored bool
 	sawAgent bool           // an agent was detected at some point in this pane
 	activity *agentActivity // last hook event from the agent
+	// titleSeen is the title last looked at, and titleSeenAt when it last
+	// changed: a spinner mark that stops moving is not work.
+	titleSeen   string
+	titleSeenAt time.Time
 	// subagents are the Task/Agent calls the agent reports running in this
 	// pane, keyed by the id a start and its stop share. A background one
 	// outlives its turn, which is what keeps the session visibly busy after
@@ -507,6 +511,33 @@ func titleShowsWork(title string) bool {
 // titleShowsWork is the pane's current title, when it has a terminal.
 func (p *pane) titleShowsWork() bool {
 	return p != nil && p.term != nil && titleShowsWork(p.term.Title())
+}
+
+// titleWorkWindow is how long a mark in the title counts as work without
+// moving. A working agent's mark changes every few hundred milliseconds, so
+// one that has stood still this long is the last frame it left behind.
+const titleWorkWindow = 2 * time.Second
+
+// titleWorking reports whether the pane's title says the agent is at work.
+// The mark has to keep changing: an agent that stops can leave its last
+// spinner frame in the title, and that frame is not work.
+func (p *pane) titleWorking() bool {
+	if p == nil || p.term == nil {
+		return false
+	}
+	return p.titleWorkingFor(p.term.Title())
+}
+
+func (p *pane) titleWorkingFor(title string) bool {
+	if !titleShowsWork(title) {
+		p.titleSeen, p.titleSeenAt = title, time.Time{}
+		return false
+	}
+	if title != p.titleSeen {
+		p.titleSeen, p.titleSeenAt = title, time.Now()
+		return true
+	}
+	return time.Since(p.titleSeenAt) < titleWorkWindow
 }
 
 // cleanTitle trims a terminal title and drops the agent's leading activity

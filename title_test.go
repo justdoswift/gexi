@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestCleanTitleDropsAgentSpinner(t *testing.T) {
 	cases := []struct {
@@ -66,5 +69,27 @@ func TestRemoteTitlesDropTheActivityMark(t *testing.T) {
 	}
 	if got := sessionLabel(s); got != "远程窗格与工作树" {
 		t.Fatalf("remote session label = %q, want %q", got, "远程窗格与工作树")
+	}
+}
+
+// A spinner mark that stops moving is the last frame an agent left in the
+// title, not work: the sweep in the sidebar must not keep running for it.
+func TestTitleStopsCountingWhenItStands(t *testing.T) {
+	p := &pane{}
+	if !p.titleWorkingFor("⠐ working") {
+		t.Fatal("a fresh spinner should count as work")
+	}
+	if !p.titleWorkingFor("⠐ working") {
+		t.Fatal("the same frame inside the window should still count")
+	}
+	p.titleSeenAt = time.Now().Add(-titleWorkWindow - time.Second)
+	if p.titleWorkingFor("⠐ working") {
+		t.Fatal("a mark that stood still past the window should stop counting")
+	}
+	if !p.titleWorkingFor("⠑ working") {
+		t.Fatal("a new frame should start counting again")
+	}
+	if p.titleWorkingFor("amp") {
+		t.Fatal("a title without a spinner is not work")
 	}
 }
