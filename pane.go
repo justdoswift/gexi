@@ -228,17 +228,8 @@ type pane struct {
 	// mirror is laid out at before it is scaled into its card.
 	viewW, viewH float32
 	// cellW and cellH are a cell's size in DIPs, measured whenever the view
-	// is laid out at the card's size. A pane a paired Mac watches keeps the
-	// size it asked for, laid out from these, so that Mac's terminal fits
-	// its window and its lines wrap where the window ends.
+	// is laid out at the card's size.
 	cellW, cellH float32
-	// remoteCols and remoteRows are the size the last paired Mac asked for,
-	// and remoteWatchAt when it last asked. While that is fresh the view
-	// holds the size instead of taking the card's, which would resize the
-	// terminal back under the other Mac.
-	remoteCols, remoteRows int
-	remoteWatchAt          time.Time
-	remoteWatchTick        time.Time
 	// stageEnter asks the next frame to bring this pane onto the stage with
 	// a grow and fade, as a card comes forward.
 	stageEnter bool
