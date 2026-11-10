@@ -1087,7 +1087,14 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					// the cell the cursor holds, and the next frame that
 					// moves the cursor takes it away.
 					if text, row, col := p.remote.prediction(); text != "" {
-						if gw, gh := p.term.Size(); gw > 0 && gh > 0 && row >= 0 && row < gh && col >= 0 && col < gw {
+						// The grid comes from the same stream that named the
+						// view's size, so the cell below is the one the
+						// mirror lays out, not a guess from the card.
+						gw, gh := p.remote.gridCols, p.remote.gridRows
+						if gw <= 0 || gh <= 0 {
+							gw, gh = p.term.Size()
+						}
+						if gw > 0 && gh > 0 && row >= 0 && row < gh && col >= 0 && col < gw {
 							cw := (natW - 24) / float32(gw)
 							ch := (natH - 20) / float32(gh)
 							// Only what fits on the row: a prediction that
@@ -1096,9 +1103,16 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 							if n := gw - col; n > 0 && len([]rune(text)) > n {
 								text = string([]rune(text)[:n])
 							}
-							ui.Text(c, text).Font(terminalFont).FontSize(ch / 1.2).
-								TextColor(tk.Foreground).SingleLine().
-								Absolute().Left(12 + float32(col)*cw).Top(top + 10 + float32(row)*ch)
+							// The terminal draws at its own point size, with
+							// the glyphs centred in the cell; the same size
+							// and centring here keeps the prediction on the
+							// cell instead of beside it.
+							const fs = float32(12)
+							ui.Text(c, text).Font(terminalFont + ", SF Mono, Menlo, monospace").
+								FontSize(fs).TextColor(tk.Foreground).SingleLine().
+								Absolute().
+								Left(12 + float32(col)*cw).
+								Top(top + 10 + float32(row)*ch + (ch-fs*1.2)/2)
 						}
 					}
 				})
