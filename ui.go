@@ -1108,24 +1108,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						}
 					}
 					w, h := remoteViewSize(cols, rows, p.cellW, p.cellH)
-					// The card keeps more room than the grid takes when
-					// the Mac watching it has a smaller window: the screen
-					// sits in the middle of the card instead of in a corner,
-					// the same screen the other Mac has, at its size.
-					area := ui.Box(c).Fill()
-					area.Children(func() {
-						left, top := float32(0), float32(0)
-						aw, ah := area.Bounds().W, area.Bounds().H
-						if aw > w {
-							left = (aw - w) / 2
-						}
-						if ah > h {
-							top = (ah - h) / 2
-						}
-						el = terminal.View(c, p.term).Width(w).Height(h).
-							Absolute().Left(left).Top(top)
-					})
-					el = area
+					el = el.Width(w).Height(h)
 				} else {
 					el = el.Fill()
 					// The size the pane's terminal is laid out at is what its
