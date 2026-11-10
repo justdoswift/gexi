@@ -216,11 +216,15 @@ type workspace struct {
 	remoteLeaveTarget *pane
 	remoteLeaveMsg    string
 
-	// commitOpen is the manual commit-message prompt, shown when the pane
-	// has no agent that can write one or the agent could not answer.
+	// commitOpen is the pull request prompt: the commit message when the
+	// checkout holds work that has not been committed, and the description
+	// GitHub shows with the pull request. It opens holding what the pane's
+	// agent wrote for both.
 	commitOpen   bool
 	commitTarget *pane
 	commitText   string
+	commitNeeds  bool
+	prBody       string
 	commitHint   string
 	commitErr    string
 
