@@ -615,6 +615,69 @@ func TestRemoteWantGrid(t *testing.T) {
 	}
 }
 
+// TestWatchRemoteSize: a watching Mac's size takes the pane's terminal, and
+// the view is then laid out at exactly that grid.
+func TestWatchRemoteSize(t *testing.T) {
+	term, _ := probeTerminal(t)
+	p := &pane{term: term}
+	p.watchRemoteSize(100, 30)
+	if cols, rows := term.Size(); cols != 100 || rows != 30 {
+		t.Fatalf("terminal %vx%v, want 100x30", cols, rows)
+	}
+	if !p.remoteWatched() {
+		t.Fatal("the pane does not report the watching Mac")
+	}
+	w, h := remoteViewSize(100, 30, 7.5, 19)
+	if w != 774 || h != 590 {
+		t.Fatalf("view %vx%v, want 774x590", w, h)
+	}
+}
+
+// TestWatchRemoteSizeLeavesTheSettledGrid: the pane's own view sizes the
+// terminal from the held grid every frame, so its rounding decides where the
+// terminal settles. A poll that names the same grid again must leave that
+// size alone: forcing it back on every poll sends a SIGWINCH at the poll's
+// rate, and a full-screen agent redraws its whole screen each time.
+func TestWatchRemoteSizeLeavesTheSettledGrid(t *testing.T) {
+	term, _ := probeTerminal(t)
+	p := &pane{term: term}
+	p.watchRemoteSize(100, 30)
+	// The view rounds the card's width down a column, as a card narrower
+	// than the requested grid does.
+	term.Resize(99, 30)
+	p.watchRemoteSize(100, 30)
+	if cols, rows := term.Size(); cols != 99 || rows != 30 {
+		t.Fatalf("a repeated poll resized the terminal to %vx%v, want 99x30", cols, rows)
+	}
+	// A new grid still takes the pane, and a watch that lapsed applies the
+	// grid again when the Mac comes back.
+	p.watchRemoteSize(120, 40)
+	if cols, rows := term.Size(); cols != 120 || rows != 40 {
+		t.Fatalf("a new request left the terminal at %vx%v, want 120x40", cols, rows)
+	}
+	term.Resize(118, 40)
+	p.remoteWatchAt = time.Now().Add(-remoteWatchTTL - time.Second)
+	p.watchRemoteSize(120, 40)
+	if cols, rows := term.Size(); cols != 120 || rows != 40 {
+		t.Fatalf("a fresh watch left the terminal at %vx%v, want 120x40", cols, rows)
+	}
+}
+
+// TestStreamViewSizeFollowsTheHeldGrid: the watching Mac measures a cell from
+// the view size and grid the stream names, so while it watches both must come
+// from the held grid, not from the card the pane was laid out at before.
+func TestStreamViewSizeFollowsTheHeldGrid(t *testing.T) {
+	term, _ := probeTerminal(t)
+	p := &pane{term: term, cellW: 7.5, cellH: 19, viewW: 1000, viewH: 500}
+	if w, h := p.streamViewSize(120, 30); w != 1000 || h != 500 {
+		t.Fatalf("unwatched view %vx%v, want the last card's 1000x500", w, h)
+	}
+	p.watchRemoteSize(120, 30)
+	if w, h := p.streamViewSize(120, 30); w != 924 || h != 590 {
+		t.Fatalf("watched view %vx%v, want 924x590", w, h)
+	}
+}
+
 // TestRemoteMirrorTop: a mirror taller than its card shows the lowest row
 // with text at the card's bottom, so a full-screen program's input line stays
 // visible; a shell's prompt near the top leaves the view at the top.

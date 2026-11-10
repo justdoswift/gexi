@@ -607,6 +607,62 @@ func (w *workspace) remoteWake(id string) (<-chan struct{}, func()) {
 	return ch, cancel
 }
 
+// remoteWatchTTL is how long a pane keeps the size a paired Mac asked for
+// after its last look. The client polls while it shows the pane, so the size
+// lapses a moment after it looks away and the pane takes the card's again.
+const remoteWatchTTL = 3 * time.Second
+
+// watchRemoteSize gives p the size the paired Mac watching it fits: the
+// other Mac's terminal then has the columns and rows of its own window, and
+// its lines wrap where that window ends, at this Mac's text size. Main
+// thread; pane.stream runs there.
+func (p *pane) watchRemoteSize(cols, rows int) {
+	if p == nil || p.term == nil || cols < 1 || rows < 1 {
+		return
+	}
+	// The pane's view lays the terminal out at the held grid on every
+	// frame, and its rounding of the card's size is what the terminal ends
+	// up at. Asking again for the grid the last poll already named must
+	// leave that settled size alone: resizing it back on every poll would
+	// send the agent a SIGWINCH at the poll's rate, and a full-screen
+	// display redraws its whole screen each time.
+	changed := !p.remoteWatched() || p.remoteCols != cols || p.remoteRows != rows
+	p.remoteCols, p.remoteRows = cols, rows
+	p.remoteWatchAt = time.Now()
+	if changed {
+		if c, r := p.term.Size(); c != cols || r != rows {
+			p.term.Resize(cols, rows)
+		}
+	}
+	// One timer while the Mac is watching lets the pane take the card's size
+	// again once it stops; it is set at most once a second.
+	if p.ws != nil && time.Since(p.remoteWatchTick) > time.Second {
+		p.remoteWatchTick = time.Now()
+		time.AfterFunc(remoteWatchTTL, func() {
+			p.ws.onMain(func() { p.ws.invalidate() })
+		})
+	}
+}
+
+// remoteWatched reports whether a paired Mac asked for this pane's size
+// recently enough that the view should hold it.
+func (p *pane) remoteWatched() bool {
+	return p != nil && p.remoteCols > 0 && p.remoteRows > 0 &&
+		time.Since(p.remoteWatchAt) < remoteWatchTTL
+}
+
+// streamViewSize is the size the pane's view is laid out at, for the stream
+// to report. While a Mac watches, the view holds the grid the terminal now
+// has, and its size follows from that grid; the card's last size would pair
+// an old width with the new grid, and the watching Mac measures a cell from
+// the two. Otherwise it is the size the last frame laid the view out at.
+func (p *pane) streamViewSize(cols, rows int) (float32, float32) {
+	if p.remoteWatched() {
+		return remoteViewSize(cols, rows, p.cellW, p.cellH)
+	}
+	return p.viewW, p.viewH
+}
+
 // remoteMirrorTop is where a mirrored screen starts inside its card: 0 when
 // the whole screen fits, and otherwise high enough that the lowest row with
 // text, anchor, sits at the card's bottom. A full-screen program draws its

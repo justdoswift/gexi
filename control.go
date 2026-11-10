@@ -247,6 +247,11 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		// A viewing Mac names the size its window fits, so the pane takes it
+		// and its lines wrap where that window ends.
+		if cols, rows := intParam(p, "cols"), intParam(p, "rows"); cols > 0 && rows > 0 {
+			pane.watchRemoteSize(cols, rows)
+		}
 		offset := int64(intParam(p, "offset"))
 		var snap []byte
 		reset := offset <= 0 || boolParam(p, "snapshot")
@@ -263,7 +268,7 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		cols, rows := pane.term.Size()
 		// The watching Mac measures the cell from these two numbers and
 		// the grid; while it watches, both come from the held grid.
-		viewW, viewH := pane.viewW, pane.viewH
+		viewW, viewH := pane.streamViewSize(cols, rows)
 		out := map[string]any{
 			"pane":   pane.ID,
 			"title":  pane.title(),
