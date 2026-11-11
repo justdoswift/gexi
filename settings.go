@@ -718,6 +718,9 @@ func (w *workspace) setAppearance(value string) {
 	w.settings.Appearance = value
 	w.settings.save()
 	mygo.Theme.SetSource(appearanceSource(value))
+	// The agents' own themes are a preference, not a path into this build, so
+	// a dev build hands the switch on too.
+	syncAgentThemes()
 }
 
 // languageRow pins the app's language, or leaves it to the system's.
