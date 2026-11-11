@@ -619,6 +619,16 @@ func (p *pane) watchRemoteSize(cols, rows int) {
 	if p == nil || p.term == nil || cols < 1 || rows < 1 {
 		return
 	}
+	// The window in use owns the grid, even while nobody types in it: reading
+	// a pane is using it, and giving its terminal the watching Mac's size
+	// would resize it under the pointer, leaving the old screen behind. The
+	// request is kept, without a fresh watch, so the first poll after this
+	// window goes to the background takes the grid.
+	if p.ws != nil && p.ws.windowActive {
+		p.remoteCols, p.remoteRows = cols, rows
+		p.remoteWatchAt = time.Time{}
+		return
+	}
 	changed := !p.remoteWatched() || p.remoteCols != cols || p.remoteRows != rows
 	p.remoteCols, p.remoteRows = cols, rows
 	p.remoteWatchAt = time.Now()
@@ -637,25 +647,16 @@ func (p *pane) watchRemoteSize(cols, rows int) {
 	}
 }
 
-// remoteInputHold is how long a key press keeps this pane the one being
-// worked in here: a window that has focus with nobody typing is not in use,
-// so the Mac watching the pane keeps its own grid instead of a clipped one.
-const remoteInputHold = 20 * time.Second
-
 // remoteWatched reports whether the other Mac's grid is the one to use: it
-// asked recently, and this pane is not the one being worked in here.
+// asked recently, and this window is not the one in use. An active window
+// owns the grid even while nobody types in it: the pane is on screen being
+// read, and resizing it there leaves the frame before it behind.
 func (p *pane) remoteWatched() bool {
-	if p == nil || p.ws == nil || p.workedInHere() {
+	if p == nil || p.ws == nil || p.ws.windowActive {
 		return false
 	}
 	return p.remoteCols > 0 && p.remoteRows > 0 &&
 		time.Since(p.remoteWatchAt) < remoteWatchTTL
-}
-
-// workedInHere reports whether this pane is being used at this Mac: its
-// window has the keyboard, and a key went to the pane a moment ago.
-func (p *pane) workedInHere() bool {
-	return p != nil && p.ws != nil && p.ws.windowActive && time.Since(p.lastKeyAt) < remoteInputHold
 }
 
 // streamViewSize is the size the pane's view is laid out at, for the stream

@@ -15,7 +15,6 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/egoist/mygo/plugins/terminal"
-	"github.com/egoist/mygo/ui"
 )
 
 // paneOutputLog is how much of a pane's recent output a remote mirror can
@@ -268,9 +267,6 @@ type pane struct {
 	remoteCols, remoteRows int
 	remoteWatchAt          time.Time
 	remoteWatchTick        time.Time
-	// lastKeyAt is when a key last went to this pane's terminal. A window
-	// that has focus with nobody typing is not the one in use.
-	lastKeyAt time.Time
 	// stageEnter asks the next frame to bring this pane onto the stage with
 	// a grow and fade, as a card comes forward.
 	stageEnter bool
@@ -441,13 +437,6 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 		OnExit: func(int) {
 			p.exited = true
 			ws.invalidate()
-		},
-		// A key here says this pane is the one being worked in. A window
-		// that merely has focus, with nobody typing, is not, and the Mac
-		// watching the pane takes the size until typing starts.
-		OnKey: func(ui.Modifiers, ui.Key) bool {
-			p.lastKeyAt = time.Now()
-			return false
 		},
 	})
 	if err != nil {

@@ -676,32 +676,45 @@ func TestChooseRoutePrefersLAN(t *testing.T) {
 	}
 }
 
-// A pane gives its grid to the Mac watching it unless someone here is typing
-// in it: focus alone, with nobody at the keyboard, is not being worked in.
-func TestRemoteWatchedFollowsTyping(t *testing.T) {
+// A pane gives its grid to the Mac watching it only while this window is in
+// the background: the window being used owns the grid, even while nobody
+// types in it, so the pane never resizes under someone reading it.
+func TestRemoteWatchedFollowsTheWindow(t *testing.T) {
 	ws := &workspace{windowActive: true}
 	p := &pane{ws: ws, remoteCols: 100, remoteRows: 30, remoteWatchAt: time.Now()}
 
-	p.lastKeyAt = time.Now()
 	if p.remoteWatched() {
-		t.Fatal("a pane being typed in kept the watching Mac's grid")
-	}
-
-	p.lastKeyAt = time.Now().Add(-remoteInputHold - time.Second)
-	if !p.remoteWatched() {
-		t.Fatal("a window with nobody typing did not give the pane to the watching Mac")
+		t.Fatal("an active window gave its grid to the watching Mac")
 	}
 
 	ws.windowActive = false
-	p.lastKeyAt = time.Now()
 	if !p.remoteWatched() {
 		t.Fatal("a background window did not give the pane to the watching Mac")
 	}
 
-	ws.windowActive = true
-	p.lastKeyAt = time.Time{}
 	p.remoteWatchAt = time.Now().Add(-remoteWatchTTL - time.Second)
 	if p.remoteWatched() {
 		t.Fatal("a Mac that stopped watching kept the grid")
+	}
+}
+
+// TestActiveWindowKeepsTheGrid: a poll from a watching Mac must not resize
+// the pane while this window is in use, since the pane is on screen and the
+// grid would change under the reader. The request waits for the window to
+// go to the background, then takes the pane.
+func TestActiveWindowKeepsTheGrid(t *testing.T) {
+	term, _ := probeTerminal(t)
+	ws := &workspace{windowActive: true}
+	p := &pane{ws: ws, term: term}
+
+	p.watchRemoteSize(100, 30)
+	if cols, rows := term.Size(); cols == 100 && rows == 30 {
+		t.Fatal("an active window's pane took the watching Mac's grid")
+	}
+
+	ws.windowActive = false
+	p.watchRemoteSize(100, 30)
+	if cols, rows := term.Size(); cols != 100 || rows != 30 {
+		t.Fatalf("the grid in the background = %dx%d, want 100x30", cols, rows)
 	}
 }
