@@ -93,8 +93,12 @@ func (w *workspace) chromeBackground() string {
 }
 
 // terminalThemes is the pair every terminal takes: the light theme and the
-// dark one, so the view follows the window's appearance as it changes.
+// dark one, so the view follows the window's appearance as it changes. A
+// side the user left unset is the toolkit's own for that appearance, not
+// the other side repeated: a program asking for the background color must
+// see the colors the window really has.
 func (w *workspace) terminalThemes() (light, dark *terminal.Theme) {
+	light, dark = terminal.LightTheme(), terminal.DarkTheme()
 	if name := w.settings.ThemeLight; name != "" {
 		if th, err := terminal.GhosttyTheme(name); err == nil {
 			light = th
