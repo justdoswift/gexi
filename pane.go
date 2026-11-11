@@ -417,12 +417,7 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 		// leaving the grid's own background undrawn lets the card change
 		// colour while its pane is picked up, without the grid covering it.
 		Transparent: true,
-		Font: terminal.Font{
-			Family:     terminalFont + ", SF Mono, Menlo, monospace",
-			Size:       12,
-			Weight:     400,
-			LineHeight: 1.2,
-		},
+		Font:        ws.terminalTextFont(),
 		// The user's themes, one for each appearance: the view takes the
 		// dark one in a dark window, so switching appearance keeps it.
 		Theme:     lightTheme,

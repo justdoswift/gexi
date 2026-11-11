@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +40,11 @@ type appSettings struct {
 	// terminal colours.
 	ThemeLight string `json:"themeLight"`
 	ThemeDark  string `json:"themeDark"`
+	// TerminalFont is the family panes draw text in; "" is the embedded
+	// JetBrains Mono Nerd Font Mono. TerminalFontSize is their text size;
+	// 0 is the default 12.
+	TerminalFont     string  `json:"terminalFont"`
+	TerminalFontSize float32 `json:"terminalFontSize"`
 
 	// Remote access on the local network: whether this Mac can be reached,
 	// the six-digit code a client pairs with, the devices paired so far, and
@@ -97,6 +103,11 @@ func loadSettings() appSettings {
 		if *name != "" && !themeExists(*name) {
 			*name = ""
 		}
+	}
+	// A size from outside the range the picker offers falls back to the
+	// default, as a hand-edited file may carry one.
+	if s.TerminalFontSize < terminalFontSizeMin || s.TerminalFontSize > terminalFontSizeMax {
+		s.TerminalFontSize = 0
 	}
 	// Remote access needs the code clients pair with; a settings file from
 	// before the feature, or a hand-edited one, gets a fresh code.
@@ -196,6 +207,7 @@ func (w *workspace) openSettings() {
 }
 
 func (w *workspace) settingsView(c *ui.Context) {
+	w.applyInterfaceFont(c)
 	tk := w.tokens(c)
 	// The page takes the theme's own colour: the settings window carries no
 	// material, so its cards and rows sit on the theme's surface.
@@ -350,6 +362,13 @@ func (w *workspace) generalPage(c *ui.Context, tk tokens) {
 		})
 		cardDivider(c, tk)
 		w.languageRow(c, tk)
+	})
+
+	sectionLabel(c, tk, locales.SettingsTerminal())
+	settingsCard(c, tk, func() {
+		w.terminalFontRow(c, tk)
+		cardDivider(c, tk)
+		w.terminalFontSizeRow(c, tk)
 	})
 }
 
@@ -734,6 +753,81 @@ func (w *workspace) languageRow(c *ui.Context, tk tokens) {
 			{value: "zh-Hans", label: "简体中文"},
 		}, w.settings.Language, w.setLanguage)
 	})
+}
+
+// terminalFontRow is the terminal's family, offered from the monospaced
+// fonts the system has plus the embedded one.
+func (w *workspace) terminalFontRow(c *ui.Context, tk tokens) {
+	if w.terminalFontSeen == "" {
+		w.terminalFontChoice = w.settings.TerminalFont
+		if w.terminalFontChoice == "" {
+			w.terminalFontChoice = terminalFont
+		}
+		w.terminalFontSeen = w.terminalFontChoice
+	}
+	ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
+		ui.Text(c, locales.SettingsTerminalFont()).FontSize(13).TextColor(tk.Foreground)
+		ui.Spacer(c)
+		ui.Select(c, &w.terminalFontChoice, terminalFontChoices(w.terminalFontChoice))
+	})
+	if w.terminalFontChoice == w.terminalFontSeen {
+		return
+	}
+	w.terminalFontSeen = w.terminalFontChoice
+	family := w.terminalFontChoice
+	if family == terminalFont {
+		family = ""
+	}
+	w.settings.TerminalFont = family
+	w.settings.save()
+	w.applyTerminalFont()
+}
+
+// terminalFontSizeRow is the terminal's text size, in the range the picker
+// offers.
+func (w *workspace) terminalFontSizeRow(c *ui.Context, tk tokens) {
+	if w.terminalSizeSeen == "" {
+		w.terminalSizeChoice = strconv.Itoa(int(w.terminalFontSize()))
+		w.terminalSizeSeen = w.terminalSizeChoice
+	}
+	ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
+		ui.Text(c, locales.SettingsTerminalFontSize()).FontSize(13).TextColor(tk.Foreground)
+		ui.Spacer(c)
+		ui.Select(c, &w.terminalSizeChoice, terminalFontSizes)
+	})
+	if w.terminalSizeChoice == w.terminalSizeSeen {
+		return
+	}
+	w.terminalSizeSeen = w.terminalSizeChoice
+	size, err := strconv.Atoi(w.terminalSizeChoice)
+	if err != nil {
+		return
+	}
+	w.settings.TerminalFontSize = float32(size)
+	w.settings.save()
+	w.applyTerminalFont()
+}
+
+// applyTerminalFont hands a new font or size to every terminal on screen,
+// so the choice shows at once in the panes that are already open.
+func (w *workspace) applyTerminalFont() {
+	font := w.terminalTextFont()
+	apply := func(p *pane) {
+		if p.term != nil {
+			p.term.SetFont(font)
+		}
+		if p.stageMirror != nil && p.stageMirror.sink != nil {
+			p.stageMirror.sink.SetFont(font)
+		}
+	}
+	for _, p := range w.allPanes() {
+		apply(p)
+	}
+	for _, p := range w.detached {
+		apply(p)
+	}
+	w.invalidate()
+	w.invalidateSettings()
 }
 
 type segment struct {

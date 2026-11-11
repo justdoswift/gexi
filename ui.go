@@ -22,6 +22,7 @@ import (
 // radius, quiet hover states.
 
 func (w *workspace) view(c *ui.Context) {
+	w.applyInterfaceFont(c)
 	if w.pendingToast != "" {
 		if w.pendingToastAction != "" && w.pendingAction != nil {
 			c.ToastAction(w.pendingToast, w.pendingToastAction, w.pendingAction)

@@ -594,6 +594,36 @@ func (msgs Messages) AppearanceDark() string {
 	return Catalog.Format(msgs.locale, "appearanceDark", nil)
 }
 
+// SettingsTerminal says "Font"
+// in the language the app shows.
+func SettingsTerminal() string { return In(i18n.Locale()).SettingsTerminal() }
+
+// SettingsTerminal says "Font"
+// in the language of msgs.
+func (msgs Messages) SettingsTerminal() string {
+	return Catalog.Format(msgs.locale, "settingsTerminal", nil)
+}
+
+// SettingsTerminalFont says "Font"
+// in the language the app shows.
+func SettingsTerminalFont() string { return In(i18n.Locale()).SettingsTerminalFont() }
+
+// SettingsTerminalFont says "Font"
+// in the language of msgs.
+func (msgs Messages) SettingsTerminalFont() string {
+	return Catalog.Format(msgs.locale, "settingsTerminalFont", nil)
+}
+
+// SettingsTerminalFontSize says "Terminal size"
+// in the language the app shows.
+func SettingsTerminalFontSize() string { return In(i18n.Locale()).SettingsTerminalFontSize() }
+
+// SettingsTerminalFontSize says "Terminal size"
+// in the language of msgs.
+func (msgs Messages) SettingsTerminalFontSize() string {
+	return Catalog.Format(msgs.locale, "settingsTerminalFontSize", nil)
+}
+
 // SettingsThemes says "Themes"
 // in the language the app shows.
 func SettingsThemes() string { return In(i18n.Locale()).SettingsThemes() }
