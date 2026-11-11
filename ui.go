@@ -1108,11 +1108,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			var el ui.Element
 			if p.remote != nil {
 				// A pane on another Mac shows that Mac's screen at that
-				// Mac's grid, wherever the card has room: letterboxed when
-				// the card is bigger, clipped from the top when it is
-				// smaller, so the bottom of a full-screen program stays in
-				// view. The grid this card fits goes with the watch, and the
-				// other Mac takes it while its own window is not in use.
+				// Mac's grid: scaled down to fit when the card is smaller,
+				// centered when it is bigger, so every part of the screen
+				// stays visible at a readable size. The grid this card fits
+				// goes with the watch, and the other Mac takes it while its
+				// own window is not in use.
 				area := ui.Box(c).Fill().Clip()
 				area.Children(func() {
 					aw, ah := area.Bounds().W, area.Bounds().H
@@ -1123,17 +1123,17 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						p.remote.wantRows.Store(int32(rows))
 					}
 					natW, natH := mirrorSize(p)
-					left, top := float32(0), float32(0)
-					if aw > natW {
-						left = (aw - natW) / 2
+					// That Mac's screen whole in this card: scaled down when
+					// its grid is wider or taller than the card, which it is
+					// while this window owns the grid, rather than cut off.
+					scale := float32(1)
+					if natW > 0 && natH > 0 && aw > 0 && ah > 0 {
+						scale = min(1, aw/natW, ah/natH)
 					}
-					if ah > natH {
-						top = (ah - natH) / 2
-					} else {
-						top = ah - natH
-					}
+					left, top := (aw-natW*scale)/2, (ah-natH*scale)/2
 					el = terminal.View(c, p.term).Width(natW).Height(natH).
-						Absolute().Left(left).Top(top)
+						Absolute().Left(left).Top(top).
+						TransformOrigin(0, 0).Scale(scale, scale)
 				})
 				el = area
 			} else {
