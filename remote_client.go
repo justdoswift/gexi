@@ -957,13 +957,8 @@ func (rc *remoteConn) newPane(s *session, paneID string) *pane {
 		Transparent: true,
 		Theme:       lightTheme,
 		DarkTheme:   darkTheme,
-		Font: terminal.Font{
-			Family:     terminalFont + ", SF Mono, Menlo, monospace",
-			Size:       12,
-			Weight:     400,
-			LineHeight: 1.2,
-		},
-		Padding: terminal.Padding{X: 12, Y: 10},
+		Font:        rc.ws.terminalTextFont(),
+		Padding:     terminal.Padding{X: 12, Y: 10},
 	})
 	if err != nil {
 		_ = sink.Close()
