@@ -789,7 +789,6 @@ const zoomShortcut = "⇧⌘↩"
 
 func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	bar := c.TitleBar()
-	w.windowActive = c.WindowActive()
 	focused := p.ID == w.FocusedPane
 	underChrome := leading && w.settings.SidebarCollapsed
 
@@ -1137,41 +1136,18 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				})
 				el = area
 			} else {
-				el = terminal.View(c, p.term)
-				if p.remoteWatched() {
-					// A paired Mac watches this pane at the size its own window
-					// fits, and that window is the one in use: the view holds
-					// the grid the terminal now has, so this card does not
-					// resize it back under that Mac.
-					cols, rows := p.remoteCols, p.remoteRows
-					if cardW, cardH := col.Bounds().W, col.Bounds().H-headerHeight; cardW > 0 && cardH > 0 {
-						cw, ch := p.cellW, p.cellH
-						if cw <= 0 {
-							cw = 7.55
+				// The pane keeps its own card's grid: a watching Mac fits
+				// the screen it gets into its card, rather than the host
+				// resizing a pane someone here is looking at.
+				el = terminal.View(c, p.term).Fill()
+				if b := el.LayoutBounds(); b.W > 0 && b.H > 0 {
+					p.viewW, p.viewH = b.W, b.H
+					if cols, rows := p.term.Size(); cols > 0 && rows > 0 {
+						if cw := (b.W - 24) / float32(cols); cw > 0 {
+							p.cellW = cw
 						}
-						if ch <= 0 {
-							ch = 19.2
-						}
-						if n := int((cardW - 24) / cw); n > 0 && n < cols {
-							cols = n
-						}
-						if n := int((cardH - 20) / ch); n > 0 && n < rows {
-							rows = n
-						}
-					}
-					w, h := remoteViewSize(cols, rows, p.cellW, p.cellH)
-					el = el.Width(w).Height(h)
-				} else {
-					el = el.Fill()
-					if b := el.LayoutBounds(); b.W > 0 && b.H > 0 {
-						p.viewW, p.viewH = b.W, b.H
-						if cols, rows := p.term.Size(); cols > 0 && rows > 0 {
-							if cw := (b.W - 24) / float32(cols); cw > 0 {
-								p.cellW = cw
-							}
-							if ch := (b.H - 20) / float32(rows); ch > 0 {
-								p.cellH = ch
-							}
+						if ch := (b.H - 20) / float32(rows); ch > 0 {
+							p.cellH = ch
 						}
 					}
 				}
