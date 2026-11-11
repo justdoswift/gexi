@@ -260,13 +260,6 @@ type pane struct {
 	// cellW and cellH are a cell's size in DIPs, measured whenever the view
 	// is laid out at the card's size.
 	cellW, cellH float32
-	// remoteCols and remoteRows are the grid the Mac watching this pane
-	// asked for, and remoteWatchAt when it last asked. While this window is
-	// in the background, that Mac is the one being used, so its grid wins,
-	// as tmux gives the window to the client last used.
-	remoteCols, remoteRows int
-	remoteWatchAt          time.Time
-	remoteWatchTick        time.Time
 	// stageEnter asks the next frame to bring this pane onto the stage with
 	// a grow and fade, as a card comes forward.
 	stageEnter bool
