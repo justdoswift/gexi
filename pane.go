@@ -225,6 +225,19 @@ type pane struct {
 	restored bool
 	sawAgent bool           // an agent was detected at some point in this pane
 	activity *agentActivity // last hook event from the agent
+	// Label is the name the user gave the pane, or the one gexi made from
+	// its first message. It outranks the agent's name and the terminal
+	// title, so neither can overwrite a name the user set.
+	Label string
+	// firstPrompt is the first message the user sent to the agent here,
+	// kept so a name can be made from what the work is about.
+	firstPrompt string
+	// nameAsked says the pane's agent was already asked to name it, or the
+	// user named it by hand; the first message does not ask twice.
+	nameAsked bool
+	// nameKind is the agent that can name the pane, kept after the agent
+	// exits so its first message can still be turned into a name.
+	nameKind agentKind
 	// titleSeen is the title last looked at, and titleSeenAt when it last
 	// changed: a spinner mark that stops moving is not work.
 	titleSeen   string
@@ -583,6 +596,11 @@ func cleanTitle(title string) string {
 }
 
 func (p *pane) title() string {
+	// A name set by hand, or made from the first message, is the pane's own
+	// and outranks whatever the agent or the terminal calls itself.
+	if p.Label != "" {
+		return p.Label
+	}
 	// A pane on another Mac is called what its host calls it, with the
 	// host's activity mark dropped as a local title's is.
 	if p.remote != nil && p.remote.title != "" {
@@ -611,11 +629,29 @@ func (p *pane) dir() string {
 	return home
 }
 
+// noteFirstPrompt keeps the first message the user sent to the agent, so a
+// name can be made from what the work is about. It reports whether this was
+// that first message.
+func (p *pane) noteFirstPrompt(prompt string) bool {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" || p.firstPrompt != "" {
+		return false
+	}
+	p.firstPrompt = prompt
+	return true
+}
+
 // applyPerchTurn records whether a Perch turn is running in this pane. Perch
 // has no hooks, so this is the only source of its working state; the prompt
 // is kept so the sidebar can say what it is working on. It reports whether
 // anything changed.
 func (p *pane) applyPerchTurn(busy bool, prompt string) bool {
+	if busy && p.noteFirstPrompt(prompt) && p.ws != nil {
+		if p.nameKind == "" {
+			p.nameKind = agentPerch
+		}
+		p.ws.namePaneWithAgent(p, agentPerch)
+	}
 	state := activityIdle
 	if busy {
 		state = activityWorking

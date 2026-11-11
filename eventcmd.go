@@ -53,6 +53,11 @@ func runEventCommand(args []string) bool {
 	if msg := hook.message(); msg != "" {
 		params["message"] = msg
 	}
+	// Claude Code hands UserPromptSubmit the prompt itself, which is what a
+	// pane names itself from.
+	if hook.Prompt != "" {
+		params["prompt"] = hook.Prompt
+	}
 	if hook.AgentID != "" {
 		params["subagent"] = hook.AgentID
 	}
@@ -74,8 +79,11 @@ func runEventCommand(args []string) bool {
 type hookPayload struct {
 	LastAssistantMessage string `json:"last_assistant_message"`
 	Message              string `json:"message"`
-	AgentID              string `json:"agent_id"`
-	AgentType            string `json:"agent_type"`
+	// Prompt is the text the user submitted, which UserPromptSubmit
+	// carries; a pane names itself from the first one.
+	Prompt    string `json:"prompt"`
+	AgentID   string `json:"agent_id"`
+	AgentType string `json:"agent_type"`
 }
 
 // message is what the agent said: the final reply for Stop, and the prompt it

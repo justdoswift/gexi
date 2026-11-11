@@ -72,7 +72,9 @@ export default function (pi: any) {
 	pi.on("input", async (event: any) => {
 		if (event.source === "extension") return;
 		last = "";
-		const result = await report("turn.start");
+		// The text is the pane's first message when this is a new
+		// conversation; gexi names the pane from it.
+		const result = await report("turn.start", event.text);
 		const context = result && typeof result.context === "string" ? result.context : "";
 		if (context) return { action: "transform", text: event.text + "\n\n" + context };
 	});

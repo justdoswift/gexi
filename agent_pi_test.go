@@ -67,7 +67,7 @@ func TestPiEventsExtension(t *testing.T) {
 	for _, want := range []string{
 		`import { connect } from "node:net"`,
 		`pi.on("session_start"`, `report("session.start")`,
-		`pi.on("input"`, `await report("turn.start")`,
+		`pi.on("input"`, `await report("turn.start", event.text)`,
 		`pi.on("agent_settled"`, `report("turn.end", last)`,
 		`pi.on("ui_prompt_start"`, `report("needs-input")`,
 		`pi.on("session_shutdown"`, `report("session.end")`,

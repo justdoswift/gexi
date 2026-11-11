@@ -3216,6 +3216,86 @@ func (msgs Messages) Rename() string {
 	return Catalog.Format(msgs.locale, "rename", nil)
 }
 
+// RenamePane says "Rename Pane…"
+// in the language the app shows.
+func RenamePane() string { return In(i18n.Locale()).RenamePane() }
+
+// RenamePane says "Rename Pane…"
+// in the language of msgs.
+func (msgs Messages) RenamePane() string {
+	return Catalog.Format(msgs.locale, "renamePane", nil)
+}
+
+// RenamePaneTitle says "Rename Pane"
+// in the language the app shows.
+func RenamePaneTitle() string { return In(i18n.Locale()).RenamePaneTitle() }
+
+// RenamePaneTitle says "Rename Pane"
+// in the language of msgs.
+func (msgs Messages) RenamePaneTitle() string {
+	return Catalog.Format(msgs.locale, "renamePaneTitle", nil)
+}
+
+// RenamePanePlaceholder says "Pane name"
+// in the language the app shows.
+func RenamePanePlaceholder() string { return In(i18n.Locale()).RenamePanePlaceholder() }
+
+// RenamePanePlaceholder says "Pane name"
+// in the language of msgs.
+func (msgs Messages) RenamePanePlaceholder() string {
+	return Catalog.Format(msgs.locale, "renamePanePlaceholder", nil)
+}
+
+// RenamePaneHint says "The name you set stays; or make one from the first message as date|kind|subject."
+// in the language the app shows.
+func RenamePaneHint() string { return In(i18n.Locale()).RenamePaneHint() }
+
+// RenamePaneHint says "The name you set stays; or make one from the first message as date|kind|subject."
+// in the language of msgs.
+func (msgs Messages) RenamePaneHint() string {
+	return Catalog.Format(msgs.locale, "renamePaneHint", nil)
+}
+
+// PaneNameFromFirstMessage says "Name from First Message"
+// in the language the app shows.
+func PaneNameFromFirstMessage() string { return In(i18n.Locale()).PaneNameFromFirstMessage() }
+
+// PaneNameFromFirstMessage says "Name from First Message"
+// in the language of msgs.
+func (msgs Messages) PaneNameFromFirstMessage() string {
+	return Catalog.Format(msgs.locale, "paneNameFromFirstMessage", nil)
+}
+
+// PaneNameWorking says "Naming…"
+// in the language the app shows.
+func PaneNameWorking() string { return In(i18n.Locale()).PaneNameWorking() }
+
+// PaneNameWorking says "Naming…"
+// in the language of msgs.
+func (msgs Messages) PaneNameWorking() string {
+	return Catalog.Format(msgs.locale, "paneNameWorking", nil)
+}
+
+// PaneNameFailed says "Could not name it: {error}"
+// in the language the app shows.
+func PaneNameFailed(error string) string { return In(i18n.Locale()).PaneNameFailed(error) }
+
+// PaneNameFailed says "Could not name it: {error}"
+// in the language of msgs.
+func (msgs Messages) PaneNameFailed(error string) string {
+	return Catalog.Format(msgs.locale, "paneNameFailed", map[string]any{"error": error})
+}
+
+// PaneNameReset says "Use Default Name"
+// in the language the app shows.
+func PaneNameReset() string { return In(i18n.Locale()).PaneNameReset() }
+
+// PaneNameReset says "Use Default Name"
+// in the language of msgs.
+func (msgs Messages) PaneNameReset() string {
+	return Catalog.Format(msgs.locale, "paneNameReset", nil)
+}
+
 // RenameSessionTitle says "Rename Session"
 // in the language the app shows.
 func RenameSessionTitle() string { return In(i18n.Locale()).RenameSessionTitle() }

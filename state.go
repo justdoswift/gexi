@@ -94,6 +94,9 @@ type savedPane struct {
 	Command          []string      `json:"command"`
 	WorkingDirectory string        `json:"workingDirectory"`
 	Worktree         *paneWorktree `json:"worktree,omitempty"`
+	// Label is the name the user set or gexi made from the first message,
+	// so the pane comes back with it.
+	Label string `json:"label,omitempty"`
 }
 
 func statePath() string {
@@ -110,6 +113,7 @@ func (p *pane) saved() savedPane {
 		Command:          p.savedCommand(),
 		WorkingDirectory: p.dir(),
 		Worktree:         p.Worktree,
+		Label:            p.Label,
 	}
 }
 
@@ -308,6 +312,8 @@ func (sp savedDetachedPane) restore(w *workspace) *pane {
 	}
 	p.restored = true
 	p.Worktree = pane.Worktree
+	p.Label = pane.Label
+	p.nameAsked = p.Label != ""
 	return p
 }
 
@@ -327,6 +333,8 @@ func (n *savedNode) restore(w *workspace) (*splitNode, error) {
 		}
 		p.restored = true
 		p.Worktree = n.Pane.Worktree
+		p.Label = n.Pane.Label
+		p.nameAsked = p.Label != ""
 		return leaf(p), nil
 	case "split":
 		if n.First == nil || n.Second == nil {

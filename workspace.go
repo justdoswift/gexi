@@ -267,6 +267,16 @@ type workspace struct {
 	sidebarRenameErr     string
 	sidebarRenameSelect  bool
 
+	// paneRenameOpen is the pane header's rename prompt; paneRenameTarget
+	// is the pane it names, and paneRenameBusy is a name being made from
+	// its first message.
+	paneRenameOpen   bool
+	paneRenameTarget *pane
+	paneRenameText   string
+	paneRenameErr    string
+	paneRenameSelect bool
+	paneRenameBusy   bool
+
 	// Remote: the LAN server this Mac runs while it is reachable, the error
 	// that kept it from starting, the add-host dialog, and the Macs this one
 	// reaches. Each paired host is a project in the sidebar; its sessions

@@ -2826,6 +2826,11 @@ func (w *workspace) restartPaneInDir(p *pane, dir string, wt *paneWorktree, comm
 		return false
 	}
 	np.Worktree = wt
+	// The work keeps its name when its pane moves: a new checkout is the
+	// same piece of work, so the label goes with it, and the new session
+	// does not name itself again over it.
+	np.Label = p.Label
+	np.nameAsked = p.nameAsked || np.Label != ""
 	s.Root = s.Root.replacing(p.ID, leaf(np))
 	p.close()
 	w.FocusedPane = np.ID

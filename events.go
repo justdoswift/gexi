@@ -73,6 +73,9 @@ type agentEvent struct {
 	// Claude Code's final reply on Stop, and the prompt it waits on for a
 	// Notification. A banner shows its first line instead of only the place.
 	Message string `json:"message,omitempty"`
+	// Prompt is the message the user sent for a turn that just started,
+	// when the agent's hooks carry it. A pane names itself from it.
+	Prompt string `json:"prompt,omitempty"`
 	// Subagent is the id of one Task/Agent call: Claude Code's SubagentStart
 	// and SubagentStop hooks carry it, so the pane can pair a start with the
 	// stop that ends the same run. SubagentType is the agent definition it
@@ -143,6 +146,18 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		// the one-time carried-changes note reaches the agent.
 		if ctx := w.worktreeCarriedContext(p); ctx != "" {
 			result["context"] = ctx
+		}
+		// The first message says what the work is about; the pane names
+		// itself from it once, unless the user already named it.
+		prompt := ev.Prompt
+		if prompt == "" {
+			prompt = ev.Message
+		}
+		if p.noteFirstPrompt(prompt) {
+			if kind := agentKind(ev.Agent); kind != "" {
+				p.nameKind = kind
+			}
+			w.namePaneWithAgent(p, agentKind(ev.Agent))
 		}
 		// New work takes the stage from the last completion's light.
 		p.stopHalo()

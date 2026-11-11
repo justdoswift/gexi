@@ -478,3 +478,29 @@ func TestNotificationPaneID(t *testing.T) {
 		}
 	}
 }
+
+// The control socket's event method carries the prompt through to the pane:
+// it is what a pane names itself from, and calling handleEvent directly
+// would not catch the field being dropped on the way in.
+func TestControlEventCarriesThePrompt(t *testing.T) {
+	p := &pane{ID: "p"}
+	s := &session{ID: "s", Root: leaf(p)}
+	pr := &project{ID: "pr", Dir: t.TempDir(), Sessions: []*session{s}}
+	w := &workspace{Projects: []*project{pr}}
+	prompt, err := json.Marshal("补一个登录回归测试")
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := controlRequest{Method: "event", Params: map[string]json.RawMessage{
+		"kind":   json.RawMessage(`"turn.start"`),
+		"agent":  json.RawMessage(`"claude"`),
+		"pane":   json.RawMessage(`"p"`),
+		"prompt": prompt,
+	}}
+	if _, err := w.dispatch(req); err != nil {
+		t.Fatal(err)
+	}
+	if p.firstPrompt != "补一个登录回归测试" {
+		t.Fatalf("first prompt = %q", p.firstPrompt)
+	}
+}

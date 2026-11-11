@@ -99,6 +99,9 @@ func (w *workspace) view(c *ui.Context) {
 	if w.sidebarRenameOpen {
 		w.sidebarRenameDialog(c, tk)
 	}
+	if w.paneRenameOpen {
+		w.paneRenameDialog(c, tk)
+	}
 	if w.closeTarget != nil {
 		p := w.closeTarget
 		dialogAlert(c, tk, &w.closeOpen, 420, locales.PaneCloseTitle(), w.closeMsg,
@@ -563,8 +566,14 @@ func sessionLabel(s *session) string {
 	if s.remote != nil && s.remote.title != "" {
 		return cleanTitle(s.remote.title)
 	}
+	// The first pane is the work the row stands for, so its name names the
+	// session too: one named by hand, or made from its first message.
 	if s.Root != nil {
-		for _, p := range s.Root.panes() {
+		ps := s.Root.panes()
+		if len(ps) > 0 && ps[0].Label != "" {
+			return ps[0].Label
+		}
+		for _, p := range ps {
 			if p.Worktree != nil && p.Worktree.Branch != "" {
 				return p.Worktree.Branch
 			}
@@ -852,6 +861,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			// No rule under the header: the pane card itself is the frame.
 			header := ui.Row(c).Height(headerHeight).Padding(0, 6, 0, left).
 				Background(tk.Background).ClipY().DragWindow()
+			// The pane's name is renamed from anywhere on its header bar,
+			// not only the few points the title itself covers.
+			if p.remote == nil {
+				header = header.ContextMenu(func(m *ui.Menu) { w.paneHeaderMenu(m, p) })
+			}
 			// Split and close belong to the pane the hand is on: they appear
 			// wherever the pointer is over the pane, its terminal included,
 			// or when the pane has the focus, so an idle layout is only the
@@ -884,7 +898,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				// does not say, which checkout the agent works in.
 				agent := p.agent
 				title := p.title()
-				if agent != nil {
+				if agent != nil && p.Label == "" {
 					title = agent.Kind.name()
 				}
 				if p.exited {
