@@ -43,6 +43,23 @@ type workspaceState struct {
 	// WorktreeRestores remembers the command of a pane whose checkout was
 	// kept when the pane closed, keyed by the checkout path.
 	WorktreeRestores map[string][]string `json:"worktreeRestores,omitempty"`
+
+	// IdleSessions are the sessions waiting in the sidebar's bottom fold;
+	// ArchivedSessions are the ones kept in Settings › Archive. Both hold
+	// the panes' commands, so opening one runs the same work again.
+	IdleSessions     []storedSession `json:"idleSessions,omitempty"`
+	ArchivedSessions []storedSession `json:"archivedSessions,omitempty"`
+}
+
+// storedSession is a session that is not running: idle in the sidebar or
+// archived in Settings. Title and ProjectLabel are what the row showed when
+// the session was put away, so it stays recognizable after its project has
+// been closed.
+type storedSession struct {
+	Session      savedSession `json:"session"`
+	ProjectDir   string       `json:"projectDir,omitempty"`
+	ProjectLabel string       `json:"projectLabel,omitempty"`
+	Title        string       `json:"title,omitempty"`
 }
 
 // savedDetachedPane is a background pane and the project it returns to when
@@ -195,6 +212,8 @@ func (w *workspace) savedState() workspaceState {
 		DrawerFileWidth:   w.drawer.fileWidth,
 		ArchivedWorktrees: w.archived,
 		WorktreeRestores:  w.worktreeRestores,
+		IdleSessions:      w.idleSessions,
+		ArchivedSessions:  w.archivedSessions,
 	}
 	if w.drawer.tab == drawerTabFiles {
 		state.DrawerTab = "files"
@@ -242,9 +261,7 @@ func (w *workspace) saveNow() {
 	}
 	if w.settings.RestoreScreen {
 		for _, p := range w.livePanes() {
-			if text := normalizeSnapshot(p.text()); text != "" {
-				_ = os.WriteFile(filepath.Join(snapshotsDir(), p.ID+".txt"), []byte(text), 0o644)
-			}
+			w.saveSnapshot(p)
 		}
 	}
 
@@ -257,6 +274,22 @@ func (w *workspace) saveNow() {
 		return
 	}
 	_ = os.Rename(tmp, statePath())
+}
+
+// saveSnapshot writes one pane's last screen, so a session that is idle,
+// archived, or closed brings its terminal back when it is opened again.
+func (w *workspace) saveSnapshot(p *pane) {
+	if p == nil || p.term == nil || !w.settings.RestoreScreen {
+		return
+	}
+	text := normalizeSnapshot(p.text())
+	if text == "" {
+		return
+	}
+	if err := os.MkdirAll(snapshotsDir(), 0o755); err != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(snapshotsDir(), p.ID+".txt"), []byte(text), 0o644)
 }
 
 // scheduleSave debounces writes after model changes.
@@ -282,7 +315,8 @@ func loadState() (workspaceState, bool) {
 		return state, false
 	}
 	return state, len(state.Projects) > 0 || len(state.Tabs) > 0 || len(state.Detached) > 0 ||
-		len(state.ArchivedWorktrees) > 0 || len(state.WorktreeRestores) > 0
+		len(state.ArchivedWorktrees) > 0 || len(state.WorktreeRestores) > 0 ||
+		len(state.IdleSessions) > 0 || len(state.ArchivedSessions) > 0
 }
 
 // restore brings a background pane back with the command it was saved with.
@@ -373,6 +407,8 @@ func (w *workspace) restoreOrCreate() {
 
 	w.archived = state.ArchivedWorktrees
 	w.worktreeRestores = state.WorktreeRestores
+	w.idleSessions = state.IdleSessions
+	w.archivedSessions = state.ArchivedSessions
 	if w.worktreeRestores == nil {
 		w.worktreeRestores = map[string][]string{}
 	}
@@ -440,7 +476,8 @@ func (w *workspace) restoreOrCreate() {
 		w.detached = append(w.detached, p)
 	}
 
-	if len(w.Projects) == 0 && len(w.detached) == 0 {
+	if len(w.Projects) == 0 && len(w.detached) == 0 &&
+		len(w.idleSessions) == 0 && len(w.archivedSessions) == 0 {
 		_, _, _ = w.openProject("")
 		return
 	}

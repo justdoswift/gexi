@@ -424,6 +424,106 @@ func (msgs Messages) PaneBackgroundExited(title string) string {
 	return Catalog.Format(msgs.locale, "paneBackgroundExited", map[string]any{"title": title})
 }
 
+// SessionIdle says "Idle"
+// in the language the app shows.
+func SessionIdle() string { return In(i18n.Locale()).SessionIdle() }
+
+// SessionIdle says "Idle"
+// in the language of msgs.
+func (msgs Messages) SessionIdle() string {
+	return Catalog.Format(msgs.locale, "sessionIdle", nil)
+}
+
+// SessionArchive says "Archive"
+// in the language the app shows.
+func SessionArchive() string { return In(i18n.Locale()).SessionArchive() }
+
+// SessionArchive says "Archive"
+// in the language of msgs.
+func (msgs Messages) SessionArchive() string {
+	return Catalog.Format(msgs.locale, "sessionArchive", nil)
+}
+
+// SessionRestore says "Restore"
+// in the language the app shows.
+func SessionRestore() string { return In(i18n.Locale()).SessionRestore() }
+
+// SessionRestore says "Restore"
+// in the language of msgs.
+func (msgs Messages) SessionRestore() string {
+	return Catalog.Format(msgs.locale, "sessionRestore", nil)
+}
+
+// SessionIdleFlash says "Session set to idle; find it at the bottom of the sidebar."
+// in the language the app shows.
+func SessionIdleFlash() string { return In(i18n.Locale()).SessionIdleFlash() }
+
+// SessionIdleFlash says "Session set to idle; find it at the bottom of the sidebar."
+// in the language of msgs.
+func (msgs Messages) SessionIdleFlash() string {
+	return Catalog.Format(msgs.locale, "sessionIdleFlash", nil)
+}
+
+// SessionArchivedFlash says "Session archived; find it in Settings › Archive."
+// in the language the app shows.
+func SessionArchivedFlash() string { return In(i18n.Locale()).SessionArchivedFlash() }
+
+// SessionArchivedFlash says "Session archived; find it in Settings › Archive."
+// in the language of msgs.
+func (msgs Messages) SessionArchivedFlash() string {
+	return Catalog.Format(msgs.locale, "sessionArchivedFlash", nil)
+}
+
+// SessionCloseTitle says "Close session?"
+// in the language the app shows.
+func SessionCloseTitle() string { return In(i18n.Locale()).SessionCloseTitle() }
+
+// SessionCloseTitle says "Close session?"
+// in the language of msgs.
+func (msgs Messages) SessionCloseTitle() string {
+	return Catalog.Format(msgs.locale, "sessionCloseTitle", nil)
+}
+
+// SessionCloseBody says "The session stops running, including any agent inside it. Archive keeps it in Settings; Idle keeps it at the bottom o…"
+// in the language the app shows.
+func SessionCloseBody() string { return In(i18n.Locale()).SessionCloseBody() }
+
+// SessionCloseBody says "The session stops running, including any agent inside it. Archive keeps it in Settings; Idle keeps it at the bottom o…"
+// in the language of msgs.
+func (msgs Messages) SessionCloseBody() string {
+	return Catalog.Format(msgs.locale, "sessionCloseBody", nil)
+}
+
+// SessionPaneCount says "{count} panes"
+// in the language the app shows.
+func SessionPaneCount(count string) string { return In(i18n.Locale()).SessionPaneCount(count) }
+
+// SessionPaneCount says "{count} panes"
+// in the language of msgs.
+func (msgs Messages) SessionPaneCount(count string) string {
+	return Catalog.Format(msgs.locale, "sessionPaneCount", map[string]any{"count": count})
+}
+
+// SessionPaneCountOne says "1 pane"
+// in the language the app shows.
+func SessionPaneCountOne() string { return In(i18n.Locale()).SessionPaneCountOne() }
+
+// SessionPaneCountOne says "1 pane"
+// in the language of msgs.
+func (msgs Messages) SessionPaneCountOne() string {
+	return Catalog.Format(msgs.locale, "sessionPaneCountOne", nil)
+}
+
+// SessionOpenFailed says "Could not open the session: {error}"
+// in the language the app shows.
+func SessionOpenFailed(error string) string { return In(i18n.Locale()).SessionOpenFailed(error) }
+
+// SessionOpenFailed says "Could not open the session: {error}"
+// in the language of msgs.
+func (msgs Messages) SessionOpenFailed(error string) string {
+	return Catalog.Format(msgs.locale, "sessionOpenFailed", map[string]any{"error": error})
+}
+
 // SettingsTitle says "Settings"
 // in the language the app shows.
 func SettingsTitle() string { return In(i18n.Locale()).SettingsTitle() }
@@ -1910,6 +2010,70 @@ func SettingsWorktreesEmpty() string { return In(i18n.Locale()).SettingsWorktree
 // in the language of msgs.
 func (msgs Messages) SettingsWorktreesEmpty() string {
 	return Catalog.Format(msgs.locale, "settingsWorktreesEmpty", nil)
+}
+
+// SettingsArchive says "Archive"
+// in the language the app shows.
+func SettingsArchive() string { return In(i18n.Locale()).SettingsArchive() }
+
+// SettingsArchive says "Archive"
+// in the language of msgs.
+func (msgs Messages) SettingsArchive() string {
+	return Catalog.Format(msgs.locale, "settingsArchive", nil)
+}
+
+// SettingsArchiveSessions says "Archived sessions"
+// in the language the app shows.
+func SettingsArchiveSessions() string { return In(i18n.Locale()).SettingsArchiveSessions() }
+
+// SettingsArchiveSessions says "Archived sessions"
+// in the language of msgs.
+func (msgs Messages) SettingsArchiveSessions() string {
+	return Catalog.Format(msgs.locale, "settingsArchiveSessions", nil)
+}
+
+// SettingsArchiveEmpty says "No archived sessions."
+// in the language the app shows.
+func SettingsArchiveEmpty() string { return In(i18n.Locale()).SettingsArchiveEmpty() }
+
+// SettingsArchiveEmpty says "No archived sessions."
+// in the language of msgs.
+func (msgs Messages) SettingsArchiveEmpty() string {
+	return Catalog.Format(msgs.locale, "settingsArchiveEmpty", nil)
+}
+
+// ArchiveSessionDeleteTitle says "Delete archived session?"
+// in the language the app shows.
+func ArchiveSessionDeleteTitle() string { return In(i18n.Locale()).ArchiveSessionDeleteTitle() }
+
+// ArchiveSessionDeleteTitle says "Delete archived session?"
+// in the language of msgs.
+func (msgs Messages) ArchiveSessionDeleteTitle() string {
+	return Catalog.Format(msgs.locale, "archiveSessionDeleteTitle", nil)
+}
+
+// ArchiveSessionDeleteBody says "“{title}” will be deleted for good, with the commands that reopen its panes. This cannot be undone."
+// in the language the app shows.
+func ArchiveSessionDeleteBody(title string) string {
+	return In(i18n.Locale()).ArchiveSessionDeleteBody(title)
+}
+
+// ArchiveSessionDeleteBody says "“{title}” will be deleted for good, with the commands that reopen its panes. This cannot be undone."
+// in the language of msgs.
+func (msgs Messages) ArchiveSessionDeleteBody(title string) string {
+	return Catalog.Format(msgs.locale, "archiveSessionDeleteBody", map[string]any{"title": title})
+}
+
+// ArchiveSessionDeleted says "Deleted “{title}”."
+// in the language the app shows.
+func ArchiveSessionDeleted(title string) string {
+	return In(i18n.Locale()).ArchiveSessionDeleted(title)
+}
+
+// ArchiveSessionDeleted says "Deleted “{title}”."
+// in the language of msgs.
+func (msgs Messages) ArchiveSessionDeleted(title string) string {
+	return Catalog.Format(msgs.locale, "archiveSessionDeleted", map[string]any{"title": title})
 }
 
 // WorktreeStatusBackground says "Running in background"

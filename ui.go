@@ -102,6 +102,9 @@ func (w *workspace) view(c *ui.Context) {
 	if w.paneRenameOpen {
 		w.paneRenameDialog(c, tk)
 	}
+	if w.sessionCloseTarget != nil {
+		w.sessionCloseDialog(c, tk)
+	}
 	if w.closeTarget != nil {
 		p := w.closeTarget
 		dialogAlert(c, tk, &w.closeOpen, 420, locales.PaneCloseTitle(), w.closeMsg,
@@ -301,6 +304,10 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 					TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
 			}
 			ui.Spacer(c)
+			// Idle sessions sit at the very bottom, under everything that
+			// is running, so putting one away clears the list without
+			// hiding the work.
+			w.idleSessionSection(c, tk)
 			// The footer holds the sidebar's two menus: remote Macs on the
 			// left, settings on the right, off the search row so the field
 			// can run nearly as wide as the sessions.
@@ -545,7 +552,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		labelEl.OnClick(pick)
 		ui.Spacer(c).OnClick(pick)
 		if hovered {
-			iconButtonSmall(c, tk, "x", func() { w.closeSession(s) }, locales.CloseSession())
+			iconButtonSmall(c, tk, "x", func() { w.askCloseSession(s) }, locales.CloseSession())
 		} else {
 			// Hold the close button's place so the name keeps its width.
 			ui.Box(c).Width(iconSmallSize).Height(iconSmallSize).OnClick(pick)
