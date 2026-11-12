@@ -335,7 +335,7 @@ func (w *workspace) projectSearch(c *ui.Context, tk tokens) {
 		}
 		in = ui.TextInputBase(c, &w.searchQuery).Label(locales.SearchProjects()).
 			Placeholder(locales.SearchPlaceholder()).PlaceholderColor(tk.MutedForeground).
-			FontSize(12).FillWidth()
+			FontSize(12).FontWeight(300).FillWidth()
 	})
 	// The field lights its edge while the query has the focus; the input
 	// itself draws no chrome, so this is the only focus cue it needs.
@@ -381,7 +381,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 				ui.Image(c, src).Width(13).Height(13).OnClick(toggle)
 			}
 		}
-		ui.Text(c, pr.name()).FontSize(11.5).FontWeight(600).SingleLine().
+		ui.Text(c, pr.name()).FontSize(11.5).FontWeight(300).SingleLine().
 			TextColor(color).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		if pr.remote != nil && pr.remote.conn.err != "" {
@@ -461,7 +461,7 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 		if src := iconSource("folder", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(13).Height(13).IgnoreInput(true).OnClick(toggle)
 		}
-		ui.Text(c, g.project.Name).FontSize(11.5).FontWeight(600).SingleLine().
+		ui.Text(c, g.project.Name).FontSize(11.5).FontWeight(300).SingleLine().
 			TextColor(color).Tooltip(g.project.Dir).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		if hovered {
@@ -534,12 +534,12 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		case activityWorking:
 			// A sweep across the name says the session is at work, in the
 			// name's own ink rather than a dot beside it.
-			labelEl = shimmerLabel(c, tk, label, 13, 500)
+			labelEl = shimmerLabel(c, tk, label, 13, 300)
 		case activityWaiting:
-			labelEl = ui.Text(c, label).FontSize(13).FontWeight(500).SingleLine().
+			labelEl = ui.Text(c, label).FontSize(13).FontWeight(300).SingleLine().
 				TextColor(tk.Foreground)
 		default:
-			labelEl = ui.Text(c, label).FontSize(13).FontWeight(500).SingleLine().
+			labelEl = ui.Text(c, label).FontSize(13).FontWeight(300).SingleLine().
 				TextColor(color)
 		}
 		labelEl.OnClick(pick)
@@ -997,7 +997,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 							titleShrink = 1
 						}
 						if focused {
-							ui.Text(c, title).FontSize(12).FontWeight(500).SingleLine().
+							ui.Text(c, title).FontSize(12).SingleLine().
 								Shrink(titleShrink).TextColor(tk.Foreground)
 						} else {
 							ui.Text(c, title).FontSize(12).SingleLine().

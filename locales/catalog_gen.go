@@ -594,21 +594,41 @@ func (msgs Messages) AppearanceDark() string {
 	return Catalog.Format(msgs.locale, "appearanceDark", nil)
 }
 
-// SettingsTerminal says "Font"
+// SettingsInterfaceFont says "Interface font"
+// in the language the app shows.
+func SettingsInterfaceFont() string { return In(i18n.Locale()).SettingsInterfaceFont() }
+
+// SettingsInterfaceFont says "Interface font"
+// in the language of msgs.
+func (msgs Messages) SettingsInterfaceFont() string {
+	return Catalog.Format(msgs.locale, "settingsInterfaceFont", nil)
+}
+
+// SettingsFontSystem says "System Default"
+// in the language the app shows.
+func SettingsFontSystem() string { return In(i18n.Locale()).SettingsFontSystem() }
+
+// SettingsFontSystem says "System Default"
+// in the language of msgs.
+func (msgs Messages) SettingsFontSystem() string {
+	return Catalog.Format(msgs.locale, "settingsFontSystem", nil)
+}
+
+// SettingsTerminal says "Terminal"
 // in the language the app shows.
 func SettingsTerminal() string { return In(i18n.Locale()).SettingsTerminal() }
 
-// SettingsTerminal says "Font"
+// SettingsTerminal says "Terminal"
 // in the language of msgs.
 func (msgs Messages) SettingsTerminal() string {
 	return Catalog.Format(msgs.locale, "settingsTerminal", nil)
 }
 
-// SettingsTerminalFont says "Font"
+// SettingsTerminalFont says "Terminal font"
 // in the language the app shows.
 func SettingsTerminalFont() string { return In(i18n.Locale()).SettingsTerminalFont() }
 
-// SettingsTerminalFont says "Font"
+// SettingsTerminalFont says "Terminal font"
 // in the language of msgs.
 func (msgs Messages) SettingsTerminalFont() string {
 	return Catalog.Format(msgs.locale, "settingsTerminalFont", nil)
