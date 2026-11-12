@@ -95,10 +95,9 @@ func main() {
 			TitleBarStyle:        mygo.TitleBarHidden,
 			TrafficLightPosition: &mygo.Point{X: 20, Y: 17},
 			// The window carries the system's sidebar material for the
-			// optional translucent sidebar. With it off, the view paints the
-			// sidebar and the canvas in the same colour, so one surface wraps
-			// the panes; with it on, the sidebar leaves that surface bare and
-			// the material shows over the desktop.
+			// optional translucent sidebar. The view paints the sidebar and
+			// the canvas as one surface; with the material on, that surface
+			// lets the glass through instead of covering it.
 			Transparent: true,
 			Vibrancy:    mygo.VibrancySidebar,
 			// Still the window color on the platforms whose material shows

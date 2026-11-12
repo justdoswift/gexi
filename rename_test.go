@@ -72,17 +72,19 @@ func TestSessionRowMenuRenamesTheSession(t *testing.T) {
 	tester.RightClickAt(row.X+row.W/2, row.Y+row.H/2)
 	tester.Frame()
 	items := tester.Menu()
-	hasRename, hasClose := false, false
+	hasRename, hasArchive, hasIdle := false, false, false
 	for _, item := range items {
 		switch item {
 		case locales.Rename():
 			hasRename = true
-		case locales.CloseSession():
-			hasClose = true
+		case locales.SessionArchive():
+			hasArchive = true
+		case locales.SessionIdle():
+			hasIdle = true
 		}
 	}
-	if !hasRename || !hasClose {
-		t.Fatalf("the row menu = %q, want rename and close", items)
+	if !hasRename || !hasArchive || !hasIdle {
+		t.Fatalf("the row menu = %q, want rename, archive and idle", items)
 	}
 	if err := tester.ChooseMenuItem(locales.Rename()); err != nil {
 		t.Fatalf("the row has no rename item: %v", err)
@@ -102,6 +104,44 @@ func TestSessionRowMenuRenamesTheSession(t *testing.T) {
 	}
 	if _, ok := tester.Find("Fix login redirect"); !ok {
 		t.Fatal("the row kept its old name")
+	}
+}
+
+// The project row's + opens a menu whose first item keeps the old terminal
+// action, and whose rest start each agent in a worktree of its own.
+func TestNewSessionMenuOffersTerminalAndAgents(t *testing.T) {
+	pr := &project{ID: "pr", Dir: t.TempDir()}
+	w := &workspace{Projects: []*project{pr}, collapsed: map[string]bool{}}
+	view := func(c *ui.Context) {
+		tk := themeTokens(c.Theme())
+		ui.Column(c).Fill().Padding(12).Children(func() {
+			ui.Row(c).Width(140).Height(24).Center().Cursor(ui.CursorPointer).
+				Menu(func(m *ui.Menu) { w.newSessionMenu(m, pr) }).
+				Children(func() {
+					ui.Text(c, "+").FontSize(13).TextColor(tk.Foreground)
+				})
+		})
+	}
+	tester := ui.NewTester(view, 240, 160)
+	tester.Frame()
+	tester.ClickAt(82, 24)
+	tester.Frame()
+	items := tester.Menu()
+	has := func(label string) bool {
+		for _, item := range items {
+			if item == label {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(locales.NewTerminal()) {
+		t.Fatalf("the menu = %q, want %q", items, locales.NewTerminal())
+	}
+	for _, kind := range agentKinds() {
+		if !has(kind.name()) {
+			t.Fatalf("the menu = %q, want %q", items, kind.name())
+		}
 	}
 }
 

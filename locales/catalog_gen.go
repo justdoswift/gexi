@@ -54,6 +54,16 @@ func (msgs Messages) MenuNewSession() string {
 	return Catalog.Format(msgs.locale, "menuNewSession", nil)
 }
 
+// NewTerminal says "New Terminal"
+// in the language the app shows.
+func NewTerminal() string { return In(i18n.Locale()).NewTerminal() }
+
+// NewTerminal says "New Terminal"
+// in the language of msgs.
+func (msgs Messages) NewTerminal() string {
+	return Catalog.Format(msgs.locale, "newTerminal", nil)
+}
+
 // MenuNewProject says "New Project…"
 // in the language the app shows.
 func MenuNewProject() string { return In(i18n.Locale()).MenuNewProject() }
@@ -834,11 +844,11 @@ func (msgs Messages) SettingsLiquidGlass() string {
 	return Catalog.Format(msgs.locale, "settingsLiquidGlass", nil)
 }
 
-// SettingsLiquidGlassDetail says "Let the sidebar show the desktop through the system's material. Off, the sidebar matches the canvas and wraps the pan…"
+// SettingsLiquidGlassDetail says "Let the window show the desktop through the system's material. The sidebar and canvas stay one surface either way, wr…"
 // in the language the app shows.
 func SettingsLiquidGlassDetail() string { return In(i18n.Locale()).SettingsLiquidGlassDetail() }
 
-// SettingsLiquidGlassDetail says "Let the sidebar show the desktop through the system's material. Off, the sidebar matches the canvas and wraps the pan…"
+// SettingsLiquidGlassDetail says "Let the window show the desktop through the system's material. The sidebar and canvas stay one surface either way, wr…"
 // in the language of msgs.
 func (msgs Messages) SettingsLiquidGlassDetail() string {
 	return Catalog.Format(msgs.locale, "settingsLiquidGlassDetail", nil)
@@ -2022,11 +2032,11 @@ func (msgs Messages) SettingsWorktreesAll() string {
 	return Catalog.Format(msgs.locale, "settingsWorktreesAll", nil)
 }
 
-// SettingsWorktreesEmpty says "No worktrees yet. Create one with a pane's W button."
+// SettingsWorktreesEmpty says "No worktrees yet. Create one with a pane's worktree button."
 // in the language the app shows.
 func SettingsWorktreesEmpty() string { return In(i18n.Locale()).SettingsWorktreesEmpty() }
 
-// SettingsWorktreesEmpty says "No worktrees yet. Create one with a pane's W button."
+// SettingsWorktreesEmpty says "No worktrees yet. Create one with a pane's worktree button."
 // in the language of msgs.
 func (msgs Messages) SettingsWorktreesEmpty() string {
 	return Catalog.Format(msgs.locale, "settingsWorktreesEmpty", nil)

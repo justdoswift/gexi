@@ -35,6 +35,13 @@ type agentDetection struct {
 	Resume    []string
 }
 
+// agentKinds is the agents the new-session menu offers, in the order a new
+// worktree session starts them. Every kind launches with its own command, so
+// the list is also the set of commands a pane can be started with.
+func agentKinds() []agentKind {
+	return []agentKind{agentClaude, agentCodex, agentAmp, agentOmp, agentDevin, agentGrok, agentDroid, agentPerch, agentPi}
+}
+
 // name is the agent's product name. Chrome shows it instead of the terminal
 // title, which carries the agent's spinner glyph.
 func (k agentKind) name() string {

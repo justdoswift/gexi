@@ -251,6 +251,71 @@ func createWorktreeNamed(projectDir, name string) (*paneWorktree, error) {
 	}, nil
 }
 
+// newAgentSession makes a worktree for the project and opens a session in it
+// running the agent. The git work runs off the UI thread, so a menu choice
+// does not hold the window while a checkout is made; the session appears in
+// the selected project when it is ready.
+func (w *workspace) newAgentSession(pr *project, kind agentKind) {
+	if pr == nil || pr.remote != nil || kind == "" || w.agentCreateBusy {
+		return
+	}
+	dir := pr.Dir
+	w.agentCreateBusy = true
+	w.flash(locales.WorktreeCreating())
+	w.invalidate()
+	go func() {
+		problem := ""
+		root, ok := gitTopLevel(dir)
+		switch {
+		case !ok:
+			problem = locales.WorktreeNotRepo()
+		case !sameDir(root, dir):
+			problem = locales.WorktreeNotRoot()
+		case detectBaseBranch(root) == "":
+			problem = locales.WorktreeNoBase()
+		}
+		var wt *paneWorktree
+		var err error
+		if problem == "" {
+			wt, err = createWorktreeNamed(dir, "")
+		}
+		w.onMain(func() {
+			w.agentCreateBusy = false
+			if w.projectByID(pr.ID) != pr {
+				// The project closed while git worked; the checkout has
+				// nothing to belong to.
+				if wt != nil {
+					go func() { _ = removeWorktree(wt) }()
+				}
+				w.invalidate()
+				return
+			}
+			switch {
+			case problem != "":
+				w.flash(problem)
+			case err != nil:
+				w.flash(locales.WorktreeError(err.Error()))
+			case wt == nil:
+				w.flash(locales.WorktreeNotRepo())
+			default:
+				s, err := w.newSession(pr, kind.launch(), wt.Path)
+				if err != nil {
+					go func() { _ = removeWorktree(wt) }()
+					w.flash(locales.WorktreeError(err.Error()))
+					break
+				}
+				if ps := s.Root.panes(); len(ps) > 0 {
+					ps[0].Worktree = wt
+					w.refreshWorktree(ps[0])
+				}
+				w.worktreesScanned = false
+				w.invalidateSettings()
+			}
+			w.invalidate()
+		})
+	}()
+}
+
 // sanitizeWorktreeName turns what the user typed into a branch name git
 // accepts: lowercase, words joined by single dashes, nothing else.
 func sanitizeWorktreeName(name string) string {
@@ -3455,11 +3520,12 @@ func excludePerchRule(worktreePath string) {
 	_ = os.WriteFile(path, []byte(body+entry+"\n"), 0o644)
 }
 
-// paneWorktreeButton is the W control in the pane header. W makes a worktree
-// for the pane; once it has one, the same slot shows PR / Merge instead.
+// paneWorktreeButton is the worktree control in the pane header. It makes a
+// worktree for the pane; once it has one, the same slot shows PR / Merge
+// instead.
 func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 	if p.Worktree == nil {
-		label := "W"
+		label := "worktree"
 		action := func() { w.createPaneWorktree(p) }
 		hint := locales.WorktreeCreateHint()
 		busy := ""
