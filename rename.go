@@ -18,16 +18,26 @@ import (
 // overwrite the name.
 
 func (w *workspace) sessionRowMenu(m *ui.Menu, s *session) {
-	// A session on another Mac is named by its host, which has no rename
-	// command for this window to call.
-	if s.remote == nil {
-		if m.Item(locales.Rename()).Chosen() {
-			w.openSessionRename(s)
+	// A session on another Mac is its host's to name and close; this window
+	// has neither command.
+	if s.remote != nil {
+		if m.Item(locales.CloseSession()).Chosen() {
+			w.closeSession(s)
 		}
-		m.Separator()
+		return
 	}
-	if m.Item(locales.CloseSession()).Chosen() {
-		w.askCloseSession(s)
+	if m.Item(locales.Rename()).Chosen() {
+		w.openSessionRename(s)
+	}
+	m.Separator()
+	// The two ways a session leaves the running list sit here too, so the
+	// menu does what the close button's dialog asks without a second
+	// question.
+	if m.Item(locales.SessionArchive()).Chosen() {
+		w.putSessionAway(s, true)
+	}
+	if m.Item(locales.SessionIdle()).Chosen() {
+		w.putSessionAway(s, false)
 	}
 }
 

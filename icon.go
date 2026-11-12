@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -79,6 +80,145 @@ func agentLogoSource(kind agentKind, tk tokens) ui.ImageSource {
 		return logoSource(string(kind), perchBrand)
 	}
 	return logoSource(string(kind), colorHex(tk.Foreground))
+}
+
+// menuIconCache keeps the menu's images, which mygo makes once and shares
+// across the menus that show them: an agent's mark, and the terminal glyph.
+var menuIconCache sync.Map // "agent:claude", "terminal" -> *mygo.MenuIcon
+
+// agentMenuIcon is the mark a new-session menu item shows for an agent. The
+// vendors' marks keep their own colours; a monochrome mark is a template, so
+// it follows the menu's text colour in a light or dark menu.
+func agentMenuIcon(kind agentKind) *mygo.MenuIcon {
+	key := "agent:" + string(kind)
+	if v, ok := menuIconCache.Load(key); ok {
+		return v.(*mygo.MenuIcon)
+	}
+	mark, ok := logoMarks[string(kind)]
+	if !ok {
+		return nil
+	}
+	color, template := "#000000", true
+	switch kind {
+	case agentClaude:
+		color, template = claudeBrand, false
+	case agentPerch:
+		color, template = perchBrand, false
+	case agentOmp, agentPi, agentAmp:
+		// Their marks carry their own colours and fills.
+		template = false
+	}
+	svg := ui.MustParseSVG([]byte(fmt.Sprintf(
+		`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="%s" fill="%s">%s</svg>`,
+		mark.viewBox, color, fitLogoMark(kind, mark),
+	)))
+	icon, err := mygo.NewMenuIconSVG(svg, template)
+	if err != nil {
+		return nil
+	}
+	menuIconCache.Store(key, icon)
+	return icon
+}
+
+// fitLogoMark centres a logo's ink and scales it to the same target size in
+// every menu item. Vendors pad their marks by different amounts in their own
+// viewBoxes, so a full-bleed app icon and a thin glyph would otherwise read
+// as different sizes beside one another.
+func fitLogoMark(kind agentKind, mark logoMark) string {
+	const pixels = 64
+	const target = 14.0 / 16.0 // of the menu icon's box
+	vw, vh := logoViewBox(mark.viewBox)
+	base := ui.MustParseSVG([]byte(fmt.Sprintf(
+		`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="%s" fill="#000000">%s</svg>`,
+		mark.viewBox, mark.body,
+	)))
+	img := base.Image(pixels, pixels, color.Black)
+	minX, minY, maxX, maxY := pixels, pixels, -1, -1
+	for y := 0; y < pixels; y++ {
+		for x := 0; x < pixels; x++ {
+			_, _, _, a := img.At(x, y).RGBA()
+			if a < 0x1000 {
+				continue
+			}
+			if x < minX {
+				minX = x
+			}
+			if y < minY {
+				minY = y
+			}
+			if x > maxX {
+				maxX = x
+			}
+			if y > maxY {
+				maxY = y
+			}
+		}
+	}
+	if maxX < minX || maxY < minY {
+		return mark.body
+	}
+	inkW := float64(maxX-minX+1) / pixels * vw
+	inkH := float64(maxY-minY+1) / pixels * vh
+	longest := inkW
+	if inkH > longest {
+		longest = inkH
+	}
+	shortest := vw
+	if vh < shortest {
+		shortest = vh
+	}
+	if longest <= 0 || shortest <= 0 {
+		return mark.body
+	}
+	scale := target * shortest / longest * menuLogoScale(kind)
+	cx := (float64(minX+maxX) + 1) / 2 / pixels * vw
+	cy := (float64(minY+maxY) + 1) / 2 / pixels * vh
+	return fmt.Sprintf(`<g transform="translate(%g %g) scale(%g) translate(%g %g)">%s</g>`,
+		vw/2, vh/2, scale, -cx, -cy, mark.body)
+}
+
+// menuLogoScale nudges the marks whose shape carries less ink than the full
+// squares beside them, so their optical size matches at menu size.
+func menuLogoScale(kind agentKind) float64 {
+	switch kind {
+	case agentOmp:
+		return 1.05
+	case agentDevin, agentGrok:
+		return 1.12
+	case agentDroid:
+		return 0.96
+	case agentPi:
+		return 1.03
+	}
+	return 1
+}
+
+// logoViewBox reads the width and height of a logo's viewBox; every mark in
+// logoMarks is square, but a malformed one falls back to 24.
+func logoViewBox(viewBox string) (float64, float64) {
+	var x, y, w, h float64
+	if _, err := fmt.Sscanf(viewBox, "%g %g %g %g", &x, &y, &w, &h); err != nil || w <= 0 || h <= 0 {
+		return 24, 24
+	}
+	return w, h
+}
+
+// terminalMenuIcon is the terminal glyph beside the menu's default item,
+// drawn as a template so it takes the menu's own text colour.
+func terminalMenuIcon() *mygo.MenuIcon {
+	if v, ok := menuIconCache.Load("terminal"); ok {
+		return v.(*mygo.MenuIcon)
+	}
+	raw, err := iconFiles.ReadFile("icons/terminal.png")
+	if err != nil {
+		return nil
+	}
+	icon, err := mygo.NewMenuIcon(raw, true)
+	if err != nil {
+		return nil
+	}
+	menuIconCache.Store("terminal", icon)
+	return icon
 }
 
 var iconCache sync.Map // "name|color" -> ui.ImageSource
@@ -218,8 +358,18 @@ func iconButtonSmall(c *ui.Context, tk tokens, name string, action func(), hint 
 // iconMenuButton is iconButton that opens a menu. The menu is built when it
 // opens, so the host list is read fresh instead of at startup. A hint, when
 // given, is the tooltip the pointer shows over it.
-func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu), hint ...string) {
-	size := iconSize
+func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu), hint ...string) ui.Element {
+	return iconMenuButtonSized(c, tk, name, iconSize, 17, build, hint...)
+}
+
+// iconMenuButtonSmall is iconMenuButton at the list-row size, beside 12pt
+// text: the menu opens from the glyph itself, as the row has no button chrome
+// to show.
+func iconMenuButtonSmall(c *ui.Context, tk tokens, name string, build func(m *ui.Menu), hint ...string) ui.Element {
+	return iconMenuButtonSized(c, tk, name, iconSmallSize, 15, build, hint...)
+}
+
+func iconMenuButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32, build func(m *ui.Menu), hint ...string) ui.Element {
 	el := ui.Row(c).Width(size).Height(size).Radius(chromeRadius).
 		Center().Cursor(ui.CursorPointer)
 	if el.Hovered() {
@@ -232,9 +382,10 @@ func iconMenuButton(c *ui.Context, tk tokens, name string, build func(m *ui.Menu
 		if src := iconSource(name, colorHex(tk.MutedForeground)); src != nil {
 			// The glyph sits inside the button: the press has to reach the
 			// button so its menu opens.
-			ui.Image(c, src).Width(17).Height(17).IgnoreInput(true)
+			ui.Image(c, src).Width(glyph).Height(glyph).IgnoreInput(true)
 		}
 	})
+	return el
 }
 
 func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32, place iconGlass, action func(), hint ...string) {

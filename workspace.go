@@ -270,6 +270,10 @@ type workspace struct {
 	worktreeCreateFiles  int
 	worktreeCreateHint   string
 
+	// agentCreateBusy is set while a new-session menu's agent waits for its
+	// worktree: the next choice is ignored and the menu items are disabled.
+	agentCreateBusy bool
+
 	// renameOpen is the branch rename prompt for a checkout gexi made.
 	renameOpen   bool
 	renameTarget *pane

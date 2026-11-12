@@ -37,14 +37,16 @@ func (w *workspace) view(c *ui.Context) {
 	// (see liquid).
 	chromeTheme = w.appearanceThemeName(c.Theme().Dark) != ""
 	bar := c.TitleBar()
-	// The sidebar is the only surface over the window's material; the canvas
-	// paints the theme's own backdrop, so a comfortable pane reads as a panel
-	// wrapped by it, and a compact one fills it. When the material is off, or
-	// a theme paints the sidebar, the root carries that backdrop instead.
+	// The sidebar and the canvas share one surface: the root paints the
+	// theme's backdrop, and over the window's material it lets a little of
+	// the glass through. Both sides then read as the same wrap around the
+	// pane cards, instead of the sidebar's material against a painted canvas.
 	root := ui.Row(c).Fill()
-	if !liquid(c) || chromeTheme {
-		root = root.Background(w.backdrop(tk))
+	surface := w.backdrop(tk)
+	if liquid(c) && !chromeTheme {
+		surface = surface.Alpha(0.6)
 	}
+	root = root.Background(surface)
 
 	target := float32(0)
 	if !w.settings.SidebarCollapsed {
@@ -62,11 +64,14 @@ func (w *workspace) view(c *ui.Context) {
 		if w.settings.PaneStyle == paneComfortable {
 			inset = canvasInset
 		}
-		// The canvas is the theme's own surface, not the window's material:
-		// the material belongs to the sidebar, so the terminal text sits on
-		// the colour its theme was written for.
-		canvas := ui.Column(c).Fill().Padding(inset, inset, inset, 0).
-			Background(w.backdrop(tk))
+		// The canvas leaves its surface to the root, so the sidebar and the
+		// pane cards sit on the same backdrop. A compact pane fills the
+		// canvas with its terminal, and its text keeps the theme's colour
+		// there rather than the glass.
+		canvas := ui.Column(c).Fill().Padding(inset, inset, inset, 0)
+		if w.settings.PaneStyle != paneComfortable {
+			canvas = canvas.Background(w.backdrop(tk))
+		}
 		canvas.Children(func() {
 			w.canvas(c, tk)
 		})
@@ -253,15 +258,10 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 		return
 	}
 	bar := c.TitleBar()
-	// The sidebar and the canvas share one backdrop, wrapping the panes in a
-	// single surface. Over the window's material the sidebar paints no
-	// background of its own, so the material is that surface. A theme paints
-	// it instead. Collapsed, it takes no width and the canvas covers the
-	// material.
+	// The sidebar paints no background of its own: the root's surface runs
+	// under it and under the canvas, so the two sides are one backdrop.
+	// Collapsed, it takes no width and the canvas covers the surface.
 	side := ui.Column(c).Width(width).FillHeight().Clip().Shrink(0)
-	if !liquid(c) || chromeTheme {
-		side = side.Background(w.backdrop(tk))
-	}
 	side.Children(func() {
 		ui.Row(c).Height(headerHeight).Padding(11, 8, 0, bar.Left+6+iconSize+8).
 			DragWindow().Children(func() {
@@ -388,19 +388,32 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 				ui.Image(c, src).Width(13).Height(13).OnClick(toggle)
 			}
 		}
-		ui.Text(c, pr.name()).FontSize(11.5).FontWeight(300).SingleLine().
+		ui.Text(c, pr.name()).FontSize(11.5).FontWeight(400).SingleLine().
 			TextColor(color).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		if pr.remote != nil && pr.remote.conn.err != "" {
 			ui.Box(c).Width(6).Height(6).Radius(3).Background(tk.Waiting).
 				Tooltip(pr.remote.conn.err).OnClick(toggle)
 		}
+		// The + makes the session where it belongs: here for a local
+		// project, on the host for a paired Mac. A local one offers the
+		// agents under the same button. It stays in the row while it is
+		// not hovered, so the menu it opened still has a button to report
+		// its choice to after the pointer moves onto the menu.
+		if pr.remote != nil {
+			if hovered {
+				iconButtonSmall(c, tk, "plus", func() { _, _ = w.newSession(pr, nil, pr.Dir) },
+					locales.ShortcutNewSession()+" (⌘T)")
+			}
+		} else {
+			plus := iconMenuButtonSmall(c, tk, "plus", func(m *ui.Menu) {
+				w.newSessionMenu(m, pr)
+			}, locales.ShortcutNewSession()+" (⌘T)")
+			if !hovered {
+				plus = plus.Opacity(0).IgnoreInput(true).AccessHidden(true)
+			}
+		}
 		if hovered {
-			// The + makes the session where it belongs: here for a local
-			// project, on the host for a paired Mac. The × forgets the
-			// pairing.
-			iconButtonSmall(c, tk, "plus", func() { _, _ = w.newSession(pr, nil, pr.Dir) },
-				locales.ShortcutNewSession()+" (⌘T)")
 			iconButtonSmall(c, tk, "x", func() { w.closeProject(pr) }, locales.CloseProject())
 		}
 	})
@@ -420,6 +433,32 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 	}
 	for _, s := range pr.Sessions {
 		w.sessionRow(c, tk, pr, s, 0)
+	}
+}
+
+// newSessionMenu is the project row's +: the terminal the button used to
+// make straight away, then the agents. An agent starts in a worktree of its
+// own, so choosing one both opens the checkout and enters the agent there.
+func (w *workspace) newSessionMenu(m *ui.Menu, pr *project) {
+	terminal := m.Item(locales.NewTerminal()).ID("terminal").
+		Shortcut(ui.Cmd, ui.KeyT)
+	if icon := terminalMenuIcon(); icon != nil {
+		terminal = terminal.Icon(icon)
+	}
+	if terminal.Chosen() {
+		_, _ = w.newSession(pr, nil, pr.Dir)
+		return
+	}
+	m.Separator()
+	for _, kind := range agentKinds() {
+		item := m.Item(kind.name()).ID(string(kind)).
+			Disabled(w.agentCreateBusy)
+		if icon := agentMenuIcon(kind); icon != nil {
+			item = item.Icon(icon)
+		}
+		if item.Chosen() {
+			w.newAgentSession(pr, kind)
+		}
 	}
 }
 
@@ -468,7 +507,7 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 		if src := iconSource("folder", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(13).Height(13).IgnoreInput(true).OnClick(toggle)
 		}
-		ui.Text(c, g.project.Name).FontSize(11.5).FontWeight(300).SingleLine().
+		ui.Text(c, g.project.Name).FontSize(11.5).FontWeight(400).SingleLine().
 			TextColor(color).Tooltip(g.project.Dir).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		if hovered {
@@ -541,12 +580,12 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		case activityWorking:
 			// A sweep across the name says the session is at work, in the
 			// name's own ink rather than a dot beside it.
-			labelEl = shimmerLabel(c, tk, label, 13, 300)
+			labelEl = shimmerLabel(c, tk, label, 13, 400)
 		case activityWaiting:
-			labelEl = ui.Text(c, label).FontSize(13).FontWeight(300).SingleLine().
+			labelEl = ui.Text(c, label).FontSize(13).FontWeight(400).SingleLine().
 				TextColor(tk.Foreground)
 		default:
-			labelEl = ui.Text(c, label).FontSize(13).FontWeight(300).SingleLine().
+			labelEl = ui.Text(c, label).FontSize(13).FontWeight(400).SingleLine().
 				TextColor(color)
 		}
 		labelEl.OnClick(pick)

@@ -19,7 +19,8 @@ import (
 
 // askCloseSession is what the sidebar's close button asks: archive the
 // session in Settings, set it idle at the bottom of the sidebar, or cancel.
-// Closing a session used to throw it away; now it always has somewhere to go.
+// The row keeps one close button; the right-click menu offers the two
+// destinations directly for the same choice without the question.
 func (w *workspace) askCloseSession(s *session) {
 	if s == nil {
 		return
