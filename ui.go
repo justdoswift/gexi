@@ -631,24 +631,10 @@ func sessionActivityState(s *session) string {
 		if p.outAt.IsZero() {
 			p.outAt = time.Now()
 		}
-		if p.activity != nil {
-			switch p.activity.State {
-			case activityWaiting:
-				return activityWaiting
-			case activityWorking:
-				if p.activityLapsed() {
-					break
-				}
-				working = true
-			}
+		if p.activity != nil && p.activity.State == activityWaiting {
+			return activityWaiting
 		}
-		if p.subagentCount() > 0 {
-			working = true
-		}
-		// A pane opened or switched mid-turn can miss the agent.start hook.
-		// Its title still carries the animated spinner while it works, so
-		// the session loader does not stop under a running terminal.
-		if p.titleWorking() {
+		if p.working() {
 			working = true
 		}
 	}
@@ -662,6 +648,25 @@ func sessionActivityState(s *session) string {
 // before the mark is taken as stale: a hook that never came, or one the
 // other Mac told us about and never corrected.
 const activityQuiet = 90 * time.Second
+
+// working reports whether an agent is at work in the pane: a turn its hooks
+// have not ended, a subagent still running, or a title whose spinner still
+// moves. A pane opened or switched mid-turn can miss agent.start; its title
+// still carries the animated spinner while it works, so the session loader
+// does not stop under a running terminal. The sidebar's mark and the pane's
+// beam both read it.
+func (p *pane) working() bool {
+	working := p.subagentCount() > 0 || p.titleWorking() ||
+		p.activity != nil && p.activity.State == activityWorking && !p.activityLapsed()
+	if !working {
+		p.beamStart = time.Time{}
+		return false
+	}
+	if p.beamStart.IsZero() {
+		p.beamStart = time.Now()
+	}
+	return true
+}
 
 // activityLapsed reports whether a working mark has gone stale: no output,
 // no animating title, and no subagent still running.
@@ -1185,6 +1190,16 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		}
 		col = col.Background(col.AnimateColor("paneLiftBg", panelBg, blend))
 		col = col.Opacity(dim)
+		// A working pane's light rides the bottom edge of its card. It paints
+		// after the terminal so the glow sits over the last rows, as the
+		// library's does, instead of under the terminal's opaque background.
+		if p.working() {
+			still := c.Preferences().ReduceMotion
+			start := p.beamStart
+			col = col.DrawOver(func(pt *ui.Painter, r ui.Rect) {
+				paintPaneBeam(pt, r, tk, card, pt.Now(), still, start)
+			})
+		}
 	})
 }
 

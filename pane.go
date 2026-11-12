@@ -289,6 +289,10 @@ type pane struct {
 	// haloStart is when the completion sweep over the terminal began; zero
 	// when none runs.
 	haloStart time.Time
+	// beamStart is when the pane's work began, so the light on its bottom
+	// edge fades in rather than appearing at full strength; zero while the
+	// pane is at rest.
+	beamStart time.Time
 	// headerActionsW is the width the pane's action buttons took in the
 	// frame before, so a header can set its path and branch pill beside the
 	// room they leave rather than by fixed thresholds.
