@@ -170,6 +170,21 @@ type workspace struct {
 	// back into the layout with its live process.
 	detached []*pane
 
+	// idleSessions wait in the sidebar's bottom fold and archivedSessions
+	// in Settings › Archive. Neither runs until it is opened.
+	idleSessions     []storedSession
+	archivedSessions []storedSession
+	idleOpen         bool
+
+	// sessionCloseOpen is the ask behind the sidebar's close button: archive
+	// the session, set it idle, or cancel. sessionCloseTarget is its session.
+	sessionCloseOpen   bool
+	sessionCloseTarget *session
+	// archivedDeleteOpen asks before one archived session is deleted;
+	// archivedDeleteID names it.
+	archivedDeleteOpen bool
+	archivedDeleteID   string
+
 	// closeOpen is the alert asking whether a pane whose agent is running
 	// should end or go on in the background; closeTarget is its pane.
 	closeOpen   bool
@@ -643,12 +658,7 @@ func (w *workspace) closeSessionNow(s *session) {
 	w.invalidate()
 	time.AfterFunc(paneMotion, func() {
 		w.onMain(func() {
-			for _, p := range panes {
-				if w.paneByID(p.ID) != nil {
-					w.closePane(p)
-				}
-				w.keepClosedWorktree(p)
-			}
+			w.stopSession(s)
 			// closePane fixes focus, but a session that was selected and is
 			// now gone still needs the selection moved.
 			if w.sessionByID(s.ID) == nil && len(w.Projects) > 0 {
@@ -659,6 +669,22 @@ func (w *workspace) closeSessionNow(s *session) {
 			w.invalidate()
 		})
 	})
+}
+
+// stopSession closes every pane under the session now, with no fade. Putting
+// a session away uses it so the saved record and the live panes never both
+// answer to the same id, which would let a quick click restore the session
+// into the one that is closing.
+func (w *workspace) stopSession(s *session) {
+	if s == nil || s.Root == nil {
+		return
+	}
+	for _, p := range s.Root.panes() {
+		if w.paneByID(p.ID) != nil {
+			w.closePane(p)
+		}
+		w.keepClosedWorktree(p)
+	}
 }
 
 func (w *workspace) firstSession() *session {

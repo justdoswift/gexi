@@ -158,6 +158,7 @@ const (
 	settingsPermissions
 	settingsKeyboard
 	settingsWorktrees
+	settingsArchive
 	settingsAdvanced
 )
 
@@ -172,6 +173,7 @@ var settingsTabs = []struct {
 	{"file-lock", locales.SettingsPermissions},
 	{"keyboard", locales.SettingsKeyboard},
 	{"branch", locales.SettingsWorktrees},
+	{"folder", locales.SettingsArchive},
 	{"sliders", locales.SettingsAdvanced},
 }
 
@@ -206,6 +208,8 @@ func (w *workspace) openSettings() {
 		// the next visit.
 		w.clearArchivedOpen = false
 		w.clearArchivedEntries = nil
+		w.archivedDeleteOpen = false
+		w.archivedDeleteID = ""
 	})
 }
 
@@ -234,6 +238,9 @@ func (w *workspace) settingsView(c *ui.Context) {
 	// dialogs on the main window.
 	if w.clearArchivedOpen {
 		w.clearArchivedDialog(c, tk)
+	}
+	if w.archivedDeleteOpen {
+		w.archivedSessionDeleteDialog(c, tk)
 	}
 }
 
@@ -312,6 +319,8 @@ func (w *workspace) settingsPage(c *ui.Context, tk tokens) {
 		w.keyboardPage(c, tk)
 	case settingsWorktrees:
 		w.worktreesPage(c, tk)
+	case settingsArchive:
+		w.archiveSessionsPage(c, tk)
 	case settingsAdvanced:
 		w.advancedPage(c, tk)
 	default:

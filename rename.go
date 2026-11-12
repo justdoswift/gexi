@@ -26,8 +26,8 @@ func (w *workspace) sessionRowMenu(m *ui.Menu, s *session) {
 		}
 		m.Separator()
 	}
-	if m.Item(locales.CloseSession()).Danger().Chosen() {
-		w.closeSession(s)
+	if m.Item(locales.CloseSession()).Chosen() {
+		w.askCloseSession(s)
 	}
 }
 
