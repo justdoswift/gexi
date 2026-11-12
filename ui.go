@@ -564,7 +564,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 			// A spinner where the session's mark sits, so a glance reads the
 			// session as working; the sweep across the name alone is easy to
 			// miss.
-			loading.Morph(c, loading.Options{Size: 15, Color: tk.Foreground}).OnClick(pick)
+			loading.Dual(c, loading.Options{Size: 15, Color: tk.Foreground}).OnClick(pick)
 		case agent != nil:
 			if src := agentLogoSource(agent.Kind, tk); src != nil {
 				ui.Image(c, src).Width(14).Height(14).OnClick(pick)
