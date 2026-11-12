@@ -261,25 +261,79 @@ func (w *workspace) generatePaneName() {
 }
 
 // namePaneWithAgent names a pane from its first message once, when it has
-// no name of its own. A pane the user has named is never renamed, and a
-// failed answer leaves the title it already shows.
+// no name of its own. The message itself names it at once, so the header
+// changes as it is sent; the agent's summary then sharpens that name when it
+// comes back. A pane the user has named is never renamed, and a failed
+// answer leaves the name it already shows.
 func (w *workspace) namePaneWithAgent(p *pane, hint agentKind) {
 	if p == nil || w.win == nil || p.Label != "" || p.nameAsked {
 		return
 	}
-	kind := paneNamingKind(p, hint)
-	if kind == "" || strings.TrimSpace(p.firstPrompt) == "" {
+	if strings.TrimSpace(p.firstPrompt) == "" {
 		return
 	}
 	p.nameAsked = true
+	draft := w.draftPaneName(p)
+	kind := paneNamingKind(p, hint)
+	if kind == "" {
+		return
+	}
 	w.askPaneName(p, kind, func(name string, err error) {
-		if err != nil || name == "" || w.paneByID(p.ID) != p || p.Label != "" {
+		if err != nil {
 			return
 		}
-		p.Label = name
-		w.invalidate()
-		w.scheduleSave()
+		w.applyPaneName(p, draft, name)
 	})
+}
+
+// draftPaneName gives the pane the name its first message makes at once,
+// without waiting for an agent, and returns it so the answer that follows
+// can tell whether the pane still shows it.
+func (w *workspace) draftPaneName(p *pane) string {
+	name := quickPaneName(p.firstPrompt, p.nameDate())
+	if name == "" {
+		return ""
+	}
+	p.Label = name
+	w.invalidate()
+	w.scheduleSave()
+	return name
+}
+
+// applyPaneName puts the agent's sharper name on a pane when it still shows
+// the draft that answer was written from: a name typed by hand, or a cleared
+// one, is never overwritten.
+func (w *workspace) applyPaneName(p *pane, draft, name string) {
+	if p == nil || name == "" || w.paneByID(p.ID) != p || p.Label != draft {
+		return
+	}
+	p.Label = name
+	w.invalidate()
+	w.scheduleSave()
+}
+
+// quickPaneName names a pane from its first message alone: the day, the kind
+// of work read from the words, and the message's first sentence, capped as
+// an agent's answer is.
+func quickPaneName(first string, at time.Time) string {
+	line := firstAnswerLine(first)
+	if i := strings.IndexAny(line, "。！？!?"); i >= 0 {
+		line = line[:i]
+	}
+	subject := paneNameSubject(line)
+	if subject == "" {
+		return ""
+	}
+	return at.Format(paneNameDateLayout) + "|" + guessPaneNameKind(first) + "|" + subject
+}
+
+// nameDate is the day a pane's generated name starts with: the day the pane
+// opened, when the work began.
+func (p *pane) nameDate() time.Time {
+	if p.openedAt.IsZero() {
+		return time.Now()
+	}
+	return p.openedAt
 }
 
 // askPaneName runs the pane's agent on its first message and hands back the
@@ -295,10 +349,7 @@ func (w *workspace) askPaneName(p *pane, kind agentKind, done func(string, error
 	// The message says everything the name needs, so the question runs in a
 	// scratch folder: the pane's own agent cannot read or change the work it
 	// is naming by accident.
-	dir, date := os.TempDir(), p.openedAt
-	if date.IsZero() {
-		date = time.Now()
-	}
+	dir, date := os.TempDir(), p.nameDate()
 	go func() {
 		answer, err := agentAnswer(kind, dir, paneNamePrompt(first))
 		name := ""

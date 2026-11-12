@@ -91,6 +91,36 @@ func TestStageMirrorShowsThePane(t *testing.T) {
 	t.Fatalf("the mirror never showed the pane: %q", p.stageMirror.sink.Text())
 }
 
+// TestStageMirrorSizeOfAPaneNeverLaidOut: a pane a zoomed session restores
+// straight into the rail has no view of its own, so its grid at a measured
+// cell size stands in. Sized by the card instead, the mirror drew at the
+// font's full size and the card showed a magnified crop.
+func TestStageMirrorSizeOfAPaneNeverLaidOut(t *testing.T) {
+	src, _ := probeTerminal(t)
+	src.Resize(80, 24)
+	p := &pane{ID: "p1", term: src}
+	w := &workspace{paneCellW: 7.5, paneCellH: 19.1}
+
+	gotW, gotH := w.stageMirrorSize(p)
+	if wantW := float32(24) + 7.5*float32(80); gotW != wantW {
+		t.Fatalf("width %v, want %v", gotW, wantW)
+	}
+	if wantH := float32(20) + 19.1*float32(24); gotH != wantH {
+		t.Fatalf("height %v, want %v", gotH, wantH)
+	}
+
+	// A pane whose view has been laid out keeps the size that view had.
+	p.viewW, p.viewH = 569, 784.5
+	if gotW, gotH := w.stageMirrorSize(p); gotW != 569 || gotH != 784.5 {
+		t.Fatalf("laid-out pane sized %vx%v", gotW, gotH)
+	}
+
+	// With no cell measured yet the fallback is the card, never zero.
+	if gotW, gotH := (&workspace{}).stageMirrorSize(p); gotW <= 0 || gotH <= 0 {
+		t.Fatalf("unmeasured pane sized %vx%v", gotW, gotH)
+	}
+}
+
 // TestStageRailPanesFollowTheSplit keeps the cards in the layout's order and
 // leaves the stage out; a single pane has no rail at all.
 func TestStageRailPanesFollowTheSplit(t *testing.T) {

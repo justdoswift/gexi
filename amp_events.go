@@ -113,10 +113,20 @@ export default function (amp: PluginAPI) {
 		}
 	});
 
-	amp.on("agent.start", async (event) => {
+	amp.on("agent.start", async (event, ctx) => {
 		// A background thread is not the one this pane shows.
 		if (current && event.thread.id !== current) return;
-		const result = await report("turn.start", event.message, event.thread.id);
+		// The turn's message is the one the user just sent. A turn that starts
+		// without it — a resumed thread's first, say — still has that message
+		// as the thread's last user message, which is what names the pane.
+		let message = event.message;
+		if (!message) {
+			try {
+				const last = (await ctx.thread.messages({ from: "end", limit: 1, roles: ["user"] })).at(-1);
+				message = textOf(last?.content);
+			} catch {}
+		}
+		const result = await report("turn.start", message, event.thread.id);
 		const context = result && typeof result.context === "string" ? result.context : "";
 		if (context) return { message: { content: context } };
 	});
