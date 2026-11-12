@@ -1250,6 +1250,14 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			still := c.Preferences().ReduceMotion
 			start := p.beamStart
 			col = col.DrawOver(func(pt *ui.Painter, r ui.Rect) {
+				// The beam paints in frames that only paint, so no frame
+				// that builds the view comes round to notice the work is
+				// over. Ask again here, every frame: a turn that ended
+				// without its hook, or a title that stopped spinning, then
+				// takes the light with it instead of leaving it running.
+				if !p.working() {
+					return
+				}
 				paintPaneBeam(pt, r, tk, card, pt.Now(), still, start)
 			})
 		}

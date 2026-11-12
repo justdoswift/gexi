@@ -66,6 +66,25 @@ func beamLuma(img *image.RGBA, x, y int) int {
 	return r + g + b
 }
 
+// beamColored counts the pixels the beams' own red and blue paint, which
+// nothing else in the test's dark card does.
+func beamColored(img *image.RGBA) int {
+	n := 0
+	b := img.Bounds()
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			r, g, bl := beamPixel(img, x, y)
+			if r > 150 && r-g > 80 && r-bl > 80 {
+				n++
+			}
+			if bl > 150 && bl-r > 80 && bl-g > 40 {
+				n++
+			}
+		}
+	}
+	return n
+}
+
 // TestBeamTravelsTheBorder draws the pair at two points of its revolution
 // and checks that each side takes the beam in turn: the right edge is red
 // early, when the first beam is there, and blue late, when the second has
@@ -96,6 +115,45 @@ func TestBeamStaysOnTheBorder(t *testing.T) {
 		if beamLuma(lit, p[0], p[1]) != beamLuma(rest, p[0], p[1]) {
 			t.Fatalf("the light reached %v, off the border", p)
 		}
+	}
+}
+
+// TestBeamStopsWhenTheWorkEndsWithoutARebuild: the beams paint in frames
+// that only paint, so the view is not built again to take them away. The
+// paint itself has to see the work is over, or a turn that ends without an
+// event leaves its light running for good.
+func TestBeamStopsWhenTheWorkEndsWithoutARebuild(t *testing.T) {
+	tk := defaultTokens(true, ui.RGB(0xac, 0x46, 0xea))
+	p := &pane{outAt: time.Now()}
+	p.activity = &agentActivity{State: activityWorking}
+	view := func(c *ui.Context) {
+		ui.Column(c).Fill().Background(ui.RGB(0x0e, 0x0e, 0x10)).Padding(20).Children(func() {
+			card := ui.Box(c).Width(300).Height(200).Radius(windowRadius).Clip().
+				Background(tk.Background)
+			if p.working() {
+				start := p.beamStart
+				card.DrawOver(func(pt *ui.Painter, r ui.Rect) {
+					if !p.working() {
+						return
+					}
+					paintPaneBeam(pt, r, tk, true, pt.Now(), false, start)
+				})
+			}
+		})
+	}
+	tt := ui.NewTester(view, 340, 240)
+	tt.Frame()
+	// Let the light fade in, which its paint frames do without a rebuild.
+	tt.Advance(700 * time.Millisecond)
+	if beamColored(tt.Image()) == 0 {
+		t.Fatal("a working pane has no beam")
+	}
+	// The turn ends with no frame that builds the view, as when its hook
+	// never comes: only the paint frames the beam asked for run.
+	p.activity = &agentActivity{State: activityIdle}
+	tt.Advance(50 * time.Millisecond)
+	if n := beamColored(tt.Image()); n != 0 {
+		t.Fatalf("the beam outlived the work by %d pixels", n)
 	}
 }
 
