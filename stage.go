@@ -361,14 +361,27 @@ func (w *workspace) stageMirrorView(c *ui.Context, tk tokens, p *pane) {
 		})
 		return
 	}
-	natW, natH := p.viewW, p.viewH
-	if natW <= 0 || natH <= 0 {
-		natW, natH = stageCardW, stageCardH
-	}
+	natW, natH := w.stageMirrorSize(p)
 	scale := max(stageCardW/natW, stageCardH/natH)
 	terminal.View(c, p.stageMirror.sink).Width(natW).Height(natH).Absolute().
 		Left(0).Top(0).TransformOrigin(0, 0).Scale(scale, scale).
 		IgnoreInput(true)
+}
+
+// stageMirrorSize is the size a mirror draws at before its card scales it:
+// the size the pane's own view last had. A pane a zoomed session brings back
+// straight into the rail has none, because no view has laid it out since it
+// was built; its grid then stands in at the cell size the last laid-out pane
+// measured, which every pane shares, as they all draw one terminal font.
+func (w *workspace) stageMirrorSize(p *pane) (float32, float32) {
+	if p.viewW > 0 && p.viewH > 0 {
+		return p.viewW, p.viewH
+	}
+	cols, rows := p.term.Size()
+	if cols <= 0 || rows <= 0 || w.paneCellW <= 0 || w.paneCellH <= 0 {
+		return stageCardW, stageCardH
+	}
+	return 24 + w.paneCellW*float32(cols), 20 + w.paneCellH*float32(rows)
 }
 
 // paneMark is the mark a pane wears: its agent's logo, or a terminal.

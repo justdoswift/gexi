@@ -1145,9 +1145,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					if cols, rows := p.term.Size(); cols > 0 && rows > 0 {
 						if cw := (b.W - 24) / float32(cols); cw > 0 {
 							p.cellW = cw
+							w.paneCellW = cw
 						}
 						if ch := (b.H - 20) / float32(rows); ch > 0 {
 							p.cellH = ch
+							w.paneCellH = ch
 						}
 					}
 				}

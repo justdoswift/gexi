@@ -297,6 +297,63 @@ func TestPaneRenameRefusesAnEmptyName(t *testing.T) {
 	}
 }
 
+// The first message names a pane at once, before any agent answers: the
+// day, the kind read from the words, and the message's first sentence.
+func TestQuickPaneName(t *testing.T) {
+	at := time.Date(2026, 11, 11, 9, 30, 0, 0, time.UTC)
+	cases := []struct{ first, want string }{
+		{"修复登录失败", "20261111|问题|修复登录失败"},
+		{"你看这个调度窗，里面内容诡异的放大了", "20261111|需求|你看这个调度窗，里面内容诡异的放大了"},
+		// Only the first line and sentence name the pane.
+		{"补一个登录回归测试\n后面还有一段", "20261111|测试|补一个登录回归测试"},
+		{"把设置页拆成几个组件。顺便把文案也改了", "20261111|需求|把设置页拆成几个组件"},
+		// The marks a message may start with are not part of the name.
+		{"- **修复导出报错**", "20261111|问题|修复导出报错"},
+		// Nothing to name.
+		{"```\n```", ""},
+		{"", ""},
+	}
+	for _, c := range cases {
+		if got := quickPaneName(c.first, at); got != c.want {
+			t.Errorf("quickPaneName(%q) = %q; want %q", c.first, got, c.want)
+		}
+	}
+}
+
+// A pane shows its first message's name the moment the message arrives, and
+// keeps the name as the draft the agent's answer may replace.
+func TestDraftPaneNameNamesTheMessageAtOnce(t *testing.T) {
+	at := time.Date(2026, 11, 11, 9, 30, 0, 0, time.UTC)
+	p := &pane{ID: "p", firstPrompt: "修复登录失败", openedAt: at}
+	w := &workspace{}
+	if got := w.draftPaneName(p); got != "20261111|问题|修复登录失败" {
+		t.Fatalf("draft = %q", got)
+	}
+	if p.Label != "20261111|问题|修复登录失败" {
+		t.Fatalf("label = %q, want the draft at once", p.Label)
+	}
+}
+
+// The agent's sharper name replaces the draft only while the pane still
+// shows it: a name typed by hand is never overwritten.
+func TestApplyPaneNameKeepsANameTypedByHand(t *testing.T) {
+	p := &pane{ID: "p"}
+	s := &session{ID: "s", Root: leaf(p)}
+	w := &workspace{Projects: []*project{{ID: "pr", Dir: t.TempDir(), Sessions: []*session{s}}}}
+
+	p.Label = "20261111|需求|草稿"
+	w.applyPaneName(p, "20261111|需求|草稿", "20261111|问题|真实标题")
+	if p.Label != "20261111|问题|真实标题" {
+		t.Fatalf("label = %q, want the agent's name", p.Label)
+	}
+
+	p.Label = "20261111|需求|手写"
+	w.applyPaneName(p, "20261111|需求|草稿", "20261111|问题|真实标题")
+	if p.Label != "20261111|需求|手写" {
+		t.Fatalf("label = %q, want the hand-typed name kept", p.Label)
+	}
+}
+
 // A started turn keeps the first message the agent reported, so a name can
 // be made from it; later turns do not replace it.
 func TestTurnStartKeepsTheFirstPrompt(t *testing.T) {

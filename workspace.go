@@ -118,6 +118,11 @@ type workspace struct {
 	// stageW is the stage's last layout width; a narrow stage leaves the
 	// rail off rather than cover most of the terminal with it.
 	stageW float32
+	// paneCellW and paneCellH are the cell size the last laid-out pane
+	// measured, which a pane restored straight into the rail takes for its
+	// own grid: no view has laid it out yet, and every pane draws the same
+	// terminal font.
+	paneCellW, paneCellH float32
 	// pendingNotificationPane is the pane a clicked banner named while the
 	// panes were still restoring; restoreOrCreate goes there once they are.
 	pendingNotificationPane string
