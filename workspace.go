@@ -138,16 +138,18 @@ type workspace struct {
 	themeQuery     string
 	themeQuerySeen string
 	themeScroll    [2]ui.ScrollState
-	// terminalFontChoice and terminalSizeChoice are the settings page's
-	// selects; the Seen pair notices a new pick so it is saved and applied
-	// once, not every frame.
-	terminalFontChoice string
-	terminalFontSeen   string
-	terminalSizeChoice string
-	terminalSizeSeen   string
-	quitting           bool
-	saveTimer          *time.Timer
-	lastNotify         map[string]time.Time
+	// interfaceFontChoice, terminalFontChoice and terminalSizeChoice are
+	// the settings page's selects; the Seen pair notices a new pick so it
+	// is saved and applied once, not every frame.
+	interfaceFontChoice string
+	interfaceFontSeen   string
+	terminalFontChoice  string
+	terminalFontSeen    string
+	terminalSizeChoice  string
+	terminalSizeSeen    string
+	quitting            bool
+	saveTimer           *time.Timer
+	lastNotify          map[string]time.Time
 
 	collapsed   map[string]bool
 	searchQuery string

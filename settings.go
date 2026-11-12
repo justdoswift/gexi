@@ -40,6 +40,9 @@ type appSettings struct {
 	// terminal colours.
 	ThemeLight string `json:"themeLight"`
 	ThemeDark  string `json:"themeDark"`
+	// InterfaceFont is the family the chrome draws in; "" is the system's
+	// own, which carries every weight the interface asks for.
+	InterfaceFont string `json:"interfaceFont"`
 	// TerminalFont is the family panes draw text in; "" is the embedded
 	// JetBrains Mono Nerd Font Mono. TerminalFontSize is their text size;
 	// 0 is the default 12.
@@ -275,7 +278,7 @@ func (w *workspace) settingsTabRow(c *ui.Context, tk tokens, i int) {
 		if src := iconSource(settingsTabs[i].icon, colorHex(color)); src != nil {
 			ui.Image(c, src).Width(15).Height(15).OnClick(pick)
 		}
-		ui.Text(c, settingsTabs[i].title()).FontSize(13).FontWeight(500).
+		ui.Text(c, settingsTabs[i].title()).FontSize(13).FontWeight(300).
 			TextColor(color).OnClick(pick)
 		ui.Spacer(c).OnClick(pick)
 	})
@@ -291,7 +294,7 @@ func (w *workspace) sidebarAction(c *ui.Context, tk tokens, label string, action
 		el = el.Background(tk.Active)
 	}
 	el.OnClick(action).Children(func() {
-		ui.Text(c, label).FontSize(12).TextColor(color).OnClick(action)
+		ui.Text(c, label).FontSize(12).FontWeight(300).TextColor(color).OnClick(action)
 	})
 }
 
@@ -336,6 +339,8 @@ func (w *workspace) generalPage(c *ui.Context, tk tokens) {
 		w.paneStyleRow(c, tk)
 		cardDivider(c, tk)
 		w.appearanceRow(c, tk)
+		cardDivider(c, tk)
+		w.interfaceFontRow(c, tk)
 		cardDivider(c, tk)
 		w.settingRowView(c, tk, settingRow{
 			title:  locales.SettingsLiquidGlass(),
@@ -755,6 +760,42 @@ func (w *workspace) languageRow(c *ui.Context, tk tokens) {
 	})
 }
 
+// interfaceFontRow is the chrome's family: the system's own until the user
+// picks another, offered from every family the Mac has, so the sidebar, its
+// menus and the settings window can match the rest of the system.
+func (w *workspace) interfaceFontRow(c *ui.Context, tk tokens) {
+	system := locales.SettingsFontSystem()
+	if w.interfaceFontSeen == "" {
+		w.interfaceFontChoice = w.settings.InterfaceFont
+		if w.interfaceFontChoice == "" {
+			w.interfaceFontChoice = system
+		}
+		w.interfaceFontSeen = w.interfaceFontChoice
+	}
+	current := w.interfaceFontChoice
+	if current == system {
+		current = ""
+	}
+	choices := append([]string{system}, interfaceFontFamilies(current)...)
+	ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
+		ui.Text(c, locales.SettingsInterfaceFont()).FontSize(13).TextColor(tk.Foreground)
+		ui.Spacer(c)
+		ui.Select(c, &w.interfaceFontChoice, choices)
+	})
+	if w.interfaceFontChoice == w.interfaceFontSeen {
+		return
+	}
+	w.interfaceFontSeen = w.interfaceFontChoice
+	family := w.interfaceFontChoice
+	if family == system {
+		family = ""
+	}
+	w.settings.InterfaceFont = family
+	w.settings.save()
+	w.invalidate()
+	w.invalidateSettings()
+}
+
 // terminalFontRow is the terminal's family, offered from the monospaced
 // fonts the system has plus the embedded one.
 func (w *workspace) terminalFontRow(c *ui.Context, tk tokens) {
@@ -989,6 +1030,9 @@ func (w *workspace) setLanguage(tag string) {
 	}
 	w.settings.Language = tag
 	w.settings.save()
+	// The interface font's select names the system's font in the old
+	// language; let the row read the choice again.
+	w.interfaceFontSeen = ""
 	mygo.App.SetLocale(tag)
 	mygo.App.SetMenu(mainMenu(w))
 	w.invalidate()

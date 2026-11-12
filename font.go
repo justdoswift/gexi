@@ -35,8 +35,12 @@ func (w *workspace) terminalTextFont() terminal.Font {
 	if w.settings.TerminalFontSize > 0 {
 		size = w.settings.TerminalFontSize
 	}
+	// The embedded faces have no Chinese, and Core Text's own fallback is
+	// Songti, whose serifs read badly in a terminal; PingFang SC comes
+	// first for those glyphs. The terminal fits them to their two cells,
+	// as it does any fallback glyph wider than one.
 	return terminal.Font{
-		Family:     family + ", SF Mono, Menlo, monospace",
+		Family:     family + ", PingFang SC, SF Mono, Menlo, monospace",
 		Size:       size,
 		Weight:     400,
 		LineHeight: 1.2,
@@ -52,18 +56,15 @@ func (w *workspace) terminalFontSize() float32 {
 	return terminalFontSizeDefault
 }
 
-// interfaceFont is the family the whole app draws in: the terminal's, so
-// the sidebar, its menus and the settings window read as one program with
-// the panes.
+// interfaceFont is the family the chrome draws in: the system's own (""),
+// which has every weight it asks for, until the user picks another in
+// Settings.
 func (w *workspace) interfaceFont() string {
-	if w.settings.TerminalFont != "" {
-		return w.settings.TerminalFont
-	}
-	return terminalFont
+	return w.settings.InterfaceFont
 }
 
 // applyInterfaceFont gives the frame's text the family picked for the
-// terminal. Context.SetTheme hands it to the root and to the widgets built
+// interface. Context.SetTheme hands it to the root and to the widgets built
 // after it, which is every widget of the frame.
 func (w *workspace) applyInterfaceFont(c *ui.Context) {
 	family := w.interfaceFont()
@@ -76,27 +77,49 @@ func (w *workspace) applyInterfaceFont(c *ui.Context) {
 }
 
 var (
-	monoFamiliesOnce sync.Once
-	monoFamilies     []string
+	familiesOnce sync.Once
+	monoFamilies []string
+	allFamilies  []string
 )
 
-// terminalFontChoices lists the families the font picker offers: the
+// loadFamilies sorts what the font pickers offer: the embedded family
+// first, then the system's, all of them once and the monospaced also on
+// their own for the terminal, which needs one.
+func loadFamilies() {
+	monoFamilies = []string{terminalFont}
+	allFamilies = []string{terminalFont}
+	for _, f := range ui.FontFamilies() {
+		if f.Name == terminalFont {
+			continue
+		}
+		allFamilies = append(allFamilies, f.Name)
+		if f.Monospaced {
+			monoFamilies = append(monoFamilies, f.Name)
+		}
+	}
+}
+
+// terminalFontChoices lists the families the terminal's picker offers: the
 // embedded one first, then the system's monospaced families. current is
 // kept at the end when it is not among them, so a hand-picked family a
 // font manager has since removed still shows what the file says.
 func terminalFontChoices(current string) []string {
-	monoFamiliesOnce.Do(func() {
-		monoFamilies = []string{terminalFont}
-		for _, f := range ui.FontFamilies() {
-			if f.Monospaced && f.Name != terminalFont {
-				monoFamilies = append(monoFamilies, f.Name)
-			}
-		}
-	})
+	familiesOnce.Do(loadFamilies)
 	if current == "" || slices.Contains(monoFamilies, current) {
 		return monoFamilies
 	}
 	return append(slices.Clone(monoFamilies), current)
+}
+
+// interfaceFontFamilies lists every family the interface's picker offers,
+// monospaced or not. current is kept when the system no longer has it, as
+// terminalFontChoices keeps it.
+func interfaceFontFamilies(current string) []string {
+	familiesOnce.Do(loadFamilies)
+	if current == "" || slices.Contains(allFamilies, current) {
+		return allFamilies
+	}
+	return append(slices.Clone(allFamilies), current)
 }
 
 // The four faces cover regular, bold, italic and bold italic; Core Text
