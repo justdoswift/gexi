@@ -1220,6 +1220,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			if fx := p.haloEffect(c, tk); fx != nil {
 				el = el.Effect(fx)
 			}
+			// A running pull request or merge says its stages here, in
+			// the corner, rather than in a hint that needs a hover.
+			if p.remote == nil {
+				w.worktreeCheckpoints(c, tk, p)
+			}
 			if place != paneDropNone {
 				paneDropHint(c, place, card)
 			}

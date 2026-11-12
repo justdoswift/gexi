@@ -3583,7 +3583,7 @@ func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
 		// runs while the checkout is already merged, so this comes before
 		// the Archive form.
 		worktreeChip(c, tk).OnClick(func() {}).
-			Tooltip(worktreeBusyHint(p, busy)).Children(func() {
+			Tooltip(busy).Children(func() {
 			shimmerText(c, tk, busy)
 		})
 		return
@@ -3776,39 +3776,6 @@ func prStatusHint(wt *paneWorktree) string {
 // word. label names the operation for assistive technology.
 func worktreeSpinner(c *ui.Context, tk tokens, label string) {
 	loading.Morph(c, loading.Options{Size: 12, Color: tk.MutedForeground}).Label(label)
-}
-
-// worktreeBusyHint is the tip over the spinning header button: the operation,
-// then the stages it goes through with the one it is on marked, so a wait
-// that runs long says where it is.
-func worktreeBusyHint(p *pane, label string) string {
-	wt := p.Worktree
-	if wt == nil || wt.busyAt == stepNone || len(wt.busySteps) == 0 {
-		return label
-	}
-	at := -1
-	for i, step := range wt.busySteps {
-		if step == wt.busyAt {
-			at = i
-			break
-		}
-	}
-	if at < 0 {
-		return label + "\n→ " + worktreeStepLabel(p, wt.busyAt)
-	}
-	var b strings.Builder
-	b.WriteString(label)
-	for i, step := range wt.busySteps {
-		mark := "·"
-		switch {
-		case i < at:
-			mark = "✓"
-		case i == at:
-			mark = "→"
-		}
-		b.WriteString("\n" + mark + " " + worktreeStepLabel(p, step))
-	}
-	return b.String()
 }
 
 // worktreeStepLabel names one stage in the user's language.
