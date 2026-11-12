@@ -61,6 +61,33 @@ func TestSelectSessionKeepsEachSessionsZoom(t *testing.T) {
 	}
 }
 
+// A notification click for the pane a session has zoomed keeps the stage;
+// a click that names another pane of that session has to bring the layout
+// back, or the pane it opens stays hidden behind the zoomed one.
+func TestNotificationClickKeepsTheZoomedPane(t *testing.T) {
+	a := &pane{ID: "a"}
+	b := &pane{ID: "b"}
+	s := &session{ID: "s", Root: leaf(a).splitting("a", axisHorizontal, b), zoomedPane: "a"}
+	other := &session{ID: "t", Root: leaf(&pane{ID: "c"})}
+	w := &workspace{
+		Projects:        []*project{{ID: "p", Sessions: []*session{s, other}}},
+		SelectedSession: "t",
+		FocusedPane:     "c",
+	}
+
+	w.openNotification("pane:a")
+	w.revealPendingNotification()
+	if s.zoomedPane != "a" || w.SelectedSession != "s" || w.FocusedPane != "a" {
+		t.Fatalf("zoom %q, session %q, focus %q", s.zoomedPane, w.SelectedSession, w.FocusedPane)
+	}
+
+	w.openNotification("pane:b")
+	w.revealPendingNotification()
+	if s.zoomedPane != "" || w.FocusedPane != "b" {
+		t.Fatalf("zoom %q, focus %q", s.zoomedPane, w.FocusedPane)
+	}
+}
+
 // The zoom belongs to the layout, so it is written with it and comes back
 // after a launch.
 func TestZoomIsSaved(t *testing.T) {
