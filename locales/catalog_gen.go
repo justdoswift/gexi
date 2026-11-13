@@ -64,11 +64,11 @@ func (msgs Messages) NewTerminal() string {
 	return Catalog.Format(msgs.locale, "newTerminal", nil)
 }
 
-// MenuNewProject says "New Project…"
+// MenuNewProject says "New Project"
 // in the language the app shows.
 func MenuNewProject() string { return In(i18n.Locale()).MenuNewProject() }
 
-// MenuNewProject says "New Project…"
+// MenuNewProject says "New Project"
 // in the language of msgs.
 func (msgs Messages) MenuNewProject() string {
 	return Catalog.Format(msgs.locale, "menuNewProject", nil)
@@ -154,11 +154,11 @@ func (msgs Messages) MenuToggleSidebar() string {
 	return Catalog.Format(msgs.locale, "menuToggleSidebar", nil)
 }
 
-// MenuSettings says "Settings…"
+// MenuSettings says "Settings"
 // in the language the app shows.
 func MenuSettings() string { return In(i18n.Locale()).MenuSettings() }
 
-// MenuSettings says "Settings…"
+// MenuSettings says "Settings"
 // in the language of msgs.
 func (msgs Messages) MenuSettings() string {
 	return Catalog.Format(msgs.locale, "menuSettings", nil)
@@ -954,11 +954,11 @@ func (msgs Messages) WorktreeCreateConfirm() string {
 	return Catalog.Format(msgs.locale, "worktreeCreateConfirm", nil)
 }
 
-// WorktreeRename says "Rename branch…"
+// WorktreeRename says "Rename branch"
 // in the language the app shows.
 func WorktreeRename() string { return In(i18n.Locale()).WorktreeRename() }
 
-// WorktreeRename says "Rename branch…"
+// WorktreeRename says "Rename branch"
 // in the language of msgs.
 func (msgs Messages) WorktreeRename() string {
 	return Catalog.Format(msgs.locale, "worktreeRename", nil)
@@ -3050,11 +3050,11 @@ func (msgs Messages) Save() string {
 	return Catalog.Format(msgs.locale, "save", nil)
 }
 
-// Flows says "Flows…"
+// Flows says "Flows"
 // in the language the app shows.
 func Flows() string { return In(i18n.Locale()).Flows() }
 
-// Flows says "Flows…"
+// Flows says "Flows"
 // in the language of msgs.
 func (msgs Messages) Flows() string {
 	return Catalog.Format(msgs.locale, "flows", nil)
@@ -3360,11 +3360,11 @@ func (msgs Messages) SettingsRemoteAddHost() string {
 	return Catalog.Format(msgs.locale, "settingsRemoteAddHost", nil)
 }
 
-// SettingsRemoteAdd says "Add…"
+// SettingsRemoteAdd says "Add"
 // in the language the app shows.
 func SettingsRemoteAdd() string { return In(i18n.Locale()).SettingsRemoteAdd() }
 
-// SettingsRemoteAdd says "Add…"
+// SettingsRemoteAdd says "Add"
 // in the language of msgs.
 func (msgs Messages) SettingsRemoteAdd() string {
 	return Catalog.Format(msgs.locale, "settingsRemoteAdd", nil)
@@ -3540,21 +3540,21 @@ func (msgs Messages) RemoteSend() string {
 	return Catalog.Format(msgs.locale, "remoteSend", nil)
 }
 
-// Rename says "Rename…"
+// Rename says "Rename"
 // in the language the app shows.
 func Rename() string { return In(i18n.Locale()).Rename() }
 
-// Rename says "Rename…"
+// Rename says "Rename"
 // in the language of msgs.
 func (msgs Messages) Rename() string {
 	return Catalog.Format(msgs.locale, "rename", nil)
 }
 
-// RenamePane says "Rename Pane…"
+// RenamePane says "Rename Pane"
 // in the language the app shows.
 func RenamePane() string { return In(i18n.Locale()).RenamePane() }
 
-// RenamePane says "Rename Pane…"
+// RenamePane says "Rename Pane"
 // in the language of msgs.
 func (msgs Messages) RenamePane() string {
 	return Catalog.Format(msgs.locale, "renamePane", nil)
@@ -3730,11 +3730,11 @@ func (msgs Messages) SettingsRelayEnableDetail() string {
 	return Catalog.Format(msgs.locale, "settingsRelayEnableDetail", nil)
 }
 
-// SettingsRelayEdit says "Edit…"
+// SettingsRelayEdit says "Edit"
 // in the language the app shows.
 func SettingsRelayEdit() string { return In(i18n.Locale()).SettingsRelayEdit() }
 
-// SettingsRelayEdit says "Edit…"
+// SettingsRelayEdit says "Edit"
 // in the language of msgs.
 func (msgs Messages) SettingsRelayEdit() string {
 	return Catalog.Format(msgs.locale, "settingsRelayEdit", nil)

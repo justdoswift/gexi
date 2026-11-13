@@ -315,3 +315,44 @@ func TestProjectFlowsDialogSavesFromTheRowMenu(t *testing.T) {
 		t.Fatalf("an untouched step was saved as %q", got)
 	}
 }
+
+// The pointer leaves the project row to reach the menu's items, so the "…"
+// that opened the menu has to stay behind them: while it was drawn only on
+// hover, choosing Flows closed the menu and opened nothing.
+func TestProjectFlowsOpenAfterThePointerLeavesTheRow(t *testing.T) {
+	pr := &project{ID: "pr", Dir: t.TempDir(), Label: "gexi-flow-test"}
+	w := &workspace{Projects: []*project{pr}, collapsed: map[string]bool{}, settings: defaultSettings()}
+	tester := ui.NewTester(func(c *ui.Context) {
+		tk := themeTokens(c.Theme())
+		ui.Column(c).Fill().Background(tk.Background).Children(func() {
+			ui.Column(c).Width(240).FillHeight().Padding(8).Children(func() {
+				w.projectRow(c, tk, pr)
+			})
+			w.projectFlowDialog(c, tk)
+		})
+	}, 700, 520)
+	tester.Frame()
+
+	row, ok := tester.Find("gexi-flow-test")
+	if !ok {
+		t.Fatal("the project row is not drawn")
+	}
+	tester.Move(row.X+row.W/2, row.Y+row.H/2)
+	tester.Frame()
+	more, ok := tester.Access(locales.More())
+	if !ok {
+		t.Fatal("the row's menu button is not drawn on hover")
+	}
+	tester.ClickAt(more.Bounds.X+more.Bounds.W/2, more.Bounds.Y+more.Bounds.H/2)
+	tester.Frame()
+	// The pointer moves off the row to choose an item.
+	tester.Move(690, 510)
+	tester.Frame()
+	if err := tester.ChooseMenuItem(locales.Flows()); err != nil {
+		t.Fatalf("the row menu has no flows item: %v", err)
+	}
+	tester.Frame()
+	if !w.flowOpen {
+		t.Fatalf("the dialog did not open; texts = %q", tester.Texts())
+	}
+}
