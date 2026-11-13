@@ -484,26 +484,6 @@ func (msgs Messages) SessionArchivedFlash() string {
 	return Catalog.Format(msgs.locale, "sessionArchivedFlash", nil)
 }
 
-// SessionCloseTitle says "Close session?"
-// in the language the app shows.
-func SessionCloseTitle() string { return In(i18n.Locale()).SessionCloseTitle() }
-
-// SessionCloseTitle says "Close session?"
-// in the language of msgs.
-func (msgs Messages) SessionCloseTitle() string {
-	return Catalog.Format(msgs.locale, "sessionCloseTitle", nil)
-}
-
-// SessionCloseBody says "The session stops running, including any agent inside it. Archive keeps it in Settings; Idle keeps it at the bottom o…"
-// in the language the app shows.
-func SessionCloseBody() string { return In(i18n.Locale()).SessionCloseBody() }
-
-// SessionCloseBody says "The session stops running, including any agent inside it. Archive keeps it in Settings; Idle keeps it at the bottom o…"
-// in the language of msgs.
-func (msgs Messages) SessionCloseBody() string {
-	return Catalog.Format(msgs.locale, "sessionCloseBody", nil)
-}
-
 // SessionPaneCount says "{count} panes"
 // in the language the app shows.
 func SessionPaneCount(count string) string { return In(i18n.Locale()).SessionPaneCount(count) }
@@ -3048,6 +3028,166 @@ func CloseSession() string { return In(i18n.Locale()).CloseSession() }
 // in the language of msgs.
 func (msgs Messages) CloseSession() string {
 	return Catalog.Format(msgs.locale, "closeSession", nil)
+}
+
+// More says "More"
+// in the language the app shows.
+func More() string { return In(i18n.Locale()).More() }
+
+// More says "More"
+// in the language of msgs.
+func (msgs Messages) More() string {
+	return Catalog.Format(msgs.locale, "more", nil)
+}
+
+// Save says "Save"
+// in the language the app shows.
+func Save() string { return In(i18n.Locale()).Save() }
+
+// Save says "Save"
+// in the language of msgs.
+func (msgs Messages) Save() string {
+	return Catalog.Format(msgs.locale, "save", nil)
+}
+
+// Flows says "Flows…"
+// in the language the app shows.
+func Flows() string { return In(i18n.Locale()).Flows() }
+
+// Flows says "Flows…"
+// in the language of msgs.
+func (msgs Messages) Flows() string {
+	return Catalog.Format(msgs.locale, "flows", nil)
+}
+
+// FlowTitle says "Project Flows"
+// in the language the app shows.
+func FlowTitle() string { return In(i18n.Locale()).FlowTitle() }
+
+// FlowTitle says "Project Flows"
+// in the language of msgs.
+func (msgs Messages) FlowTitle() string {
+	return Catalog.Format(msgs.locale, "flowTitle", nil)
+}
+
+// FlowNoteLabel says "Note · {stage}"
+// in the language the app shows.
+func FlowNoteLabel(stage string) string { return In(i18n.Locale()).FlowNoteLabel(stage) }
+
+// FlowNoteLabel says "Note · {stage}"
+// in the language of msgs.
+func (msgs Messages) FlowNoteLabel(stage string) string {
+	return Catalog.Format(msgs.locale, "flowNoteLabel", map[string]any{"stage": stage})
+}
+
+// FlowStageWorktree says "Worktree → PR"
+// in the language the app shows.
+func FlowStageWorktree() string { return In(i18n.Locale()).FlowStageWorktree() }
+
+// FlowStageWorktree says "Worktree → PR"
+// in the language of msgs.
+func (msgs Messages) FlowStageWorktree() string {
+	return Catalog.Format(msgs.locale, "flowStageWorktree", nil)
+}
+
+// FlowStagePR says "PR → Merge"
+// in the language the app shows.
+func FlowStagePR() string { return In(i18n.Locale()).FlowStagePR() }
+
+// FlowStagePR says "PR → Merge"
+// in the language of msgs.
+func (msgs Messages) FlowStagePR() string {
+	return Catalog.Format(msgs.locale, "flowStagePR", nil)
+}
+
+// FlowStageMerge says "Merge → Archive"
+// in the language the app shows.
+func FlowStageMerge() string { return In(i18n.Locale()).FlowStageMerge() }
+
+// FlowStageMerge says "Merge → Archive"
+// in the language of msgs.
+func (msgs Messages) FlowStageMerge() string {
+	return Catalog.Format(msgs.locale, "flowStageMerge", nil)
+}
+
+// FlowWorktreePlaceholder says "For example: Check the changes"
+// in the language the app shows.
+func FlowWorktreePlaceholder() string { return In(i18n.Locale()).FlowWorktreePlaceholder() }
+
+// FlowWorktreePlaceholder says "For example: Check the changes"
+// in the language of msgs.
+func (msgs Messages) FlowWorktreePlaceholder() string {
+	return Catalog.Format(msgs.locale, "flowWorktreePlaceholder", nil)
+}
+
+// FlowPRPlaceholder says "For example: Review the PR description"
+// in the language the app shows.
+func FlowPRPlaceholder() string { return In(i18n.Locale()).FlowPRPlaceholder() }
+
+// FlowPRPlaceholder says "For example: Review the PR description"
+// in the language of msgs.
+func (msgs Messages) FlowPRPlaceholder() string {
+	return Catalog.Format(msgs.locale, "flowPRPlaceholder", nil)
+}
+
+// FlowMergePlaceholder says "For example: Publish"
+// in the language the app shows.
+func FlowMergePlaceholder() string { return In(i18n.Locale()).FlowMergePlaceholder() }
+
+// FlowMergePlaceholder says "For example: Publish"
+// in the language of msgs.
+func (msgs Messages) FlowMergePlaceholder() string {
+	return Catalog.Format(msgs.locale, "flowMergePlaceholder", nil)
+}
+
+// FlowSet says "Set"
+// in the language the app shows.
+func FlowSet() string { return In(i18n.Locale()).FlowSet() }
+
+// FlowSet says "Set"
+// in the language of msgs.
+func (msgs Messages) FlowSet() string {
+	return Catalog.Format(msgs.locale, "flowSet", nil)
+}
+
+// FlowUnset says "Not set"
+// in the language the app shows.
+func FlowUnset() string { return In(i18n.Locale()).FlowUnset() }
+
+// FlowUnset says "Not set"
+// in the language of msgs.
+func (msgs Messages) FlowUnset() string {
+	return Catalog.Format(msgs.locale, "flowUnset", nil)
+}
+
+// FlowStepCount says "{count} steps"
+// in the language the app shows.
+func FlowStepCount(count string) string { return In(i18n.Locale()).FlowStepCount(count) }
+
+// FlowStepCount says "{count} steps"
+// in the language of msgs.
+func (msgs Messages) FlowStepCount(count string) string {
+	return Catalog.Format(msgs.locale, "flowStepCount", map[string]any{"count": count})
+}
+
+// FlowSetCount says "{set} of {total} set"
+// in the language the app shows.
+func FlowSetCount(set string, total string) string { return In(i18n.Locale()).FlowSetCount(set, total) }
+
+// FlowSetCount says "{set} of {total} set"
+// in the language of msgs.
+func (msgs Messages) FlowSetCount(set string, total string) string {
+	return Catalog.Format(msgs.locale, "flowSetCount", map[string]any{"set": set, "total": total})
+}
+
+// FlowSkippedNoAgent says "The “{stage}” flow did not run: the pane has no agent running."
+// in the language the app shows.
+func FlowSkippedNoAgent(stage string) string { return In(i18n.Locale()).FlowSkippedNoAgent(stage) }
+
+// FlowSkippedNoAgent says "The “{stage}” flow did not run: the pane has no agent running."
+// in the language of msgs.
+func (msgs Messages) FlowSkippedNoAgent(stage string) string {
+	return Catalog.Format(msgs.locale, "flowSkippedNoAgent", map[string]any{"stage": stage})
 }
 
 // SettingsRemote says "Remote"

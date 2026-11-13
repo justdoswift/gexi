@@ -25,6 +25,10 @@ type project struct {
 	Dir      string
 	Label    string
 	Sessions []*session
+	// Flows are the prompts the project runs after each step of the
+	// worktree pipeline, keyed by flowStage. They are edited from the
+	// project row's menu and saved with the layout.
+	Flows projectFlows
 	// remote is set on the project a paired Mac takes: its sessions and
 	// panes live on that host, and the window draws them as local work.
 	remote *remoteProjectLink
@@ -181,10 +185,6 @@ type workspace struct {
 	archivedSessions []storedSession
 	idleOpen         bool
 
-	// sessionCloseOpen is the ask behind the sidebar's close button: archive
-	// the session, set it idle, or cancel. sessionCloseTarget is its session.
-	sessionCloseOpen   bool
-	sessionCloseTarget *session
 	// archivedDeleteOpen asks before one archived session is deleted;
 	// archivedDeleteID names it.
 	archivedDeleteOpen bool
@@ -211,6 +211,15 @@ type workspace struct {
 	// closed, keyed by the checkout path. It keeps the agent conversation
 	// the pane had instead of opening a bare shell from the Worktrees page.
 	worktreeRestores map[string][]string
+
+	// flows are the project prompts waiting for, or running in, a pane.
+	// flowOpen is the project's flow dialog; flowTarget is its project and
+	// flowDraft the edits it has not saved.
+	flows        []flowTask
+	flowOpen     bool
+	flowTarget   *project
+	flowDraft    flowDraft
+	flowSelected flowStage
 
 	// The files drawer: the right-hand column of changes and files.
 	drawer drawerState
@@ -1426,6 +1435,9 @@ func (w *workspace) startAgentMonitor() {
 				if w.quitting {
 					return
 				}
+				// A flow waits for its pane's agent, so it is checked on
+				// the same tick that keeps those detections fresh.
+				w.drainFlows()
 				now := time.Now()
 				for _, p := range w.livePanes() {
 					group := p.foregroundGroup()

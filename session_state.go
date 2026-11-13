@@ -17,54 +17,6 @@ import (
 // idle and archived sessions keep their panes' commands and last screens, so
 // opening one resumes the same work.
 
-// askCloseSession is what the sidebar's close button asks: archive the
-// session in Settings, set it idle at the bottom of the sidebar, or cancel.
-// The row keeps one close button; the right-click menu offers the two
-// destinations directly for the same choice without the question.
-func (w *workspace) askCloseSession(s *session) {
-	if s == nil {
-		return
-	}
-	// A session on another Mac is its host's to close; this window has no
-	// saved tree to keep.
-	if s.remote != nil {
-		w.closeSession(s)
-		return
-	}
-	w.sessionCloseTarget = s
-	w.sessionCloseOpen = true
-	w.invalidate()
-}
-
-// sessionCloseDialog asks where the closing session goes.
-func (w *workspace) sessionCloseDialog(c *ui.Context, tk tokens) {
-	s := w.sessionCloseTarget
-	if s == nil {
-		return
-	}
-	dialogAlert(c, tk, &w.sessionCloseOpen, 440,
-		locales.SessionCloseTitle(), locales.SessionCloseBody(),
-		dialogAction{label: locales.Cancel(), kind: dialogQuiet, run: func() {
-			w.sessionCloseOpen = false
-		}},
-		dialogAction{label: locales.SessionArchive(), kind: dialogQuiet, run: func() {
-			w.sessionCloseOpen = false
-			if w.sessionByID(s.ID) == s {
-				w.putSessionAway(s, true)
-			}
-		}},
-		dialogAction{label: locales.SessionIdle(), kind: dialogPrimary, auto: true, run: func() {
-			w.sessionCloseOpen = false
-			if w.sessionByID(s.ID) == s {
-				w.putSessionAway(s, false)
-			}
-		}},
-	)
-	if !w.sessionCloseOpen {
-		w.sessionCloseTarget = nil
-	}
-}
-
 // putSessionAway records the session's panes, stops them, and files the
 // record in the idle fold or the archive.
 func (w *workspace) putSessionAway(s *session, archive bool) bool {

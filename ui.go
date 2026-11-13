@@ -107,9 +107,6 @@ func (w *workspace) view(c *ui.Context) {
 	if w.paneRenameOpen {
 		w.paneRenameDialog(c, tk)
 	}
-	if w.sessionCloseTarget != nil {
-		w.sessionCloseDialog(c, tk)
-	}
 	if w.closeTarget != nil {
 		p := w.closeTarget
 		dialogAlert(c, tk, &w.closeOpen, 420, locales.PaneCloseTitle(), w.closeMsg,
@@ -172,6 +169,14 @@ func (w *workspace) view(c *ui.Context) {
 		w.archiveWorktreeDialog(c, tk)
 		if !w.archiveOpen {
 			w.archiveTarget = nil
+		}
+	}
+	if w.flowTarget != nil {
+		w.projectFlowDialog(c, tk)
+		if !w.flowOpen {
+			w.flowTarget = nil
+			w.flowDraft = flowDraft{}
+			w.flowSelected = ""
 		}
 	}
 }
@@ -414,6 +419,9 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 			}
 		}
 		if hovered {
+			moreMenuButtonSmall(c, tk, func(m *ui.Menu) {
+				w.projectRowMenu(m, pr)
+			}, locales.More())
 			iconButtonSmall(c, tk, "x", func() { w.closeProject(pr) }, locales.CloseProject())
 		}
 	})
@@ -526,11 +534,10 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 }
 
 // sessionRow is one piece of work in a project: an agent's mark or a terminal
-// glyph, its name, a sweep over the name while its agent works, and a close
+// glyph, its name, a sweep over the name while its agent works, and a menu
 // button on hover. The selected row is a card on the sidebar's surface, so
-// the eye finds it without an accent colour. The close button's place is
-// kept while the pointer is away, so the name does not move as the button
-// comes and goes.
+// the eye finds it without an accent colour. The button's place is kept
+// while the pointer is away, so the name does not move as it comes and goes.
 func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session, indent float32) {
 	sel := s.ID == w.SelectedSession
 	color := tk.MutedForeground
@@ -591,9 +598,14 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		labelEl.OnClick(pick)
 		ui.Spacer(c).OnClick(pick)
 		if hovered {
-			iconButtonSmall(c, tk, "x", func() { w.askCloseSession(s) }, locales.CloseSession())
+			// The row's menu, where the close button used to be: renaming
+			// and the two ways a session goes are one press away, exactly
+			// as the right-click offers them.
+			moreMenuButtonSmall(c, tk, func(m *ui.Menu) {
+				w.sessionRowMenu(m, s)
+			}, locales.More())
 		} else {
-			// Hold the close button's place so the name keeps its width.
+			// Hold the button's place so the name keeps its width.
 			ui.Box(c).Width(iconSmallSize).Height(iconSmallSize).OnClick(pick)
 		}
 	})
