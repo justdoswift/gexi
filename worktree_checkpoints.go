@@ -1,6 +1,9 @@
 package main
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/egoist/mygo/ui"
 )
 
@@ -11,6 +14,10 @@ const (
 	// checkpointRowHeight is one stage's line. Every row is the same height
 	// so the card does not jump as the operation moves from stage to stage.
 	checkpointRowHeight float32 = 22
+	// checkpointMotion is how long the card and each stage take to settle
+	// into place. Short enough that a wait already under way never reads as
+	// waiting on the motion itself.
+	checkpointMotion = 180 * time.Millisecond
 )
 
 // worktreeCheckpoints draws a running pull request, merge, or conflict
@@ -47,6 +54,17 @@ func (w *workspace) worktreeCheckpoints(c *ui.Context, tk tokens, p *pane) {
 		Border(1, tk.Border).Background(tk.Background).
 		Shadow(0, 6, 20, 0, shadow).
 		IgnoreInput(true)
+	// The card drops into its corner, faded, as the stage's cards and the
+	// drawers arrive: a merge can start the moment the menu closes, and a
+	// panel that pops there reads as a redraw rather than as work beginning.
+	entered := ui.Local(card, "entered", func() bool { return false })
+	pose := ui.Pose{}
+	if !*entered {
+		*entered = true
+		pose = ui.Pose{Y: -6, Fade: 1}
+		c.After(time.Millisecond)
+	}
+	card.AnimatePose(pose, ui.Animation{Duration: checkpointMotion, Ease: ui.EaseOut})
 	card.Children(func() {
 		checkpointsHead(c, tk, title, wt)
 		ui.Column(c).FillWidth().Padding(0, 6, 8, 6).Children(func() {
@@ -81,8 +99,23 @@ func checkpointsHead(c *ui.Context, tk tokens, title string, wt *paneWorktree) {
 // it fade and take a check, so the card reads at a glance as well as in order.
 func checkpointRow(c *ui.Context, tk tokens, p *pane, step worktreeStep,
 	i, at int) {
-	ui.Row(c).FillWidth().Height(checkpointRowHeight).Padding(0, 12).Gap(8).
-		AlignItems(ui.Center).Children(func() {
+	// A stage is keyed by itself rather than by its line: a new operation
+	// that reuses the card animates its stages in, while one already drawn
+	// keeps its place as the operation moves on to the next.
+	row := ui.Row(c).Key("step-"+strconv.Itoa(int(step))).
+		FillWidth().Height(checkpointRowHeight).Padding(0, 12).Gap(8).
+		AlignItems(ui.Center)
+	// A stage that has just been reached rises into its line, faded, so the
+	// card grows a line instead of jumping one taller.
+	entered := ui.Local(row, "entered", func() bool { return false })
+	pose := ui.Pose{}
+	if !*entered {
+		*entered = true
+		pose = ui.Pose{Y: 5, Fade: 1}
+		c.After(time.Millisecond)
+	}
+	row.AnimatePose(pose, ui.Animation{Duration: checkpointMotion, Ease: ui.EaseOut})
+	row.Children(func() {
 		gutter := ui.Box(c).Width(12).Height(checkpointRowHeight)
 		gutter.Children(func() {
 			// The rail is drawn in halves, so the first and last
@@ -125,8 +158,19 @@ func checkpointRow(c *ui.Context, tk tokens, p *pane, step worktreeStep,
 			ui.Text(c, label).FontSize(11.5).TextColor(tk.MutedForeground).
 				SingleLine().Shrink(1)
 			ui.Spacer(c)
-			ui.Text(c, "✓").FontSize(10).
+			check := ui.Text(c, "✓").FontSize(10).
 				TextColor(tk.MutedForeground.Alpha(0.8))
+			// The check lands with the stage it marks, rather than being
+			// there the moment the shimmer stops.
+			seen := ui.Local(check, "entered", func() bool { return false })
+			checkPose := ui.Pose{}
+			if !*seen {
+				*seen = true
+				checkPose = ui.Pose{Scale: 0.7, Fade: 1}
+				c.After(time.Millisecond)
+			}
+			check.AnimatePose(checkPose,
+				ui.Animation{Duration: checkpointMotion, Ease: ui.EaseOut})
 		case i == at:
 			shimmerLabel(c, tk, label, 11.5, 500).Shrink(1)
 		}
