@@ -166,6 +166,9 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		// carried-changes note.
 		p.stopHalo()
 	case "turn.end":
+		// A flow prompt the hook never reported is not kept around to
+		// swallow the user's first message later.
+		p.injectedPrompt = ""
 		if p.Worktree != nil {
 			w.refreshWorktree(p)
 		}

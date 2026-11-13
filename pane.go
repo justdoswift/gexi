@@ -231,6 +231,10 @@ type pane struct {
 	// firstPrompt is the first message the user sent to the agent here,
 	// kept so a name can be made from what the work is about.
 	firstPrompt string
+	// injectedPrompt is the prompt a project flow typed into the pane. The
+	// hook that reports it must not take it for the user's first message,
+	// or a flow would name a pane the user has not asked anything in yet.
+	injectedPrompt string
 	// nameAsked says the pane's agent was already asked to name it, or the
 	// user named it by hand; the first message does not ask twice.
 	nameAsked bool
@@ -623,6 +627,12 @@ func (p *pane) noteFirstPrompt(prompt string) bool {
 	if prompt == "" || p.firstPrompt != "" {
 		return false
 	}
+	// A flow's prompt is gexi's, not the user's: it says nothing about
+	// what the pane is for.
+	if p.injectedPrompt != "" && prompt == p.injectedPrompt {
+		p.injectedPrompt = ""
+		return false
+	}
 	p.firstPrompt = prompt
 	return true
 }
@@ -632,6 +642,11 @@ func (p *pane) noteFirstPrompt(prompt string) bool {
 // is kept so the sidebar can say what it is working on. It reports whether
 // anything changed.
 func (p *pane) applyPerchTurn(busy bool, prompt string) bool {
+	// Perch reports no turn end through hooks, so an injected prompt that
+	// its thread file did not echo back is forgotten when the turn stops.
+	if !busy {
+		p.injectedPrompt = ""
+	}
 	if busy && p.noteFirstPrompt(prompt) && p.ws != nil {
 		if p.nameKind == "" {
 			p.nameKind = agentPerch

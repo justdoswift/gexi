@@ -414,3 +414,46 @@ func TestTurnStartKeepsTheFirstPrompt(t *testing.T) {
 		t.Fatalf("first prompt = %q, want the first one kept", p.firstPrompt)
 	}
 }
+
+// The row's menu button opens the same menu the right-click does: renaming,
+// archiving and setting idle, without the close question the button used to
+// ask.
+func TestSessionRowMenuButtonMatchesRightClick(t *testing.T) {
+	s := &session{ID: "s", Root: leaf(&pane{ID: "p", Label: "gyrocopter"})}
+	pr := &project{ID: "pr", Dir: t.TempDir(), Sessions: []*session{s}}
+	w := &workspace{Projects: []*project{pr}}
+	tester := ui.NewTester(func(c *ui.Context) {
+		tk := themeTokens(c.Theme())
+		ui.Column(c).Fill().Padding(12).Children(func() {
+			w.sessionRow(c, tk, pr, s, 0)
+		})
+	}, 320, 220)
+	tester.Frame()
+
+	row, ok := tester.Find("gyrocopter")
+	if !ok {
+		t.Fatal("the session row is not drawn")
+	}
+	tester.Move(row.X+row.W/2, row.Y+row.H/2)
+	tester.Frame()
+	more, ok := tester.Find("…")
+	if !ok {
+		t.Fatal("the row has no menu button on hover")
+	}
+	tester.ClickAt(more.X+more.W/2, more.Y+more.H/2)
+	tester.Frame()
+	clicked := tester.Menu()
+
+	tester.CloseMenu()
+	tester.Frame()
+	tester.RightClickAt(row.X+row.W/2, row.Y+row.H/2)
+	tester.Frame()
+	right := tester.Menu()
+
+	if len(clicked) == 0 {
+		t.Fatal("the menu button opened no menu")
+	}
+	if strings.Join(clicked, "|") != strings.Join(right, "|") {
+		t.Fatalf("button menu = %q, right-click menu = %q", clicked, right)
+	}
+}

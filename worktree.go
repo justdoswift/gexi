@@ -307,6 +307,10 @@ func (w *workspace) newAgentSession(pr *project, kind agentKind) {
 				if ps := s.Root.panes(); len(ps) > 0 {
 					ps[0].Worktree = wt
 					w.refreshWorktree(ps[0])
+					// A session started in an agent's own checkout is the
+					// same boundary as a pane moved by W: the flow runs
+					// once the agent is up.
+					w.queueFlow(ps[0], flowAfterWorktree, false)
 				}
 				w.worktreesScanned = false
 				w.invalidateSettings()
@@ -1655,6 +1659,7 @@ func (w *workspace) finishPullRequest(wt *paneWorktree, p *pane, info prInfo, br
 		wt.Branch = branch
 		w.flash(locales.WorktreePROpened())
 		w.schedulePRRefresh(p)
+		w.queueFlow(p, flowAfterPR, false)
 	}
 	w.invalidate()
 	w.scheduleSave()
@@ -1784,8 +1789,11 @@ func (w *workspace) mergePullRequest(p *pane) {
 			w.invalidate()
 			w.scheduleSave()
 			// Archiving used to be the merge's last step; it is the user's
-			// choice now, and the header's Archive button waits for it.
-			if w.settings.ArchiveAfterMerge {
+			// choice now, and the header's Archive button waits for it. A
+			// flow runs first, and the archive waits for its turn to end.
+			archives := w.settings.ArchiveAfterMerge
+			queued := w.queueFlow(p, flowAfterMerge, archives)
+			if archives && !queued {
 				w.archiveMergedAndReturn(p)
 			}
 		})
@@ -2865,6 +2873,9 @@ func (w *workspace) recoverPaneAfterWorktreeMove(p *pane, dir string, stopped bo
 func (w *workspace) restartPaneInWorktree(p *pane, wt *paneWorktree, command []string, keep bool) {
 	if w.restartPaneInDir(p, wt.Path, wt, command, locales.WorktreeCreated()) {
 		w.worktreesScanned = false
+		// The pane restarted in the checkout; the flow waits for its agent
+		// to be recognized there before it types anything.
+		w.queueFlow(p, flowAfterWorktree, false)
 		return
 	}
 	if keep {

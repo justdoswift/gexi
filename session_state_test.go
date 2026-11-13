@@ -195,30 +195,6 @@ func TestDeleteArchivedSessionDropsSnapshots(t *testing.T) {
 	}
 }
 
-// The close ask is where a session gets its state: both destinations are
-// offered, and neither throws work away.
-func TestSessionCloseDialogOffersIdleAndArchive(t *testing.T) {
-	w := &workspace{
-		sessionCloseOpen:   true,
-		sessionCloseTarget: &session{ID: "s", Root: leaf(&pane{ID: "p"})},
-	}
-	tester := ui.NewTester(func(c *ui.Context) {
-		w.sessionCloseDialog(c, themeTokens(c.Theme()))
-	}, 560, 460)
-	tester.Frame()
-	for _, text := range []string{
-		locales.SessionCloseTitle(),
-		locales.SessionCloseBody(),
-		locales.SessionIdle(),
-		locales.SessionArchive(),
-		locales.Cancel(),
-	} {
-		if !tester.HasText(text) {
-			t.Fatalf("the dialog does not show %q; it shows %q", text, tester.Texts())
-		}
-	}
-}
-
 func TestSavedSessionDirFindsTheFirstPane(t *testing.T) {
 	root := savedNode{
 		Type:  "split",
