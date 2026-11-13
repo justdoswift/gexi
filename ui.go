@@ -419,7 +419,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 			}
 		}
 		if hovered {
-			moreMenuButtonSmall(c, tk, func(m *ui.Menu) {
+			iconMenuButtonSmall(c, tk, "ellipsis", func(m *ui.Menu) {
 				w.projectRowMenu(m, pr)
 			}, locales.More())
 			iconButtonSmall(c, tk, "x", func() { w.closeProject(pr) }, locales.CloseProject())
@@ -601,7 +601,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 			// The row's menu, where the close button used to be: renaming
 			// and the two ways a session goes are one press away, exactly
 			// as the right-click offers them.
-			moreMenuButtonSmall(c, tk, func(m *ui.Menu) {
+			iconMenuButtonSmall(c, tk, "ellipsis", func(m *ui.Menu) {
 				w.sessionRowMenu(m, s)
 			}, locales.More())
 		} else {

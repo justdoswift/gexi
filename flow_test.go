@@ -275,11 +275,11 @@ func TestProjectFlowsDialogSavesFromTheRowMenu(t *testing.T) {
 	}
 	tester.Move(row.X+row.W/2, row.Y+row.H/2)
 	tester.Frame()
-	more, ok := tester.Find("…")
+	more, ok := tester.Access(locales.More())
 	if !ok {
 		t.Fatal("the row's menu button is not drawn on hover")
 	}
-	tester.ClickAt(more.X+more.W/2, more.Y+more.H/2)
+	tester.ClickAt(more.Bounds.X+more.Bounds.W/2, more.Bounds.Y+more.Bounds.H/2)
 	tester.Frame()
 	if err := tester.ChooseMenuItem(locales.Flows()); err != nil {
 		t.Fatalf("the row menu has no flows item: %v", err)
