@@ -207,3 +207,50 @@ func TestSavedSessionDirFindsTheFirstPane(t *testing.T) {
 		t.Fatalf("dir = %q, want the first pane's folder", got)
 	}
 }
+
+// A row's menu is opened from the "…" that only shows while the row is
+// hovered, and the pointer has to leave the row to reach the items. The
+// choice is reported to that button on the frame after it is made, so the
+// button has to keep its place behind the menu: while it was drawn only on
+// hover, Archive and Idle closed the menu and did nothing.
+func TestSessionRowMenuArchivesAfterThePointerLeaves(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	term, _ := probeTerminal(t)
+	s := &session{ID: "s", Label: "gyrocopter", Root: leaf(&pane{ID: "p", term: term})}
+	pr := &project{ID: "pr", Dir: t.TempDir(), Sessions: []*session{s}}
+	w := &workspace{Projects: []*project{pr}, settings: defaultSettings()}
+	view := func(c *ui.Context) {
+		tk := themeTokens(c.Theme())
+		ui.Column(c).Fill().Padding(12).Children(func() {
+			w.sessionRow(c, tk, pr, s, 0)
+		})
+	}
+	tester := ui.NewTester(view, 320, 220)
+	tester.Frame()
+	row, ok := tester.Find("gyrocopter")
+	if !ok {
+		t.Fatal("the session row is not drawn")
+	}
+	tester.Move(row.X+row.W/2, row.Y+row.H/2)
+	tester.Frame()
+	if err := tester.Click(locales.More()); err != nil {
+		t.Fatalf("the row has no menu button: %v", err)
+	}
+	tester.Frame()
+	if items := tester.Menu(); len(items) == 0 {
+		t.Fatal("the menu did not open")
+	}
+	// The pointer leaves the row to choose an item.
+	tester.Move(310, 5)
+	tester.Frame()
+	if err := tester.ChooseMenuItem(locales.SessionArchive()); err != nil {
+		t.Fatalf("choose archive: %v", err)
+	}
+	tester.Frame()
+	if len(w.archivedSessions) != 1 || w.archivedSessions[0].Session.ID != "s" {
+		t.Fatalf("archive did nothing: %+v", w.archivedSessions)
+	}
+	if len(pr.Sessions) != 0 {
+		t.Fatal("the archived session stayed in the sidebar")
+	}
+}
