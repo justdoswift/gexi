@@ -668,6 +668,32 @@
       "stroke": 1.0,
       "dx": 0,
       "dy": 0
+    },
+    "ellipsis": {
+      "label": "More",
+      "ref": "interface/more",
+      "rotate": 0,
+      "els": [
+        {
+          "t": "dot",
+          "cx": 3.2,
+          "cy": 8
+        },
+        {
+          "t": "dot",
+          "cx": 8,
+          "cy": 8
+        },
+        {
+          "t": "dot",
+          "cx": 12.8,
+          "cy": 8
+        }
+      ],
+      "box": 168,
+      "stroke": 1.72,
+      "dx": 0,
+      "dy": 0
     }
   },
   "strokeWidth": 1.25

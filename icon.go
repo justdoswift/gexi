@@ -369,25 +369,6 @@ func iconMenuButtonSmall(c *ui.Context, tk tokens, name string, build func(m *ui
 	return iconMenuButtonSized(c, tk, name, iconSmallSize, 15, build, hint...)
 }
 
-// moreMenuButtonSmall is the list-row menu's "…", drawn as text rather than
-// an icon: at 15pt the three dots sit on the row's own optical centre and
-// carry the same ink as the names beside them.
-func moreMenuButtonSmall(c *ui.Context, tk tokens, build func(m *ui.Menu), hint ...string) ui.Element {
-	el := ui.Row(c).Width(iconSmallSize).Height(iconSmallSize).Radius(chromeRadius).
-		Center().Cursor(ui.CursorPointer)
-	if el.Hovered() {
-		el = controlWash(c, el, tk, 0.06, tk.Control)
-	}
-	if len(hint) > 0 && hint[0] != "" {
-		el = el.Tooltip(hint[0])
-	}
-	el.Menu(build).Children(func() {
-		ui.Text(c, "…").FontSize(15).FontWeight(500).
-			TextColor(tk.MutedForeground).Translate(0, -1).IgnoreInput(true)
-	})
-	return el
-}
-
 func iconMenuButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32, build func(m *ui.Menu), hint ...string) ui.Element {
 	el := ui.Row(c).Width(size).Height(size).Radius(chromeRadius).
 		Center().Cursor(ui.CursorPointer)
@@ -395,7 +376,9 @@ func iconMenuButtonSized(c *ui.Context, tk tokens, name string, size, glyph floa
 		el = controlWash(c, el, tk, 0.06, tk.Control)
 	}
 	if len(hint) > 0 && hint[0] != "" {
-		el = el.Tooltip(hint[0])
+		// The glyph is the button's only content, so the hint is also the
+		// name assistive technology reads for it.
+		el = el.Tooltip(hint[0]).Label(hint[0])
 	}
 	el.Menu(build).Children(func() {
 		if src := iconSource(name, colorHex(tk.MutedForeground)); src != nil {

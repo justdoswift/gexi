@@ -436,11 +436,11 @@ func TestSessionRowMenuButtonMatchesRightClick(t *testing.T) {
 	}
 	tester.Move(row.X+row.W/2, row.Y+row.H/2)
 	tester.Frame()
-	more, ok := tester.Find("…")
+	more, ok := tester.Access(locales.More())
 	if !ok {
 		t.Fatal("the row has no menu button on hover")
 	}
-	tester.ClickAt(more.X+more.W/2, more.Y+more.H/2)
+	tester.ClickAt(more.Bounds.X+more.Bounds.W/2, more.Bounds.Y+more.Bounds.H/2)
 	tester.Frame()
 	clicked := tester.Menu()
 
