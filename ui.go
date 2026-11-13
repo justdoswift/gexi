@@ -418,10 +418,16 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 				plus = plus.Opacity(0).IgnoreInput(true).AccessHidden(true)
 			}
 		}
+		// The menu stays in the row while it is not hovered, for the same
+		// reason the + does: the pointer moves onto the menu to choose an
+		// item, and the button has to be there to report the choice.
+		more := iconMenuButtonSmall(c, tk, "ellipsis", func(m *ui.Menu) {
+			w.projectRowMenu(m, pr)
+		}, locales.More())
+		if !hovered {
+			more = more.Opacity(0).IgnoreInput(true).AccessHidden(true)
+		}
 		if hovered {
-			iconMenuButtonSmall(c, tk, "ellipsis", func(m *ui.Menu) {
-				w.projectRowMenu(m, pr)
-			}, locales.More())
 			iconButtonSmall(c, tk, "x", func() { w.closeProject(pr) }, locales.CloseProject())
 		}
 	})
@@ -597,16 +603,16 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		}
 		labelEl.OnClick(pick)
 		ui.Spacer(c).OnClick(pick)
-		if hovered {
-			// The row's menu, where the close button used to be: renaming
-			// and the two ways a session goes are one press away, exactly
-			// as the right-click offers them.
-			iconMenuButtonSmall(c, tk, "ellipsis", func(m *ui.Menu) {
-				w.sessionRowMenu(m, s)
-			}, locales.More())
-		} else {
-			// Hold the button's place so the name keeps its width.
-			ui.Box(c).Width(iconSmallSize).Height(iconSmallSize).OnClick(pick)
+		// The row's menu, where the close button used to be: renaming
+		// and the two ways a session goes are one press away, exactly
+		// as the right-click offers them. It keeps its place while the
+		// row is not hovered, so the menu it opened still has a button
+		// to report its choice to after the pointer moves onto it.
+		more := iconMenuButtonSmall(c, tk, "ellipsis", func(m *ui.Menu) {
+			w.sessionRowMenu(m, s)
+		}, locales.More())
+		if !hovered {
+			more = more.Opacity(0).IgnoreInput(true).AccessHidden(true)
 		}
 	})
 }
