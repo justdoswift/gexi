@@ -223,6 +223,8 @@ type workspace struct {
 
 	// The files drawer: the right-hand column of changes and files.
 	drawer drawerState
+	// The reply reader: the right-hand column of one agent answer.
+	reply replyState
 
 	// Each project's Git state, for the pane headers' branch pill and the
 	// drawer's list, read off the UI thread.

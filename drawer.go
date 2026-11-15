@@ -333,6 +333,10 @@ func (w *workspace) toggleDrawer() {
 }
 
 func (w *workspace) openDrawer(tab int) {
+	// The reply reader holds the same right-hand column.
+	if w.reply.open || w.reply.closing {
+		w.closeReply()
+	}
 	d := &w.drawer
 	d.open = true
 	d.closing = false

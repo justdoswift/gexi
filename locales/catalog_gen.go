@@ -324,6 +324,96 @@ func (msgs Messages) PaneSubagentsBackground() string {
 	return Catalog.Format(msgs.locale, "paneSubagentsBackground", nil)
 }
 
+// PaneReplyMenu says "Show Reply"
+// in the language the app shows.
+func PaneReplyMenu() string { return In(i18n.Locale()).PaneReplyMenu() }
+
+// PaneReplyMenu says "Show Reply"
+// in the language of msgs.
+func (msgs Messages) PaneReplyMenu() string {
+	return Catalog.Format(msgs.locale, "paneReplyMenu", nil)
+}
+
+// PaneReplyHint says "Read {agent}'s last reply"
+// in the language the app shows.
+func PaneReplyHint(agent string) string { return In(i18n.Locale()).PaneReplyHint(agent) }
+
+// PaneReplyHint says "Read {agent}'s last reply"
+// in the language of msgs.
+func (msgs Messages) PaneReplyHint(agent string) string {
+	return Catalog.Format(msgs.locale, "paneReplyHint", map[string]any{"agent": agent})
+}
+
+// ReplyTitle says "{agent}'s reply"
+// in the language the app shows.
+func ReplyTitle(agent string) string { return In(i18n.Locale()).ReplyTitle(agent) }
+
+// ReplyTitle says "{agent}'s reply"
+// in the language of msgs.
+func (msgs Messages) ReplyTitle(agent string) string {
+	return Catalog.Format(msgs.locale, "replyTitle", map[string]any{"agent": agent})
+}
+
+// ReplyCopy says "Copy"
+// in the language the app shows.
+func ReplyCopy() string { return In(i18n.Locale()).ReplyCopy() }
+
+// ReplyCopy says "Copy"
+// in the language of msgs.
+func (msgs Messages) ReplyCopy() string {
+	return Catalog.Format(msgs.locale, "replyCopy", nil)
+}
+
+// ReplyCopied says "Reply copied"
+// in the language the app shows.
+func ReplyCopied() string { return In(i18n.Locale()).ReplyCopied() }
+
+// ReplyCopied says "Reply copied"
+// in the language of msgs.
+func (msgs Messages) ReplyCopied() string {
+	return Catalog.Format(msgs.locale, "replyCopied", nil)
+}
+
+// ReplyNone says "No reply to show yet."
+// in the language the app shows.
+func ReplyNone() string { return In(i18n.Locale()).ReplyNone() }
+
+// ReplyNone says "No reply to show yet."
+// in the language of msgs.
+func (msgs Messages) ReplyNone() string {
+	return Catalog.Format(msgs.locale, "replyNone", nil)
+}
+
+// ReplyClose says "Close reply"
+// in the language the app shows.
+func ReplyClose() string { return In(i18n.Locale()).ReplyClose() }
+
+// ReplyClose says "Close reply"
+// in the language of msgs.
+func (msgs Messages) ReplyClose() string {
+	return Catalog.Format(msgs.locale, "replyClose", nil)
+}
+
+// ReplyEmpty says "This reply has no text."
+// in the language the app shows.
+func ReplyEmpty() string { return In(i18n.Locale()).ReplyEmpty() }
+
+// ReplyEmpty says "This reply has no text."
+// in the language of msgs.
+func (msgs Messages) ReplyEmpty() string {
+	return Catalog.Format(msgs.locale, "replyEmpty", nil)
+}
+
+// ReplyTruncated says "The reply is too long; showing its first 200 KB."
+// in the language the app shows.
+func ReplyTruncated() string { return In(i18n.Locale()).ReplyTruncated() }
+
+// ReplyTruncated says "The reply is too long; showing its first 200 KB."
+// in the language of msgs.
+func (msgs Messages) ReplyTruncated() string {
+	return Catalog.Format(msgs.locale, "replyTruncated", nil)
+}
+
 // PaneCloseTitle says "Close pane?"
 // in the language the app shows.
 func PaneCloseTitle() string { return In(i18n.Locale()).PaneCloseTitle() }
@@ -2838,6 +2928,16 @@ func MenuToggleFiles() string { return In(i18n.Locale()).MenuToggleFiles() }
 // in the language of msgs.
 func (msgs Messages) MenuToggleFiles() string {
 	return Catalog.Format(msgs.locale, "menuToggleFiles", nil)
+}
+
+// MenuShowReply says "Show Last Reply"
+// in the language the app shows.
+func MenuShowReply() string { return In(i18n.Locale()).MenuShowReply() }
+
+// MenuShowReply says "Show Last Reply"
+// in the language of msgs.
+func (msgs Messages) MenuShowReply() string {
+	return Catalog.Format(msgs.locale, "menuShowReply", nil)
 }
 
 // ShortcutToggleFiles says "Toggle files"

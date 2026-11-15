@@ -7,3 +7,6 @@ mygo-spike/
 .claude/skills/
 .claude/worktrees/
 .perch/
+.env
+.env.local
+.env.*.local
