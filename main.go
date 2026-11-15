@@ -218,6 +218,11 @@ func mainMenu(w *workspace) *mygo.Menu {
 			{Label: locales.MenuToggleFiles(), Accelerator: "CmdOrCtrl+Shift+E", Click: func(*mygo.MenuItem, *mygo.Window) {
 				w.toggleDrawer()
 			}},
+			{Label: locales.MenuShowReply(), Accelerator: "CmdOrCtrl+Shift+R", Click: func(*mygo.MenuItem, *mygo.Window) {
+				if p, err := w.resolvePane(""); err == nil {
+					w.toggleReply(p)
+				}
+			}},
 			{Label: locales.MenuLanguage(), Submenu: languageMenu(w)},
 			{Label: locales.MenuSettings(), Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { w.openSettings() }},
 		}},

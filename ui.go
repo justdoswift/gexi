@@ -85,6 +85,9 @@ func (w *workspace) view(c *ui.Context) {
 		// The drawer sits above the panes and below nothing: it is the last
 		// thing drawn, so it slides over the canvas rather than resizing it.
 		w.drawerView(c, tk)
+		// The reply reader is the same kind of column, and only one of the
+		// two is ever open.
+		w.replyView(c, tk)
 	})
 	if w.hostOpen {
 		w.hostDialog(c, tk)
@@ -1131,6 +1134,12 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					actions = actions.IgnoreInput(!showActions).
 						Opacity(actions.AnimateTo("actions", alpha, ui.Animation{Duration: 150 * time.Millisecond, Ease: ui.EaseOut}))
 					actions.Children(func() {
+						// The reply sits beside the checkout it is about,
+						// and appears with the other controls so an idle
+						// header stays quiet.
+						if p.reply != nil && p.remote == nil {
+							w.replyChip(c, tk, p)
+						}
 						// The worktree button is the pane's checkout: a local
 						// one here, and a host's pressed through it, since
 						// the checkout and its pull request are the host's.

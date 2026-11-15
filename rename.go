@@ -160,6 +160,12 @@ func (w *workspace) paneHeaderMenu(m *ui.Menu, p *pane) {
 			w.clearPaneName(p)
 		}
 	}
+	if p.reply != nil {
+		m.Separator()
+		if m.Item(locales.PaneReplyMenu()).Chosen() {
+			w.toggleReply(p)
+		}
+	}
 }
 
 func (w *workspace) openPaneRename(p *pane) {

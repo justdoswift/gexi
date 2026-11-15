@@ -166,6 +166,12 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		// carried-changes note.
 		p.stopHalo()
 	case "turn.end":
+		// Claude's Stop hook carries the final answer in the agent's own
+		// words. Keep it for the reply reader; other agents have no text
+		// channel here yet.
+		if agentKind(ev.Agent) == agentClaude {
+			p.setReply(agentClaude, ev.Message)
+		}
 		// A flow prompt the hook never reported is not kept around to
 		// swallow the user's first message later.
 		p.injectedPrompt = ""
@@ -176,6 +182,15 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		// A turn that stops to ask is not a finished task: no light for it.
 		p.stopHalo()
 	case "session.start", "session.end":
+		// A fresh Claude conversation has no reply from the last one to
+		// show. Another agent starting in the pane does not own the reply,
+		// so it leaves it alone.
+		if ev.Kind == "session.start" && agentKind(ev.Agent) == agentClaude {
+			p.reply = nil
+			if w.reply.pane == p {
+				w.closeReply()
+			}
+		}
 		// A fresh session has no running subagents, and a finished one leaves
 		// none behind even if a stop hook was missed.
 		p.clearSubagents()

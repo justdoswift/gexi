@@ -5,6 +5,7 @@ go 1.27.3
 require (
 	github.com/creack/pty v1.1.24
 	github.com/egoist/mygo v0.8.1
+	github.com/yuin/goldmark v1.8.7
 	golang.org/x/sys v0.49.0
 )
 
