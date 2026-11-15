@@ -246,22 +246,16 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane, hint string) {
 	// branch name itself carries the colour.
 	unmeasured := info.changed && info.added+info.deleted == 0
 	color := tk.MutedForeground
-	lit := showing
+	active := showing
 	el := ui.Row(c).Height(22).Radius(headerRadius).Padding(0, 8).Gap(5).
 		AlignItems(ui.Center).Shrink(1).Cursor(ui.CursorPointer)
 	if el.Hovered() {
-		lit = true
+		active = true
 	}
-	if lit {
+	if active {
 		color = tk.Foreground
 	}
-	bg := tk.Active
-	tint := tk.Control.Alpha(0.15)
-	if lit {
-		bg = tk.Control
-		tint = tk.Control.Alpha(0.3)
-	}
-	el = capsule(c, el, tk, tint, bg)
+	el = badge(el, tk, active)
 	// A remote pane's branch is the host's: its changes open on the host,
 	// not here, so the pill only names it.
 	pick := func() { w.toggleChangesDrawer(info.dir) }
@@ -648,7 +642,7 @@ func (w *workspace) drawerView(c *ui.Context, tk tokens) {
 	// glass. Glass over a terminal in light mode reads as a grey sheet, which
 	// is not what the theme's white is meant to say.
 	el = el.Width(width)
-	el = el.Background(tk.Background).BorderWidth(0, 0, 0, 1).BorderColor(tk.Border)
+	el = sheet(el.Background(tk.Background).BorderWidth(0, 0, 0, 1).BorderColor(tk.Border), tk)
 	el = el.Clip()
 	// A drawer is an overlay, so Escape closes it wherever the keyboard is.
 	if el.OverlayShortcut(0, ui.KeyEscape) {
@@ -741,7 +735,7 @@ func (w *workspace) drawerScopeRow(c *ui.Context, tk tokens) {
 	d := &w.drawer
 	ui.Row(c).Height(34).Shrink(0).FillWidth().Padding(5, 8, 5, 8).
 		Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Row(c).Height(24).Padding(2).Radius(7).Background(tk.Active).Gap(2).
+		sunken(ui.Row(c).Height(24).Padding(2).Radius(7).Background(tk.Active).Gap(2), tk).
 			Children(func() {
 				for _, opt := range []struct {
 					scope int
@@ -757,7 +751,7 @@ func (w *workspace) drawerScopeRow(c *ui.Context, tk tokens) {
 						Cursor(ui.CursorPointer)
 					if selected {
 						color = tk.Foreground
-						el = el.Background(tk.Raised).Border(1, tk.Border)
+						el = lit(lifted(el.Background(tk.Raised), tk), tk)
 					}
 					pick := func() { w.setDrawerScope(opt.scope) }
 					el.OnClick(pick).Children(func() {
@@ -994,7 +988,7 @@ func (w *workspace) drawerFileView(c *ui.Context, tk tokens, file *drawerFile) {
 				Border(1, ui.Transparent).
 				Center().Cursor(ui.CursorPointer)
 			if el.Hovered() {
-				el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
+				el = hoverWash(c, el, tk)
 			}
 			el.OnClick(back).Tooltip(locales.DrawerBack()).Children(func() {
 				if src := iconSource("chevron-right", colorHex(tk.MutedForeground)); src != nil {

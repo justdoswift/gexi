@@ -50,17 +50,20 @@ func defaultTokens(dark bool, accent ui.Color) tokens {
 			// The card background is the terminal's own background
 			// (ui.DarkTheme), so a pane header and its body read as one
 			// surface; the canvas around it sits a step darker, which is
-			// what makes a comfortable pane look wrapped.
+			// what makes a comfortable pane look wrapped. The canvas is a
+			// blue-leaning black and the ink a soft white, as leaf's
+			// pages are: neither is pure, so the screen reads as paper
+			// rather than as pixels.
 			Background:      ui.RGB(0x18, 0x18, 0x1b),
-			Foreground:      ui.RGB(0xfa, 0xfa, 0xfa),
-			Muted:           ui.RGB(0x0e, 0x0e, 0x10),
-			MutedForeground: ui.RGB(0xa1, 0xa1, 0xa1),
-			Border:          ui.RGB(0x2a, 0x2a, 0x2e),
-			Sidebar:         ui.RGB(0x0e, 0x0e, 0x10),
-			Accent:          ui.RGB(0x1f, 0x1f, 0x1f),
-			Active:          ui.RGB(0x26, 0x26, 0x26),
-			Control:         ui.RGB(0x3a, 0x3a, 0x3a),
-			Raised:          ui.RGB(0x35, 0x35, 0x3a),
+			Foreground:      ui.RGB(0xed, 0xed, 0xf0),
+			Muted:           ui.RGB(0x11, 0x11, 0x13),
+			MutedForeground: ui.RGB(0x9d, 0x9d, 0xa6),
+			Border:          ui.RGB(0x26, 0x26, 0x2a),
+			Sidebar:         ui.RGB(0x11, 0x11, 0x13),
+			Accent:          ui.RGB(0x1c, 0x1c, 0x20),
+			Active:          ui.RGB(0x22, 0x22, 0x26),
+			Control:         ui.RGB(0x35, 0x35, 0x3b),
+			Raised:          ui.RGB(0x2d, 0x2d, 0x32),
 			Working:         ui.RGB(0x22, 0xc5, 0x5e),
 			Waiting:         ui.RGB(0xf5, 0x9e, 0x0b),
 			Danger:          ui.RGB(0xf8, 0x71, 0x71),
@@ -68,15 +71,18 @@ func defaultTokens(dark bool, accent ui.Color) tokens {
 		}
 	}
 	return tokens{
+		// Warm neutrals, as leaf's page: the canvas is paper, the ink holds
+		// a little blue, and the hairline between them is the ink at 6%
+		// rather than a grey of its own.
 		Background:      ui.RGB(0xff, 0xff, 0xff),
-		Foreground:      ui.RGB(0x0a, 0x0a, 0x0a),
-		Muted:           ui.RGB(0xf5, 0xf5, 0xf5),
-		MutedForeground: ui.RGB(0x73, 0x73, 0x73),
-		Border:          ui.RGB(0xe5, 0xe5, 0xe5),
-		Sidebar:         ui.RGB(0xfa, 0xfa, 0xfa),
-		Accent:          ui.RGB(0xf5, 0xf5, 0xf5),
-		Active:          ui.RGB(0xed, 0xed, 0xed),
-		Control:         ui.RGB(0xe0, 0xe0, 0xe0),
+		Foreground:      ui.RGB(0x17, 0x17, 0x1a),
+		Muted:           ui.RGB(0xf6, 0xf6, 0xf3),
+		MutedForeground: ui.RGB(0x5f, 0x5f, 0x66),
+		Border:          ui.RGB(0xe8, 0xe8, 0xe5),
+		Sidebar:         ui.RGB(0xf6, 0xf6, 0xf3),
+		Accent:          ui.RGB(0xf2, 0xf2, 0xef),
+		Active:          ui.RGB(0xec, 0xec, 0xe9),
+		Control:         ui.RGB(0xdc, 0xdc, 0xd8),
 		Raised:          ui.RGB(0xff, 0xff, 0xff),
 		Working:         ui.RGB(0x16, 0xa3, 0x4a),
 		Waiting:         ui.RGB(0xd9, 0x77, 0x06),
@@ -235,15 +241,111 @@ const (
 // card sits twice as far from the edge as it does from its neighbour.
 const canvasInset float32 = 6
 
-// paneShadow lifts a comfortable pane off the canvas: a soft, low shadow, so
-// the card reads as a panel with depth rather than a flat fill. A light window
-// takes the lighter one, as stageShadow does.
-func paneShadow(tk tokens) ui.Color {
-	alpha := float32(0.16)
-	if !tk.Dark {
-		alpha = 0.07
+// raised lifts a card off the surface the way leaf's pages are lifted: a
+// hairline in place of a border, then shadows that spread wider and softer
+// the further they fall. The card keeps its own fill, so a pane still reads
+// as the terminal's colour; only the shadows say it sits above the surface.
+// A card whose top edge is its own fill wears lit as well.
+func raised(e ui.Element, tk tokens) ui.Element {
+	if tk.Dark {
+		return e.
+			Shadow(0, 0, 0, 1, ui.RGB(0xff, 0xff, 0xff).Alpha(0.07)).
+			Shadow(0, 1, 1, 0, ui.RGB(0, 0, 0).Alpha(0.30)).
+			Shadow(0, 3, 6, -2, ui.RGB(0, 0, 0).Alpha(0.35)).
+			Shadow(0, 12, 24, -8, ui.RGB(0, 0, 0).Alpha(0.45))
 	}
-	return ui.RGB(0, 0, 0).Alpha(alpha)
+	ink := ui.RGB(0x11, 0x11, 0x1a)
+	return e.
+		Shadow(0, 0, 0, 1, ink.Alpha(0.06)).
+		Shadow(0, 1, 1, 0, ink.Alpha(0.04)).
+		Shadow(0, 3, 6, -2, ink.Alpha(0.05)).
+		Shadow(0, 12, 24, -8, ink.Alpha(0.08))
+}
+
+// lifted is the smaller raise a row or a field takes, as leaf's chosen list
+// row does: the same hairline, with the shadows kept close enough for a 32pt
+// control to wear without turning into a card.
+func lifted(e ui.Element, tk tokens) ui.Element {
+	if tk.Dark {
+		return e.
+			Shadow(0, 0, 0, 1, ui.RGB(0xff, 0xff, 0xff).Alpha(0.07)).
+			Shadow(0, 1, 2, 0, ui.RGB(0, 0, 0).Alpha(0.30)).
+			Shadow(0, 6, 14, -6, ui.RGB(0, 0, 0).Alpha(0.40))
+	}
+	ink := ui.RGB(0x11, 0x11, 0x1a)
+	return e.
+		Shadow(0, 0, 0, 1, ink.Alpha(0.07)).
+		Shadow(0, 1, 2, 0, ink.Alpha(0.06)).
+		Shadow(0, 6, 14, -6, ink.Alpha(0.11))
+}
+
+// lit is the light a raised surface catches along its top edge: one hairline
+// of white, so the card reads as facing up. It goes on the element that
+// paints the top edge itself, since an opaque child would cover it.
+func lit(e ui.Element, tk tokens) ui.Element {
+	if tk.Dark {
+		return e.InsetShadow(0, 1, 0, 0, ui.RGB(0xff, 0xff, 0xff).Alpha(0.06))
+	}
+	return e.InsetShadow(0, 1, 0, 0, ui.RGB(0xff, 0xff, 0xff).Alpha(0.90))
+}
+
+// badge is a tag in a pane header, as leaf's words in its headline are: the
+// card's own surface laid on the header, lit from above and outlined by a
+// hairline. The shadow is a contact shadow, a pixel or two deep, rather than
+// a card's: a 22pt tag lies on the header, it does not float over it.
+// Under the pointer it grows one step, so the tag lifts without moving.
+func badge(e ui.Element, tk tokens, hovered bool) ui.Element {
+	fill, low := tk.Background, tk.Background
+	if tk.Dark {
+		// One small step above the card, as leaf's chips sit above its page.
+		fill = tk.Background.MixOklab(ui.RGB(0xff, 0xff, 0xff), 0.06)
+		low = fill
+	}
+	low = low.MixOklab(tk.Muted, 0.35)
+	e = lit(e.Gradient(fill, low, 180), tk)
+	if tk.Dark {
+		e = e.Border(1, ui.RGB(0xff, 0xff, 0xff).Alpha(0.08)).
+			Shadow(0, 1, 2, 0, ui.RGB(0, 0, 0).Alpha(0.22)).
+			Shadow(0, 3, 8, -4, ui.RGB(0, 0, 0).Alpha(0.30))
+		if hovered {
+			e = e.Shadow(0, 4, 10, -4, ui.RGB(0, 0, 0).Alpha(0.38))
+		}
+		return e
+	}
+	// A clean hairline and a short shadow: on paper a white tag has no other
+	// edge, and a card's long shadow would read as a smudge under it.
+	e = e.Border(1, tk.Border).
+		Shadow(0, 1, 2, 0, ui.RGB(0x11, 0x11, 0x1a).Alpha(0.05)).
+		Shadow(0, 3, 8, -4, ui.RGB(0x11, 0x11, 0x1a).Alpha(0.07))
+	if hovered {
+		e = e.Shadow(0, 4, 10, -4, ui.RGB(0x11, 0x11, 0x1a).Alpha(0.10))
+	}
+	return e
+}
+
+// sheet is what a panel sliding over the canvas casts: a shadow on the edge
+// it opens from, so it reads as lying above the work rather than beside it.
+func sheet(e ui.Element, tk tokens) ui.Element {
+	c := ui.RGB(0x11, 0x11, 0x1a).Alpha(0.12)
+	if tk.Dark {
+		c = ui.RGB(0, 0, 0).Alpha(0.45)
+	}
+	return e.Shadow(-10, 0, 28, -12, c)
+}
+
+// sunken is a well in the surface, as leaf draws its screens and its segment
+// track: a hairline inside the edge, and a shadow falling from the top, where
+// the surface would step down.
+func sunken(e ui.Element, tk tokens) ui.Element {
+	if tk.Dark {
+		return e.
+			InsetShadow(0, 1, 2, 0, ui.RGB(0, 0, 0).Alpha(0.45)).
+			InsetShadow(0, 0, 0, 1, ui.RGB(0xff, 0xff, 0xff).Alpha(0.05))
+	}
+	ink := ui.RGB(0x11, 0x11, 0x1a)
+	return e.
+		InsetShadow(0, 1, 2, 0, ink.Alpha(0.07)).
+		InsetShadow(0, 0, 0, 1, ink.Alpha(0.04))
 }
 
 // Motion, as shadcn: short, ease-out, and only on what changes.

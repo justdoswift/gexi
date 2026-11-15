@@ -32,6 +32,12 @@ func (w *workspace) view(c *ui.Context) {
 		w.pendingToast, w.pendingToastAction, w.pendingAction = "", "", nil
 	}
 	tk := w.tokens(c)
+	// The window's material shows where nothing is painted: the toolkit's
+	// root would cover it with the theme's background, so it is cleared
+	// first and the chrome's own sheet is what sits over the glass.
+	if liquid(c) {
+		c.Root().Background(ui.Transparent)
+	}
 	// A themed window paints its sidebar: the system's material is neutral,
 	// not the theme's, so the theme's own colour takes the sidebar instead
 	// (see liquid).
@@ -44,7 +50,14 @@ func (w *workspace) view(c *ui.Context) {
 	root := ui.Row(c).Fill()
 	surface := w.backdrop(tk)
 	if liquid(c) && !chromeTheme {
-		surface = surface.Alpha(0.6)
+		// The window's material under a sheet of the theme's own white, as
+		// leaf's glass: opaque enough for text to sit on, clear enough that
+		// the desktop reads through it.
+		tint := float32(0.78)
+		if tk.Dark {
+			tint = 0.72
+		}
+		surface = tk.Background.Alpha(tint)
 	}
 	root = root.Background(surface)
 
@@ -242,12 +255,11 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 		// An empty session is a pane card like the ones that hold terminals:
 		// the theme's own surface, a hairline, and the card's shadow.
 		if w.settings.PaneStyle == paneComfortable {
-			col = col.Radius(windowRadius).Clip().
-				Border(1, tk.Border).Background(tk.Background).
-				Shadow(0, 1, 20, 0, paneShadow(tk))
+			col = raised(col.Radius(windowRadius).Clip().
+				Background(tk.Background), tk)
 		}
 		col.Children(func() {
-			ui.Row(c).Height(headerHeight).Background(tk.Background).DragWindow()
+			lit(ui.Row(c).Height(headerHeight).Background(tk.Background).DragWindow(), tk)
 			ui.Column(c).Fill().Center().Children(func() {
 				ui.Text(c, locales.NoProject()).FontSize(13).TextColor(tk.MutedForeground)
 			})
@@ -339,6 +351,9 @@ func (w *workspace) projectSearch(c *ui.Context, tk tokens) {
 		// a card; the material takes the theme's own ink instead.
 		field = field.Background(tk.Foreground.Alpha(0.06)).
 			BorderColor(tk.Foreground.Alpha(0.08))
+	} else {
+		// A field is a well in the paper, not a card on it.
+		field = sunken(field, tk)
 	}
 	var in ui.Element
 	field.OnClick(func() { in.Focus() }).Children(func() {
@@ -560,11 +575,11 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	// its contents by a pixel.
 	switch {
 	case sel:
-		fill, edge := tk.Raised, tk.Border
+		fill := tk.Raised
 		if tk.Dark {
-			fill, edge = tk.Foreground.Alpha(0.10), tk.Foreground.Alpha(0.08)
+			fill = tk.Foreground.Alpha(0.10)
 		}
-		row = row.Background(fill).BorderColor(edge)
+		row = lit(lifted(row.Background(fill), tk), tk)
 	case hovered:
 		row = row.Background(tk.Foreground.Alpha(0.045))
 	}
@@ -765,19 +780,13 @@ func (w *workspace) subagentPill(c *ui.Context, tk tokens, p *pane) {
 	}
 	el := ui.Row(c).Height(22).Radius(headerRadius).Padding(0, 6).Gap(4).
 		AlignItems(ui.Center)
-	bg := tk.Active
-	tint := tk.Control.Alpha(0.15)
-	if el.Hovered() {
-		bg = tk.Control
-		tint = tk.Control.Alpha(0.3)
-	}
 	dot := tk.Working
 	if p.activity == nil || p.activity.State != activityWorking {
 		// The turn is over but a child still runs: amber says the work
 		// continued past the prompt that started it.
 		dot = tk.Waiting
 	}
-	el = capsule(c, el, tk, tint, bg)
+	el = badge(el, tk, el.Hovered())
 	el.Tooltip(subagentHint(p)).Children(func() {
 		ui.Box(c).Width(6).Height(6).Radius(3).Background(dot)
 		ui.Text(c, fmt.Sprint(n)).FontSize(10).FontWeight(500).
@@ -883,6 +892,13 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		}
 	}
 	outer.Children(func() {
+		if card && liquid(c) {
+			// The pane's surface stays put while its content fades: over the
+			// window's glass, a card faded whole would show the desktop
+			// through it, and an unfocused pane would read as a hole.
+			ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).ZIndex(-1).
+				Radius(windowRadius).Background(tk.Background).IgnoreInput(true)
+		}
 		col := ui.Column(c).Fill()
 		// A pane at full strength is the one being typed into or the one the
 		// pointer is over; the rest step back so the split reads as one work
@@ -909,9 +925,8 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		}
 		col = col.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
 		if card {
-			col = col.Radius(windowRadius).Clip().
-				Border(1, tk.Border).Background(tk.Background).
-				Shadow(0, 1, 20, 0, paneShadow(tk))
+			col = raised(col.Radius(windowRadius).Clip().
+				Background(tk.Background), tk)
 		}
 		dragging := false
 		blend := ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut}
@@ -927,8 +942,8 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			// Headers are always there: hiding them would leave the collapsed
 			// sidebar toggle over bare terminal content.
 			// No rule under the header: the pane card itself is the frame.
-			header := ui.Row(c).Height(headerHeight).Padding(0, 6, 0, left).
-				Background(tk.Background).ClipY().DragWindow()
+			header := lit(ui.Row(c).Height(headerHeight).Padding(0, 6, 0, left).
+				Background(tk.Background).ClipY().DragWindow(), tk)
 			// The pane's name is renamed from anywhere on its header bar,
 			// not only the few points the title itself covers.
 			if p.remote == nil {
@@ -1049,7 +1064,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						strip = strip.DragWindow()
 					}
 					if strip.Hovered() {
-						strip = capsule(c, strip, tk, tk.Control.Alpha(0.3), tk.Active)
+						strip = hoverWash(c, strip, tk)
 					}
 					strip.Children(func() {
 						if agent != nil {
@@ -1078,25 +1093,21 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					// gexi worktree is tinted so it reads as a place; any other
 					// checkout keeps the quiet control surface.
 					if path != "" {
-						fill := tk.Control.Alpha(0.10)
-						if managed {
-							fill = tk.SystemAccent.Alpha(0.10)
-						}
 						chip := ui.Row(c).Height(18).Radius(4).Padding(0, 5).
 							AlignItems(ui.Center).Shrink(1)
-						if chip.Hovered() {
-							if managed {
-								fill = tk.SystemAccent.Alpha(0.2)
-							} else {
-								fill = tk.Control.Alpha(0.2)
-							}
+						chip = badge(chip, tk, chip.Hovered())
+						// The checkout's name stays quiet; a gexi
+						// worktree takes the system accent, so it reads
+						// as a place rather than another path.
+						color := tk.MutedForeground
+						if managed {
+							color = tk.SystemAccent
 						}
-						chip = capsule(c, chip, tk, fill, fill)
 						// The header keeps the checkout's name; the pointer
 						// brings the full path it stands for.
 						chip.Tooltip(dir).Children(func() {
 							ui.Text(c, path).FontSize(11).SingleLine().
-								Shrink(1).TextColor(tk.MutedForeground)
+								Shrink(1).TextColor(color)
 						})
 					}
 					// The branch pill follows the title: it names the branch

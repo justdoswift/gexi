@@ -1434,9 +1434,7 @@ func (w *workspace) remoteWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
 			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(hint)
-		if el.Hovered() {
-			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
-		}
+		el = badge(el, tk, el.Hovered())
 		el.OnClick(action).Children(func() {
 			if link.worktreeBusy != "" {
 				worktreeSpinner(c, tk, locales.WorktreeCreating())
@@ -1454,9 +1452,7 @@ func (w *workspace) remoteWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
 			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeGoneHint())
-		if el.Hovered() {
-			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
-		}
+		el = badge(el, tk, el.Hovered())
 		el.OnClick(action).Children(func() {
 			ui.Text(c, locales.WorktreeGone()).FontSize(11).FontWeight(600).
 				TextColor(tk.MutedForeground).OnClick(action)
@@ -1576,11 +1572,10 @@ func (w *workspace) remoteWorktreeActionChip(c *ui.Context, tk tokens, p *pane, 
 	quiet := bg == ui.Transparent
 	group := ui.Row(c).Height(22).Radius(headerRadius).Center().
 		Border(1, ui.Transparent)
-	switch {
-	case !quiet:
+	if quiet {
+		group = badge(group, tk, group.Hovered())
+	} else {
 		group = group.Background(bg)
-	case group.Hovered():
-		group = capsule(c, group, tk, tk.Control.Alpha(0.3), tk.Control)
 	}
 	group.Children(func() {
 		// A checkout gexi only found has no Leave menu: the chip is one

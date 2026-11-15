@@ -359,6 +359,7 @@ func (w *workspace) generalPage(c *ui.Context, tk tokens) {
 				w.settings.SidebarMaterial = !w.settings.SidebarMaterial
 				sidebarMaterial = w.settings.SidebarMaterial
 				w.settings.save()
+				w.updateChrome()
 				w.invalidate()
 				w.invalidateSettings()
 			},
@@ -885,14 +886,15 @@ type segment struct {
 	label string
 }
 
-// segmented is shadcn's segmented switch: a muted track, a raised card on the
-// chosen side.
+// segmented is shadcn's segmented switch: a muted track sunk into the panel,
+// a raised card on the chosen side, as leaf's install switch has it.
 func (w *workspace) segmented(c *ui.Context, tk tokens, options []segment, selected string, pick func(string)) {
-	ui.Row(c).Height(30).Padding(2).Radius(8).Background(tk.Active).Gap(2).Children(func() {
-		for _, opt := range options {
-			w.segmentButton(c, tk, opt, opt.value == selected, pick)
-		}
-	})
+	sunken(ui.Row(c).Height(30).Padding(2).Radius(8).Background(tk.Active).Gap(2), tk).
+		Children(func() {
+			for _, opt := range options {
+				w.segmentButton(c, tk, opt, opt.value == selected, pick)
+			}
+		})
 }
 
 func (w *workspace) segmentButton(c *ui.Context, tk tokens, opt segment, selected bool, pick func(string)) {
@@ -901,7 +903,7 @@ func (w *workspace) segmentButton(c *ui.Context, tk tokens, opt segment, selecte
 		Cursor(ui.CursorPointer)
 	if selected {
 		color = tk.Foreground
-		el = el.Background(tk.Raised).Border(1, tk.Border)
+		el = lit(lifted(el.Background(tk.Raised), tk), tk)
 	}
 	choose := func() {
 		if selected {
@@ -916,11 +918,11 @@ func (w *workspace) segmentButton(c *ui.Context, tk tokens, opt segment, selecte
 	})
 }
 
-// settingsCard is one group of rows: a rounded panel with a divider between
+// settingsCard is one group of rows: a raised panel with a divider between
 // each two rows, inset from the panel's sides the way macOS insets them.
 func settingsCard(c *ui.Context, tk tokens, rows func()) {
-	ui.Column(c).FillWidth().Radius(10).Border(1, tk.Border).
-		Background(tk.Background).Children(rows)
+	raised(ui.Column(c).FillWidth().Radius(10).
+		Background(tk.Background), tk).Children(rows)
 }
 
 func cardDivider(c *ui.Context, tk tokens) {

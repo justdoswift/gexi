@@ -92,6 +92,17 @@ func (w *workspace) chromeBackground() string {
 	return windowBackground(w.appearanceTokens(false), w.appearanceTokens(true))
 }
 
+// mainBackground is what the main window paints before its page does, and
+// behind a transparent one. With Liquid Glass on it paints nothing, so the
+// system material is what shows: a theme colour there would stand between
+// the glass and the view, and the glass would read as a flat sheet.
+func (w *workspace) mainBackground() string {
+	if sidebarMaterial {
+		return "#00000000"
+	}
+	return w.chromeBackground()
+}
+
 // terminalThemes is the pair every terminal takes: the light theme and the
 // dark one, so the view follows the window's appearance as it changes. A
 // side the user left unset is the toolkit's own for that appearance, not
@@ -149,7 +160,7 @@ func (w *workspace) setTheme(dark bool, name string) {
 // so the frame behind the page matches it too.
 func (w *workspace) updateChrome() {
 	if w.win != nil {
-		_ = w.win.SetBackgroundColor(w.chromeBackground())
+		_ = w.win.SetBackgroundColor(w.mainBackground())
 	}
 	if w.settingsWin != nil {
 		_ = w.settingsWin.SetBackgroundColor(w.chromeBackground())
