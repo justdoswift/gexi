@@ -309,14 +309,15 @@ func controlWash(c *ui.Context, el ui.Element, tk tokens, wash float32, fallback
 	return el.Background(tk.Foreground.Alpha(wash))
 }
 
-// capsule is a control's own light surface, as a header button's hover or a
-// chip: flat, with a hairline on all four sides, so it keeps one colour over
-// the surface under it and matches the reference controls at this size.
-func capsule(c *ui.Context, el ui.Element, tk tokens, fill, fallback ui.Color) ui.Element {
-	if !sidebarMaterial {
-		return el.Background(fallback)
+// hoverWash is what a control takes under the pointer: the theme's ink at 5%,
+// a soft lift on paper rather than the grey block a Control fill paints.
+// Over the window's material it stays a little stronger, since the frozen
+// backdrop swallows a faint tint.
+func hoverWash(c *ui.Context, el ui.Element, tk tokens) ui.Element {
+	if !liquid(c) {
+		return el.Background(tk.Foreground.Alpha(0.05))
 	}
-	return el.Background(fill).Border(1, tk.Foreground.Alpha(0.06))
+	return el.Background(tk.Foreground.Alpha(0.08))
 }
 
 // iconButton is a 26pt hit area with an SF Symbol and a quiet hover state,
@@ -373,7 +374,7 @@ func iconMenuButtonSized(c *ui.Context, tk tokens, name string, size, glyph floa
 	el := ui.Row(c).Width(size).Height(size).Radius(chromeRadius).
 		Center().Cursor(ui.CursorPointer)
 	if el.Hovered() {
-		el = controlWash(c, el, tk, 0.06, tk.Control)
+		el = hoverWash(c, el, tk)
 	}
 	if len(hint) > 0 && hint[0] != "" {
 		// The glyph is the button's only content, so the hint is also the
@@ -399,14 +400,10 @@ func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32,
 		el = el.Border(1, ui.Transparent)
 	}
 	if el.Hovered() {
-		switch place {
-		case iconOnCard:
-			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
-		case iconInFrame:
-			el = capsule(c, el, tk, tk.Control.Alpha(0.3), tk.Control)
-		default:
-			el = controlWash(c, el, tk, 0.06, tk.Control)
-		}
+		// Every surface takes the same wash: a card, the drawer's frame and
+		// the window's material differ in what shows through, not in how a
+		// control answers the pointer.
+		el = hoverWash(c, el, tk)
 	}
 	el = el.OnClick(action)
 	if len(hint) > 0 && hint[0] != "" {

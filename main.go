@@ -94,15 +94,15 @@ func main() {
 			// lights, which the layout leaves room for.
 			TitleBarStyle:        mygo.TitleBarHidden,
 			TrafficLightPosition: &mygo.Point{X: 20, Y: 17},
-			// The window carries the system's sidebar material for the
-			// optional translucent sidebar. The view paints the sidebar and
-			// the canvas as one surface; with the material on, that surface
-			// lets the glass through instead of covering it.
+			// The window carries the system's Liquid Glass for the optional
+			// translucent sidebar. The view paints the sidebar and the canvas
+			// as one surface; with the material on, that surface lets the
+			// glass through instead of covering it.
 			Transparent: true,
-			Vibrancy:    mygo.VibrancySidebar,
+			Vibrancy:    mygo.VibrancyGlass,
 			// Still the window color on the platforms whose material shows
 			// none, where the view paints the same backdrop itself.
-			BackgroundColor: w.chromeBackground(),
+			BackgroundColor: w.mainBackground(),
 		})
 		w.win = win
 		win.OnShow(func() { win.Invalidate() })
