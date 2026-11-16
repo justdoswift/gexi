@@ -849,6 +849,9 @@ func TestWorktreesPageShowsClearProgress(t *testing.T) {
 	w.archivedClear = &archivedClearProgress{done: 1, total: 2}
 	tester := ui.NewTester(w.settingsView, 880, 700)
 	tester.Frame()
+	// The page settles into its window over the first motion.
+	tester.Advance(sidebarMotion)
+	tester.Frame()
 	progress := locales.WorktreeClearProgress("1", "2")
 	r, ok := tester.Find(progress)
 	if !ok {

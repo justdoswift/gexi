@@ -244,12 +244,30 @@ func (w *workspace) idleSessionSection(c *ui.Context, tk tokens) {
 		ui.Text(c, strconv.Itoa(len(w.idleSessions))).FontSize(10.5).
 			TextColor(tk.MutedForeground).OnClick(toggle)
 	})
-	if !open {
+	// The rows open to their full height and close again, so the list
+	// makes room for them smoothly. The header owns the height's animation:
+	// it is the part drawn in both states.
+	rowsH := float32(len(w.idleSessions))*(rowHeightPx+2) - 2
+	target := float32(0)
+	if open {
+		target = rowsH
+	}
+	rowsH = row.Animate("idleFoldHeight", target, sidebarMotion)
+	if rowsH < 1 {
 		return
 	}
-	for _, rec := range w.idleSessions {
-		rec := rec
-		w.idleSessionRow(c, tk, rec)
+	fold := ui.Column(c).Height(rowsH).Clip().Gap(2)
+	fold.Children(func() {
+		for _, rec := range w.idleSessions {
+			rec := rec
+			w.idleSessionRow(c, tk, rec)
+		}
+	})
+	// While the rows grow in below the list's bottom edge, the list
+	// follows them, so opening the fold shows what it opened instead of
+	// growing past the window.
+	if open && rowsH < target-0.5 {
+		fold.ScrollIntoView(ui.ScrollIntoViewOptions{Block: ui.ScrollEnd})
 	}
 }
 

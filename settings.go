@@ -241,6 +241,7 @@ func (w *workspace) openSettings() {
 	w.settingsWin.OnShow(func() { w.settingsWin.Invalidate() })
 	w.settingsWin.OnClosed(func() {
 		w.settingsWin = nil
+		w.settingsShown = false
 		// A confirmation left open when the window closes must not greet
 		// the next visit.
 		w.clearArchivedOpen = false
@@ -256,6 +257,16 @@ func (w *workspace) settingsView(c *ui.Context) {
 	// The page takes the theme's own colour: the settings window carries no
 	// material, so its cards and rows sit on the theme's surface.
 	root := ui.Row(c).Fill().Background(tk.Background)
+	// The page fades and grows in as the window comes up, as the dialogs on
+	// the main window do: the first frame places it a touch small, and the
+	// frame after lets it settle into the window.
+	pose := ui.Pose{}
+	if !w.settingsShown {
+		w.settingsShown = true
+		pose = ui.Pose{Fade: 1, Scale: 0.985}
+		c.After(time.Millisecond)
+	}
+	root = root.AnimatePose(pose, ui.Animation{Duration: sidebarMotion, Ease: ui.EaseOut})
 	root.Children(func() {
 		w.settingsSidebar(c, tk)
 		ui.Column(c).Fill().Children(func() {

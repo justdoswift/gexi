@@ -225,19 +225,28 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 	if tb := w.selected(); tb != nil {
 		// A zoomed pane fills the session on its own: its tree is still
 		// there, so putting the others back is only a matter of drawing it.
-		// The layout changes in one frame, so the new one settles in with the
-		// same fade and scale a pane opens with.
-		// The stage grows into the new layout: no fade, which reads as a
-		// flash over a grid that is resizing at the same moment, but a scale
-		// big enough to see the pane settle into its new bounds.
-		pose := ui.Pose{}
+		// A zoom changes the layout in one frame, so the stage shows small
+		// on that frame and grows back to its size: the pane reads as
+		// growing into the window rather than the grid jumping over.
+		scaleTo := float32(1)
 		if w.zoomSettling {
 			w.zoomSettling = false
-			pose = ui.Pose{Scale: 0.93}
-			c.After(time.Millisecond)
+			w.zoomGen++
+			scaleTo = 0.93
 		}
-		stage := ui.Column(c).Fill()
-		stage = stage.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
+		// A session of its own is another layout: the one replacing another
+		// comes in while that one fades out, so the switch reads as a change
+		// of view instead of a flash of the next tree.
+		stage := ui.Column(c).Key(tb.ID).Fill().Transition(ui.ElementTransition{
+			Duration: 160 * time.Millisecond,
+			Ease:     ui.EaseOut,
+			Enter:    &ui.Motion{Opacity: 0, Scale: 0.99},
+			Exit:     &ui.Motion{Opacity: 0},
+		})
+		// The scale is its own animation, keyed by the zoom, so each zoom
+		// starts it afresh instead of gliding from where the last one ended.
+		scale := stage.Animate(w.zoomGen, scaleTo, paneMotion)
+		stage = stage.Scale(scale, scale)
 		stage.Children(func() {
 			if p := w.zoomedIn(tb); p != nil {
 				w.paneView(c, tk, p, true)
@@ -302,38 +311,59 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 	side := ui.Column(c).Width(width).FillHeight().Clip().Shrink(0)
 	side.Children(func() {
 		w.sidebarHeader(c, tk)
-		ui.Column(c).Fill().Padding(10, 6, 8, 8).Gap(2).Children(func() {
-			shown := false
-			first := true
-			drawProject := func(pr *project) {
-				if !w.projectVisible(pr) {
-					return
+		// MinHeight(0) lets the body give way under the header: its own
+		// content never has to fit without the scroll, which is what the
+		// scroll is for.
+		ui.Column(c).Fill().MinHeight(0).Padding(10, 6, 8, 8).Gap(2).Children(func() {
+			// Projects and the idle fold scroll together, as one list:
+			// a project with many sessions, or the fold opened over them,
+			// would otherwise run past the window's bottom edge, where
+			// the rows can no longer be reached. The footer stays under
+			// the list, outside the scroll.
+			list := ui.Scroll(c).Fill()
+			list.Children(func() {
+				col := ui.Column(c).FillWidth().Gap(2)
+				// The list is at least as tall as its window, so the
+				// spacer below the projects still holds the idle fold at
+				// the bottom while everything fits.
+				if w.sidebarListH > 0 {
+					col = col.MinHeight(w.sidebarListH)
 				}
-				if !first {
-					ui.Box(c).Height(8)
-				}
-				first = false
-				shown = true
-				w.projectRow(c, tk, pr)
-			}
-			for _, pr := range w.Projects {
-				drawProject(pr)
-			}
-			// Paired Macs sit under the projects as projects of their own:
-			// their sessions are sessions, and the canvas draws them with
-			// the same code.
-			for _, pr := range w.remoteProjects {
-				drawProject(pr)
-			}
-			if !shown {
-				ui.Text(c, locales.NoProjects()).FontSize(12).
-					TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
-			}
-			ui.Spacer(c)
-			// Idle sessions sit at the very bottom, under everything that
-			// is running, so putting one away clears the list without
-			// hiding the work.
-			w.idleSessionSection(c, tk)
+				col.Children(func() {
+					shown := false
+					first := true
+					drawProject := func(pr *project) {
+						if !w.projectVisible(pr) {
+							return
+						}
+						if !first {
+							ui.Box(c).Height(8)
+						}
+						first = false
+						shown = true
+						w.projectRow(c, tk, pr)
+					}
+					for _, pr := range w.Projects {
+						drawProject(pr)
+					}
+					// Paired Macs sit under the projects as projects of their own:
+					// their sessions are sessions, and the canvas draws them with
+					// the same code.
+					for _, pr := range w.remoteProjects {
+						drawProject(pr)
+					}
+					if !shown {
+						ui.Text(c, locales.NoProjects()).FontSize(12).
+							TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
+					}
+					ui.Spacer(c)
+					// Idle sessions sit at the very bottom, under everything that
+					// is running, so putting one away clears the list without
+					// hiding the work.
+					w.idleSessionSection(c, tk)
+				})
+			})
+			w.sidebarListH = list.LayoutBounds().H
 			// The footer holds the sidebar's two menus: remote Macs on the
 			// left, settings on the right, under the list and clear of the
 			// header's own controls.
@@ -381,6 +411,7 @@ func (w *workspace) toggleSearch() {
 // field shows would outlive the search that made it.
 func (w *workspace) closeSearch() {
 	w.searchOpen = false
+	w.searchShown = false
 	w.searchQuery = ""
 	w.invalidate()
 }
@@ -398,6 +429,16 @@ func (w *workspace) searchDialog(c *ui.Context, tk tokens) {
 			shade = ui.RGBA(0, 0, 0, 0.32)
 		}
 		back.Background(shade)
+		// The box rises and fades in over the window, as the drawer and the
+		// reply reader slide in: the first frame sets it just above its
+		// place, and the frame after lets it settle.
+		pose := ui.Pose{}
+		if !w.searchShown {
+			w.searchShown = true
+			pose = ui.Pose{Y: -10, Scale: 0.98, Fade: 1}
+			c.After(time.Millisecond)
+		}
+		panel = panel.AnimatePose(pose, ui.Animation{Duration: sidebarMotion, Ease: ui.EaseOut})
 		panel = raised(panel.Width(520).Clip().Radius(12).Background(tk.Background), tk)
 		panel.Children(func() {
 			ui.Column(c).FillWidth().Children(func() {
