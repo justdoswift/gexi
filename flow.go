@@ -45,6 +45,14 @@ var flowStages = []struct {
 // empty or missing entry means that stage has no flow.
 type projectFlows map[string]string
 
+// flowStep is a step the user added to a project's pipeline. It runs at the
+// boundary At names, after that boundary's own prompt and before the next
+// boundary's; steps at one boundary run in the order they are listed.
+type flowStep struct {
+	At     string `json:"at"`
+	Prompt string `json:"prompt"`
+}
+
 // flowPrompt is the prompt the project runs at stage, trimmed, or "" when it
 // has no flow there.
 func (p *project) flowPrompt(stage flowStage) string {
@@ -54,25 +62,42 @@ func (p *project) flowPrompt(stage flowStage) string {
 	return strings.TrimSpace(p.Flows[string(stage)])
 }
 
-// flowDraft is the dialog's copy of a project's flows: fields are edited
-// here, and saved over the project only when the user confirms.
-type flowDraft struct {
-	afterWorktree string
-	afterPR       string
-	afterMerge    string
+// flowPrompts is everything that runs at stage, in order: the stage's own
+// prompt, then the steps placed at it.
+func (p *project) flowPrompts(stage flowStage) []string {
+	if p == nil {
+		return nil
+	}
+	var out []string
+	if own := p.flowPrompt(stage); own != "" {
+		out = append(out, own)
+	}
+	for _, step := range p.Steps {
+		if step.At != string(stage) {
+			continue
+		}
+		if prompt := strings.TrimSpace(step.Prompt); prompt != "" {
+			out = append(out, prompt)
+		}
+	}
+	return out
 }
 
-// field is the draft's input for one stage.
-func (d *flowDraft) field(stage flowStage) *string {
-	switch stage {
-	case flowAfterWorktree:
-		return &d.afterWorktree
-	case flowAfterPR:
-		return &d.afterPR
-	case flowAfterMerge:
-		return &d.afterMerge
+// flowDraft is the dialog's copy of a project's pipeline: the steps the user
+// added, in the order they run. The steps point into the draft, so an input
+// keeps its value as the list grows.
+type flowDraft struct {
+	steps []*flowStep
+}
+
+// counts is how many prompts are set, and how many the draft holds.
+func (d *flowDraft) counts() (set, total int) {
+	for _, step := range d.steps {
+		if strings.TrimSpace(step.Prompt) != "" {
+			set++
+		}
 	}
-	return nil
+	return set, len(d.steps)
 }
 
 // flowStageLabel names a boundary in the user's language, for a notice that
@@ -86,47 +111,47 @@ func flowStageLabel(stage flowStage) string {
 	return string(stage)
 }
 
-// openProjectFlows fills the dialog from the project's saved flows.
+// openProjectFlows fills the dialog from the project's saved steps. A project
+// from before the list kept one prompt per stage: those become the steps they
+// describe, at the moment each one ran at.
 func (w *workspace) openProjectFlows(p *project) {
 	if p == nil || p.remote != nil {
 		return
 	}
 	w.flowTarget = p
 	w.flowDraft = flowDraft{}
-	w.flowSelected = flowStages[0].stage
 	for _, s := range flowStages {
-		if field := w.flowDraft.field(s.stage); field != nil {
-			*field = p.flowPrompt(s.stage)
+		if prompt := p.flowPrompt(s.stage); prompt != "" {
+			w.flowDraft.steps = append(w.flowDraft.steps,
+				&flowStep{At: string(s.stage), Prompt: prompt})
 		}
+	}
+	for _, step := range p.Steps {
+		step := step
+		w.flowDraft.steps = append(w.flowDraft.steps, &step)
 	}
 	w.flowOpen = true
 	w.invalidate()
 }
 
-// submitProjectFlows keeps the prompts that were typed and clears the rest.
-// The project may have closed while the dialog was open, so it is found by
-// id before the answer is applied.
+// submitProjectFlows keeps the steps that were typed and clears the rest. The
+// project may have closed while the dialog was open, so it is found by id
+// before the answer is applied.
 func (w *workspace) submitProjectFlows() {
 	p := w.flowTarget
 	if p == nil || w.projectByID(p.ID) != p {
 		w.closeProjectFlows()
 		return
 	}
-	flows := projectFlows{}
-	for _, s := range flowStages {
-		field := w.flowDraft.field(s.stage)
-		if field == nil {
-			continue
-		}
-		if prompt := strings.TrimSpace(*field); prompt != "" {
-			flows[string(s.stage)] = prompt
+	var steps []flowStep
+	for _, step := range w.flowDraft.steps {
+		if prompt := strings.TrimSpace(step.Prompt); prompt != "" {
+			steps = append(steps, flowStep{At: step.At, Prompt: prompt})
 		}
 	}
-	if len(flows) == 0 {
-		p.Flows = nil
-	} else {
-		p.Flows = flows
-	}
+	p.Steps = steps
+	// The per-stage prompts are steps now; the old map is not written again.
+	p.Flows = nil
 	w.closeProjectFlows()
 	w.scheduleSave()
 }
@@ -135,45 +160,46 @@ func (w *workspace) closeProjectFlows() {
 	w.flowOpen = false
 	w.flowTarget = nil
 	w.flowDraft = flowDraft{}
-	w.flowSelected = ""
 	w.invalidate()
 }
 
-// projectFlowDialog edits one project's prompts as the pipeline itself: a
-// solid card of steps, each with a note. A set step wears a filled accent
-// marker and its note a bar of the same ink; an empty one stays a dashed ring
-// over a dashed well, so the whole workflow reads before a field is touched.
+// flowDragged is the value a step's handle drags: its place in the draft. The
+// fixed stages are anchors, not cards, so only steps carry it.
+type flowDragged struct{ Index int }
+
+// projectFlowDialog edits one project's pipeline as a list: the fixed steps
+// are anchors that name when their prompts run, and every prompt is a card
+// the user added under one of them. The list order is the order things run
+// in, and a card's handle drags it to another anchor.
 func (w *workspace) projectFlowDialog(c *ui.Context, tk tokens) {
 	p := w.flowTarget
 	if p == nil {
 		return
 	}
-	set := 0
-	for _, s := range flowStages {
-		if field := w.flowDraft.field(s.stage); field != nil &&
-			strings.TrimSpace(*field) != "" {
-			set++
-		}
-	}
-	selected := w.flowSelected
-	if selected == "" {
-		selected = flowStages[0].stage
-	}
+	set, _ := w.flowDraft.counts()
 	flowDialogFrame(c, tk, &w.flowOpen, func() {
 		flowDialogHeader(c, tk, p, set)
 		ui.Box(c).FillWidth().Height(1).Background(tk.Foreground.Alpha(0.08))
-		ui.Column(c).FillWidth().Padding(8, 12, 8, 12).Children(func() {
-			for i, s := range flowStages {
-				field := w.flowDraft.field(s.stage)
-				if field == nil {
-					continue
-				}
-				w.flowDialogStep(c, tk, s.stage, s.title(), i, len(flowStages), field,
-					s.stage == selected)
-			}
+		ui.Scroll(c).FillWidth().
+			Height(flowListHeight(len(flowStages), len(w.flowDraft.steps))).
+			Children(func() {
+				ui.Column(c).FillWidth().Padding(8, 12, 8, 12).Gap(6).Children(func() {
+					for _, s := range flowStages {
+						w.flowAnchor(c, tk, s.stage, s.title())
+						for i, step := range w.flowDraft.steps {
+							if step.At != string(s.stage) {
+								continue
+							}
+							// The cards sit under their anchor, one step in.
+							ui.Row(c).FillWidth().Padding(0, 0, 0, 12).
+								Children(func() { w.flowStepCard(c, tk, i, step) })
+						}
+					}
+				})
+			})
+		ui.Row(c).FillWidth().Padding(0, 12, 8, 12).Children(func() {
+			w.flowAddStep(c, tk)
 		})
-		ui.Box(c).FillWidth().Height(1).Background(tk.Foreground.Alpha(0.08))
-		w.flowComposer(c, tk, selected)
 		ui.Box(c).FillWidth().Height(1).Background(tk.Foreground.Alpha(0.08))
 		ui.Row(c).FillWidth().Height(50).Padding(0, 18).Gap(6).
 			AlignItems(ui.Center).Justify(ui.End).Children(func() {
@@ -181,6 +207,167 @@ func (w *workspace) projectFlowDialog(c *ui.Context, tk tokens) {
 			flowDialogButton(c, tk, locales.Save(), true, w.submitProjectFlows)
 		})
 	})
+}
+
+// flowListHeight is the room the list needs: its anchors, its steps, the gaps
+// between them, and the padding, up to what the dialog can show. The add
+// button sits below the list, so it stays in reach however long the list gets.
+func flowListHeight(anchors, steps int) float32 {
+	h := 16 + float32(anchors)*24 + float32(steps)*32 +
+		float32(max(anchors+steps-1, 0))*6
+	return min(h, 380)
+}
+
+// flowAnchor is one fixed step of the pipeline. It holds no prompt of its
+// own: it names the moment the cards under it run at, and a card let go on it
+// joins that moment.
+func (w *workspace) flowAnchor(c *ui.Context, tk tokens, stage flowStage, title string) {
+	row := ui.Row(c).FillWidth().Height(24).Shrink(0).Padding(0, 2).Gap(7).
+		AlignItems(ui.Center)
+	over := false
+	if _, ok := ui.DragOver[flowDragged](row); ok {
+		over = true
+	}
+	if v, ok := ui.Drop[flowDragged](row); ok {
+		w.moveFlowStep(v.Index, stage, nil)
+	}
+	if over {
+		row = row.Background(dropTint).Radius(6)
+	}
+	row.Children(func() {
+		ui.Box(c).Width(6).Height(6).Radius(3).Shrink(0).
+			Background(tk.Foreground.Alpha(0.35))
+		ui.Text(c, title).FontSize(11.5).FontWeight(600).TextColor(tk.Foreground)
+		ui.Spacer(c)
+		ui.Text(c, locales.FlowFixed()).FontSize(9.5).TextColor(tk.MutedForeground)
+	})
+}
+
+// flowStepCard is one prompt the user added, running at the anchor above it.
+// Its handle drags it to another place in the list, and its text is what the
+// agent receives.
+func (w *workspace) flowStepCard(c *ui.Context, tk tokens, i int, step *flowStep) {
+	card := ui.Row(c).FillWidth().Height(32).Shrink(0).Radius(7).Padding(0, 6).
+		Gap(6).AlignItems(ui.Center).Background(tk.Background).
+		Border(1, tk.Foreground.Alpha(0.12))
+	over := false
+	if _, ok := ui.DragOver[flowDragged](card); ok {
+		over = true
+	}
+	if v, ok := ui.Drop[flowDragged](card); ok {
+		w.moveFlowStep(v.Index, flowStage(step.At), step)
+	}
+	if over {
+		card = card.Background(dropTint).Border(1, dropAccent)
+	}
+	card.Children(func() {
+		handle := ui.Row(c).Width(14).Height(18).Shrink(0).Center().
+			Drag(flowDragged{Index: i}).Cursor(ui.CursorGrab).
+			Tooltip(locales.FlowDragHint())
+		if handle.Dragging() {
+			handle = handle.Background(tk.Foreground.Alpha(0.10)).Radius(4)
+		}
+		handle.Children(func() {
+			ui.Text(c, "⋮⋮").FontSize(10).TextColor(tk.MutedForeground).
+				IgnoreInput(true)
+		})
+		ui.TextInputBase(c, &step.Prompt).Label(locales.FlowStepPlaceholder()).
+			Placeholder(locales.FlowStepPlaceholder()).
+			PlaceholderColor(tk.MutedForeground.Alpha(0.8)).FontSize(11.5).
+			FillWidth()
+		del := ui.Row(c).Width(18).Height(18).Radius(4).Center().Shrink(0).
+			Cursor(ui.CursorPointer).Tooltip(locales.FlowRemoveStep())
+		if del.Hovered() {
+			del = del.Background(tk.Foreground.Alpha(0.06))
+		}
+		del.OnClick(func() { w.removeFlowStep(i) }).Children(func() {
+			ui.Text(c, "×").FontSize(11).TextColor(tk.MutedForeground).
+				IgnoreInput(true)
+		})
+	})
+}
+
+// flowAddStep adds a step at the last anchor, where the button sits; its
+// handle moves it anywhere else.
+func (w *workspace) flowAddStep(c *ui.Context, tk tokens) {
+	ui.Row(c).FillWidth().Height(30).Shrink(0).Radius(8).Padding(0, 10).Gap(6).
+		AlignItems(ui.Center).Cursor(ui.CursorPointer).
+		Border(1, tk.Foreground.Alpha(0.14)).BorderStyle(ui.BorderDashed).
+		OnClick(func() {
+			last := flowStages[len(flowStages)-1].stage
+			w.flowDraft.steps = append(w.flowDraft.steps,
+				&flowStep{At: string(last)})
+			w.invalidate()
+		}).Children(func() {
+		ui.Text(c, "+").FontSize(12).TextColor(tk.MutedForeground)
+		ui.Text(c, locales.FlowAddStep()).FontSize(11.5).TextColor(tk.Foreground)
+	})
+}
+
+// moveFlowStep puts the dragged step at stage, before the step it was let go
+// on, or at the end of that anchor's steps when it was let go on the anchor
+// itself. The list stays grouped by anchor, so what is drawn is the order the
+// prompts run in.
+func (w *workspace) moveFlowStep(from int, stage flowStage, before *flowStep) {
+	d := &w.flowDraft
+	if from < 0 || from >= len(d.steps) {
+		return
+	}
+	moved := d.steps[from]
+	if moved == before {
+		return
+	}
+	rest := make([]*flowStep, 0, len(d.steps)-1)
+	for i, step := range d.steps {
+		if i != from {
+			rest = append(rest, step)
+		}
+	}
+	moved.At = string(stage)
+	pos := len(rest)
+	if before != nil {
+		for i, step := range rest {
+			if step == before {
+				pos = i
+				break
+			}
+		}
+	} else {
+		// The end of the anchor's block, before the next anchor's.
+		last := flowStageIndex(stage)
+		for i, step := range rest {
+			if flowStageIndex(flowStage(step.At)) > last {
+				pos = i
+				break
+			}
+		}
+	}
+	out := make([]*flowStep, 0, len(rest)+1)
+	out = append(out, rest[:pos]...)
+	out = append(out, moved)
+	out = append(out, rest[pos:]...)
+	d.steps = out
+	w.invalidate()
+}
+
+// removeFlowStep drops one step the user added.
+func (w *workspace) removeFlowStep(i int) {
+	if i < 0 || i >= len(w.flowDraft.steps) {
+		return
+	}
+	w.flowDraft.steps = append(w.flowDraft.steps[:i], w.flowDraft.steps[i+1:]...)
+	w.invalidate()
+}
+
+// flowStageIndex is where a stage sits in the pipeline, or -1 for a name no
+// stage carries.
+func flowStageIndex(stage flowStage) int {
+	for i, s := range flowStages {
+		if s.stage == stage {
+			return i
+		}
+	}
+	return -1
 }
 
 // flowDialogFrame is the flow card's own frame: a solid surface with a thin
@@ -220,7 +407,7 @@ func flowDialogButton(c *ui.Context, tk tokens, label string, primary bool, acti
 	}
 }
 
-// flowDialogHeader names the workflow, the project, and how many steps are
+// flowDialogHeader names the workflow, the project, and how many prompts are
 // set, as the agent steering card names its run and its place in it.
 func flowDialogHeader(c *ui.Context, tk tokens, p *project, set int) {
 	ui.Column(c).FillWidth().Padding(16, 20, 12, 20).Children(func() {
@@ -238,98 +425,10 @@ func flowDialogHeader(c *ui.Context, tk tokens, p *project, set int) {
 					dot = tk.SystemAccent
 				}
 				ui.Box(c).Width(5).Height(5).Radius(2.5).Background(dot)
-				ui.Text(c, locales.FlowSetCount(strconv.Itoa(set), strconv.Itoa(len(flowStages)))).
+				ui.Text(c, locales.FlowPromptCount(strconv.Itoa(set))).
 					FontSize(10.5).TextColor(tk.MutedForeground)
 			})
 		})
-	})
-}
-
-// flowStepHeight is one step's line in the list.
-const flowStepHeight float32 = 34
-
-// flowDialogStep draws one step on the rail, with its prompt at the right
-// where the steering card keeps its durations. A press selects the step for
-// the note below.
-func (w *workspace) flowDialogStep(c *ui.Context, tk tokens, stage flowStage,
-	title string, i, total int, field *string, selected bool) {
-	set := strings.TrimSpace(*field) != ""
-	ui.Row(c).FillWidth().Height(flowStepHeight).Children(func() {
-		ui.Box(c).Width(28).Height(flowStepHeight).Children(func() {
-			line := tk.Foreground.Alpha(0.18)
-			if i > 0 {
-				ui.Box(c).Width(1).Height(17).Absolute().Left(13.5).Top(0).
-					Background(line)
-			}
-			if i < total-1 {
-				ui.Box(c).Width(1).Height(17).Absolute().Left(13.5).Top(17).
-					Background(line)
-			}
-			marker := ui.Box(c).Width(16).Height(16).Radius(8).
-				Absolute().Left(6).Top(9)
-			if set {
-				marker.Background(tk.SystemAccent).Center().Children(func() {
-					ui.Text(c, "✓").FontSize(9).FontWeight(600).
-						TextColor(ui.RGB(255, 255, 255))
-				})
-			} else {
-				marker.Border(1, tk.Foreground.Alpha(0.30)).BorderStyle(ui.BorderDashed)
-			}
-		})
-		content := ui.Column(c).Grow(1).Height(flowStepHeight).Padding(0, 7).
-			Justify(ui.Center).Cursor(ui.CursorPointer)
-		content.OnClick(func() {
-			w.flowSelected = stage
-			w.invalidate()
-		}).Children(func() {
-			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-				titleColor := tk.MutedForeground
-				weight := 500
-				if set || selected {
-					titleColor = tk.Foreground
-				}
-				if selected {
-					weight = 600
-				}
-				ui.Text(c, title).FontSize(12.5).FontWeight(weight).TextColor(titleColor)
-				ui.Spacer(c)
-				right := locales.FlowUnset()
-				if set {
-					right = strings.TrimSpace(*field)
-				}
-				label := ui.Text(c, right).FontSize(10.5).TextColor(tk.MutedForeground).
-					SingleLine().Shrink(1).MaxWidth(190)
-				if set {
-					label.Tooltip(right)
-				}
-			})
-		})
-	})
-}
-
-// flowComposer edits the selected step's prompt: one note at a time, as the
-// steering card's queue takes one note for the next step.
-func (w *workspace) flowComposer(c *ui.Context, tk tokens, stage flowStage) {
-	field := w.flowDraft.field(stage)
-	if field == nil {
-		return
-	}
-	set := strings.TrimSpace(*field) != ""
-	ui.Column(c).FillWidth().Padding(12, 20, 14, 20).Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.FlowNoteLabel(flowStageLabel(stage))).FontSize(9.5).
-				FontWeight(500).LetterSpacing(0.5).TextColor(tk.MutedForeground)
-			ui.Spacer(c)
-			if set {
-				ui.Text(c, locales.FlowSet()).FontSize(10).TextColor(tk.MutedForeground)
-			}
-		})
-		in := flowNoteField(c, tk, field, flowPlaceholder(stage), set, func() {
-			*field = ""
-			w.invalidate()
-		}).Margin(7, 0, 0, 0)
-		in.AutoFocus()
-		in.OnSubmit(func() { w.submitProjectFlows() })
 	})
 }
 
@@ -343,54 +442,15 @@ func flowPlaceholder(stage flowStage) string {
 	return ""
 }
 
-// flowNoteField is the composer's note: a quiet well while empty, and a white
-// note with an accent bar once it holds a prompt, as a steering note does.
-func flowNoteField(c *ui.Context, tk tokens, value *string, placeholder string,
-	set bool, clear func()) ui.Element {
-	row := ui.Row(c).FillWidth().Height(32).Radius(7).Padding(0, 8).Gap(6).
-		AlignItems(ui.Center).Cursor(ui.CursorText)
-	if set {
-		row = row.Background(tk.Background).
-			Border(1, tk.Foreground.Alpha(0.14))
-	} else {
-		row = row.Background(tk.Foreground.Alpha(0.02)).
-			Border(1, tk.Foreground.Alpha(0.16)).
-			BorderStyle(ui.BorderDashed)
-	}
-	var in ui.Element
-	row.OnClick(func() { in.Focus() }).Children(func() {
-		if set {
-			ui.Box(c).Width(2).Height(14).Radius(1).Shrink(0).
-				Background(tk.SystemAccent)
-		}
-		in = ui.TextInputBase(c, value).Label(placeholder).Placeholder(placeholder).
-			PlaceholderColor(tk.MutedForeground.Alpha(0.8)).FontSize(11.5).
-			FontWeight(400).FillWidth()
-		if set {
-			clearButton := ui.Row(c).Width(18).Height(18).Radius(4).
-				Center().Shrink(0).Cursor(ui.CursorPointer)
-			if clearButton.Hovered() {
-				clearButton = clearButton.Background(tk.Foreground.Alpha(0.06))
-			}
-			clearButton.OnClick(clear).Children(func() {
-				ui.Text(c, "×").FontSize(11).TextColor(tk.MutedForeground).
-					IgnoreInput(true)
-			})
-		}
-	})
-	if in.Focused() {
-		row = row.BorderColor(tk.MutedForeground)
-	}
-	return row
-}
-
 // flowTask is one prompt waiting for, or running in, a pane. Everything is
 // touched on the main thread: queueFlow from the stage that just finished,
 // and drainFlows from the agent monitor's tick.
 type flowTask struct {
-	paneID  string
-	stage   flowStage
-	prompt  string
+	paneID string
+	stage  flowStage
+	// prompts run in order at the stage; at is the one being sent now.
+	prompts []string
+	at      int
 	queued  time.Time
 	sent    time.Time
 	started bool
@@ -399,6 +459,9 @@ type flowTask struct {
 	// flow is not cut off by the checkout disappearing under it.
 	archiveAfter bool
 }
+
+// prompt is the one the task is sending now.
+func (t *flowTask) prompt() string { return t.prompts[t.at] }
 
 const (
 	// flowAgentWait bounds how long a flow waits for the pane's agent to be
@@ -412,22 +475,22 @@ const (
 	flowStartWait = 60 * time.Second
 )
 
-// queueFlow queues the project's prompt for stage, and reports whether there
-// was one. archiveAfter asks the merged checkout to wait for the flow before
-// it clears itself away.
+// queueFlow queues what the project runs at stage, in order, and reports
+// whether there was anything. archiveAfter asks the merged checkout to wait
+// for the flow before it clears itself away.
 func (w *workspace) queueFlow(p *pane, stage flowStage, archiveAfter bool) bool {
 	if p == nil || p.remote != nil {
 		return false
 	}
 	pr := w.projectOf(w.sessionOf(p))
-	prompt := pr.flowPrompt(stage)
-	if prompt == "" {
+	prompts := pr.flowPrompts(stage)
+	if len(prompts) == 0 {
 		return false
 	}
 	w.flows = append(w.flows, flowTask{
 		paneID:       p.ID,
 		stage:        stage,
-		prompt:       prompt,
+		prompts:      prompts,
 		queued:       time.Now(),
 		archiveAfter: archiveAfter,
 	})
@@ -466,12 +529,13 @@ func (w *workspace) drainFlows() {
 				i++
 				continue
 			}
-			p.injectedPrompt = task.prompt
-			p.send(task.prompt + "\r")
+			p.injectedPrompt = task.prompt()
+			p.send(task.prompt() + "\r")
 			task.sent = time.Now()
-			// A prompt with nothing waiting on it is done once it is typed; a
-			// merged checkout keeps its task until the flow's turn ends.
-			if !task.archiveAfter {
+			// The last prompt of a flow with nothing waiting on it is done
+			// once it is typed; one with more prompts, or a merged checkout
+			// to archive, keeps its task until the turn ends.
+			if task.at == len(task.prompts)-1 && !task.archiveAfter {
 				w.dropFlow(i)
 				continue
 			}
@@ -492,6 +556,15 @@ func (w *workspace) drainFlows() {
 			// an agent can be working without its turn being visible, and
 			// the user can archive when it is done.
 			w.dropFlow(i)
+			continue
+		}
+		if task.at < len(task.prompts)-1 {
+			// The turn is over: the next prompt goes in once the agent is
+			// idle again, so a flow reads as one message after another.
+			task.at++
+			task.sent = time.Time{}
+			task.started = false
+			i++
 			continue
 		}
 		w.dropFlow(i)
