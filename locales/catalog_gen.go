@@ -914,11 +914,11 @@ func (msgs Messages) SettingsLiquidGlass() string {
 	return Catalog.Format(msgs.locale, "settingsLiquidGlass", nil)
 }
 
-// SettingsLiquidGlassDetail says "Let the window show the desktop through the system's material. The sidebar and canvas stay one surface either way, wr…"
+// SettingsLiquidGlassDetail says "Draw the window with the system's glass and the raised paper chrome. Off, the flat bordered chrome returns."
 // in the language the app shows.
 func SettingsLiquidGlassDetail() string { return In(i18n.Locale()).SettingsLiquidGlassDetail() }
 
-// SettingsLiquidGlassDetail says "Let the window show the desktop through the system's material. The sidebar and canvas stay one surface either way, wr…"
+// SettingsLiquidGlassDetail says "Draw the window with the system's glass and the raised paper chrome. Off, the flat bordered chrome returns."
 // in the language of msgs.
 func (msgs Messages) SettingsLiquidGlassDetail() string {
 	return Catalog.Format(msgs.locale, "settingsLiquidGlassDetail", nil)

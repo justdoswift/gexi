@@ -88,7 +88,7 @@
   "themesSearch": "搜索主题",
   "themesNone": "没有匹配的主题",
   "settingsLiquidGlass": "液态玻璃",
-  "settingsLiquidGlassDetail": "让整扇窗透出桌面的系统材质。无论开关，侧栏与画布都同色，把窗格包在一起。",
+  "settingsLiquidGlassDetail": "窗口使用系统玻璃和抬起的纸张层次；关闭后回到平面、带描边的旧外观。",
   "settingsRestoreScreen": "恢复上次屏幕",
   "settingsRestoreScreenDetail": "在新 shell 上方重绘上一次的屏幕内容。",
   "worktreeCreateHint": "为此窗格创建工作树",

@@ -314,6 +314,11 @@ func controlWash(c *ui.Context, el ui.Element, tk tokens, wash float32, fallback
 // Over the window's material it stays a little stronger, since the frozen
 // backdrop swallows a faint tint.
 func hoverWash(c *ui.Context, el ui.Element, tk tokens) ui.Element {
+	if !glassChrome() {
+		// The old flat hover: a quiet step of the control surface, not the
+		// ink wash the glass chrome uses.
+		return el.Background(tk.Active)
+	}
 	if !liquid(c) {
 		return el.Background(tk.Foreground.Alpha(0.05))
 	}
