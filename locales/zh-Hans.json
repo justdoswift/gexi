@@ -16,6 +16,7 @@
   "menuLanguage": "语言",
   "menuLanguageSystem": "跟随系统",
   "searchPlaceholder": "搜索",
+  "searchEmpty": "没有匹配",
   "searchProjects": "搜索项目",
   "noProjects": "没有项目",
   "noProject": "没有项目",

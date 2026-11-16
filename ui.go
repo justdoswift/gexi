@@ -112,6 +112,9 @@ func (w *workspace) view(c *ui.Context) {
 	if w.hostOpen {
 		w.hostDialog(c, tk)
 	}
+	if w.searchOpen {
+		w.searchDialog(c, tk)
+	}
 	if w.relayOpen {
 		w.relayDialog(c, tk)
 	}
@@ -294,25 +297,12 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 	if width < 0.5 {
 		return
 	}
-	bar := c.TitleBar()
 	// The sidebar paints no background of its own: the root's surface runs
 	// under it and under the canvas, so the two sides are one backdrop.
 	// Collapsed, it takes no width and the canvas covers the surface.
 	side := ui.Column(c).Width(width).FillHeight().Clip().Shrink(0)
 	side.Children(func() {
-		ui.Row(c).Height(headerHeight).Padding(11, 8, 0, bar.Left+6+iconSize+8).
-			DragWindow().Children(func() {
-			ui.Row(c).FillWidth().Height(iconSize).AlignItems(ui.Center).Children(func() {
-				w.dragArea(c, tk)
-			})
-		})
-		// The search field and the new-project button share the first row
-		// under the header, so the title bar keeps only the drag area.
-		ui.Row(c).Height(searchHeight).Padding(8, 8, 0, 8).Gap(6).Children(func() {
-			w.projectSearch(c, tk)
-			iconButtonSized(c, tk, "plus", iconSize, 16, iconOnMaterial, func() { w.pickProject() },
-				locales.ShortcutNewProject()+" (⌘⇧N)")
-		})
+		w.sidebarHeader(c, tk)
 		ui.Column(c).Fill().Padding(10, 6, 8, 8).Gap(2).Children(func() {
 			shown := false
 			first := true
@@ -346,8 +336,8 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 			// hiding the work.
 			w.idleSessionSection(c, tk)
 			// The footer holds the sidebar's two menus: remote Macs on the
-			// left, settings on the right, off the search row so the field
-			// can run nearly as wide as the sessions.
+			// left, settings on the right, under the list and clear of the
+			// header's own controls.
 			ui.Box(c).Height(1).FillWidth().Background(tk.Border)
 			ui.Row(c).Height(iconSize).Gap(2).Padding(0, 2, 0, 2).Children(func() {
 				iconMenuButton(c, tk, "monitor", w.remoteMenu, locales.RemoteMenuHint())
@@ -359,36 +349,138 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 	})
 }
 
-// projectSearch is the field that filters the project list: a quiet input on
-// the sidebar's surface, with the list's own corner and a hairline that
-// darkens while it has the keyboard.
-func (w *workspace) projectSearch(c *ui.Context, tk tokens) {
-	field := ui.Row(c).Height(searchHeight).FillWidth().AlignItems(ui.Center).Gap(6).
-		PaddingStart(9).PaddingEnd(8).Radius(chromeRadius).
-		Border(1, tk.Border).Background(tk.Background).Cursor(ui.CursorText)
-	if liquid(c) {
-		// On the window's material a solid field would sit on the glass as
-		// a card; the material takes the theme's own ink instead.
-		field = field.Background(tk.Foreground.Alpha(0.06)).
-			BorderColor(tk.Foreground.Alpha(0.08))
-	} else {
-		// A field is a well in the paper, not a card on it.
-		field = sunken(field, tk)
-	}
-	var in ui.Element
-	field.OnClick(func() { in.Focus() }).Children(func() {
-		if src := iconSource("search", colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
-		}
-		in = ui.TextInputBase(c, &w.searchQuery).Label(locales.SearchProjects()).
-			Placeholder(locales.SearchPlaceholder()).PlaceholderColor(tk.MutedForeground).
-			FontSize(12).FontWeight(300).FillWidth()
+// sidebarHeader is the sidebar's top row. The window drags from it, and the
+// toggle at its far left is the only control there: search and new project
+// sit at its right end, against the panes, where they are out of the hand's
+// way while it reads the list.
+func (w *workspace) sidebarHeader(c *ui.Context, tk tokens) {
+	bar := c.TitleBar()
+	ui.Row(c).Height(headerHeight).Padding(11, 8, 0, bar.Left+6+iconSize+8).
+		DragWindow().Children(func() {
+		ui.Row(c).FillWidth().Height(iconSize).AlignItems(ui.Center).Gap(6).Children(func() {
+			w.dragArea(c, tk)
+			iconButtonSized(c, tk, "search", iconSize, 16, iconOnMaterial, w.toggleSearch,
+				locales.SearchProjects())
+			iconButtonSized(c, tk, "plus", iconSize, 16, iconOnMaterial, func() { w.pickProject() },
+				locales.ShortcutNewProject()+" (⌘⇧N)")
+		})
 	})
-	// The field lights its edge while the query has the focus; the input
-	// itself draws no chrome, so this is the only focus cue it needs.
-	if in.Focused() {
-		field.BorderColor(tk.MutedForeground)
+}
+
+// toggleSearch opens the search over the window's middle, as a palette
+// opens, or closes it and drops the filter, so the list comes back whole.
+func (w *workspace) toggleSearch() {
+	if w.searchOpen {
+		w.closeSearch()
+		return
 	}
+	w.searchOpen = true
+	w.invalidate()
+}
+
+// closeSearch puts the box away and drops the query with it: a filter no
+// field shows would outlive the search that made it.
+func (w *workspace) closeSearch() {
+	w.searchOpen = false
+	w.searchQuery = ""
+	w.invalidate()
+}
+
+// searchDialog is the search: one field over the middle of the window, and
+// under it the sessions the query finds, each under its project. Choosing one
+// opens it as its sidebar row would; Escape or a press outside the panel
+// closes the box.
+func (w *workspace) searchDialog(c *ui.Context, tk tokens) {
+	panel := ui.DialogBase(c, &w.searchOpen, func(back, panel ui.Element) {
+		// A light scrim: the list behind is what the query changes, so the
+		// window stays readable under the box.
+		shade := ui.RGBA(0, 0, 0, 0.10)
+		if tk.Dark {
+			shade = ui.RGBA(0, 0, 0, 0.32)
+		}
+		back.Background(shade)
+		panel = raised(panel.Width(520).Clip().Radius(12).Background(tk.Background), tk)
+		panel.Children(func() {
+			ui.Column(c).FillWidth().Children(func() {
+				field := ui.Row(c).Height(52).FillWidth().AlignItems(ui.Center).Gap(8).
+					PaddingStart(16).PaddingEnd(16).Cursor(ui.CursorText)
+				var in ui.Element
+				field.OnClick(func() { in.Focus() }).Children(func() {
+					if src := iconSource("search", colorHex(tk.MutedForeground)); src != nil {
+						ui.Image(c, src).Width(16).Height(16).IgnoreInput(true)
+					}
+					// The field has the keyboard as the box opens, so the
+					// search begins with the typing that follows the click.
+					in = ui.TextInputBase(c, &w.searchQuery).Label(locales.SearchProjects()).
+						Placeholder(locales.SearchPlaceholder()).PlaceholderColor(tk.MutedForeground).
+						FontSize(14).FontWeight(300).FillWidth().AutoFocus()
+				})
+				ui.Box(c).Height(1).FillWidth().Background(tk.Border)
+				ui.Scroll(c).FillWidth().MaxHeight(360).Padding(6).Children(func() {
+					w.searchResults(c, tk)
+				})
+			})
+		})
+	})
+	if panel.Dismissed() {
+		w.closeSearch()
+	}
+}
+
+// searchResults lists what the query finds, the way the sidebar would: a
+// project's name over the sessions it holds. A project the query names shows
+// all of its sessions; one it does not shows only the sessions it matches.
+func (w *workspace) searchResults(c *ui.Context, tk tokens) {
+	q := strings.ToLower(strings.TrimSpace(w.searchQuery))
+	found := false
+	for _, pr := range w.allProjects() {
+		hit := strings.Contains(strings.ToLower(pr.name()), q) ||
+			strings.Contains(strings.ToLower(pr.Dir), q)
+		var rows []*session
+		for _, s := range pr.Sessions {
+			if hit || strings.Contains(strings.ToLower(sessionLabel(s)), q) {
+				rows = append(rows, s)
+			}
+		}
+		if len(rows) == 0 {
+			continue
+		}
+		found = true
+		ui.Text(c, pr.name()).FontSize(11).FontWeight(400).SingleLine().
+			TextColor(tk.MutedForeground).Padding(6, 8, 2, 8)
+		for _, s := range rows {
+			w.searchResultRow(c, tk, s)
+		}
+	}
+	if !found {
+		ui.Text(c, locales.SearchEmpty()).FontSize(13).TextColor(tk.MutedForeground).
+			Padding(10, 8, 10, 8)
+	}
+}
+
+// searchResultRow is one session the search found: the mark its sidebar row
+// wears, and its name. A press opens it, as that row's press would.
+func (w *workspace) searchResultRow(c *ui.Context, tk tokens, s *session) {
+	row := ui.Row(c).Height(32).FillWidth().AlignItems(ui.Center).Gap(8).
+		PaddingStart(8).PaddingEnd(8).Radius(chromeRadius).Cursor(ui.CursorPointer)
+	if row.Hovered() {
+		row = row.Background(tk.Foreground.Alpha(0.045))
+	}
+	pick := func() {
+		w.selectSession(s.ID)
+		w.closeSearch()
+	}
+	row.OnClick(pick).Children(func() {
+		if agent := s.agent(); agent != nil {
+			if src := agentLogoSource(agent.Kind, tk); src != nil {
+				ui.Image(c, src).Width(14).Height(14).OnClick(pick)
+			}
+		} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
+			ui.Image(c, src).Width(14).Height(14).OnClick(pick)
+		}
+		ui.Text(c, sessionLabel(s)).FontSize(13).FontWeight(400).SingleLine().
+			TextColor(tk.Foreground).OnClick(pick)
+	})
 }
 
 func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
