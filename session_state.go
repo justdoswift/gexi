@@ -12,10 +12,11 @@ import (
 
 // A session has three places to be. Active sessions run in the sidebar under
 // their project. Idle sessions wait in a fold at the bottom of the sidebar:
-// stopped, but one click away. Archived sessions are kept in Settings ›
-// Archive, out of the everyday list until they are restored or deleted. Both
-// idle and archived sessions keep their panes' commands and last screens, so
-// opening one resumes the same work.
+// stopped, and started again only from their menu, so a stray click cannot
+// resume work. Archived sessions are kept in Settings › Archive, out of the
+// everyday list until they are restored or deleted. Both idle and archived
+// sessions keep their panes' commands and last screens, so opening one
+// resumes the same work.
 
 // putSessionAway records the session's panes, stops them, and files the
 // record in the idle fold or the archive.
@@ -253,7 +254,9 @@ func (w *workspace) idleSessionSection(c *ui.Context, tk tokens) {
 }
 
 // idleSessionRow is one waiting session: its name, the project it belongs
-// to, and a click that starts it again.
+// to, and the menu that starts it again. A click alone does nothing, so a
+// stray click on the fold cannot start work by accident; Restore in the
+// menu is the only way back.
 func (w *workspace) idleSessionRow(c *ui.Context, tk tokens, rec storedSession) {
 	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8 + 16).PaddingEnd(8).Gap(8).
 		Radius(chromeRadius).MarginX(2)
@@ -263,7 +266,7 @@ func (w *workspace) idleSessionRow(c *ui.Context, tk tokens, rec storedSession) 
 		row = row.Background(tk.Foreground.Alpha(0.045))
 	}
 	pick := func() { w.restoreIdleSession(rec.Session.ID) }
-	row.OnClick(pick).Tooltip(storedSessionDetail(rec)).ContextMenu(func(m *ui.Menu) {
+	row.Tooltip(storedSessionDetail(rec)).ContextMenu(func(m *ui.Menu) {
 		if m.Item(locales.SessionRestore()).Chosen() {
 			pick()
 		}
@@ -273,11 +276,11 @@ func (w *workspace) idleSessionRow(c *ui.Context, tk tokens, rec storedSession) 
 		}
 	}).Children(func() {
 		if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(14).Height(14).OnClick(pick)
+			ui.Image(c, src).Width(14).Height(14)
 		}
 		ui.Text(c, storedSessionTitle(rec)).FontSize(13).FontWeight(500).SingleLine().
-			TextColor(color).OnClick(pick)
-		ui.Spacer(c).OnClick(pick)
+			TextColor(color)
+		ui.Spacer(c)
 	})
 }
 

@@ -109,6 +109,58 @@ func TestIdleSectionStartsCollapsed(t *testing.T) {
 	}
 }
 
+// A click on an idle row only selects nothing: the session waits until its
+// menu's Restore is chosen, so a stray click cannot start work again.
+func TestIdleSessionRowWaitsForRestore(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	w := &workspace{settings: defaultSettings(), idleOpen: true}
+	w.idleSessions = []storedSession{{
+		Session: savedSession{ID: "p", Root: savedNode{Type: "leaf", Pane: &savedPane{
+			ID: "pane", WorkingDirectory: t.TempDir(), Command: []string{"/bin/zsh"},
+		}}},
+		ProjectDir:   t.TempDir(),
+		ProjectLabel: "gexi",
+		Title:        "Idle work",
+	}}
+	view := func(c *ui.Context) {
+		tk := themeTokens(c.Theme())
+		ui.Column(c).Fill().Padding(8).Children(func() {
+			w.idleSessionSection(c, tk)
+		})
+	}
+	tester := ui.NewTester(view, 280, 220)
+	tester.Frame()
+	row, ok := tester.Find("Idle work")
+	if !ok {
+		t.Fatalf("the idle row is not drawn; it shows %q", tester.Texts())
+	}
+	tester.ClickAt(row.X+row.W/2, row.Y+row.H/2)
+	tester.Frame()
+	if len(w.idleSessions) != 1 {
+		t.Fatal("a click on the row restored the session")
+	}
+	for _, pr := range w.Projects {
+		if len(pr.Sessions) > 0 {
+			t.Fatal("a click on the row opened the session")
+		}
+	}
+
+	tester.RightClickAt(row.X+row.W/2, row.Y+row.H/2)
+	tester.Frame()
+	hasRestore, hasArchive := false, false
+	for _, item := range tester.Menu() {
+		switch item {
+		case locales.SessionRestore():
+			hasRestore = true
+		case locales.SessionArchive():
+			hasArchive = true
+		}
+	}
+	if !hasRestore || !hasArchive {
+		t.Fatalf("the row menu = %q, want restore and archive", tester.Menu())
+	}
+}
+
 // An idle session can be put in the archive without opening it again.
 func TestArchiveIdleSessionMovesItToSettings(t *testing.T) {
 	w := &workspace{settings: defaultSettings()}
