@@ -241,12 +241,21 @@ const (
 // card sits twice as far from the edge as it does from its neighbour.
 const canvasInset float32 = 6
 
+// glassChrome reports whether the Liquid Glass setting draws the raised
+// paper chrome. Off, the chrome keeps the flat, bordered look it had before
+// 0.0.103, and the window is opaque too, through mainBackground and liquid.
+func glassChrome() bool { return sidebarMaterial }
+
 // raised lifts a card off the surface the way leaf's pages are lifted: a
 // hairline in place of a border, then shadows that spread wider and softer
 // the further they fall. The card keeps its own fill, so a pane still reads
 // as the terminal's colour; only the shadows say it sits above the surface.
-// A card whose top edge is its own fill wears lit as well.
+// A card whose top edge is its own fill wears lit as well. With glass off it
+// is a plain bordered card, as it was before leaf's chrome.
 func raised(e ui.Element, tk tokens) ui.Element {
+	if !glassChrome() {
+		return e.Border(1, tk.Border)
+	}
 	if tk.Dark {
 		return e.
 			Shadow(0, 0, 0, 1, ui.RGB(0xff, 0xff, 0xff).Alpha(0.07)).
@@ -266,6 +275,9 @@ func raised(e ui.Element, tk tokens) ui.Element {
 // row does: the same hairline, with the shadows kept close enough for a 32pt
 // control to wear without turning into a card.
 func lifted(e ui.Element, tk tokens) ui.Element {
+	if !glassChrome() {
+		return e.Border(1, tk.Border)
+	}
 	if tk.Dark {
 		return e.
 			Shadow(0, 0, 0, 1, ui.RGB(0xff, 0xff, 0xff).Alpha(0.07)).
@@ -283,6 +295,9 @@ func lifted(e ui.Element, tk tokens) ui.Element {
 // of white, so the card reads as facing up. It goes on the element that
 // paints the top edge itself, since an opaque child would cover it.
 func lit(e ui.Element, tk tokens) ui.Element {
+	if !glassChrome() {
+		return e
+	}
 	if tk.Dark {
 		return e.InsetShadow(0, 1, 0, 0, ui.RGB(0xff, 0xff, 0xff).Alpha(0.06))
 	}
@@ -295,6 +310,15 @@ func lit(e ui.Element, tk tokens) ui.Element {
 // a card's: a 22pt tag lies on the header, it does not float over it.
 // Under the pointer it grows one step, so the tag lifts without moving.
 func badge(e ui.Element, tk tokens, hovered bool) ui.Element {
+	if !glassChrome() {
+		// The old header chip: one flat fill, a step darker under the
+		// pointer, with no gradient or contact shadow.
+		fill := tk.Active
+		if hovered {
+			fill = tk.Control
+		}
+		return e.Background(fill)
+	}
 	fill, low := tk.Background, tk.Background
 	if tk.Dark {
 		// One small step above the card, as leaf's chips sit above its page.
@@ -326,6 +350,9 @@ func badge(e ui.Element, tk tokens, hovered bool) ui.Element {
 // sheet is what a panel sliding over the canvas casts: a shadow on the edge
 // it opens from, so it reads as lying above the work rather than beside it.
 func sheet(e ui.Element, tk tokens) ui.Element {
+	if !glassChrome() {
+		return e
+	}
 	c := ui.RGB(0x11, 0x11, 0x1a).Alpha(0.12)
 	if tk.Dark {
 		c = ui.RGB(0, 0, 0).Alpha(0.45)
@@ -337,6 +364,9 @@ func sheet(e ui.Element, tk tokens) ui.Element {
 // track: a hairline inside the edge, and a shadow falling from the top, where
 // the surface would step down.
 func sunken(e ui.Element, tk tokens) ui.Element {
+	if !glassChrome() {
+		return e
+	}
 	if tk.Dark {
 		return e.
 			InsetShadow(0, 1, 2, 0, ui.RGB(0, 0, 0).Alpha(0.45)).
