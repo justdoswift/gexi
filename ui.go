@@ -202,7 +202,6 @@ func (w *workspace) view(c *ui.Context) {
 		if !w.flowOpen {
 			w.flowTarget = nil
 			w.flowDraft = flowDraft{}
-			w.flowSelected = ""
 		}
 	}
 }

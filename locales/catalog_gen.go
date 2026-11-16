@@ -3220,44 +3220,94 @@ func (msgs Messages) FlowTitle() string {
 	return Catalog.Format(msgs.locale, "flowTitle", nil)
 }
 
-// FlowNoteLabel says "Note · {stage}"
-// in the language the app shows.
-func FlowNoteLabel(stage string) string { return In(i18n.Locale()).FlowNoteLabel(stage) }
-
-// FlowNoteLabel says "Note · {stage}"
-// in the language of msgs.
-func (msgs Messages) FlowNoteLabel(stage string) string {
-	return Catalog.Format(msgs.locale, "flowNoteLabel", map[string]any{"stage": stage})
-}
-
-// FlowStageWorktree says "Worktree → PR"
+// FlowStageWorktree says "After the worktree is made"
 // in the language the app shows.
 func FlowStageWorktree() string { return In(i18n.Locale()).FlowStageWorktree() }
 
-// FlowStageWorktree says "Worktree → PR"
+// FlowStageWorktree says "After the worktree is made"
 // in the language of msgs.
 func (msgs Messages) FlowStageWorktree() string {
 	return Catalog.Format(msgs.locale, "flowStageWorktree", nil)
 }
 
-// FlowStagePR says "PR → Merge"
+// FlowStagePR says "After the PR opens"
 // in the language the app shows.
 func FlowStagePR() string { return In(i18n.Locale()).FlowStagePR() }
 
-// FlowStagePR says "PR → Merge"
+// FlowStagePR says "After the PR opens"
 // in the language of msgs.
 func (msgs Messages) FlowStagePR() string {
 	return Catalog.Format(msgs.locale, "flowStagePR", nil)
 }
 
-// FlowStageMerge says "Merge → Archive"
+// FlowStageMerge says "After the merge"
 // in the language the app shows.
 func FlowStageMerge() string { return In(i18n.Locale()).FlowStageMerge() }
 
-// FlowStageMerge says "Merge → Archive"
+// FlowStageMerge says "After the merge"
 // in the language of msgs.
 func (msgs Messages) FlowStageMerge() string {
 	return Catalog.Format(msgs.locale, "flowStageMerge", nil)
+}
+
+// FlowFixed says "Fixed"
+// in the language the app shows.
+func FlowFixed() string { return In(i18n.Locale()).FlowFixed() }
+
+// FlowFixed says "Fixed"
+// in the language of msgs.
+func (msgs Messages) FlowFixed() string {
+	return Catalog.Format(msgs.locale, "flowFixed", nil)
+}
+
+// FlowPromptCount says "{count} prompts"
+// in the language the app shows.
+func FlowPromptCount(count string) string { return In(i18n.Locale()).FlowPromptCount(count) }
+
+// FlowPromptCount says "{count} prompts"
+// in the language of msgs.
+func (msgs Messages) FlowPromptCount(count string) string {
+	return Catalog.Format(msgs.locale, "flowPromptCount", map[string]any{"count": count})
+}
+
+// FlowAddStep says "Add a step"
+// in the language the app shows.
+func FlowAddStep() string { return In(i18n.Locale()).FlowAddStep() }
+
+// FlowAddStep says "Add a step"
+// in the language of msgs.
+func (msgs Messages) FlowAddStep() string {
+	return Catalog.Format(msgs.locale, "flowAddStep", nil)
+}
+
+// FlowStepPlaceholder says "For example: Run the tests"
+// in the language the app shows.
+func FlowStepPlaceholder() string { return In(i18n.Locale()).FlowStepPlaceholder() }
+
+// FlowStepPlaceholder says "For example: Run the tests"
+// in the language of msgs.
+func (msgs Messages) FlowStepPlaceholder() string {
+	return Catalog.Format(msgs.locale, "flowStepPlaceholder", nil)
+}
+
+// FlowDragHint says "Drag to change the order"
+// in the language the app shows.
+func FlowDragHint() string { return In(i18n.Locale()).FlowDragHint() }
+
+// FlowDragHint says "Drag to change the order"
+// in the language of msgs.
+func (msgs Messages) FlowDragHint() string {
+	return Catalog.Format(msgs.locale, "flowDragHint", nil)
+}
+
+// FlowRemoveStep says "Remove this step"
+// in the language the app shows.
+func FlowRemoveStep() string { return In(i18n.Locale()).FlowRemoveStep() }
+
+// FlowRemoveStep says "Remove this step"
+// in the language of msgs.
+func (msgs Messages) FlowRemoveStep() string {
+	return Catalog.Format(msgs.locale, "flowRemoveStep", nil)
 }
 
 // FlowWorktreePlaceholder says "For example: Check the changes"
@@ -3288,26 +3338,6 @@ func FlowMergePlaceholder() string { return In(i18n.Locale()).FlowMergePlacehold
 // in the language of msgs.
 func (msgs Messages) FlowMergePlaceholder() string {
 	return Catalog.Format(msgs.locale, "flowMergePlaceholder", nil)
-}
-
-// FlowSet says "Set"
-// in the language the app shows.
-func FlowSet() string { return In(i18n.Locale()).FlowSet() }
-
-// FlowSet says "Set"
-// in the language of msgs.
-func (msgs Messages) FlowSet() string {
-	return Catalog.Format(msgs.locale, "flowSet", nil)
-}
-
-// FlowUnset says "Not set"
-// in the language the app shows.
-func FlowUnset() string { return In(i18n.Locale()).FlowUnset() }
-
-// FlowUnset says "Not set"
-// in the language of msgs.
-func (msgs Messages) FlowUnset() string {
-	return Catalog.Format(msgs.locale, "flowUnset", nil)
 }
 
 // FlowStepCount says "{count} steps"

@@ -29,6 +29,9 @@ type project struct {
 	// worktree pipeline, keyed by flowStage. They are edited from the
 	// project row's menu and saved with the layout.
 	Flows projectFlows
+	// Steps are the steps the user added to the pipeline, each at one of
+	// the boundaries Flows names. Their order is the order they run in.
+	Steps []flowStep `json:"flowSteps,omitempty"`
 	// remote is set on the project a paired Mac takes: its sessions and
 	// panes live on that host, and the window draws them as local work.
 	remote *remoteProjectLink
@@ -218,11 +221,10 @@ type workspace struct {
 	// flows are the project prompts waiting for, or running in, a pane.
 	// flowOpen is the project's flow dialog; flowTarget is its project and
 	// flowDraft the edits it has not saved.
-	flows        []flowTask
-	flowOpen     bool
-	flowTarget   *project
-	flowDraft    flowDraft
-	flowSelected flowStage
+	flows      []flowTask
+	flowOpen   bool
+	flowTarget *project
+	flowDraft  flowDraft
 
 	// The files drawer: the right-hand column of changes and files.
 	drawer drawerState

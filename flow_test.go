@@ -13,23 +13,32 @@ import (
 	"github.com/justdoswift/gexi/locales"
 )
 
-// A project's flows are the prompt at each boundary: an empty field is not a
-// flow, and the prompt that is kept is trimmed.
-func TestSubmitProjectFlowsKeepsOnlyTypedPrompts(t *testing.T) {
+// A project's steps are what the dialog keeps: an empty one is dropped, and
+// the rest keep their order and the anchor they run at.
+func TestSubmitProjectFlowsKeepsOnlyTypedSteps(t *testing.T) {
 	pr := &project{ID: "pr", Dir: "/tmp/example"}
 	w := &workspace{Projects: []*project{pr}}
 	w.flowTarget = pr
 	w.flowOpen = true
-	w.flowDraft = flowDraft{
-		afterWorktree: "  ",
-		afterPR:       "  发布  ",
-		afterMerge:    "",
-	}
+	w.flowDraft = flowDraft{steps: []*flowStep{
+		{At: string(flowAfterPR), Prompt: "  发布  "},
+		{At: string(flowAfterMerge), Prompt: "   "},
+		{At: string(flowAfterMerge), Prompt: "通知团队"},
+	}}
 
 	w.submitProjectFlows()
 
-	if len(pr.Flows) != 1 || pr.Flows[string(flowAfterPR)] != "发布" {
-		t.Fatalf("flows = %+v, want only the PR prompt", pr.Flows)
+	if len(pr.Steps) != 2 {
+		t.Fatalf("steps = %+v, want the two typed ones", pr.Steps)
+	}
+	if pr.Steps[0].Prompt != "发布" || pr.Steps[0].At != string(flowAfterPR) {
+		t.Fatalf("first step = %+v", pr.Steps[0])
+	}
+	if pr.Steps[1].Prompt != "通知团队" || pr.Steps[1].At != string(flowAfterMerge) {
+		t.Fatalf("second step = %+v", pr.Steps[1])
+	}
+	if pr.Flows != nil {
+		t.Fatalf("the old per-stage map was kept: %+v", pr.Flows)
 	}
 	if w.flowOpen || w.flowTarget != nil {
 		t.Fatalf("dialog stayed open: open=%v target=%v", w.flowOpen, w.flowTarget)
@@ -72,11 +81,219 @@ func TestQueueFlowUsesTheProjectsPrompt(t *testing.T) {
 	if len(w.flows) != 1 {
 		t.Fatalf("queued %d flows, want 1", len(w.flows))
 	}
-	if task := w.flows[0]; task.paneID != "pane" || task.prompt != "发布" || !task.archiveAfter {
+	if task := w.flows[0]; task.paneID != "pane" || task.prompt() != "发布" || !task.archiveAfter {
 		t.Fatalf("task = %+v", task)
 	}
 	if w.queueFlow(p, flowAfterPR, false) {
 		t.Fatal("a boundary without a prompt was queued")
+	}
+}
+
+// A project runs its stage's own prompt first, then the steps the user put
+// at that boundary, in the order they are listed. Steps at another boundary
+// and steps left empty do not run there.
+func TestFlowPromptsRunTheStagesOwnPromptFirst(t *testing.T) {
+	pr := &project{
+		Flows: projectFlows{string(flowAfterMerge): "发布"},
+		Steps: []flowStep{
+			{At: string(flowAfterWorktree), Prompt: "跑测试"},
+			{At: string(flowAfterMerge), Prompt: "写更新日志"},
+			{At: string(flowAfterMerge), Prompt: "   "},
+			{At: string(flowAfterMerge), Prompt: " 通知团队 "},
+		},
+	}
+	got := pr.flowPrompts(flowAfterMerge)
+	want := []string{"发布", "写更新日志", "通知团队"}
+	if len(got) != len(want) {
+		t.Fatalf("merge prompts = %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("merge prompts = %q, want %q", got, want)
+		}
+	}
+	if got := pr.flowPrompts(flowAfterWorktree); len(got) != 1 || got[0] != "跑测试" {
+		t.Fatalf("worktree prompts = %q, want the step alone", got)
+	}
+	if got := pr.flowPrompts(flowAfterPR); len(got) != 0 {
+		t.Fatalf("PR prompts = %q, want none", got)
+	}
+}
+
+// The queue carries every prompt of a boundary, so the flow types the stage's
+// own prompt and then the steps added under it.
+func TestQueueFlowCarriesTheStepsInOrder(t *testing.T) {
+	p := &pane{ID: "pane"}
+	pr := flowProject(p, flowAfterMerge, "发布")
+	pr.Steps = []flowStep{
+		{At: string(flowAfterMerge), Prompt: "写更新日志"},
+		{At: string(flowAfterMerge), Prompt: "通知团队"},
+	}
+	w := &workspace{Projects: []*project{pr}}
+	if !w.queueFlow(p, flowAfterMerge, false) {
+		t.Fatal("the flow was not queued")
+	}
+	got := w.flows[0].prompts
+	want := []string{"发布", "写更新日志", "通知团队"}
+	if len(got) != len(want) {
+		t.Fatalf("queued prompts = %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("queued prompts = %q, want %q", got, want)
+		}
+	}
+}
+
+// A step's handle moves it: onto another stage it joins the end of that
+// boundary, and onto a step it lands just before it, so the list stays the
+// order the prompts run in.
+func TestMoveFlowStepKeepsTheListInRunningOrder(t *testing.T) {
+	w := &workspace{}
+	w.flowDraft.steps = []*flowStep{
+		{At: string(flowAfterMerge), Prompt: "一"},
+		{At: string(flowAfterMerge), Prompt: "二"},
+		{At: string(flowAfterMerge), Prompt: "三"},
+	}
+	w.moveFlowStep(2, flowAfterWorktree, nil)
+	if got := w.flowDraft.steps[0]; got.Prompt != "三" || got.At != string(flowAfterWorktree) {
+		t.Fatalf("first step = %+v, want 三 at the worktree boundary", got)
+	}
+	if len(w.flowDraft.steps) != 3 {
+		t.Fatalf("steps = %d, want 3", len(w.flowDraft.steps))
+	}
+	// Dropped on 一, it lands before it rather than after the boundary's
+	// own prompt only: the list is what runs.
+	first := w.flowDraft.steps[1]
+	w.moveFlowStep(0, flowAfterMerge, first)
+	got := []string{}
+	for _, step := range w.flowDraft.steps {
+		got = append(got, step.At+":"+step.Prompt)
+	}
+	want := []string{"merge:三", "merge:一", "merge:二"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("steps = %q, want %q", got, want)
+		}
+	}
+}
+
+// A step's handle drags it to another boundary: let go on a stage's card, it
+// joins the steps under that stage, which is where it will run.
+func TestFlowDialogDragsAStepToAnotherBoundary(t *testing.T) {
+	pr := &project{
+		ID: "pr", Dir: t.TempDir(), Label: "gexi-flow-test",
+		Sessions: []*session{{ID: "s", Root: leaf(&pane{ID: "p", Label: "zsh"})}},
+		Steps:    []flowStep{{At: string(flowAfterMerge), Prompt: "通知团队"}},
+	}
+	w := &workspace{Projects: []*project{pr}, collapsed: map[string]bool{}}
+	w.openProjectFlows(pr)
+	tester := ui.NewTester(func(c *ui.Context) {
+		tk := themeTokens(c.Theme())
+		ui.Column(c).Fill().Background(tk.Background).Children(func() {
+			w.projectFlowDialog(c, tk)
+		})
+	}, 700, 620)
+	tester.Frame()
+
+	handle, ok := tester.Find("⋮⋮")
+	if !ok {
+		t.Fatalf("the step has no handle; texts = %q", tester.Texts())
+	}
+	target, ok := tester.Find(locales.FlowStageWorktree())
+	if !ok {
+		t.Fatal("the worktree stage is not drawn")
+	}
+	tester.Press(handle.X+handle.W/2, handle.Y+handle.H/2)
+	tester.Move(target.X+target.W/2, target.Y+target.H/2)
+	tester.Release(target.X+target.W/2, target.Y+target.H/2)
+	tester.Frame()
+
+	if len(w.flowDraft.steps) != 1 {
+		t.Fatalf("steps = %d, want the dragged one", len(w.flowDraft.steps))
+	}
+	if got := w.flowDraft.steps[0].At; got != string(flowAfterWorktree) {
+		t.Fatalf("the step sits at %q, want the worktree boundary", got)
+	}
+}
+
+// The dialog's list is the pipeline: adding a step puts a card under the last
+// boundary, and saving keeps it with the boundary it sits at.
+func TestFlowDialogAddsAStepAndSavesIt(t *testing.T) {
+	pr := &project{
+		ID: "pr", Dir: t.TempDir(), Label: "gexi-flow-test",
+		Sessions: []*session{{ID: "s", Root: leaf(&pane{ID: "p", Label: "zsh"})}},
+	}
+	w := &workspace{Projects: []*project{pr}, collapsed: map[string]bool{}}
+	w.openProjectFlows(pr)
+	tester := ui.NewTester(func(c *ui.Context) {
+		tk := themeTokens(c.Theme())
+		ui.Column(c).Fill().Background(tk.Background).Children(func() {
+			w.projectFlowDialog(c, tk)
+		})
+	}, 700, 620)
+	tester.Frame()
+	if err := tester.Click(locales.FlowAddStep()); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	tester.Frame()
+	if len(w.flowDraft.steps) != 1 {
+		t.Fatalf("steps = %d, want the added one", len(w.flowDraft.steps))
+	}
+	if got := w.flowDraft.steps[0].At; got != string(flowAfterMerge) {
+		t.Fatalf("the step was added at %q, want the last boundary", got)
+	}
+	r, ok := tester.Find(locales.FlowStepPlaceholder())
+	if !ok {
+		t.Fatalf("the new card has no prompt field; texts = %q", tester.Texts())
+	}
+	tester.ClickAt(r.X+r.W/2, r.Y+r.H/2)
+	tester.Frame()
+	tester.Type("通知团队")
+	tester.Frame()
+	if err := tester.Click(locales.Save()); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	tester.Frame()
+	if len(pr.Steps) != 1 || pr.Steps[0].Prompt != "通知团队" ||
+		pr.Steps[0].At != string(flowAfterMerge) {
+		t.Fatalf("saved steps = %+v", pr.Steps)
+	}
+	if got := pr.flowPrompts(flowAfterMerge); len(got) != 1 || got[0] != "通知团队" {
+		t.Fatalf("merge prompts = %q", got)
+	}
+}
+
+// A flow with several prompts types one, waits for its turn to end, then
+// types the next, so the steps read as messages rather than landing together.
+func TestDrainFlowsTypesTheStepsOneTurnAtATime(t *testing.T) {
+	p, conn := flowPane(t)
+	pr := flowProject(p, flowAfterMerge, "发布")
+	pr.Steps = []flowStep{{At: string(flowAfterMerge), Prompt: "通知团队"}}
+	w := &workspace{Projects: []*project{pr}}
+	if !w.queueFlow(p, flowAfterMerge, false) {
+		t.Fatal("the flow was not queued")
+	}
+	w.drainFlows()
+	waitForTyped(t, conn, "发布\r")
+
+	// The first turn is still running: the second prompt waits for it.
+	p.outAt = time.Now()
+	p.activity = &agentActivity{State: activityWorking}
+	w.drainFlows()
+	if got := conn.typed(); got != "发布\r" {
+		t.Fatalf("typed = %q, want only the first prompt", got)
+	}
+
+	// The turn ended: the task moves to its next prompt, which goes in on
+	// the tick after, once the agent is idle.
+	p.outAt = time.Now().Add(-2 * activityQuiet)
+	p.activity = nil
+	w.drainFlows()
+	w.drainFlows()
+	waitForTyped(t, conn, "发布\r通知团队\r")
+	if len(w.flows) != 0 {
+		t.Fatalf("flows = %d, want the task gone once the last prompt is typed", len(w.flows))
 	}
 }
 
@@ -292,11 +509,17 @@ func TestProjectFlowsDialogSavesFromTheRowMenu(t *testing.T) {
 		t.Fatalf("the dialog does not list its steps; texts = %q", tester.Texts())
 	}
 
-	merge, ok := tester.Find(locales.FlowStageMerge())
-	if !ok {
-		t.Fatal("the merge step is not drawn")
+	// The fixed steps are anchors: a prompt is a card the user adds, and it
+	// runs at the last anchor unless it is dragged elsewhere.
+	if err := tester.Click(locales.FlowAddStep()); err != nil {
+		t.Fatalf("add: %v", err)
 	}
-	tester.ClickAt(merge.X+merge.W/2, merge.Y+merge.H/2)
+	tester.Frame()
+	field, ok := tester.Find(locales.FlowStepPlaceholder())
+	if !ok {
+		t.Fatalf("the added card has no prompt field; texts = %q", tester.Texts())
+	}
+	tester.ClickAt(field.X+field.W/2, field.Y+field.H/2)
 	tester.Frame()
 	tester.Type("发布")
 	tester.Frame()
@@ -308,11 +531,11 @@ func TestProjectFlowsDialogSavesFromTheRowMenu(t *testing.T) {
 	if w.flowOpen {
 		t.Fatal("the dialog stayed open after saving")
 	}
-	if got := pr.flowPrompt(flowAfterMerge); got != "发布" {
-		t.Fatalf("the saved merge flow = %q, want 发布", got)
+	if got := pr.flowPrompts(flowAfterMerge); len(got) != 1 || got[0] != "发布" {
+		t.Fatalf("the saved merge prompts = %q, want 发布", got)
 	}
-	if got := pr.flowPrompt(flowAfterWorktree); got != "" {
-		t.Fatalf("an untouched step was saved as %q", got)
+	if got := pr.flowPrompts(flowAfterWorktree); len(got) != 0 {
+		t.Fatalf("an untouched anchor got a prompt: %q", got)
 	}
 }
 
