@@ -736,6 +736,14 @@ func applyPRStatus(wt *paneWorktree, info prInfo) {
 	wt.mergeState = info.MergeState
 }
 
+// needsPRConfirm reports whether opening the pull request stops at the
+// dialog: there is something to read (a commit about to be made, or a
+// description about to be published), and Settings › Worktrees has not
+// asked for the automatic pipeline.
+func needsPRConfirm(clean bool, body string, auto bool) bool {
+	return (!clean || body != "") && !auto
+}
+
 // createPR pushes the worktree branch and opens its pull request. When one
 // is already open, it returns that instead. message commits the pending
 // changes under it; an empty one there is an error. body is the description
@@ -1541,6 +1549,9 @@ func (w *workspace) createPullRequest(p *pane) {
 	wt.busy = worktreeBusyPR
 	w.invalidate()
 	snapshot := *wt
+	// Automatic merging wants the whole press to run end to end: the dialog
+	// below is what would stop it to ask about a message or a description.
+	auto := w.settings.AutoMergePR
 	kind := agentKind("")
 	if p.agent != nil {
 		kind = p.agent.Kind
@@ -1603,7 +1614,7 @@ func (w *workspace) createPullRequest(p *pane) {
 				}
 			}
 		}
-		if !clean || body != "" {
+		if needsPRConfirm(clean, body, auto) {
 			// Something to read before it goes out: the message about to be
 			// committed, the description about to be published, or both.
 			hintText := hint
@@ -1625,6 +1636,11 @@ func (w *workspace) createPullRequest(p *pane) {
 				w.invalidate()
 			})
 			return
+		}
+		if !clean && msg == "" {
+			// The agent could not write the message: the same fallback the
+			// dialog would have opened with goes out without a press.
+			msg = "Update from Gexi"
 		}
 		info, branch, err := createPR(&snapshot, msg, body, w.worktreeStepFunc(wt))
 		w.onMain(func() { w.finishPullRequest(wt, p, info, branch, err) })
@@ -1660,6 +1676,7 @@ func (w *workspace) finishPullRequest(wt *paneWorktree, p *pane, info prInfo, br
 		w.flash(locales.WorktreePROpened())
 		w.schedulePRRefresh(p)
 		w.queueFlow(p, flowAfterPR, false)
+		w.autoMerge(p)
 	}
 	w.invalidate()
 	w.scheduleSave()
@@ -1743,7 +1760,7 @@ func (w *workspace) commitDialog(c *ui.Context, tk tokens) {
 // branch. The pane and its worktree stay open by default: the header button
 // becomes Archive, so clearing them away is the user's next step rather than
 // a side effect of the merge. Settings › Worktrees can have the archive run
-// with the merge instead.
+// with the merge instead, and can merge as soon as the pull request opens.
 func (w *workspace) mergePullRequest(p *pane) {
 	wt := p.Worktree
 	if wt == nil || wt.busy != "" || wt.PR == 0 || wt.State == worktreeMerged || w.paneByID(p.ID) != p {
@@ -1868,6 +1885,29 @@ func (w *workspace) mergeBlockerOf(s worktreeStatus) string {
 		return locales.WorktreeBlockedGeneric()
 	}
 	return ""
+}
+
+// autoMerge carries a pull request through on its own when Settings ›
+// Worktrees asks for it: a ready pull request is merged, and a conflicting
+// one is settled by the pane's agent and then merged, without the Merge
+// press. While GitHub is still checking, the pull request's own refresh
+// brings it back here; a checkout gexi only found, and one whose agent
+// cannot settle a conflict, stay on the Merge button.
+func (w *workspace) autoMerge(p *pane) {
+	wt := p.Worktree
+	if wt == nil || wt.Detected || !w.settings.AutoMergePR {
+		return
+	}
+	if wt.busy != "" || wt.PR == 0 || wt.State != "open" || w.paneByID(p.ID) != p {
+		return
+	}
+	if w.mergeBlocker(wt) != "" {
+		if mergeConflicts(wt) && canResolveConflicts(p) {
+			w.resolveConflictsAndMerge(p)
+		}
+		return
+	}
+	w.mergePullRequest(p)
 }
 
 // requestMerge refreshes the pull request, then merges it. The button is muted
@@ -2412,6 +2452,7 @@ func (w *workspace) applyWorktreePR(p *pane, wt *paneWorktree, info prInfo, head
 		w.invalidate()
 		w.scheduleSave()
 		w.schedulePRRefresh(p)
+		w.autoMerge(p)
 	})
 }
 

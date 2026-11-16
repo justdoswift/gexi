@@ -203,6 +203,8 @@
   "worktreeGoneFailed": "The worktree folder is gone. See Settings › Worktrees.",
   "settingsWorktrees": "Worktrees",
   "settingsWorktreesMerge": "Merging",
+  "settingsAutoMergePR": "Open and merge PRs automatically",
+  "settingsAutoMergePRDetail": "After the PR button, the commit message and description the agent wrote go out without a dialog, and the pull request merges as soon as GitHub allows it; a conflict is settled by the pane's agent first. Off, the dialog and the Merge button wait for you.",
   "settingsArchiveAfterMerge": "Archive after merge",
   "settingsArchiveAfterMergeDetail": "Clear the merged worktree and its pane away when the pull request merges, instead of leaving the Archive button for you.",
   "settingsWorktreesMaintenance": "Maintenance",

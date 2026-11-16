@@ -2080,6 +2080,26 @@ func (msgs Messages) SettingsWorktreesMerge() string {
 	return Catalog.Format(msgs.locale, "settingsWorktreesMerge", nil)
 }
 
+// SettingsAutoMergePR says "Open and merge PRs automatically"
+// in the language the app shows.
+func SettingsAutoMergePR() string { return In(i18n.Locale()).SettingsAutoMergePR() }
+
+// SettingsAutoMergePR says "Open and merge PRs automatically"
+// in the language of msgs.
+func (msgs Messages) SettingsAutoMergePR() string {
+	return Catalog.Format(msgs.locale, "settingsAutoMergePR", nil)
+}
+
+// SettingsAutoMergePRDetail says "After the PR button, the commit message and description the agent wrote go out without a dialog, and the pull request…"
+// in the language the app shows.
+func SettingsAutoMergePRDetail() string { return In(i18n.Locale()).SettingsAutoMergePRDetail() }
+
+// SettingsAutoMergePRDetail says "After the PR button, the commit message and description the agent wrote go out without a dialog, and the pull request…"
+// in the language of msgs.
+func (msgs Messages) SettingsAutoMergePRDetail() string {
+	return Catalog.Format(msgs.locale, "settingsAutoMergePRDetail", nil)
+}
+
 // SettingsArchiveAfterMerge says "Archive after merge"
 // in the language the app shows.
 func SettingsArchiveAfterMerge() string { return In(i18n.Locale()).SettingsArchiveAfterMerge() }

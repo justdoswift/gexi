@@ -203,6 +203,8 @@
   "worktreeGoneFailed": "工作树目录已不存在。可在设置 › 工作树查看。",
   "settingsWorktrees": "工作树",
   "settingsWorktreesMerge": "合并",
+  "settingsAutoMergePR": "自动开 PR 并合并",
+  "settingsAutoMergePRDetail": "点开 PR 后不再弹出确认框：agent 写好的提交信息和描述直接用，PR 一旦可以合并就直接合并，冲突先交给窗格里的 agent 解决。关闭后恢复手动确认，再自己点「合并」。",
   "settingsArchiveAfterMerge": "合并后自动归档",
   "settingsArchiveAfterMergeDetail": "拉取请求合并后，直接清除已合并的工作树和窗格，而不是留下“归档”按钮等你处理。",
   "settingsWorktreesMaintenance": "维护",
