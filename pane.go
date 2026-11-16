@@ -425,10 +425,10 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 			"GEXI_HOME=" + supportDir(),
 		},
 		Scrollback: 10 << 20,
-		Padding:    terminal.Padding{X: 12, Y: 10},
-		// The pane card is already the terminal's background colour, and
-		// leaving the grid's own background undrawn lets the card change
-		// colour while its pane is picked up, without the grid covering it.
+		Padding:    terminal.Padding{X: panePadX, Y: panePadY},
+		// The pane card is the terminal's own surface, and leaving the grid's
+		// background undrawn lets the card change colour while its pane is
+		// picked up, without the grid covering it.
 		Transparent: true,
 		Font:        ws.terminalTextFont(),
 		// The user's themes, one for each appearance: the view takes the
