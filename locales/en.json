@@ -89,6 +89,8 @@
   "themesNone": "No themes match",
   "settingsLiquidGlass": "Liquid Glass",
   "settingsLiquidGlassDetail": "Draw the window with the system's glass and the raised paper chrome. Off, the flat bordered chrome returns.",
+  "settingsGlassTint": "Glass density",
+  "settingsGlassTintDetail": "0% shows the desktop fully; 100% is fully opaque.",
   "settingsRestoreScreen": "Restore last screen",
   "settingsRestoreScreenDetail": "Paint the previous screen above the new shell.",
   "worktreeCreateHint": "Create a worktree for this pane",

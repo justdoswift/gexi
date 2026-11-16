@@ -38,28 +38,35 @@ func (w *workspace) view(c *ui.Context) {
 	if liquid(c) {
 		c.Root().Background(ui.Transparent)
 	}
-	// A themed window paints its sidebar: the system's material is neutral,
-	// not the theme's, so the theme's own colour takes the sidebar instead
-	// (see liquid).
-	chromeTheme = w.appearanceThemeName(c.Theme().Dark) != ""
 	bar := c.TitleBar()
 	// The sidebar and the canvas share one surface: the root paints the
 	// theme's backdrop, and over the window's material it lets a little of
 	// the glass through. Both sides then read as the same wrap around the
 	// pane cards, instead of the sidebar's material against a painted canvas.
+	//
+	// A themed window takes the same glass as the neutral one. The material
+	// stays underneath; the theme's colour is a tint over it, not a painted
+	// sheet. In light comfortable the tint turns the sidebar's slightly
+	// deeper paper into the page's colour toward the bottom, so the window
+	// has a quiet vertical light even when the desktop behind it is plain.
 	root := ui.Row(c).Fill()
-	surface := w.backdrop(tk)
-	if liquid(c) && !chromeTheme {
-		// The window's material under a sheet of the theme's own white, as
-		// leaf's glass: opaque enough for text to sit on, clear enough that
-		// the desktop reads through it.
-		tint := float32(0.78)
-		if tk.Dark {
-			tint = 0.72
+	if liquid(c) {
+		// The theme's paper, not a clear pane: the glass density setting
+		// decides how much of the desktop shows through the sidebar, while
+		// the terminal card below adds its own sheet so the text keeps the
+		// theme's contrast.
+		tint := float32(glassTintPercent(w.settings.GlassTint)) / 100
+		top := tk.Background.Alpha(tint)
+		if !tk.Dark && w.settings.PaneStyle == paneComfortable {
+			// The light comfortable canvas starts one step deeper than the
+			// page and rises to it, so the sidebar carries the window's
+			// vertical light. A dark theme keeps its own canvas flat.
+			top = tk.Muted.Alpha(tint)
 		}
-		surface = tk.Background.Alpha(tint)
+		root = root.Gradient(top, tk.Background.Alpha(tint), 180)
+	} else {
+		root = root.Background(w.backdrop(tk))
 	}
-	root = root.Background(surface)
 
 	target := float32(0)
 	if !w.settings.SidebarCollapsed {
@@ -256,13 +263,23 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 	outer.Children(func() {
 		col := ui.Column(c).Fill()
 		// An empty session is a pane card like the ones that hold terminals:
-		// the theme's own surface, a hairline, and the card's shadow.
+		// the theme's own sheet, a hairline, and the card's shadow.
 		if w.settings.PaneStyle == paneComfortable {
-			col = raised(col.Radius(windowRadius).Clip().
-				Background(tk.Background), tk)
+			col = col.Radius(windowRadius).Clip()
+			if liquid(c) {
+				top, bottom := paneSurface(tk)
+				col = col.Gradient(top, bottom, 180)
+			} else {
+				col = col.Background(tk.Background)
+			}
+			col = raised(col, tk)
+		}
+		headerBg := tk.Background
+		if liquid(c) {
+			headerBg = ui.Transparent
 		}
 		col.Children(func() {
-			lit(ui.Row(c).Height(headerHeight).Background(tk.Background).DragWindow(), tk)
+			lit(ui.Row(c).Height(headerHeight).Background(headerBg).DragWindow(), tk)
 			ui.Column(c).Fill().Center().Children(func() {
 				ui.Text(c, locales.NoProject()).FontSize(13).TextColor(tk.MutedForeground)
 			})
@@ -391,8 +408,10 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 	row := ui.Row(c).Height(groupRowHeight).Padding(0, 8, 0, 8).Gap(5).Radius(chromeRadius).
 		MarginX(2)
 	hovered := row.Hovered()
-	color := tk.MutedForeground
-	if pr.sessionsSelected(w) || hovered {
+	// The selected session's capsule marks where the work is; the project
+	// label above it stays a quiet section heading, as Rex's groups do.
+	color := groupLabelColor(tk)
+	if hovered {
 		color = tk.Foreground
 	}
 	toggle := func() { w.toggleProject(pr) }
@@ -407,7 +426,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 		// A paired Mac wears the monitor its menu does, so it reads as a
 		// host rather than another checkout.
 		if pr.remote != nil {
-			if src := iconSource("monitor", colorHex(tk.MutedForeground)); src != nil {
+			if src := iconSource("monitor", colorHex(color)); src != nil {
 				ui.Image(c, src).Width(13).Height(13).OnClick(toggle)
 			}
 		}
@@ -506,18 +525,11 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 	}
 	key := remoteGroupKey(pr.ID, g.project.ID)
 	open := !w.collapsed[key] || strings.TrimSpace(w.searchQuery) != ""
-	selected := false
-	for _, s := range g.sessions {
-		if s.ID == w.SelectedSession {
-			selected = true
-			break
-		}
-	}
 	row := ui.Row(c).Height(groupRowHeight).PaddingStart(8 + indent).PaddingEnd(8).Gap(5).
 		Radius(chromeRadius).MarginX(2)
 	hovered := row.Hovered()
-	color := tk.MutedForeground
-	if selected || hovered {
+	color := groupLabelColor(tk)
+	if hovered {
 		color = tk.Foreground
 	}
 	toggle := func() {
@@ -536,7 +548,7 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 		if src := iconSource(chevron, colorHex(color)); src != nil {
 			ui.Image(c, src).Width(12).Height(12).OnClick(toggle)
 		}
-		if src := iconSource("folder", colorHex(tk.MutedForeground)); src != nil {
+		if src := iconSource("folder", colorHex(color)); src != nil {
 			ui.Image(c, src).Width(13).Height(13).IgnoreInput(true).OnClick(toggle)
 		}
 		ui.Text(c, g.project.Name).FontSize(11.5).FontWeight(400).SingleLine().
@@ -568,8 +580,16 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	// Sessions step in from the project header: the header is the label, the
 	// rows under it are its contents. A session under one of a host's
 	// folders steps in once more.
+	//
+	// On glass a session is a capsule, as Rex's chosen row is: the white sheet
+	// needs the softer end to read as a lifted piece of paper rather than a
+	// small rectangular card. With glass off it keeps the square-ish 6pt card.
+	radius := chromeRadius
+	if glassChrome() {
+		radius = rowHeightPx / 2
+	}
 	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8+indent+16).PaddingEnd(8).Gap(8).
-		Radius(chromeRadius).MarginX(2).Border(1, ui.Transparent)
+		Radius(radius).MarginX(2).Border(1, ui.Transparent)
 	hovered := row.Hovered()
 	if sel || hovered {
 		color = tk.Foreground
@@ -588,21 +608,46 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	}
 	pick := func() { w.selectSession(s.ID) }
 	activity := sessionActivityState(s)
+	markColor := tk.MutedForeground
+	if sel {
+		markColor = tk.Foreground
+	}
 	row.OnClick(pick).ContextMenu(func(m *ui.Menu) { w.sessionRowMenu(m, s) }).Children(func() {
 		agent := s.agent()
+		// Every mark takes the same slot, so selecting a row or an agent
+		// changing its state never moves the label beside it.
+		const markSize float32 = 18
+		mark := func(child func()) {
+			ui.Box(c).Width(markSize).Height(markSize).Center().OnClick(pick).Children(child)
+		}
 		switch {
 		case activity == activityWorking:
 			// A spinner where the session's mark sits, so a glance reads the
 			// session as working; the sweep across the name alone is easy to
 			// miss.
-			loading.Dual(c, loading.Options{Size: 15, Color: tk.Foreground}).OnClick(pick)
+			mark(func() {
+				loading.Dual(c, loading.Options{Size: 15, Color: tk.Foreground}).IgnoreInput(true)
+			})
 		case agent != nil:
 			if src := agentLogoSource(agent.Kind, tk); src != nil {
-				ui.Image(c, src).Width(14).Height(14).OnClick(pick)
+				mark(func() {
+					ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
+				})
 			}
 		default:
-			if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
-				ui.Image(c, src).Width(14).Height(14).OnClick(pick)
+			if sel && glassChrome() {
+				// Rex's chosen terminal: a small ink chip with a light glyph,
+				// so the selected row reads before its label does.
+				if src := iconSource("terminal", colorHex(tk.Background)); src != nil {
+					ui.Box(c).Width(markSize).Height(markSize).Radius(4).Background(tk.Foreground).
+						Center().OnClick(pick).Children(func() {
+						ui.Image(c, src).Width(11).Height(11).IgnoreInput(true)
+					})
+				}
+			} else if src := iconSource("terminal", colorHex(markColor)); src != nil {
+				mark(func() {
+					ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
+				})
 			}
 		}
 		label := sessionLabel(s)
@@ -665,16 +710,6 @@ func sessionLabel(s *session) string {
 		return agent.Kind.name()
 	}
 	return s.title()
-}
-
-// sessionsSelected reports whether the selection lives under the project.
-func (p *project) sessionsSelected(w *workspace) bool {
-	for _, s := range p.Sessions {
-		if s.ID == w.SelectedSession {
-			return true
-		}
-	}
-	return false
 }
 
 // projectVisible matches the search box against the folder and its sessions.
@@ -895,18 +930,9 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		}
 	}
 	outer.Children(func() {
-		if card && liquid(c) {
-			// The pane's surface stays put while its content fades: over the
-			// window's glass, a card faded whole would show the desktop
-			// through it, and an unfocused pane would read as a hole.
-			//
-			// The backing box is absolute in outer's padding box, while the
-			// card sits in its content box. Match the card's inset, or the
-			// backing box draws a second, larger card around it.
-			const inset float32 = 6
-			ui.Box(c).Absolute().Left(inset).Top(inset).Right(inset).Bottom(inset).ZIndex(-1).
-				Radius(windowRadius).Background(tk.Background).IgnoreInput(true)
-		}
+		// The card itself is the glass: its own sheet carries the pane's
+		// surface, so a fade or an unfocused pane shows the same paper, not
+		// an opaque backing box around it.
 		col := ui.Column(c).Fill()
 		// A pane at full strength is the one being typed into or the one the
 		// pointer is over; the rest step back so the split reads as one work
@@ -933,8 +959,14 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		}
 		col = col.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
 		if card {
-			col = raised(col.Radius(windowRadius).Clip().
-				Background(tk.Background), tk)
+			col = col.Radius(windowRadius).Clip()
+			if liquid(c) {
+				top, bottom := paneSurface(tk)
+				col = col.Gradient(top, bottom, 180)
+			} else {
+				col = col.Background(tk.Background)
+			}
+			col = raised(col, tk)
 		}
 		dragging := false
 		blend := ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut}
@@ -942,8 +974,15 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		// colour as the terminal under it; a lifted pane fills it with the
 		// canvas, so the slot it leaves reads as empty.
 		panelBg := tk.Background
+		headerBg := tk.Background
+		if liquid(c) {
+			// The header is the card's own sheet; leaving it undrawn lets
+			// the card's gradient run through the title as well.
+			panelBg = ui.Transparent
+			headerBg = ui.Transparent
+		}
 		col.Children(func() {
-			left := float32(10)
+			left := panePadX
 			if underChrome {
 				left = bar.Left + 6 + iconSize + 8
 			}
@@ -951,7 +990,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			// sidebar toggle over bare terminal content.
 			// No rule under the header: the pane card itself is the frame.
 			header := lit(ui.Row(c).Height(headerHeight).Padding(0, 6, 0, left).
-				Background(tk.Background).ClipY().DragWindow(), tk)
+				Background(headerBg).ClipY().DragWindow(), tk)
 			// The pane's name is renamed from anywhere on its header bar,
 			// not only the few points the title itself covers.
 			if p.remote == nil {
@@ -1237,11 +1276,11 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				if b := el.LayoutBounds(); b.W > 0 && b.H > 0 {
 					p.viewW, p.viewH = b.W, b.H
 					if cols, rows := p.term.Size(); cols > 0 && rows > 0 {
-						if cw := (b.W - 24) / float32(cols); cw > 0 {
+						if cw := (b.W - 2*panePadX) / float32(cols); cw > 0 {
 							p.cellW = cw
 							w.paneCellW = cw
 						}
-						if ch := (b.H - 20) / float32(rows); ch > 0 {
+						if ch := (b.H - 2*panePadY) / float32(rows); ch > 0 {
 							p.cellH = ch
 							w.paneCellH = ch
 						}

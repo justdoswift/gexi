@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,6 +39,10 @@ type appSettings struct {
 	// settled by the agent first. Off, the dialog and the Merge button
 	// wait for the user.
 	AutoMergePR bool `json:"autoMergePR"`
+	// GlassTint is how opaque the glass window is, as a percent: 0 shows the
+	// desktop through, 100 is solid paper. Nil is the default for settings
+	// written before the control existed.
+	GlassTint *int `json:"glassTint,omitempty"`
 	// ArchiveAfterMerge clears a merged worktree and its pane away as the
 	// pull request merges. Off, the header offers Archive and the user
 	// decides when the checkout goes.
@@ -143,6 +149,30 @@ func appearanceSource(value string) mygo.ThemeSource {
 	default:
 		return mygo.ThemeSystem
 	}
+}
+
+// The glass setting's range and default. 92% keeps the desktop as a quiet
+// suggestion behind the theme; 100% is a solid paper window.
+const (
+	glassTintMin     = 0
+	glassTintMax     = 100
+	glassTintDefault = 92
+)
+
+// glassTintPercent clamps a saved tint and fills in the default for settings
+// written before the control existed. Zero is a real choice, so only a nil
+// saved value takes the default.
+func glassTintPercent(v *int) int {
+	if v == nil {
+		return glassTintDefault
+	}
+	if *v < glassTintMin {
+		return glassTintMin
+	}
+	if *v > glassTintMax {
+		return glassTintMax
+	}
+	return *v
 }
 
 func (s appSettings) save() {
@@ -371,6 +401,12 @@ func (w *workspace) generalPage(c *ui.Context, tk tokens) {
 				w.invalidateSettings()
 			},
 		})
+		if w.settings.SidebarMaterial {
+			cardDivider(c, tk)
+			w.settingActionRow(c, tk,
+				locales.SettingsGlassTint(), locales.SettingsGlassTintDetail(),
+				func() { w.glassTintSlider(c, tk) })
+		}
 		cardDivider(c, tk)
 		w.settingRowView(c, tk, settingRow{
 			title:  locales.SettingsShowSidebar(),
@@ -737,6 +773,26 @@ func (w *workspace) paneStyleRow(c *ui.Context, tk tokens) {
 			w.settings.save()
 			w.invalidate()
 		})
+	})
+}
+
+// glassTintSlider is how much of the desktop the glass window lets through:
+// the whole useful range, with a live percentage beside it. 100% turns the
+// material off without giving up the raised chrome.
+func (w *workspace) glassTintSlider(c *ui.Context, tk tokens) {
+	current := float64(glassTintPercent(w.settings.GlassTint))
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+		slider := ui.Slider(c, &current, glassTintMin, glassTintMax).
+			Width(190).Label(locales.SettingsGlassTint())
+		ui.Text(c, fmt.Sprintf("%d%%", int(math.Round(current)))).
+			FontSize(12).TextColor(tk.MutedForeground).Width(34)
+		if slider.Changed() {
+			n := int(math.Round(current))
+			w.settings.GlassTint = &n
+			w.settings.save()
+			w.invalidate()
+			w.invalidateSettings()
+		}
 	})
 }
 

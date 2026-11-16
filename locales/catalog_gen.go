@@ -924,6 +924,26 @@ func (msgs Messages) SettingsLiquidGlassDetail() string {
 	return Catalog.Format(msgs.locale, "settingsLiquidGlassDetail", nil)
 }
 
+// SettingsGlassTint says "Glass density"
+// in the language the app shows.
+func SettingsGlassTint() string { return In(i18n.Locale()).SettingsGlassTint() }
+
+// SettingsGlassTint says "Glass density"
+// in the language of msgs.
+func (msgs Messages) SettingsGlassTint() string {
+	return Catalog.Format(msgs.locale, "settingsGlassTint", nil)
+}
+
+// SettingsGlassTintDetail says "0% shows the desktop fully; 100% is fully opaque."
+// in the language the app shows.
+func SettingsGlassTintDetail() string { return In(i18n.Locale()).SettingsGlassTintDetail() }
+
+// SettingsGlassTintDetail says "0% shows the desktop fully; 100% is fully opaque."
+// in the language of msgs.
+func (msgs Messages) SettingsGlassTintDetail() string {
+	return Catalog.Format(msgs.locale, "settingsGlassTintDetail", nil)
+}
+
 // SettingsRestoreScreen says "Restore last screen"
 // in the language the app shows.
 func SettingsRestoreScreen() string { return In(i18n.Locale()).SettingsRestoreScreen() }

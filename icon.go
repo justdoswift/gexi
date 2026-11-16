@@ -282,13 +282,6 @@ func colorHex(c ui.Color) string {
 // Settings keep it current.
 var sidebarMaterial bool
 
-// chromeTheme is whether the current appearance draws a theme the user
-// picked. A themed window paints its own sidebar instead of leaving it to the
-// system's material: the material takes its colour from the system, not from
-// the terminal theme, so a tuned light or dark theme would sit on a neutral
-// blur. Set from the view, main thread only.
-var chromeTheme bool
-
 // liquid reports whether the window leaves the sidebar's surface bare for the
 // system's material: the setting and a window the system gives a material to.
 // Off, the sidebar and the canvas paint the theme's own colours.

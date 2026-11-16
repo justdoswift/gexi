@@ -93,6 +93,48 @@ func defaultTokens(dark bool, accent ui.Color) tokens {
 
 const chromeRadius float32 = 6
 
+// panePadX and panePadY are the terminal's inset inside a pane card. They are
+// larger than the old 12/10: a terminal reads as a page when its text has air
+// around it, and the header uses the same left inset so its title lines up
+// with the first column below.
+const (
+	panePadX float32 = 16
+	panePadY float32 = 12
+)
+
+// groupLabelColor is the quiet tone of a project's name: a section label, not
+// the content beneath it. It sits below the 4:1 the content's muted text keeps,
+// so the sessions stay the first thing the eye finds, as Rex's groups do.
+func groupLabelColor(tk tokens) ui.Color {
+	mix := float32(0.30)
+	if tk.Dark {
+		mix = 0.20
+	}
+	return tk.MutedForeground.MixOklab(tk.Background, mix)
+}
+
+// paneSurface is the pane card's own sheet. On glass it is a sheet of the
+// theme's page laid over the window's tint, with a few percent of a warm white
+// at its foot: the terminal then sits on a lit sheet, not a flat fill. The
+// sheet is 72% over the root's tint, so the effective colour is about 96% of
+// the theme and the terminal keeps the contrast its theme was written for;
+// the sidebar and the canvas around the card carry more of the glass. With
+// glass off the sheet is the opaque theme background.
+func paneSurface(tk tokens) (top, bottom ui.Color) {
+	top, bottom = tk.Background, tk.Background
+	if !glassChrome() {
+		return top, bottom
+	}
+	const alpha = float32(0.72)
+	top = top.Alpha(alpha)
+	bottom = bottom.Alpha(alpha)
+	if !tk.Dark {
+		warm := ui.RGB(0xff, 0xf6, 0xe4).Alpha(alpha)
+		bottom = bottom.MixOklab(warm, 0.06)
+	}
+	return top, bottom
+}
+
 // themeTokensFor returns the chrome's tokens for one appearance: the neutral
 // pair when name is empty, else a ramp derived from that terminal theme.
 func themeTokensFor(t *ui.Theme, name string) tokens {
@@ -165,7 +207,9 @@ func tokensForTheme(th *terminal.Theme) tokens {
 	} else {
 		tk.Muted = step(0.04)
 		tk.Sidebar = step(0.03)
-		tk.Raised = bg
+		// A chosen row is a white card, as the neutral pair says: the
+		// theme's background alone is too close to the sidebar to lift.
+		tk.Raised = bg.MixOklab(ui.RGB(0xff, 0xff, 0xff), 0.55)
 	}
 	return tk
 }
