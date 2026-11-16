@@ -430,6 +430,18 @@ func TestActivityLapsesWhenNothingMoves(t *testing.T) {
 	if p.activityLapsed() {
 		t.Fatal("a running subagent keeps the turn alive")
 	}
+	// A local agent still in the foreground owns its turn: a thinking model
+	// writes nothing for minutes, and that is not the end of the work.
+	p = &pane{agent: &agentDetection{Kind: agentClaude}}
+	p.outAt = time.Now().Add(-activityQuiet - time.Second)
+	if p.activityLapsed() {
+		t.Fatal("a quiet turn of an agent still running is not stale")
+	}
+	// The same mark on another Mac still lapses: the host's word can go stale.
+	p.remote = &remotePaneLink{}
+	if !p.activityLapsed() {
+		t.Fatal("a remote mark with nothing behind it lapses")
+	}
 }
 
 // A clicked banner opens the pane it was about: the session comes forward,

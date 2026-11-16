@@ -5,6 +5,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# mygo reads the release notes from RELEASE_NOTES.md (updates.changelog);
+# it holds every version, and the app shows the ones after the version it
+# replaced.
+scripts/release-notes.sh
+
 go tool mygo build "$@"
 
 shopt -s nullglob

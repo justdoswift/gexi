@@ -885,6 +885,14 @@ func (p *pane) activityLapsed() bool {
 	if p.titleWorking() {
 		return false
 	}
+	// A local agent still in the foreground owns its turn. Thinking, a long
+	// build or a slow tool call writes nothing to the terminal for minutes,
+	// and the quiet rule used to drop the loader in the middle of that
+	// work. The process scan clears the agent when it exits, and the rule
+	// applies again from there.
+	if p.remote == nil && p.agent != nil {
+		return false
+	}
 	return time.Since(p.outAt) > activityQuiet
 }
 

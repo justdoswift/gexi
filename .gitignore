@@ -1,5 +1,6 @@
 .DS_Store
 .mygo/
+RELEASE_NOTES.md
 build/
 /gexi
 mygo-spike/

@@ -41,6 +41,10 @@ func main() {
 	// opens the same window on demand. The window shows the mark without the
 	// paper backdrop of the app icon, so it sits on the system background.
 	mygo.Use(updater.New(updater.Options{Icon: updateIcon}))
+	// The published manifest carries every version's notes; read it through
+	// a source that keeps only the versions after this one, so updating
+	// across several releases shows what each of them changed.
+	mygo.Updater.SetSource(updateNotesSource{manifestURL: updateManifestURL})
 
 	w := newWorkspace()
 
