@@ -3050,6 +3050,30 @@ func (msgs Messages) DrawerNoChanges() string {
 	return Catalog.Format(msgs.locale, "drawerNoChanges", nil)
 }
 
+// DrawerCleanHint says "The working tree is clean."
+// in the language the app shows.
+func DrawerCleanHint() string { return In(i18n.Locale()).DrawerCleanHint() }
+
+// DrawerCleanHint says "The working tree is clean."
+// in the language of msgs.
+func (msgs Messages) DrawerCleanHint() string {
+	return Catalog.Format(msgs.locale, "drawerCleanHint", nil)
+}
+
+// DrawerFileCount says "{count, plural, one {# file} other {# files}}"
+// in the language the app shows.
+//
+// The drawer's foot, counting the files its list holds.
+func DrawerFileCount(count int) string { return In(i18n.Locale()).DrawerFileCount(count) }
+
+// DrawerFileCount says "{count, plural, one {# file} other {# files}}"
+// in the language of msgs.
+//
+// The drawer's foot, counting the files its list holds.
+func (msgs Messages) DrawerFileCount(count int) string {
+	return Catalog.Format(msgs.locale, "drawerFileCount", map[string]any{"count": count})
+}
+
 // DrawerNotRepo says "This folder is not a Git repository."
 // in the language the app shows.
 func DrawerNotRepo() string { return In(i18n.Locale()).DrawerNotRepo() }

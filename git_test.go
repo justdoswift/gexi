@@ -89,6 +89,8 @@ func TestGitChangesAndDiff(t *testing.T) {
 	}
 	if c := byPath["a.txt"]; c.Status != 'M' {
 		t.Errorf("a.txt = %+v, want modified", c)
+	} else if c.Added != 1 || c.Deleted != 0 {
+		t.Errorf("a.txt counts = +%d −%d, want +1 −0", c.Added, c.Deleted)
 	}
 	if c := byPath["b.txt"]; c.Status != 'U' {
 		t.Errorf("b.txt = %+v, want untracked", c)
@@ -193,6 +195,8 @@ func TestGitBranchChanges(t *testing.T) {
 	}
 	if f, ok := byPath["keep.txt"]; !ok || f.Status != 'M' {
 		t.Errorf("keep.txt = %+v, want modified", f)
+	} else if f.Added != 1 || f.Deleted != 1 {
+		t.Errorf("keep.txt counts = +%d −%d, want +1 −1 from the merge base", f.Added, f.Deleted)
 	}
 	if f, ok := byPath["dirty.txt"]; !ok || f.Status != 'A' {
 		t.Errorf("dirty.txt = %+v, want added", f)

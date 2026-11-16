@@ -84,7 +84,7 @@ func defaultTokens(dark bool, accent ui.Color) tokens {
 		Active:          ui.RGB(0xec, 0xec, 0xe9),
 		Control:         ui.RGB(0xdc, 0xdc, 0xd8),
 		Raised:          ui.RGB(0xff, 0xff, 0xff),
-		Working:         ui.RGB(0x16, 0xa3, 0x4a),
+		Working:         ui.RGB(0x15, 0x80, 0x3d),
 		Waiting:         ui.RGB(0xd9, 0x77, 0x06),
 		Danger:          ui.RGB(0xdc, 0x26, 0x26),
 		SystemAccent:    accent,

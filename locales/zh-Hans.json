@@ -297,6 +297,8 @@
   "drawerClose": "关闭文件面板",
   "drawerBack": "返回列表",
   "drawerNoChanges": "没有改动",
+  "drawerCleanHint": "工作区是干净的。",
+  "drawerFileCount": "{count} 个文件",
   "drawerNotRepo": "这个文件夹不是 Git 仓库。",
   "drawerNoProject": "还没有选中项目。",
   "drawerBinary": "二进制文件",
