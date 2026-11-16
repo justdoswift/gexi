@@ -157,6 +157,9 @@ type workspace struct {
 
 	collapsed   map[string]bool
 	searchQuery string
+	// searchOpen shows the search over the window: while it is up, the query
+	// filters the sidebar behind it and the box lists what it finds.
+	searchOpen bool
 
 	// archived holds the merged worktrees cleared away with Archive. They
 	// are listed in Settings › Worktrees, where they can be restored or

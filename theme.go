@@ -226,7 +226,6 @@ const sidebarWidth float32 = 240
 
 const (
 	headerHeight float32 = 36
-	searchHeight float32 = 30
 	// groupRowHeight is a project header's line: a label above its
 	// sessions, lighter than the sessions themselves.
 	groupRowHeight float32 = 28

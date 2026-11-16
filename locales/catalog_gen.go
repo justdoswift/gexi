@@ -194,6 +194,16 @@ func (msgs Messages) SearchPlaceholder() string {
 	return Catalog.Format(msgs.locale, "searchPlaceholder", nil)
 }
 
+// SearchEmpty says "No matches"
+// in the language the app shows.
+func SearchEmpty() string { return In(i18n.Locale()).SearchEmpty() }
+
+// SearchEmpty says "No matches"
+// in the language of msgs.
+func (msgs Messages) SearchEmpty() string {
+	return Catalog.Format(msgs.locale, "searchEmpty", nil)
+}
+
 // SearchProjects says "Search projects"
 // in the language the app shows.
 func SearchProjects() string { return In(i18n.Locale()).SearchProjects() }

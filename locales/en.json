@@ -16,6 +16,7 @@
   "menuLanguage": "Language",
   "menuLanguageSystem": "System",
   "searchPlaceholder": "Search",
+  "searchEmpty": "No matches",
   "searchProjects": "Search projects",
   "noProjects": "No projects",
   "noProject": "No project",
