@@ -899,7 +899,12 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			// The pane's surface stays put while its content fades: over the
 			// window's glass, a card faded whole would show the desktop
 			// through it, and an unfocused pane would read as a hole.
-			ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).ZIndex(-1).
+			//
+			// The backing box is absolute in outer's padding box, while the
+			// card sits in its content box. Match the card's inset, or the
+			// backing box draws a second, larger card around it.
+			const inset float32 = 6
+			ui.Box(c).Absolute().Left(inset).Top(inset).Right(inset).Bottom(inset).ZIndex(-1).
 				Radius(windowRadius).Background(tk.Background).IgnoreInput(true)
 		}
 		col := ui.Column(c).Fill()
