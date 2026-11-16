@@ -13,13 +13,14 @@ import (
 	"github.com/justdoswift/gexi/locales"
 )
 
-// Agent lifecycle events arrive from CLI hooks (Claude Code today), not from
-// scraping the PTY. A hook runs inside the pane, so it already has GEXI_PANE
-// and GEXI_HOME; all it does is hand one line of JSON to the socket.
+// Agent lifecycle events arrive from CLI hooks and plugins (Claude Code's
+// hooks, Amp's plugin), not from scraping the PTY. They run inside the pane,
+// so they already have GEXI_PANE and GEXI_HOME; all they do is hand one line
+// of JSON to the socket.
 //
 // PTY output still says whether a pane is busy at the byte level. Events say
-// what the agent thinks it is doing, which raw output cannot: an idle Claude
-// prompt and a Claude waiting for permission look the same in the terminal.
+// what the agent thinks it is doing, which raw output cannot: an idle agent
+// prompt and an agent waiting for permission look the same in the terminal.
 
 const (
 	activityIdle    = "idle"
@@ -69,9 +70,10 @@ type agentEvent struct {
 	Pane    string          `json:"pane,omitempty"`
 	Session string          `json:"session,omitempty"`
 	Detail  json.RawMessage `json:"detail,omitempty"`
-	// Message is what the hook's payload said in the agent's own words:
-	// Claude Code's final reply on Stop, and the prompt it waits on for a
-	// Notification. A banner shows its first line instead of only the place.
+	// Message is what the agent's own report said in its words: Claude
+	// Code's final reply on Stop or Amp's last assistant message on
+	// agent.end, and the prompt an agent waits on. A banner shows its first
+	// line, and the reply reader lays out the whole answer.
 	Message string `json:"message,omitempty"`
 	// Prompt is the message the user sent for a turn that just started,
 	// when the agent's hooks carry it. A pane names itself from it.
@@ -166,11 +168,12 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		// carried-changes note.
 		p.stopHalo()
 	case "turn.end":
-		// Claude's Stop hook carries the final answer in the agent's own
-		// words. Keep it for the reply reader; other agents have no text
-		// channel here yet.
-		if agentKind(ev.Agent) == agentClaude {
-			p.setReply(agentClaude, ev.Message)
+		// Claude's Stop hook and Amp's agent.end plugin carry the final
+		// answer in the agent's own words. Keep it for the reply reader;
+		// other agents have no text channel here yet.
+		switch kind := agentKind(ev.Agent); kind {
+		case agentClaude, agentAmp:
+			p.setReply(kind, ev.Session, ev.Message)
 		}
 		// A flow prompt the hook never reported is not kept around to
 		// swallow the user's first message later.
@@ -182,10 +185,13 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		// A turn that stops to ask is not a finished task: no light for it.
 		p.stopHalo()
 	case "session.start", "session.end":
-		// A fresh Claude conversation has no reply from the last one to
-		// show. Another agent starting in the pane does not own the reply,
-		// so it leaves it alone.
-		if ev.Kind == "session.start" && agentKind(ev.Agent) == agentClaude {
+		// A fresh conversation has no reply from the last one to show. Only
+		// the agent that owns the reply can clear it, and only when the
+		// session really changed: a plugin re-announcing the same thread
+		// must not throw the answer away.
+		if ev.Kind == "session.start" && p.reply != nil &&
+			p.reply.Agent == agentKind(ev.Agent) &&
+			(p.reply.Session == "" || ev.Session == "" || p.reply.Session != ev.Session) {
 			p.reply = nil
 			if w.reply.pane == p {
 				w.closeReply()
