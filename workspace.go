@@ -115,16 +115,22 @@ type workspace struct {
 	SelectedSession string
 	FocusedPane     string
 	focusReq        string
-	// zoomSettling asks the next frame to fade and grow the layout in after a
-	// zoom changes. The zoom itself lives on the session, so each one keeps
-	// the pane it was left zoomed to.
+	// zoomSettling asks the next frame to grow the layout in after a zoom
+	// changes, and zoomGen keys that motion so each zoom starts afresh. The
+	// zoom itself lives on the session, so each one keeps the pane it was
+	// left zoomed to.
 	zoomSettling bool
+	zoomGen      int
 	// stageRailShown tells that the off-stage panes' rail has drawn once since
 	// the zoom began, so its cards slide in only on entry.
 	stageRailShown bool
 	// stageW is the stage's last layout width; a narrow stage leaves the
 	// rail off rather than cover most of the terminal with it.
 	stageW float32
+	// sidebarListH is the sidebar list's last layout height. The list's
+	// content is at least that tall, which keeps the idle fold at the
+	// list's bottom until the list outgrows the window and scrolls.
+	sidebarListH float32
 	// paneCellW and paneCellH are the cell size the last laid-out pane
 	// measured, which a pane restored straight into the rail takes for its
 	// own grid: no view has laid it out yet, and every pane draws the same
@@ -137,6 +143,10 @@ type workspace struct {
 	win         *mygo.Window
 	settingsWin *mygo.Window
 	settings    appSettings
+	// settingsShown tells that the settings page has drawn once in its
+	// window, so the frame after can settle it in instead of showing it
+	// there at once.
+	settingsShown bool
 	// settingsTab is the page the settings window shows.
 	settingsTab int
 	// themeQuery filters the Themes page; themeScroll keeps where each
@@ -163,6 +173,9 @@ type workspace struct {
 	// searchOpen shows the search over the window: while it is up, the query
 	// filters the sidebar behind it and the box lists what it finds.
 	searchOpen bool
+	// searchShown tells that the box has drawn once, so the frame after can
+	// settle it into place instead of showing it there at once.
+	searchShown bool
 
 	// archived holds the merged worktrees cleared away with Archive. They
 	// are listed in Settings › Worktrees, where they can be restored or

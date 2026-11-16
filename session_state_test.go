@@ -100,12 +100,47 @@ func TestIdleSectionStartsCollapsed(t *testing.T) {
 	if err := tester.Click(locales.SessionIdle()); err != nil {
 		t.Fatal(err)
 	}
+	// The rows grow in over the fold's motion.
+	tester.Advance(sidebarMotion)
 	tester.Frame()
 	if !tester.HasText("Idle work") {
 		t.Fatalf("opening the fold does not show the session; it shows %q", tester.Texts())
 	}
 	if !w.idleOpen {
 		t.Fatal("the fold did not remember that it was opened")
+	}
+}
+
+// A long fold scrolls with the list it sits under, so its last row can be
+// reached instead of being drawn past the window's bottom edge.
+func TestIdleFoldScrollsWhenItOutgrowsTheSidebar(t *testing.T) {
+	w := &workspace{settings: defaultSettings(), idleOpen: true}
+	for i := 0; i < 9; i++ {
+		w.idleSessions = append(w.idleSessions, storedSession{
+			Session: savedSession{ID: string(rune('q' + i)), Root: savedNode{Type: "leaf", Pane: &savedPane{ID: "pane"}}},
+			Title:   "Idle work " + string(rune('A'+i)),
+		})
+	}
+	view := func(c *ui.Context) {
+		tk := themeTokens(c.Theme())
+		ui.Row(c).Fill().Children(func() {
+			w.sidebar(c, tk, 240)
+		})
+	}
+	const height = 260
+	tester := ui.NewTester(view, 240, height)
+	// The list's content is at least as tall as the frame before it, so the
+	// second frame lays the fold out as the window shows it.
+	tester.Frame()
+	tester.Frame()
+	tester.Scroll(120, height/2, 0, 600)
+	tester.Frame()
+	row, ok := tester.Find("Idle work I")
+	if !ok {
+		t.Fatalf("the last idle row is not drawn; it shows %q", tester.Texts())
+	}
+	if row.H == 0 || row.Y < 0 || row.Y+row.H > height {
+		t.Fatalf("the last idle row is out of reach at %+v", row)
 	}
 }
 
