@@ -150,3 +150,81 @@ func TestWorktreeCheckpointsAnimateIn(t *testing.T) {
 		t.Fatalf("the new stage is not drawn; texts %q", tester.Texts())
 	}
 }
+
+// TestWorktreeCheckpointDotSitsOnItsLine checks the stage's dot is centred on
+// the words of its line. A line of text keeps more room below its glyphs than
+// above them, so a dot centred on the line's box draws high beside them.
+func TestWorktreeCheckpointDotSitsOnItsLine(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	p := &pane{Worktree: &paneWorktree{
+		Path: t.TempDir(), Branch: "weaver", Base: "main",
+		busy:      worktreeBusyMerge,
+		busySteps: []worktreeStep{stepMergePR},
+		busyAt:    stepMergePR,
+	}}
+	w := &workspace{}
+	var accent ui.Color
+	tester := ui.NewTester(func(c *ui.Context) {
+		tk := themeTokens(c.Theme())
+		accent = tk.SystemAccent
+		ui.Column(c).Fill().Background(tk.Background).Children(func() {
+			w.worktreeCheckpoints(c, tk, p)
+		})
+	}, 480, 300)
+	tester.Frame()
+	tester.Advance(checkpointMotion)
+	img := tester.Image()
+
+	label, ok := tester.Find(locales.WorktreeStepMergePR())
+	if !ok {
+		t.Fatalf("the stage is not drawn; texts %v", tester.Texts())
+	}
+	// The dot is the accent at full strength; the rail behind it is the
+	// same colour, faded, so only the dot matches this closely.
+	ar, ag, ab := uint32(accent.R)*257, uint32(accent.G)*257, uint32(accent.B)*257
+	dotTop, dotBottom := 1<<30, -1
+	inkTop, inkBottom := 1<<30, -1
+	for y := int(label.Y); y < int(label.Y+label.H); y++ {
+		if y < 0 || y >= img.Bounds().Dy() {
+			continue
+		}
+		for x := 0; x < img.Bounds().Dx(); x++ {
+			r, g, b, a := img.At(x, y).RGBA()
+			if a == 0 {
+				continue
+			}
+			if absDiff(r, ar) < 600 && absDiff(g, ag) < 600 && absDiff(b, ab) < 600 {
+				if y < dotTop {
+					dotTop = y
+				}
+				if y > dotBottom {
+					dotBottom = y
+				}
+				continue
+			}
+			// The words are drawn in the page's text colour: take
+			// everything of it that is not the card's own fill.
+			if float32(x) < label.X || float32(x) > label.X+label.W {
+				continue
+			}
+			br, bg, bb, _ := img.At(1, 1).RGBA()
+			if absDiff(r, br) > 3000 || absDiff(g, bg) > 3000 || absDiff(b, bb) > 3000 {
+				if y < inkTop {
+					inkTop = y
+				}
+				if y > inkBottom {
+					inkBottom = y
+				}
+			}
+		}
+	}
+	if dotBottom < dotTop || inkBottom < inkTop {
+		t.Fatalf("nothing to measure: dot %d..%d, ink %d..%d", dotTop, dotBottom, inkTop, inkBottom)
+	}
+	dotMid := float32(dotTop+dotBottom) / 2
+	inkMid := float32(inkTop+inkBottom) / 2
+	if d := dotMid - inkMid; d > 1.5 || d < -1.5 {
+		t.Fatalf("the dot is %.1f px off its line: dot %d..%d, ink %d..%d",
+			d, dotTop, dotBottom, inkTop, inkBottom)
+	}
+}
