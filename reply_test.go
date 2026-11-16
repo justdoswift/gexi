@@ -9,11 +9,12 @@ import (
 	"github.com/justdoswift/gexi/locales"
 )
 
-// TestClaudeTurnEndKeepsTheReply wires Claude's final answer through the event
-// handler: it is kept for the reader, an empty turn leaves the last answer
-// alone, another agent's turn is not mistaken for Claude's, and a new
-// conversation clears it.
-func TestClaudeTurnEndKeepsTheReply(t *testing.T) {
+// TestAgentTurnEndKeepsTheReply wires the agents that report their words
+// through the event handler: Claude's Stop and Amp's agent.end keep the final
+// answer, an empty turn leaves the last one alone, an agent without a text
+// channel does not replace it, and only the agent that owns a reply can clear
+// it with a new conversation.
+func TestAgentTurnEndKeepsTheReply(t *testing.T) {
 	p := &pane{ID: "p1"}
 	s := &session{ID: "s1", Root: leaf(p)}
 	w := &workspace{Projects: []*project{{Sessions: []*session{s}}}}
@@ -25,7 +26,7 @@ func TestClaudeTurnEndKeepsTheReply(t *testing.T) {
 		t.Fatal(err)
 	}
 	if p.reply == nil {
-		t.Fatal("the turn's answer was not kept")
+		t.Fatal("Claude's answer was not kept")
 	}
 	if p.reply.Agent != agentClaude || p.reply.Text != "## 结论\n\n修好了。" {
 		t.Fatalf("reply = %+v", p.reply)
@@ -40,31 +41,86 @@ func TestClaudeTurnEndKeepsTheReply(t *testing.T) {
 		t.Fatal("an empty turn erased the last reply")
 	}
 
-	// Another agent uses Message for its own notifications, not for Claude's
-	// reader.
+	// Amp's agent.end carries its last assistant message the same way.
 	if _, err := w.handleEvent(agentEvent{
-		Kind: "turn.end", Pane: "p1", Agent: "amp", Message: "amp 的回答",
+		Kind: "turn.end", Pane: "p1", Agent: "amp", Message: "## Amp 结论\n\n也修好了。",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if got := p.reply.Text; got != "## 结论\n\n修好了。" {
-		t.Fatalf("an amp turn replaced Claude's reply with %q", got)
+	if p.reply == nil || p.reply.Agent != agentAmp || p.reply.Text != "## Amp 结论\n\n也修好了。" {
+		t.Fatalf("amp reply = %+v", p.reply)
 	}
 
-	// Another agent starting in the pane does not own Claude's reply.
+	// An agent with no text channel here must not replace Amp's answer.
+	if _, err := w.handleEvent(agentEvent{
+		Kind: "turn.end", Pane: "p1", Agent: "pi", Message: "pi 的回答",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.reply.Text; got != "## Amp 结论\n\n也修好了。" {
+		t.Fatalf("a pi turn replaced Amp's reply with %q", got)
+	}
+
+	// Another agent starting in the pane does not own Amp's reply.
+	if _, err := w.handleEvent(agentEvent{Kind: "session.start", Pane: "p1", Agent: "claude"}); err != nil {
+		t.Fatal(err)
+	}
+	if p.reply == nil || p.reply.Agent != agentAmp {
+		t.Fatalf("a Claude session start cleared Amp's reply: %+v", p.reply)
+	}
+
+	// A fresh Amp conversation is not the one the old answer belongs to.
 	if _, err := w.handleEvent(agentEvent{Kind: "session.start", Pane: "p1", Agent: "amp"}); err != nil {
 		t.Fatal(err)
 	}
-	if p.reply == nil {
-		t.Fatal("an amp session start cleared Claude's reply")
+	if p.reply != nil {
+		t.Fatalf("a new Amp session kept the old reply: %+v", p.reply)
 	}
 
-	// A fresh Claude conversation is not the one the old answer belongs to.
+	// Claude still clears its own reply on a fresh conversation.
+	if _, err := w.handleEvent(agentEvent{
+		Kind: "turn.end", Pane: "p1", Agent: "claude", Message: "Claude 的再一次回答",
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := w.handleEvent(agentEvent{Kind: "session.start", Pane: "p1", Agent: "claude"}); err != nil {
 		t.Fatal(err)
 	}
 	if p.reply != nil {
-		t.Fatalf("a new session kept the old reply: %+v", p.reply)
+		t.Fatalf("a new Claude session kept the old reply: %+v", p.reply)
+	}
+}
+
+// TestReplySurvivesTheSameSessionStart: Amp's plugin can announce the thread
+// again without starting a new conversation. The reply survives that, but a
+// different thread clears it.
+func TestReplySurvivesTheSameSessionStart(t *testing.T) {
+	p := &pane{ID: "p1"}
+	s := &session{ID: "s1", Root: leaf(p)}
+	w := &workspace{Projects: []*project{{Sessions: []*session{s}}}}
+
+	if _, err := w.handleEvent(agentEvent{
+		Kind: "turn.end", Pane: "p1", Agent: "amp", Session: "T-1",
+		Message: "Amp 的回答",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.handleEvent(agentEvent{
+		Kind: "session.start", Pane: "p1", Agent: "amp", Session: "T-1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if p.reply == nil || p.reply.Session != "T-1" {
+		t.Fatalf("the same thread's announcement cleared the reply: %+v", p.reply)
+	}
+
+	if _, err := w.handleEvent(agentEvent{
+		Kind: "session.start", Pane: "p1", Agent: "amp", Session: "T-2",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if p.reply != nil {
+		t.Fatalf("a different thread kept the reply: %+v", p.reply)
 	}
 }
 
@@ -73,7 +129,7 @@ func TestClaudeTurnEndKeepsTheReply(t *testing.T) {
 func TestReplyLongAnswerIsCapped(t *testing.T) {
 	full := strings.Repeat("长", replyMaxBytes)
 	p := &pane{ID: "p1"}
-	p.setReply(agentClaude, full)
+	p.setReply(agentClaude, "s1", full)
 	if p.reply == nil || !p.reply.Truncated {
 		t.Fatalf("reply = %+v, want a truncated one", p.reply)
 	}
@@ -121,7 +177,7 @@ func TestReplyReaderLaysOutMarkdown(t *testing.T) {
 	}, "\n")
 
 	p := &pane{ID: "p1"}
-	p.setReply(agentClaude, text)
+	p.setReply(agentClaude, "s1", text)
 	s := &session{ID: "s1", Root: leaf(p)}
 	pr := &project{ID: "pr", Dir: t.TempDir(), Sessions: []*session{s}}
 	w := &workspace{
@@ -164,5 +220,35 @@ func TestReplyReaderLaysOutMarkdown(t *testing.T) {
 	}
 	if !tester.HasText(locales.ReplyCopy()) {
 		t.Error("the reader has no copy button")
+	}
+}
+
+// TestReplyReaderNamesAmp: an Amp reply wears Amp's name in the header, not
+// Claude's. The panel is the same; only the agent the pane reports changes.
+func TestReplyReaderNamesAmp(t *testing.T) {
+	p := &pane{ID: "p1"}
+	p.setReply(agentAmp, "T-1", "# Amp 的回答\n\n正文")
+	s := &session{ID: "s1", Root: leaf(p)}
+	pr := &project{ID: "pr", Dir: t.TempDir(), Sessions: []*session{s}}
+	w := &workspace{
+		Projects:        []*project{pr},
+		SelectedSession: s.ID,
+		FocusedPane:     p.ID,
+		reply: replyState{
+			open: true, pane: p, reply: p.reply,
+		},
+	}
+	tester := ui.NewTester(func(c *ui.Context) {
+		tk := themeTokens(c.Theme())
+		ui.Row(c).Fill().Children(func() {
+			w.replyView(c, tk)
+		})
+	}, 820, 500)
+	tester.Frame()
+	if !tester.HasText("Amp") {
+		t.Error("the reader does not name Amp")
+	}
+	if !tester.HasText("Amp 的回答") {
+		t.Error("the reader does not show the Amp answer")
 	}
 }

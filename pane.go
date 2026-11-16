@@ -224,7 +224,7 @@ type pane struct {
 	restored bool
 	sawAgent bool           // an agent was detected at some point in this pane
 	activity *agentActivity // last hook event from the agent
-	// reply is the last complete answer Claude reported, kept for the reply
+	// reply is the last complete answer an agent reported, kept for the reply
 	// reader. It lives only in memory: a launch starts a new conversation.
 	reply *paneReply
 	// Label is the name the user gave the pane, or the one gexi made from

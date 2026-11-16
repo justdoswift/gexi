@@ -19,12 +19,13 @@ import (
 
 // The reply reader shows the last complete answer an agent handed the pane,
 // typeset as markdown in a column of its own. It never reads the terminal:
-// the hooks already carry the assistant's words, so the reader works without
-// scraping a screen the agent is still drawing.
+// the agent's own report already carries the assistant's words, so the reader
+// works without scraping a screen the agent is still drawing.
 //
-// Claude Code is the first agent this covers. Its Stop hook reports
-// last_assistant_message, which eventcmd.go passes on as Message. Other agents
-// keep their words in their own formats; they are not guessed at here.
+// Claude Code's Stop hook reports last_assistant_message, which eventcmd.go
+// passes on as Message; Amp's agent.end plugin reports the last assistant
+// message the same way. Other agents keep their words in their own formats;
+// they are not guessed at here.
 
 const (
 	replyWidthDefault float32 = 620
@@ -40,8 +41,11 @@ const (
 )
 
 // paneReply is one assistant message, kept with the pane it belongs to.
+// Session is the conversation that said it, so a reconnect of the same one
+// does not throw the answer away.
 type paneReply struct {
 	Agent     agentKind
+	Session   string
 	Text      string
 	At        time.Time
 	Truncated bool
@@ -68,7 +72,7 @@ var replyMarkdown = goldmark.New(goldmark.WithExtensions(extension.GFM))
 // setReply keeps the assistant text a hook reported. An empty message leaves
 // the previous reply alone: a turn that only ran tools has no new words, and
 // the last answer is still what the pane can show.
-func (p *pane) setReply(agent agentKind, text string) {
+func (p *pane) setReply(agent agentKind, session, text string) {
 	if p == nil || text == "" {
 		return
 	}
@@ -82,6 +86,7 @@ func (p *pane) setReply(agent agentKind, text string) {
 	}
 	p.reply = &paneReply{
 		Agent:     agent,
+		Session:   session,
 		Text:      text,
 		At:        time.Now(),
 		Truncated: truncated,
@@ -130,7 +135,7 @@ func (w *workspace) replyChip(c *ui.Context, tk tokens, p *pane) {
 }
 
 // openReply shows p's reply. It returns false when the pane has no reply to
-// show, which is the normal state of a pane that never ran Claude Code.
+// show, which is the normal state of a pane whose agent does not report one.
 func (w *workspace) openReply(p *pane) bool {
 	if p == nil || p.remote != nil || p.reply == nil || strings.TrimSpace(p.reply.Text) == "" {
 		return false
