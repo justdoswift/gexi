@@ -141,14 +141,17 @@ func checkpointRow(c *ui.Context, tk tokens, p *pane, step worktreeStep,
 			}
 			// The reached stages are filled dots, and the current one is
 			// larger and in the full accent, as the component's head is.
+			// They sit on the line's ink rather than its box: a line of
+			// text keeps more room below the glyphs than above them, so a
+			// dot centred on the box reads high beside them.
 			switch {
 			case i < at:
 				ui.Box(c).Width(6).Height(6).Radius(3).
-					Absolute().Left(3).Top(8).
+					Absolute().Left(3).Top(9.5).
 					Background(tk.SystemAccent.Alpha(0.6))
 			case i == at:
 				ui.Box(c).Width(8).Height(8).Radius(4).
-					Absolute().Left(2).Top(7).
+					Absolute().Left(2).Top(8.5).
 					Background(tk.SystemAccent)
 			}
 		})
