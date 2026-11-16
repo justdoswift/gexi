@@ -297,6 +297,14 @@
   "drawerClose": "Close files",
   "drawerBack": "Back to the list",
   "drawerNoChanges": "No changes",
+  "drawerCleanHint": "The working tree is clean.",
+  "drawerFileCount": "{count, plural, one {# file} other {# files}}",
+  "@drawerFileCount": {
+    "description": "The drawer's foot, counting the files its list holds.",
+    "placeholders": {
+      "count": { "type": "int", "example": "7" }
+    }
+  },
   "drawerNotRepo": "This folder is not a Git repository.",
   "drawerNoProject": "No project is selected.",
   "drawerBinary": "Binary file",

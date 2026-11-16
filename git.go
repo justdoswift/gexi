@@ -31,6 +31,10 @@ type changedFile struct {
 	Path    string
 	OldPath string
 	Status  byte
+	// Added and Deleted are the lines Git counts for the file, 0 when it
+	// counts none: a binary file, or one Git has never seen.
+	Added   int
+	Deleted int
 }
 
 // name is the file's own name, without the folders above it.
@@ -89,6 +93,13 @@ func gitBranchChanges(dir, base string) ([]changedFile, string, error) {
 	sort.Slice(files, func(i, j int) bool {
 		return strings.ToLower(files[i].Path) < strings.ToLower(files[j].Path)
 	})
+	// The branch's own counts, measured from where it left base.
+	counts := gitLineCounts(dir, mb)
+	for i := range files {
+		if c, ok := counts[files[i].Path]; ok {
+			files[i].Added, files[i].Deleted = c[0], c[1]
+		}
+	}
 	return files, mb, nil
 }
 
@@ -169,33 +180,76 @@ func gitSnapshot(dir string) ([]changedFile, gitSummary, error) {
 	files, branch := parseGitStatus(out)
 	s := gitSummary{Branch: branch, Changed: len(files) > 0, OK: true}
 	if s.Changed {
-		s.Added, s.Deleted = gitNumstat(dir)
+		counts := gitLineCounts(dir, "HEAD")
+		for _, c := range counts {
+			s.Added += c[0]
+			s.Deleted += c[1]
+		}
+		for i := range files {
+			if c, ok := counts[files[i].Path]; ok {
+				files[i].Added, files[i].Deleted = c[0], c[1]
+			}
+		}
 	}
 	return files, s, nil
 }
 
-// gitNumstat sums the lines Git counts between HEAD and the working tree,
-// staged and unstaged alike. A repository whose first commit is being made
-// has no HEAD to count against.
-func gitNumstat(dir string) (added, deleted int) {
-	out, err := gitOutput(dir, "diff", "--numstat", "HEAD")
+// gitLineCounts is the lines Git counts for each changed file between rev and
+// the working tree, staged and unstaged alike, by path. A binary file counts
+// no lines and is left out. A repository whose first commit is being made has
+// no HEAD to count against, and gets none.
+func gitLineCounts(dir, rev string) map[string][2]int {
+	out, err := gitOutput(dir, "diff", "--numstat", "-z", "-M", rev)
 	if err != nil {
-		return 0, 0
+		return nil
 	}
-	for _, line := range strings.Split(string(out), "\n") {
-		f := strings.SplitN(line, "\t", 3)
-		if len(f) < 2 || f[0] == "-" || f[1] == "-" {
+	return parseNumstat(out)
+}
+
+// parseNumstat reads `git diff --numstat -z`: "added\tdeleted\tpath" per
+// record, and a rename carrying its two paths as records of their own after
+// an empty one.
+func parseNumstat(out []byte) map[string][2]int {
+	counts := map[string][2]int{}
+	next := func() (string, bool) {
+		if len(out) == 0 {
+			return "", false
+		}
+		i := bytes.IndexByte(out, 0)
+		if i < 0 {
+			rec := string(out)
+			out = nil
+			return rec, true
+		}
+		rec := string(out[:i])
+		out = out[i+1:]
+		return rec, true
+	}
+	for {
+		rec, ok := next()
+		if !ok {
+			break
+		}
+		f := strings.SplitN(rec, "\t", 3)
+		if len(f) < 3 {
 			continue
 		}
-		a, errA := strconv.Atoi(f[0])
-		d, errD := strconv.Atoi(f[1])
+		added, errA := strconv.Atoi(f[0])
+		deleted, errD := strconv.Atoi(f[1])
 		if errA != nil || errD != nil {
 			continue
 		}
-		added += a
-		deleted += d
+		path := f[2]
+		if path == "" {
+			// A rename: the old path, then the new one.
+			_, _ = next()
+			path, _ = next()
+		}
+		if path != "" {
+			counts[path] = [2]int{added, deleted}
+		}
 	}
-	return added, deleted
+	return counts
 }
 
 // parseGitStatus reads porcelain v1's NUL-separated records: "XY path", and

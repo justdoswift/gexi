@@ -53,6 +53,12 @@ type drawerFile struct {
 	View  *editor.State
 	Note  string
 	Ready bool
+
+	// What the list said about it, so the file's own header carries the same
+	// mark and counts as its row did.
+	Status  byte
+	Added   int
+	Deleted int
 }
 
 // drawerState is everything the drawer keeps between frames, and what the
@@ -540,7 +546,7 @@ func (w *workspace) openChange(f changedFile) {
 	if dir == "" {
 		return
 	}
-	file := &drawerFile{Path: f.Path}
+	file := &drawerFile{Path: f.Path, Status: f.Status, Added: f.Added, Deleted: f.Deleted}
 	w.drawer.file = file
 	w.drawer.viewGen++
 	gen := w.drawer.viewGen
@@ -672,7 +678,7 @@ func (w *workspace) drawerView(c *ui.Context, tk tokens) {
 		}
 		switch {
 		case w.drawerProject() == nil:
-			w.drawerNote(c, tk, locales.DrawerNoProject())
+			w.drawerNote(c, tk, locales.DrawerNoProject(), "")
 		case d.tab == drawerTabChanges:
 			w.drawerScopeRow(c, tk)
 			w.drawerChanges(c, tk)
@@ -706,64 +712,102 @@ func (w *workspace) drawerResizer(c *ui.Context, tk tokens) {
 	}
 }
 
-// drawerHeader holds the two tabs and the close button.
+// drawerHeader holds the drawer's two sections and the close button. The
+// sections are labels standing on the header's own edge, with an ink rule
+// under the one in front: the scope row below them is the quiet control, so
+// the header reads as a bar rather than as a second toolbar.
 func (w *workspace) drawerHeader(c *ui.Context, tk tokens) {
-	ui.Row(c).Height(headerHeight).Shrink(0).FillWidth().Padding(0, 8, 0, 6).
+	d := &w.drawer
+	ui.Row(c).Height(headerHeight).Shrink(0).FillWidth().Padding(0, 6, 0, 6).
+		Gap(2).AlignItems(ui.Center).
 		BorderWidth(0, 0, 1, 0).BorderColor(tk.Border).Children(func() {
-		selected := "changes"
-		if w.drawer.tab == drawerTabFiles {
-			selected = "files"
+		count := ""
+		if n := len(d.listedChanges()); n > 0 {
+			count = strconv.Itoa(n)
 		}
-		// The segmented track is shorter than the header band, so it reads
-		// as a switch inside the bar rather than a second bar.
-		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			w.segmented(c, tk, []segment{
-				{value: "changes", label: locales.DrawerChanges()},
-				{value: "files", label: locales.DrawerFiles()},
-			}, selected, func(value string) {
-				if value == "files" {
-					w.setDrawerTab(drawerTabFiles)
-				} else {
-					w.setDrawerTab(drawerTabChanges)
-				}
-			})
+		w.drawerTab(c, tk, locales.DrawerChanges(), count, d.tab == drawerTabChanges, func() {
+			w.setDrawerTab(drawerTabChanges)
+		})
+		w.drawerTab(c, tk, locales.DrawerFiles(), "", d.tab == drawerTabFiles, func() {
+			w.setDrawerTab(drawerTabFiles)
 		})
 		ui.Spacer(c)
 		iconButtonInFrame(c, tk, "x", func() { w.closeDrawer() }, locales.DrawerClose())
 	})
 }
 
+// drawerTab is one section's name on the header, with the count of what it
+// holds beside it and an ink rule under the section in front.
+func (w *workspace) drawerTab(c *ui.Context, tk tokens, label, count string, active bool, pick func()) {
+	color := tk.MutedForeground
+	if active {
+		color = tk.Foreground
+	}
+	el := ui.Row(c).Height(headerHeight).Padding(0, 7, 0, 7).Gap(5).
+		AlignItems(ui.Center).Cursor(ui.CursorPointer)
+	if !active && el.Hovered() {
+		color = tk.Foreground
+	}
+	el.OnClick(pick).Children(func() {
+		ui.Text(c, label).FontSize(12).FontWeight(500).TextColor(color).OnClick(pick)
+		if count != "" {
+			ui.Text(c, count).FontSize(10.5).TextColor(tk.MutedForeground).OnClick(pick)
+		}
+		if active {
+			ui.Box(c).Absolute().Left(7).Right(7).Bottom(0).Height(2).
+				Radius(1).Background(tk.Foreground).IgnoreInput(true)
+		}
+	})
+}
+
+// listedChanges is the change list the drawer's section count reports: the
+// working tree's, or the branch's, whichever the scope row puts up.
+func (d *drawerState) listedChanges() []changedFile {
+	if d.scope == drawerScopeBranch {
+		return d.branchFiles
+	}
+	return d.changes
+}
+
 // drawerScopeRow switches the changes list between the working tree and the
-// branch, and names the base the branch is measured against.
+// branch, and names the base the branch is measured against. It is a pair of
+// quiet pills: the header's tabs are the drawer's sections, this only filters
+// the one they show.
 func (w *workspace) drawerScopeRow(c *ui.Context, tk tokens) {
 	d := &w.drawer
-	ui.Row(c).Height(34).Shrink(0).FillWidth().Padding(5, 8, 5, 8).
-		Gap(8).AlignItems(ui.Center).Children(func() {
-		sunken(ui.Row(c).Height(24).Padding(2).Radius(7).Background(tk.Active).Gap(2), tk).
-			Children(func() {
-				for _, opt := range []struct {
-					scope int
-					label string
-				}{
-					{drawerScopeWorktree, locales.DrawerUncommitted()},
-					{drawerScopeBranch, locales.DrawerBranch()},
-				} {
-					opt := opt
-					selected := d.scope == opt.scope
-					color := tk.MutedForeground
-					el := ui.Row(c).Height(20).Padding(0, 8, 0, 8).Radius(5).
-						Cursor(ui.CursorPointer)
-					if selected {
-						color = tk.Foreground
-						el = lit(lifted(el.Background(tk.Raised), tk), tk)
-					}
-					pick := func() { w.setDrawerScope(opt.scope) }
-					el.OnClick(pick).Children(func() {
-						ui.Text(c, opt.label).FontSize(11).FontWeight(500).
-							TextColor(color).OnClick(pick)
-					})
+	ui.Row(c).Height(32).Shrink(0).FillWidth().Padding(5, 8, 5, 5).
+		Gap(2).AlignItems(ui.Center).Children(func() {
+		for _, opt := range []struct {
+			scope int
+			label string
+		}{
+			{drawerScopeWorktree, locales.DrawerUncommitted()},
+			{drawerScopeBranch, locales.DrawerBranch()},
+		} {
+			opt := opt
+			selected := d.scope == opt.scope
+			color := tk.MutedForeground
+			el := ui.Row(c).Height(22).Padding(0, 8, 0, 8).Radius(6).
+				Cursor(ui.CursorPointer)
+			if selected {
+				color = tk.Foreground
+				// A step up from the drawer's paper: a grey on the
+				// light sheet, a tenth of the ink on the dark one, as
+				// the sidebar's chosen row is drawn.
+				fill := tk.Active
+				if tk.Dark {
+					fill = tk.Foreground.Alpha(0.10)
 				}
+				el = el.Background(fill)
+			} else if el.Hovered() {
+				el = hoverWash(c, el, tk)
+			}
+			pick := func() { w.setDrawerScope(opt.scope) }
+			el.OnClick(pick).Children(func() {
+				ui.Text(c, opt.label).FontSize(11).FontWeight(500).
+					TextColor(color).OnClick(pick)
 			})
+		}
 		ui.Spacer(c)
 		if d.scope == drawerScopeBranch && d.branchName != "" {
 			ui.Text(c, locales.DrawerAgainst(d.branchName)).FontSize(11).
@@ -789,7 +833,8 @@ func (w *workspace) setDrawerScope(scope int) {
 }
 
 // drawerChanges lists the working tree's changes, or the branch's against its
-// base. A click opens the diff over the list.
+// base, gathered by folder with the line counts Git measured, and closes with
+// a foot of totals. A click opens the diff over the list.
 func (w *workspace) drawerChanges(c *ui.Context, tk tokens) {
 	d := &w.drawer
 	files, err, busy := d.changes, d.err, w.gitBusy[d.dir]
@@ -803,43 +848,200 @@ func (w *workspace) drawerChanges(c *ui.Context, tk tokens) {
 	}
 	switch {
 	case err != "":
-		w.drawerNote(c, tk, err)
+		w.drawerNote(c, tk, err, "")
 		return
 	case len(files) == 0 && busy:
-		w.drawerNote(c, tk, locales.DrawerLoading())
+		w.drawerNote(c, tk, locales.DrawerLoading(), "")
 		return
 	case len(files) == 0:
 		if d.scope == drawerScopeBranch {
 			if d.branchName == "" {
-				w.drawerNote(c, tk, locales.DrawerNoBase())
+				w.drawerNote(c, tk, locales.DrawerNoBase(), "")
 			} else {
-				w.drawerNote(c, tk, locales.DrawerNoBranchChanges(d.branchName))
+				w.drawerNote(c, tk, locales.DrawerNoBranchChanges(d.branchName), "")
 			}
 			return
 		}
-		w.drawerNote(c, tk, locales.DrawerNoChanges())
+		w.drawerNote(c, tk, locales.DrawerNoChanges(), locales.DrawerCleanHint())
 		return
 	}
-	ui.Scroll(c).Fill().Padding(6, 6, 6, 6).Children(func() {
-		for _, f := range files {
-			f := f
-			row := ui.Row(c).FillWidth().Height(28).Padding(0, 8, 0, 8).Gap(8).
-				Radius(chromeRadius).Cursor(ui.CursorPointer)
-			if row.Hovered() {
-				row = row.Background(tk.Active)
-			}
-			pick := func() { w.openChange(f) }
-			row.OnClick(pick).Children(func() {
-				ui.Text(c, string(f.Status)).FontSize(10).FontWeight(600).
-					Width(12).TextColor(changeColor(tk, f.Status)).OnClick(pick)
-				ui.Text(c, f.name()).FontSize(12).SingleLine().
-					TextColor(tk.Foreground).OnClick(pick)
-				if dir := f.dir(); dir != "" {
-					ui.Text(c, dir).FontSize(11).SingleLine().
-						TextColor(tk.MutedForeground).OnClick(pick)
+	root := filepath.Base(d.dir)
+	ui.Column(c).Fill().Children(func() {
+		ui.Scroll(c).Fill().Padding(4, 6, 10, 6).Children(func() {
+			for _, g := range groupChanges(files) {
+				label := g.dir
+				if label == "" {
+					// The checkout's own files read under its name, so the
+					// folder they sit in is named once, as the others are.
+					label = root
 				}
-				ui.Spacer(c).OnClick(pick)
-			})
+				w.drawerGroupLabel(c, tk, label)
+				for _, f := range g.files {
+					w.drawerChangeRow(c, tk, f)
+				}
+			}
+		})
+		w.drawerSummary(c, tk, files)
+	})
+}
+
+// changeGroup is one folder's changes, as the list shows them.
+type changeGroup struct {
+	dir   string
+	files []changedFile
+}
+
+// groupChanges gathers the changes by folder, the checkout's own files first
+// and the folders after them, so a path reads once instead of on every row.
+// The order within a folder is the one Git gave, which is by name.
+func groupChanges(files []changedFile) []changeGroup {
+	byDir := map[string][]changedFile{}
+	var dirs []string
+	for _, f := range files {
+		dir := f.dir()
+		if _, ok := byDir[dir]; !ok {
+			dirs = append(dirs, dir)
+		}
+		byDir[dir] = append(byDir[dir], f)
+	}
+	sort.SliceStable(dirs, func(i, j int) bool {
+		if (dirs[i] == "") != (dirs[j] == "") {
+			return dirs[i] == ""
+		}
+		return strings.ToLower(dirs[i]) < strings.ToLower(dirs[j])
+	})
+	groups := make([]changeGroup, 0, len(dirs))
+	for _, dir := range dirs {
+		groups = append(groups, changeGroup{dir: dir, files: byDir[dir]})
+	}
+	return groups
+}
+
+// drawerGroupLabel names a folder above its rows: a quiet line, quieter than
+// the files it holds. Its mark fills the same 16pt slot a change's mark does,
+// and its name starts where a file's name does, so the column reads straight
+// down.
+func (w *workspace) drawerGroupLabel(c *ui.Context, tk tokens, label string) {
+	ui.Row(c).Height(26).FillWidth().PaddingStart(8).PaddingEnd(8).Gap(8).
+		AlignItems(ui.Center).Children(func() {
+		ui.Box(c).Width(16).Height(16).Center().Children(func() {
+			if src := iconSource("folder", colorHex(tk.MutedForeground)); src != nil {
+				ui.Image(c, src).Width(13).Height(13).IgnoreInput(true).Opacity(0.75)
+			}
+		})
+		ui.Text(c, label).FontSize(11).FontWeight(500).SingleLine().
+			TextColor(tk.MutedForeground)
+	})
+}
+
+// drawerChangeRow is one change: its mark, its name, and what it costs in
+// lines, aligned at the right so the column can be read down.
+func (w *workspace) drawerChangeRow(c *ui.Context, tk tokens, f changedFile) {
+	pick := func() { w.openChange(f) }
+	row := ui.Row(c).FillWidth().Height(30).Padding(0, 8, 0, 8).Gap(8).
+		Radius(chromeRadius).Cursor(ui.CursorPointer)
+	if row.Hovered() {
+		row = row.Background(tk.Active)
+	}
+	row.OnClick(pick).Children(func() {
+		w.drawerStatusChip(c, tk, f.Status, pick)
+		ui.Text(c, f.name()).FontSize(12).SingleLine().Shrink(1).
+			TextColor(tk.Foreground).OnClick(pick)
+		ui.Spacer(c).OnClick(pick)
+		drawerLineCounts(c, tk, f.Added, f.Deleted, pick)
+	})
+}
+
+// drawerStatusChip is a change's letter on its own tint: the letters stack
+// into a column the eye can run down, and the letter says what the colour
+// only repeats. The tint is mixed into the drawer's own paper rather than
+// laid over it, so the letter can be checked against what it really sits on
+// and darkened until it reads.
+func (w *workspace) drawerStatusChip(c *ui.Context, tk tokens, status byte, pick func()) {
+	if status == 0 {
+		return
+	}
+	color := changeColor(tk, status)
+	share := float32(0.12)
+	if tk.Dark {
+		share = 0.18
+	}
+	tint := tk.Background.MixOklab(color, share)
+	ink := legible(color, tint, tk.Foreground, 4.5)
+	ui.Row(c).Width(16).Height(16).Radius(4).Center().Shrink(0).
+		Background(tint).OnClick(pick).Children(func() {
+		ui.Text(c, string(status)).FontSize(9.5).FontWeight(600).
+			TextColor(ink).OnClick(pick)
+	})
+}
+
+// drawerLineCounts is a change's added and deleted lines, in the colours the
+// branch pill uses for the same numbers. Each side keeps a column of its own,
+// so the numbers line up down the list even where one side is empty.
+func drawerLineCounts(c *ui.Context, tk tokens, added, deleted int, pick func()) {
+	if added == 0 && deleted == 0 {
+		return
+	}
+	column := func(value int, sign string, color ui.Color, width float32) {
+		if value == 0 {
+			ui.Box(c).Width(width).OnClick(pick)
+			return
+		}
+		ui.Text(c, sign+strconv.Itoa(value)).FontSize(10).Width(width).
+			TextAlign(ui.End).TextColor(color).OnClick(pick)
+	}
+	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
+		column(added, "+", tk.Working, 30)
+		column(deleted, "−", tk.Danger, 24)
+	})
+}
+
+// drawerSummary is the list's foot: how many files, and how the lines divide
+// between what the change adds and what it takes away.
+func (w *workspace) drawerSummary(c *ui.Context, tk tokens, files []changedFile) {
+	added, deleted := 0, 0
+	for _, f := range files {
+		added += f.Added
+		deleted += f.Deleted
+	}
+	ui.Row(c).Height(32).Shrink(0).FillWidth().Padding(0, 14, 0, 14).
+		Gap(6).AlignItems(ui.Center).
+		BorderWidth(1, 0, 0, 0).BorderColor(tk.Border).Children(func() {
+		ui.Text(c, locales.DrawerFileCount(len(files))).FontSize(11).
+			TextColor(tk.MutedForeground)
+		ui.Spacer(c)
+		if added+deleted == 0 {
+			return
+		}
+		drawerChangeBar(c, tk, added, deleted)
+		if added > 0 {
+			ui.Text(c, "+"+strconv.Itoa(added)).FontSize(10).TextColor(tk.Working)
+		}
+		if deleted > 0 {
+			ui.Text(c, "−"+strconv.Itoa(deleted)).FontSize(10).TextColor(tk.Danger)
+		}
+	})
+}
+
+// drawerChangeBar is the summary's little measure: one bar split between the
+// added and the deleted lines, so the shape of the change reads before the
+// numbers do.
+func drawerChangeBar(c *ui.Context, tk tokens, added, deleted int) {
+	const width float32 = 46
+	addW := width * float32(added) / float32(added+deleted)
+	if added > 0 && addW < 2 {
+		addW = 2
+	}
+	if deleted > 0 && width-addW < 2 {
+		addW = width - 2
+	}
+	ui.Row(c).Width(width).Height(4).Radius(2).Background(tk.Active).
+		Clip().Shrink(0).Children(func() {
+		if added > 0 {
+			ui.Box(c).Width(addW).FillHeight().Background(tk.Working)
+		}
+		if deleted > 0 {
+			ui.Box(c).Width(width - addW).FillHeight().Background(tk.Danger)
 		}
 	})
 }
@@ -888,8 +1090,8 @@ func fileIconName(name string) string {
 func (w *workspace) drawerTree(c *ui.Context, tk tokens, dir, rel string, depth int) {
 	for _, e := range w.drawerEntries(dir, rel) {
 		e := e
-		row := ui.Row(c).FillWidth().Height(28).PaddingStart(8 + float32(depth)*12).
-			PaddingEnd(8).Gap(5).Radius(chromeRadius).Cursor(ui.CursorPointer)
+		row := ui.Row(c).FillWidth().Height(30).PaddingStart(8 + float32(depth)*12).
+			PaddingEnd(8).Gap(6).Radius(chromeRadius).Cursor(ui.CursorPointer)
 		if row.Hovered() {
 			row = row.Background(tk.Active)
 		}
@@ -1003,7 +1205,8 @@ func (w *workspace) drawerFileView(c *ui.Context, tk tokens, file *drawerFile) {
 			if dir == "." {
 				dir = ""
 			}
-			ui.Column(c).Gap(1).Children(func() {
+			w.drawerStatusChip(c, tk, file.Status, func() {})
+			ui.Column(c).Gap(1).Shrink(1).Children(func() {
 				ui.Text(c, filepath.Base(file.Path)).FontSize(12).FontWeight(500).
 					SingleLine().TextColor(tk.Foreground)
 				if dir != "" {
@@ -1012,6 +1215,7 @@ func (w *workspace) drawerFileView(c *ui.Context, tk tokens, file *drawerFile) {
 				}
 			})
 			ui.Spacer(c)
+			drawerLineCounts(c, tk, file.Added, file.Deleted, func() {})
 		})
 		body := ui.Column(c).Fill()
 		switch {
@@ -1032,11 +1236,16 @@ func (w *workspace) drawerFileView(c *ui.Context, tk tokens, file *drawerFile) {
 	})
 }
 
-// drawerNote is a centered line of explanation in place of a list.
-func (w *workspace) drawerNote(c *ui.Context, tk tokens, text string) {
-	ui.Column(c).Fill().Padding(24).Center().Children(func() {
-		ui.Text(c, text).FontSize(12).TextColor(tk.MutedForeground).
-			TextAlign(ui.Center).SingleLine()
+// drawerNote is a centered pair of lines in place of a list: what is missing,
+// and what that means, quieter than the list it stands in for.
+func (w *workspace) drawerNote(c *ui.Context, tk tokens, title, hint string) {
+	ui.Column(c).Fill().Padding(24).Center().Gap(5).Children(func() {
+		ui.Text(c, title).FontSize(12.5).FontWeight(500).TextColor(tk.Foreground).
+			TextAlign(ui.Center)
+		if hint != "" {
+			ui.Text(c, hint).FontSize(11).TextColor(tk.MutedForeground).
+				TextAlign(ui.Center)
+		}
 	})
 }
 
