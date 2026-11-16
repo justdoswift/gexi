@@ -31,6 +31,12 @@ type appSettings struct {
 	// Off, the sidebar takes the canvas's colour, wrapping the panes in one
 	// surface.
 	SidebarMaterial bool `json:"sidebarMaterial"`
+	// AutoMergePR runs the pipeline in one pass: the pull request goes out
+	// with the message and description the pane's agent wrote, without the
+	// dialog, and merges as soon as GitHub allows it, with a conflict
+	// settled by the agent first. Off, the dialog and the Merge button
+	// wait for the user.
+	AutoMergePR bool `json:"autoMergePR"`
 	// ArchiveAfterMerge clears a merged worktree and its pane away as the
 	// pull request merges. Off, the header offers Archive and the user
 	// decides when the checkout goes.
@@ -84,6 +90,7 @@ func defaultSettings() appSettings {
 		RestoreScreen: true,
 		PaneStyle:     paneComfortable,
 		Notifications: true,
+		AutoMergePR:   true,
 	}
 }
 

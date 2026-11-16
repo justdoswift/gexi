@@ -28,6 +28,32 @@ func initRepoTest(t *testing.T) string {
 	return dir
 }
 
+// The pull request dialog is where the automatic pipeline must not stop: a
+// press with something to read waits for the user unless the setting asks to
+// run straight through, and one with nothing to read never asks.
+func TestPRDialogOnlyWhenThereIsSomethingToRead(t *testing.T) {
+	cases := []struct {
+		name  string
+		clean bool
+		body  string
+		auto  bool
+		want  bool
+	}{
+		{"clean and described, automatic", true, "prose", true, false},
+		{"clean and described, manual", true, "prose", false, true},
+		{"uncommitted work, automatic", false, "", true, false},
+		{"uncommitted work, manual", false, "", false, true},
+		{"clean and bare, automatic", true, "", true, false},
+		{"clean and bare, manual", true, "", false, false},
+	}
+	for _, tc := range cases {
+		if got := needsPRConfirm(tc.clean, tc.body, tc.auto); got != tc.want {
+			t.Errorf("%s: needsPRConfirm(%v, %q, %v) = %v, want %v",
+				tc.name, tc.clean, tc.body, tc.auto, got, tc.want)
+		}
+	}
+}
+
 // TestReturnToBaseSwitchesTheProjectCheckout checks that leaving or archiving
 // a worktree ends with the project's own checkout back on the branch the
 // worktree was branched from, and that a checkout holding the user's changes

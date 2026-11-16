@@ -375,6 +375,7 @@ case "$1 $2" in
   cat "$FAKE_GH_STATE_FILE"
   ;;
 "pr merge")
+  if [ -n "$FAKE_GH_LOG" ]; then printf '%s\\n' "$*" >> "$FAKE_GH_LOG"; fi
   if [ "$FAKE_GH_MERGE_FAIL" = "1" ]; then echo "merge blocked" >&2; exit 1; fi
   ;;
 *)
@@ -576,6 +577,67 @@ func TestMergePRChecks(t *testing.T) {
 	t.Setenv("FAKE_GH_MERGE_FAIL", "")
 	if err := mergePR(wt); err != nil {
 		t.Fatalf("merge: %v", err)
+	}
+}
+
+// TestAutoMergeRunsThePullRequestThrough checks the one-pass pipeline the
+// Merging settings ask for: an open pull request is merged as soon as GitHub
+// allows it, the setting off leaves it on the Merge button, and a conflict
+// with no agent to settle it waits rather than merging.
+func TestAutoMergeRunsThePullRequestThrough(t *testing.T) {
+	cases := []struct {
+		name      string
+		auto      bool
+		mergeable string
+		state     string
+		wantMerge bool
+	}{
+		{"ready", true, "MERGEABLE", "CLEAN", true},
+		{"manual", false, "MERGEABLE", "CLEAN", false},
+		{"conflict without an agent", true, "CONFLICTING", "DIRTY", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("GEXI_HOME", t.TempDir())
+			stateFile := fakeGHTEST(t)
+			logFile := filepath.Join(t.TempDir(), "gh-args")
+			t.Setenv("FAKE_GH_LOG", logFile)
+			root := initRepoWithOriginTest(t)
+			wt, err := createWorktree(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runGitTest(t, wt.Path, "commit", "--allow-empty", "-m", "work")
+			state := `{"number":17,"url":"https://example.invalid/pr/17","state":"OPEN",` +
+				`"mergeable":"` + tc.mergeable + `","reviewDecision":"",` +
+				`"mergeStateStatus":"` + tc.state + `","statusCheckRollup":[]}`
+			if err := os.WriteFile(stateFile, []byte(state), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			p := &pane{ID: "p", Worktree: wt, initialDir: wt.Path}
+			w := &workspace{Projects: []*project{{ID: "pr", Dir: root, Sessions: []*session{{
+				ID: "s", Root: leaf(p),
+			}}}}}
+			w.settings.AutoMergePR = tc.auto
+			wt.PR, wt.URL, wt.State = 17, "https://example.invalid/pr/17", "open"
+			wt.mergeable, wt.mergeState, wt.checks = tc.mergeable, tc.state, "none"
+
+			w.autoMerge(p)
+
+			merged := func() bool {
+				data, _ := os.ReadFile(logFile)
+				return strings.Contains(string(data), "pr merge 17")
+			}
+			if tc.wantMerge {
+				waitForTest(t, 10*time.Second, merged)
+				return
+			}
+			time.Sleep(300 * time.Millisecond)
+			if merged() {
+				data, _ := os.ReadFile(logFile)
+				t.Fatalf("the pull request was merged; the gh calls were %q", string(data))
+			}
+		})
 	}
 }
 

@@ -327,6 +327,16 @@ func (w *workspace) worktreesPage(c *ui.Context, tk tokens) {
 	sectionLabel(c, tk, locales.SettingsWorktreesMerge())
 	settingsCard(c, tk, func() {
 		w.settingRowView(c, tk, settingRow{
+			title:  locales.SettingsAutoMergePR(),
+			detail: locales.SettingsAutoMergePRDetail(),
+			on:     w.settings.AutoMergePR,
+			toggle: func() {
+				w.settings.AutoMergePR = !w.settings.AutoMergePR
+				w.settings.save()
+			},
+		})
+		cardDivider(c, tk)
+		w.settingRowView(c, tk, settingRow{
 			title:  locales.SettingsArchiveAfterMerge(),
 			detail: locales.SettingsArchiveAfterMergeDetail(),
 			on:     w.settings.ArchiveAfterMerge,
