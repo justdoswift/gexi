@@ -150,10 +150,14 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 			result["context"] = ctx
 		}
 		// The first message says what the work is about; the pane names
-		// itself from it once, unless the user already named it.
+		// itself from it once, unless the user already named it. It also
+		// opens the reader's conversation, with the answer at its end.
 		prompt := ev.Prompt
 		if prompt == "" {
 			prompt = ev.Message
+		}
+		if kind := agentKind(ev.Agent); agentTalks(kind) {
+			p.addUserMessage(kind, ev.Session, prompt)
 		}
 		if p.noteFirstPrompt(prompt) {
 			if kind := agentKind(ev.Agent); kind != "" {
@@ -171,9 +175,8 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		// Claude's Stop hook and Amp's agent.end plugin carry the final
 		// answer in the agent's own words. Keep it for the reply reader;
 		// other agents have no text channel here yet.
-		switch kind := agentKind(ev.Agent); kind {
-		case agentClaude, agentAmp:
-			p.setReply(kind, ev.Session, ev.Message)
+		if kind := agentKind(ev.Agent); agentTalks(kind) {
+			p.addReplyMessage(kind, ev.Session, ev.Message)
 		}
 		// A flow prompt the hook never reported is not kept around to
 		// swallow the user's first message later.
@@ -185,16 +188,16 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		// A turn that stops to ask is not a finished task: no light for it.
 		p.stopHalo()
 	case "session.start", "session.end":
-		// A fresh conversation has no reply from the last one to show. Only
-		// the agent that owns the reply can clear it, and only when the
+		// A fresh conversation has nothing from the last one to show. Only
+		// the agent that owns the log can clear it, and only when its
 		// session really changed: a plugin re-announcing the same thread
-		// must not throw the answer away.
-		if ev.Kind == "session.start" && p.reply != nil &&
-			p.reply.Agent == agentKind(ev.Agent) &&
-			(p.reply.Session == "" || ev.Session == "" || p.reply.Session != ev.Session) {
-			p.reply = nil
-			if w.reply.pane == p {
-				w.closeReply()
+		// must not throw the conversation away.
+		if ev.Kind == "session.start" {
+			if kind := agentKind(ev.Agent); kind != "" && p.conversationStale(kind, ev.Session) {
+				p.clearConversation()
+				if w.reply.pane == p {
+					w.closeReply()
+				}
 			}
 		}
 		// A fresh session has no running subagents, and a finished one leaves
