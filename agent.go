@@ -120,7 +120,7 @@ func resolveAgentCommand(command []string) resolvedCommand {
 	case "amp":
 		return resolveAmp(raw, command)
 	case "droid":
-		return resolveContinuing(raw, command, "--resume --last", "--resume", "-r", "resume")
+		return resolveDroid(raw, command)
 	}
 	return resolvedCommand{command, command}
 }
@@ -253,6 +253,53 @@ func ampThreadID(raw string) string {
 		}
 	}
 	return ""
+}
+
+// resolveDroid starts Droid with gexi's hook settings as a runtime overlay,
+// and restores the newest session in the pane's directory with
+// `--resume --last` on top of the same flags. The overlay is injected only
+// into a Droid gexi launches: the user's own configuration is never written.
+// `--settings` is a runtime flag for both the interactive command and its
+// subcommands, so it goes right after `droid`, before `resume`.
+func resolveDroid(raw string, command []string) resolvedCommand {
+	if !strings.Contains(raw, "--settings") {
+		if hooks, err := installDroidHooks(); err == nil {
+			raw = withLeadingFlag(raw, "--settings "+shellQuote(hooks))
+		}
+	}
+	if droidContinues(raw) {
+		return resolvedCommand{replaceRaw(raw, command), replaceRaw(raw, command)}
+	}
+	restore := strings.TrimSpace(raw + " --resume --last")
+	return resolvedCommand{replaceRaw(raw, command), replaceRaw(restore, command)}
+}
+
+// droidContinues reports whether the command already resumes a conversation,
+// as `droid --resume`, `droid -r`, or `droid resume`.
+func droidContinues(raw string) bool {
+	for _, token := range strings.Fields(raw) {
+		switch {
+		case token == "--resume", token == "-r", token == "resume",
+			strings.HasPrefix(token, "--resume="):
+			return true
+		}
+	}
+	return false
+}
+
+// withLeadingFlag puts a flag right after the command word, where a CLI's
+// options and subcommands both accept it: `droid --settings <file> resume`.
+func withLeadingFlag(raw, flag string) string {
+	raw = strings.TrimSpace(raw)
+	flag = strings.TrimSpace(flag)
+	if raw == "" || flag == "" {
+		return raw
+	}
+	token := firstToken(raw)
+	if token == "" || !strings.HasPrefix(raw, token) {
+		return raw + " " + flag
+	}
+	return token + " " + flag + strings.TrimPrefix(raw, token)
 }
 
 // resolveContinuing appends the flags that resume the newest session in the

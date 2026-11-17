@@ -305,17 +305,28 @@ func controlWash(c *ui.Context, el ui.Element, tk tokens, wash float32, fallback
 // hoverWash is what a control takes under the pointer: the theme's ink at 5%,
 // a soft lift on paper rather than the grey block a Control fill paints.
 // Over the window's material it stays a little stronger, since the frozen
-// backdrop swallows a faint tint.
+// backdrop swallows a faint tint. It eases in and out, so a pointer crossing
+// a row does not flash a grey block.
 func hoverWash(c *ui.Context, el ui.Element, tk tokens) ui.Element {
+	target := ui.Transparent
+	if el.Hovered() {
+		target = hoverInk(c, tk)
+	}
+	return el.Background(el.AnimateColor("hoverWash", target,
+		ui.Animation{Duration: hoverMotion, Ease: ui.EaseOut}))
+}
+
+// hoverInk is the colour hoverWash settles on for this surface.
+func hoverInk(c *ui.Context, tk tokens) ui.Color {
 	if !glassChrome() {
 		// The old flat hover: a quiet step of the control surface, not the
 		// ink wash the glass chrome uses.
-		return el.Background(tk.Active)
+		return tk.Active
 	}
 	if !liquid(c) {
-		return el.Background(tk.Foreground.Alpha(0.05))
+		return tk.Foreground.Alpha(0.05)
 	}
-	return el.Background(tk.Foreground.Alpha(0.08))
+	return tk.Foreground.Alpha(0.08)
 }
 
 // iconButton is a 26pt hit area with an SF Symbol and a quiet hover state,
@@ -371,9 +382,7 @@ func iconMenuButtonSmall(c *ui.Context, tk tokens, name string, build func(m *ui
 func iconMenuButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32, build func(m *ui.Menu), hint ...string) ui.Element {
 	el := ui.Row(c).Width(size).Height(size).Radius(chromeRadius).
 		Center().Cursor(ui.CursorPointer)
-	if el.Hovered() {
-		el = hoverWash(c, el, tk)
-	}
+	el = hoverWash(c, el, tk)
 	if len(hint) > 0 && hint[0] != "" {
 		// The glyph is the button's only content, so the hint is also the
 		// name assistive technology reads for it.
@@ -397,12 +406,10 @@ func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32,
 		// glyph does not move as the pointer comes and goes.
 		el = el.Border(1, ui.Transparent)
 	}
-	if el.Hovered() {
-		// Every surface takes the same wash: a card, the drawer's frame and
-		// the window's material differ in what shows through, not in how a
-		// control answers the pointer.
-		el = hoverWash(c, el, tk)
-	}
+	// Every surface takes the same wash: a card, the drawer's frame and the
+	// window's material differ in what shows through, not in how a control
+	// answers the pointer. It eases in and out, so the glyph does not flash.
+	el = hoverWash(c, el, tk)
 	el = el.OnClick(action)
 	if len(hint) > 0 && hint[0] != "" {
 		el = el.Tooltip(hint[0])

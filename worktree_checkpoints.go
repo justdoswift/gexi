@@ -57,14 +57,17 @@ func (w *workspace) worktreeCheckpoints(c *ui.Context, tk tokens, p *pane) {
 	// The card drops into its corner, faded, as the stage's cards and the
 	// drawers arrive: a merge can start the moment the menu closes, and a
 	// panel that pops there reads as a redraw rather than as work beginning.
-	entered := ui.Local(card, "entered", func() bool { return false })
-	pose := ui.Pose{}
-	if !*entered {
-		*entered = true
-		pose = ui.Pose{Y: -6, Fade: 1}
-		c.After(time.Millisecond)
-	}
-	card.AnimatePose(pose, ui.Animation{Duration: checkpointMotion, Ease: ui.EaseOut})
+	// It leaves the same way, so the end of the operation does not erase the
+	// last stage before it can be read. Height follows the rows, so a stage
+	// added mid-operation grows the card instead of jumping it a line taller.
+	card.Transition(ui.ElementTransition{
+		Duration:     checkpointMotion,
+		Ease:         ui.EaseOut,
+		ExitDuration: 140 * time.Millisecond,
+		Enter:        &ui.Motion{Y: -6},
+		Exit:         &ui.Motion{Y: -4},
+		Height:       true,
+	})
 	card.Children(func() {
 		checkpointsHead(c, tk, title, wt)
 		ui.Column(c).FillWidth().Padding(0, 6, 8, 6).Children(func() {
@@ -107,75 +110,87 @@ func checkpointRow(c *ui.Context, tk tokens, p *pane, step worktreeStep,
 		AlignItems(ui.Center)
 	// A stage that has just been reached rises into its line, faded, so the
 	// card grows a line instead of jumping one taller.
-	entered := ui.Local(row, "entered", func() bool { return false })
-	pose := ui.Pose{}
-	if !*entered {
-		*entered = true
-		pose = ui.Pose{Y: 5, Fade: 1}
-		c.After(time.Millisecond)
-	}
-	row.AnimatePose(pose, ui.Animation{Duration: checkpointMotion, Ease: ui.EaseOut})
+	row.Transition(ui.ElementTransition{
+		Duration: checkpointMotion,
+		Ease:     ui.EaseOut,
+		Enter:    &ui.Motion{Y: 5},
+	})
 	row.Children(func() {
 		gutter := ui.Box(c).Width(12).Height(checkpointRowHeight)
 		gutter.Children(func() {
 			// The rail is drawn in halves, so the first and last
-			// checkpoints end at their dot instead of running on. The
-			// current stage is the last one drawn, so it ends there
-			// until the operation adds the next.
-			above := tk.Border
-			if i <= at {
+			// checkpoints end at their dot instead of running on. Both
+			// halves stay in the tree and only change colour, so the line
+			// grows into the stage reached instead of appearing with it.
+			above := ui.Transparent
+			if i > 0 {
 				above = tk.SystemAccent.Alpha(0.55)
 			}
-			below := tk.Border
+			aboveBox := ui.Box(c).Width(1).Height(checkpointRowHeight / 2).
+				Absolute().Left(5.5).Top(0)
+			aboveBox.Background(aboveBox.AnimateColor("railAbove", above,
+				ui.Animation{Duration: checkpointMotion, Ease: ui.EaseOut}))
+			below := ui.Transparent
 			if i < at {
 				below = tk.SystemAccent.Alpha(0.55)
 			}
-			if i > 0 {
-				ui.Box(c).Width(1).Height(checkpointRowHeight / 2).
-					Absolute().Left(5.5).Top(0).Background(above)
-			}
-			if i < at {
-				ui.Box(c).Width(1).Height(checkpointRowHeight / 2).
-					Absolute().Left(5.5).Top(checkpointRowHeight / 2).
-					Background(below)
-			}
+			belowBox := ui.Box(c).Width(1).Height(checkpointRowHeight / 2).
+				Absolute().Left(5.5).Top(checkpointRowHeight / 2)
+			belowBox.Background(belowBox.AnimateColor("railBelow", below,
+				ui.Animation{Duration: checkpointMotion, Ease: ui.EaseOut}))
 			// The reached stages are filled dots, and the current one is
 			// larger and in the full accent, as the component's head is.
 			// They sit on the line's ink rather than its box: a line of
 			// text keeps more room below the glyphs than above them, so a
-			// dot centred on the box reads high beside them.
+			// dot centred on the box reads high beside them. The dot eases
+			// between the two sizes as its stage passes, instead of one dot
+			// replacing the other.
+			size := float32(0)
+			tone := ui.Transparent
 			switch {
 			case i < at:
-				ui.Box(c).Width(6).Height(6).Radius(3).
-					Absolute().Left(3).Top(9.5).
-					Background(tk.SystemAccent.Alpha(0.6))
+				size, tone = 6, tk.SystemAccent.Alpha(0.6)
 			case i == at:
-				ui.Box(c).Width(8).Height(8).Radius(4).
-					Absolute().Left(2).Top(8.5).
-					Background(tk.SystemAccent)
+				size, tone = 8, tk.SystemAccent
+			}
+			if size > 0 {
+				dot := ui.Box(c).Absolute()
+				size = dot.Animate("checkpointDotSize", size, checkpointMotion)
+				dot.Width(size).Height(size).Radius(size / 2).
+					Left(6 - size/2).Top(12.5 - size/2)
+				dot.Background(dot.AnimateColor("checkpointDotColor", tone,
+					ui.Animation{Duration: checkpointMotion, Ease: ui.EaseOut}))
 			}
 		})
 		label := worktreeStepLabel(p, step)
+		// The current stage's label and a passed one are two keys in the
+		// same line: when the operation moves on, the shimmer fades out as
+		// the check's label fades in, rather than the words replacing one
+		// another mid-sentence.
+		fade := ui.ElementTransition{
+			Duration: 140 * time.Millisecond,
+			Ease:     ui.EaseOut,
+			Enter:    &ui.Motion{},
+			Exit:     &ui.Motion{},
+		}
 		switch {
 		case i < at:
-			ui.Text(c, label).FontSize(11.5).TextColor(tk.MutedForeground).
-				SingleLine().Shrink(1)
+			ui.Text(c, label).Key("passed").FontSize(11.5).
+				TextColor(tk.MutedForeground).SingleLine().Shrink(1).
+				Transition(fade)
 			ui.Spacer(c)
-			check := ui.Text(c, "✓").FontSize(10).
+			check := ui.Text(c, "✓").Key("check").FontSize(10).
 				TextColor(tk.MutedForeground.Alpha(0.8))
 			// The check lands with the stage it marks, rather than being
 			// there the moment the shimmer stops.
-			seen := ui.Local(check, "entered", func() bool { return false })
-			checkPose := ui.Pose{}
-			if !*seen {
-				*seen = true
-				checkPose = ui.Pose{Scale: 0.7, Fade: 1}
-				c.After(time.Millisecond)
-			}
-			check.AnimatePose(checkPose,
-				ui.Animation{Duration: checkpointMotion, Ease: ui.EaseOut})
+			check.Transition(ui.ElementTransition{
+				Duration: checkpointMotion,
+				Ease:     ui.EaseOut,
+				Enter:    &ui.Motion{Scale: 0.7},
+			})
 		case i == at:
-			shimmerLabel(c, tk, label, 11.5, 500).Shrink(1)
+			shimmerLabel(c, tk, label, 11.5, 500).Key("current").Shrink(1).
+				Transition(fade)
 		}
 	})
 }

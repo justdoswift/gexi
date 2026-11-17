@@ -255,6 +255,17 @@ The state is in `gexi list --json` under `activity`. `turn.end` and
 `needs-input` also post a notification. The settings file is layered on top of
 the user's own, so existing hooks keep firing.
 
+Droid takes the same hooks as a per-launch settings overlay: gexi starts it
+with `droid --settings <file>`, and the file lives in
+`$GEXI_HOME/hooks/droid-settings.json`. Nothing is written into `~/.factory`,
+so the user's own hooks keep running. Droid reports all notification reasons
+through one hook; gexi reads `notification_type`: `permission_prompt` and
+`elicitation_dialog` mean the agent waits on the user, `idle_prompt` ends the
+turn (including after Ctrl+C), and `auth_success` is ignored. A `Stop` whose
+`stop_hook_active` is set is ignored too, since another hook kept the turn
+going. Only a droid gexi launches carries the overlay: one typed into a shell
+by hand reports nothing, so no spinner or pane beam lights up for it.
+
 Pi has no hook settings file. gexi passes a small extension with `-e`
 instead, which writes the same events to the control socket directly:
 `input` reports `turn.start`, `agent_settled` reports `turn.end`,

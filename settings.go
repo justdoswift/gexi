@@ -999,6 +999,43 @@ func settingsCard(c *ui.Context, tk tokens, rows func()) {
 		Background(tk.Background), tk).Children(rows)
 }
 
+// settingsCardMotion is a settings card whose height follows its rows: a row
+// restored, deleted, or cleaned up leaves with a fading copy while the
+// remaining rows slide up into the gap, instead of the whole card snapping
+// one row shorter.
+func settingsCardMotion(c *ui.Context, tk tokens, id string, rows func()) {
+	card := ui.Column(c).Key("settings-card:" + id).FillWidth().Radius(10).
+		Clip().Background(tk.Background)
+	// The card is clipped to its bounds, so the leaving copy does not paint
+	// over the section label below it while the height eases down.
+	card = raised(card, tk)
+	card.Transition(ui.ElementTransition{
+		Duration: rowMotion,
+		Ease:     ui.EaseOut,
+		Enter:    &ui.Motion{},
+		Exit:     &ui.Motion{},
+		Height:   true,
+	})
+	card.Children(rows)
+}
+
+// settingControlSlotKey is a settings row's control identity: its button and
+// its progress line are two forms of one control, so a started action fades
+// its press into the spinner instead of swapping them between two frames.
+type settingControlSlotKey struct{ id string }
+
+func settingControlSlot(c *ui.Context, id, form string, build func()) {
+	el := ui.Row(c).Shrink(0).Key("setting-control:" + id + ":" + form)
+	el.Transition(ui.ElementTransition{
+		Duration: chipMotion,
+		Ease:     ui.EaseOut,
+		Enter:    &ui.Motion{Y: 2},
+		Exit:     &ui.Motion{Y: -2},
+		Match:    settingControlSlotKey{id},
+	})
+	el.Children(build)
+}
+
 func cardDivider(c *ui.Context, tk tokens) {
 	ui.Row(c).Height(1).Padding(0, 16, 0, 16).Children(func() {
 		ui.Box(c).FillWidth().Height(1).Background(tk.Border)
@@ -1032,7 +1069,9 @@ func (w *workspace) settingRowView(c *ui.Context, tk tokens, row settingRow) {
 // title/detail pair, no switch to hold.
 func (w *workspace) settingActionView(c *ui.Context, tk tokens, title, detail, label string, action func()) {
 	w.settingActionRow(c, tk, title, detail, func() {
-		outlineButton(c, tk, label, action)
+		settingControlSlot(c, title, "action", func() {
+			outlineButton(c, tk, label, action)
+		})
 	})
 }
 
@@ -1041,9 +1080,12 @@ func (w *workspace) settingActionView(c *ui.Context, tk tokens, title, detail, l
 // a while says where it is instead of looking stuck.
 func (w *workspace) settingProgressView(c *ui.Context, tk tokens, title, detail, progress string) {
 	w.settingActionRow(c, tk, title, detail, func() {
-		ui.Row(c).Height(28).Shrink(0).Gap(6).AlignItems(ui.Center).Children(func() {
-			worktreeSpinner(c, tk, progress)
-			ui.Text(c, progress).FontSize(12).TextColor(tk.MutedForeground).SingleLine()
+		settingControlSlot(c, title, "progress", func() {
+			ui.Row(c).Height(28).Shrink(0).Gap(6).AlignItems(ui.Center).Children(func() {
+				worktreeSpinner(c, tk, progress)
+				ui.Text(c, progress).FontSize(12).TextColor(tk.MutedForeground).
+					SingleLine().ContentTransition(ui.ContentTransition{Numeric: true})
+			})
 		})
 	})
 }
@@ -1070,7 +1112,9 @@ func outlineButton(c *ui.Context, tk tokens, label string, action func()) {
 	if el.Hovered() {
 		bg = tk.Accent
 	}
-	el.Background(bg).OnClick(action).Children(func() {
+	el = el.Background(el.AnimateColor("outlineFill", bg,
+		ui.Animation{Duration: hoverMotion, Ease: ui.EaseOut}))
+	el.OnClick(action).Children(func() {
 		ui.Text(c, label).FontSize(12).FontWeight(500).
 			TextColor(tk.Foreground).SingleLine().OnClick(action)
 	})

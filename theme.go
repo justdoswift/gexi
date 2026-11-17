@@ -351,8 +351,19 @@ func lit(e ui.Element, tk tokens) ui.Element {
 // card's own surface laid on the header, lit from above and outlined by a
 // hairline. The shadow is a contact shadow, a pixel or two deep, rather than
 // a card's: a 22pt tag lies on the header, it does not float over it.
-// Under the pointer it grows one step, so the tag lifts without moving.
+// Under the pointer it grows one step, so the tag lifts without moving. The
+// step itself eases, so the lift follows the pointer instead of blinking on.
 func badge(e ui.Element, tk tokens, hovered bool) ui.Element {
+	el := badgeLook(e, tk, hovered)
+	return el.Transition(ui.ElementTransition{
+		Duration: hoverMotion,
+		Ease:     ui.EaseOut,
+		Colors:   true,
+		Shadows:  true,
+	})
+}
+
+func badgeLook(e ui.Element, tk tokens, hovered bool) ui.Element {
 	if !glassChrome() {
 		// The old header chip: one flat fill, a step darker under the
 		// pointer, with no gradient or contact shadow.
@@ -426,4 +437,16 @@ const (
 	sidebarMotion = 200 * time.Millisecond
 	paneMotion    = 240 * time.Millisecond
 	focusMotion   = 150 * time.Millisecond
+	// hoverMotion is how a tag or a button takes the pointer: a tenth of a
+	// second, so the lift follows the hand without lagging behind it.
+	hoverMotion = 100 * time.Millisecond
+	// chipMotion is how a header control changes form, and rowMotion how a
+	// list row arrives or leaves. A 22pt chip and a 34pt settings row do
+	// not want the sidebar's 200ms.
+	chipMotion = 160 * time.Millisecond
+	rowMotion  = 180 * time.Millisecond
+	// dialogMotion is a panel's entrance; it leaves a little faster, so a
+	// dismissed dialog does not linger over the work it covered.
+	dialogMotion     = 180 * time.Millisecond
+	dialogExitMotion = 140 * time.Millisecond
 )

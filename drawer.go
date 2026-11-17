@@ -789,19 +789,21 @@ func (w *workspace) drawerScopeRow(c *ui.Context, tk tokens) {
 			color := tk.MutedForeground
 			el := ui.Row(c).Height(22).Padding(0, 8, 0, 8).Radius(6).
 				Cursor(ui.CursorPointer)
+			fill := ui.Transparent
 			if selected {
 				color = tk.Foreground
 				// A step up from the drawer's paper: a grey on the
 				// light sheet, a tenth of the ink on the dark one, as
 				// the sidebar's chosen row is drawn.
-				fill := tk.Active
+				fill = tk.Active
 				if tk.Dark {
 					fill = tk.Foreground.Alpha(0.10)
 				}
-				el = el.Background(fill)
 			} else if el.Hovered() {
-				el = hoverWash(c, el, tk)
+				fill = hoverInk(c, tk)
 			}
+			el = el.Background(el.AnimateColor("scopeFill", fill,
+				ui.Animation{Duration: hoverMotion, Ease: ui.EaseOut}))
 			pick := func() { w.setDrawerScope(opt.scope) }
 			el.OnClick(pick).Children(func() {
 				ui.Text(c, opt.label).FontSize(11).FontWeight(500).
@@ -1193,9 +1195,7 @@ func (w *workspace) drawerFileView(c *ui.Context, tk tokens, file *drawerFile) {
 			el := ui.Row(c).Width(iconSize).Height(iconSize).Radius(chromeRadius).
 				Border(1, ui.Transparent).
 				Center().Cursor(ui.CursorPointer)
-			if el.Hovered() {
-				el = hoverWash(c, el, tk)
-			}
+			el = hoverWash(c, el, tk)
 			el.OnClick(back).Tooltip(locales.DrawerBack()).Children(func() {
 				if src := iconSource("chevron-right", colorHex(tk.MutedForeground)); src != nil {
 					ui.Image(c, src).Width(15).Height(15).Rotate(180).OnClick(back)

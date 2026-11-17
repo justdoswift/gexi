@@ -383,11 +383,26 @@ func flowDialogFrame(c *ui.Context, tk tokens, open *bool, build func()) {
 		shadow = alpha(ui.RGB(0, 0, 0), 0.12)
 	}
 	ui.DialogBase(c, open, func(back, panel ui.Element) {
-		back.Background(shade)
+		back.Background(shade).Transition(ui.ElementTransition{
+			Duration:     dialogMotion,
+			Ease:         ui.EaseOut,
+			ExitDuration: dialogExitMotion,
+			Enter:        &ui.Motion{},
+			Exit:         &ui.Motion{},
+		})
 		panel.Width(460).Clip().Gap(0).Padding(0).Radius(12).
 			Background(tk.Background).
 			Border(1, tk.Border).
 			Shadow(0, 18, 44, 0, shadow).
+			Transition(ui.ElementTransition{
+				Duration:     dialogMotion,
+				Ease:         ui.EaseOut,
+				ExitDuration: dialogExitMotion,
+				Enter:        &ui.Motion{Y: 6, Scale: 0.97},
+				Exit:         &ui.Motion{Y: 4, Scale: 0.985},
+				Colors:       true,
+				Shadows:      true,
+			}).
 			Children(build)
 	})
 }

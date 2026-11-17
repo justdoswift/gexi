@@ -2,6 +2,7 @@ package main
 
 import (
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
@@ -93,9 +94,28 @@ func dialogFrame(c *ui.Context, tk tokens, open *bool, width float32, build func
 		shadow = alpha(ui.RGB(0, 0, 0), 0.18)
 	}
 	ui.DialogBase(c, open, func(back, panel ui.Element) {
-		back.Background(shade)
+		// The window dims as the panel arrives and clears as it leaves, so a
+		// dialog reads as a layer coming over the work, not as a full-screen
+		// flip. The panel itself rises a hair and settles from just under
+		// full size, the way a sheet of glass would be set down.
+		back.Background(shade).Transition(ui.ElementTransition{
+			Duration:     dialogMotion,
+			Ease:         ui.EaseOut,
+			ExitDuration: dialogExitMotion,
+			Enter:        &ui.Motion{},
+			Exit:         &ui.Motion{},
+		})
 		panel.Width(width).Clip().Gap(0).Padding(0).Radius(22).
 			Shadow(0, 40, 100, 0, shadow).
+			Transition(ui.ElementTransition{
+				Duration:     dialogMotion,
+				Ease:         ui.EaseOut,
+				ExitDuration: dialogExitMotion,
+				Enter:        &ui.Motion{Y: 6, Scale: 0.97},
+				Exit:         &ui.Motion{Y: 4, Scale: 0.985},
+				Colors:       true,
+				Shadows:      true,
+			}).
 			Children(func() {
 				ui.Themed(c, dialogTheme(tk)).FillWidth().Children(func() {
 					inner := ui.Column(c).FillWidth().Gap(0).Padding(0).
@@ -173,12 +193,20 @@ func dialogLabel(c *ui.Context, tk tokens, label string) {
 }
 
 // dialogError is the line a form shows when its last answer did not work.
+// It drops in under the field and fades away when the next try clears it, so
+// a failed attempt does not push the footer down and back in one frame.
 func dialogError(c *ui.Context, tk tokens, message string) {
 	if message == "" {
 		return
 	}
 	ui.Text(c, message).FontSize(12).TextColor(tk.Danger).
-		Width(0).MinWidthPercent(100)
+		Width(0).MinWidthPercent(100).
+		Transition(ui.ElementTransition{
+			Duration: 140 * time.Millisecond,
+			Ease:     ui.EaseOut,
+			Enter:    &ui.Motion{Y: -2},
+			Exit:     &ui.Motion{Y: -2},
+		})
 }
 
 // dialogFooter is the rule and the actions at the bottom of a dialog. The
