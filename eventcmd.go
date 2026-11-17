@@ -42,6 +42,17 @@ func runEventCommand(args []string) bool {
 	if kind == "" {
 		return true
 	}
+	hook := readHookPayload()
+	// Droid sends every Notification reason through one hook; the payload
+	// says which one it is, so the pane hears a prompt, a finished turn, or
+	// nothing at all.
+	if agent == "droid" {
+		var keep bool
+		kind, keep = droidEventKind(kind, hook)
+		if !keep {
+			return true
+		}
+	}
 	params := map[string]any{"kind": kind}
 	if agent != "" {
 		params["agent"] = agent
@@ -49,7 +60,6 @@ func runEventCommand(args []string) bool {
 	if pane != "" {
 		params["pane"] = pane
 	}
-	hook := readHookPayload()
 	if msg := hook.message(); msg != "" {
 		params["message"] = msg
 	}
@@ -84,6 +94,43 @@ type hookPayload struct {
 	Prompt    string `json:"prompt"`
 	AgentID   string `json:"agent_id"`
 	AgentType string `json:"agent_type"`
+	// NotificationType is Droid's reason for a Notification: a permission
+	// prompt means the agent waits on the user, an idle prompt means the
+	// turn is over, and an auth success is not about the work.
+	NotificationType string `json:"notification_type"`
+	// StopHookActive is Droid's word that another hook already kept the
+	// turn going; its Stop must not end the turn in the pane either.
+	StopHookActive bool `json:"stop_hook_active"`
+}
+
+// droidEventKind turns a Droid hook into the pane event it reports. Droid
+// fires Notification for three different moments, all through one hook:
+//
+//   - permission_prompt or elicitation_dialog: the agent is waiting on the
+//     user, which is needs-input.
+//   - idle_prompt: the turn is over (including a turn the user cancelled
+//     with Ctrl+C), so the pane stops working.
+//   - auth_success: nothing about the work, so it reports nothing.
+//
+// A Stop whose stop_hook_active is set is a turn another hook continued; it
+// must not switch the pane's light off while work goes on.
+func droidEventKind(kind string, hook hookPayload) (string, bool) {
+	switch kind {
+	case "turn.end":
+		if hook.StopHookActive {
+			return "", false
+		}
+	case "needs-input":
+		switch hook.NotificationType {
+		case "", "permission_prompt", "elicitation_dialog":
+			return "needs-input", true
+		case "idle_prompt":
+			return "turn.end", true
+		default:
+			return "", false
+		}
+	}
+	return kind, true
 }
 
 // message is what the agent said: the final reply for Stop, and the prompt it

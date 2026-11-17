@@ -64,6 +64,10 @@ func main() {
 	// file is there before any of them try to launch. The user's own settings
 	// take the same hooks, so a claude started by hand in a pane reports too.
 	_, _ = installClaudeHooks()
+	// Droid takes the hooks as a per-launch settings overlay. Writing it at
+	// startup means a restored droid command finds its file; hand-started
+	// droids do not carry the flag, so they report nothing.
+	_, _ = installDroidHooks()
 	// Amp reads plugins from the user's config dir. This one is inert outside
 	// a gexi pane, so a hand-started amp reports without needing a flag.
 	if _, err := installAmpEvents(); err != nil {

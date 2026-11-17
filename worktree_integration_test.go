@@ -835,6 +835,43 @@ func TestWorktreesPageDrawsEveryState(t *testing.T) {
 	}
 }
 
+// TestWorktreesPageRowsLeaveWithMotion checks a row taken off the page still
+// paints for its exit while the card closes the gap, rather than the whole
+// list snapping one row shorter in the frame the entry is removed.
+func TestWorktreesPageRowsLeaveWithMotion(t *testing.T) {
+	t.Setenv("GEXI_HOME", t.TempDir())
+	w := &workspace{settingsTab: settingsWorktrees}
+	w.archived = []archivedWorktree{
+		{ID: "a", ProjectDir: "/tmp/project", Root: "/tmp/project", Path: "/tmp/project/a", Branch: "a-branch"},
+		{ID: "b", ProjectDir: "/tmp/project", Root: "/tmp/project", Path: "/tmp/project/b", Branch: "b-branch"},
+	}
+	tester := ui.NewTester(func(c *ui.Context) {
+		tk := themeTokens(c.Theme())
+		ui.Column(c).Fill().Background(tk.Background).Padding(20).Children(func() {
+			settingsCardMotion(c, tk, "project", func() {
+				for i := range w.archived {
+					row := worktreeRow{archived: &w.archived[i]}
+					w.worktreeRowSlot(c, tk, row, i == 0)
+				}
+			})
+		})
+	}, 520, 300)
+	tester.Frame()
+	before := inkPixels(tester.Image())
+
+	w.archived = w.archived[:1]
+	tester.Frame()
+	during := inkPixels(tester.Image())
+	tester.Advance(rowMotion)
+	after := inkPixels(tester.Image())
+	if during <= after {
+		t.Fatalf("the removed row left in its frame: %d pixels during, %d after", during, after)
+	}
+	if after >= before {
+		t.Fatalf("the removed row never left: %d pixels before, %d after", before, after)
+	}
+}
+
 // TestWorktreesPageShowsClearProgress checks a batch deletion reports how far
 // it has got in the row that started it, with the spinner where the delete
 // button was, instead of leaving the page looking idle while git works. It

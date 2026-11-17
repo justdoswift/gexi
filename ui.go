@@ -411,7 +411,6 @@ func (w *workspace) toggleSearch() {
 // field shows would outlive the search that made it.
 func (w *workspace) closeSearch() {
 	w.searchOpen = false
-	w.searchShown = false
 	w.searchQuery = ""
 	w.invalidate()
 }
@@ -428,17 +427,23 @@ func (w *workspace) searchDialog(c *ui.Context, tk tokens) {
 		if tk.Dark {
 			shade = ui.RGBA(0, 0, 0, 0.32)
 		}
-		back.Background(shade)
+		back.Background(shade).Transition(ui.ElementTransition{
+			Duration:     dialogMotion,
+			Ease:         ui.EaseOut,
+			ExitDuration: dialogExitMotion,
+			Enter:        &ui.Motion{},
+			Exit:         &ui.Motion{},
+		})
 		// The box rises and fades in over the window, as the drawer and the
-		// reply reader slide in: the first frame sets it just above its
-		// place, and the frame after lets it settle.
-		pose := ui.Pose{}
-		if !w.searchShown {
-			w.searchShown = true
-			pose = ui.Pose{Y: -10, Scale: 0.98, Fade: 1}
-			c.After(time.Millisecond)
-		}
-		panel = panel.AnimatePose(pose, ui.Animation{Duration: sidebarMotion, Ease: ui.EaseOut})
+		// reply reader slide in. It leaves the same way, so closing the search
+		// does not blink the window back in one frame.
+		panel.Transition(ui.ElementTransition{
+			Duration:     dialogMotion,
+			Ease:         ui.EaseOut,
+			ExitDuration: dialogExitMotion,
+			Enter:        &ui.Motion{Y: -10, Scale: 0.98},
+			Exit:         &ui.Motion{Y: -6, Scale: 0.99},
+		})
 		panel = raised(panel.Width(520).Clip().Radius(12).Background(tk.Background), tk)
 		panel.Children(func() {
 			ui.Column(c).FillWidth().Children(func() {
@@ -1250,9 +1255,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					} else {
 						strip = strip.DragWindow()
 					}
-					if strip.Hovered() {
-						strip = hoverWash(c, strip, tk)
-					}
+					strip = hoverWash(c, strip, tk)
 					strip.Children(func() {
 						if agent != nil {
 							if src := agentLogoSource(agent.Kind, tk); src != nil && showMark {

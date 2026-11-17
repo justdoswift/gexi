@@ -414,15 +414,45 @@ func (w *workspace) worktreesPage(c *ui.Context, tk tokens) {
 	}
 	for _, group := range groupWorktreeRows(rows) {
 		sectionLabel(c, tk, group.name)
-		settingsCard(c, tk, func() {
+		settingsCardMotion(c, tk, group.name, func() {
 			for i, row := range group.rows {
-				if i > 0 {
-					cardDivider(c, tk)
-				}
-				w.worktreeRowView(c, tk, row)
+				w.worktreeRowSlot(c, tk, row, i == 0)
 			}
 		})
 	}
+}
+
+// worktreeRowKey names a row across refreshes: its path for a checkout on
+// disk, its archive id for a branch kept without one. A row restored,
+// deleted, or cleaned up keeps its identity while it fades out, so the rows
+// below it slide into the gap instead of the list rebuilding one row shorter.
+func worktreeRowKey(row worktreeRow) string {
+	if row.archived != nil {
+		return "archived:" + row.archived.ID
+	}
+	if row.entry.Path == "" {
+		return "row"
+	}
+	return "path:" + filepath.Clean(row.entry.Path)
+}
+
+// worktreeRowSlot is one worktree row and the divider above it, keyed so the
+// card can animate the row in and out without the list jumping.
+func (w *workspace) worktreeRowSlot(c *ui.Context, tk tokens, row worktreeRow, first bool) {
+	slot := ui.Column(c).Key("worktree-row:" + worktreeRowKey(row))
+	slot.Transition(ui.ElementTransition{
+		Duration: rowMotion,
+		Ease:     ui.EaseOut,
+		Position: true,
+		Enter:    &ui.Motion{Y: -4},
+		Exit:     &ui.Motion{Y: -4},
+	})
+	slot.Children(func() {
+		if !first {
+			cardDivider(c, tk)
+		}
+		w.worktreeRowView(c, tk, row)
+	})
 }
 
 func (w *workspace) worktreeRowView(c *ui.Context, tk tokens, row worktreeRow) {

@@ -104,9 +104,6 @@ func TestWorktreeCheckpointsAnimateIn(t *testing.T) {
 	t.Setenv("GEXI_HOME", t.TempDir())
 	p := &pane{Worktree: &paneWorktree{
 		Path: t.TempDir(), Branch: "weaver", Base: "main",
-		busy:      worktreeBusyMerge,
-		busySteps: []worktreeStep{stepMergePR, stepSyncBase},
-		busyAt:    stepMergePR,
 	}}
 	w := &workspace{}
 	tester := ui.NewTester(func(c *ui.Context) {
@@ -116,7 +113,14 @@ func TestWorktreeCheckpointsAnimateIn(t *testing.T) {
 		})
 	}, 480, 300)
 
-	// The first frame is the card at the start of its pose: faded out.
+	// The screen is already there when the operation starts, so the card
+	// enters the existing page rather than arriving with it.
+	tester.Frame()
+	p.Worktree.busy = worktreeBusyMerge
+	p.Worktree.busySteps = []worktreeStep{stepMergePR, stepSyncBase}
+	p.Worktree.busyAt = stepMergePR
+
+	// The first frame is the card at the start of its entrance: faded out.
 	tester.Frame()
 	first := inkPixels(tester.Image())
 	if first != 0 {
@@ -148,6 +152,19 @@ func TestWorktreeCheckpointsAnimateIn(t *testing.T) {
 	}
 	if !tester.HasText(locales.WorktreeStepSyncBase("main")) {
 		t.Fatalf("the new stage is not drawn; texts %q", tester.Texts())
+	}
+
+	// The card leaves with a copy of itself still on screen, so the last
+	// stage stays readable as the operation ends instead of vanishing in the
+	// frame the busy flag clears.
+	p.Worktree.busy = ""
+	tester.Frame()
+	if inkPixels(tester.Image()) == 0 {
+		t.Fatal("the card vanished in the frame the operation ended")
+	}
+	tester.Advance(checkpointMotion)
+	if got := inkPixels(tester.Image()); got != 0 {
+		t.Fatalf("the card is still drawn after its exit: %d pixels", got)
 	}
 }
 

@@ -3214,7 +3214,11 @@ func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg
 		// header always says where the checkout is.
 		group = badge(group, tk, group.Hovered())
 	} else {
-		group = group.Background(bg)
+		// The merge chip's fill is its status: green can merge, amber is
+		// still checking, red is blocked. Easing the fill lets a check
+		// finishing turn the button rather than swap it.
+		group = group.Background(group.AnimateColor("worktreeChipFill", bg,
+			ui.Animation{Duration: 200 * time.Millisecond, Ease: ui.EaseOut}))
 	}
 	// Leaving is the chip's own work, not the menu's: the label and the
 	// chevron give way to the spinner in the middle, so the wait reads the
@@ -3574,10 +3578,63 @@ func excludePerchRule(worktreePath string) {
 	_ = os.WriteFile(path, []byte(body+entry+"\n"), 0o644)
 }
 
+// worktreeSlot names the pane header's worktree control across the forms it
+// takes: worktree, creating, PR, Merge, Archive, and the gone checkout. A
+// new form gets its own node key so the old one can leave and the new enter;
+// Match lets the two cross over in the same place instead of the wider or
+// narrower form snapping in under the pointer.
+type worktreeSlot struct{ pane string }
+
 // paneWorktreeButton is the worktree control in the pane header. It makes a
 // worktree for the pane; once it has one, the same slot shows PR / Merge
 // instead.
 func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
+	slot := ui.Row(c).Key("worktree-slot:" + p.ID + ":" + w.worktreeChipForm(p))
+	slot.Transition(ui.ElementTransition{
+		Duration: chipMotion,
+		Ease:     ui.EaseOut,
+		Enter:    &ui.Motion{Y: 2},
+		Exit:     &ui.Motion{Y: -2},
+		Match:    worktreeSlot{p.ID},
+	})
+	slot.Children(func() {
+		w.paneWorktreeForm(c, tk, p)
+	})
+}
+
+// worktreeChipForm is which of the header control's forms the pane is in.
+// The busy operations come first: while a pull request is opening or a merge
+// is running, that is what the chip says, not the state it is working on.
+func (w *workspace) worktreeChipForm(p *pane) string {
+	if p.Worktree == nil {
+		if p.worktreeBusy != "" {
+			return "creating"
+		}
+		return "none"
+	}
+	wt := p.Worktree
+	if !worktreeCheckoutExists(wt) {
+		return "gone"
+	}
+	if p.worktreeBusy == worktreeBusyLeave {
+		return "leave"
+	}
+	if wt.busy != "" {
+		return "busy:" + wt.busy
+	}
+	if wt.State == worktreeMerged {
+		if wt.Detected {
+			return "detected"
+		}
+		return "archive"
+	}
+	if wt.PR == 0 {
+		return "pr"
+	}
+	return "pr:" + wt.State
+}
+
+func (w *workspace) paneWorktreeForm(c *ui.Context, tk tokens, p *pane) {
 	if p.Worktree == nil {
 		label := "worktree"
 		action := func() { w.createPaneWorktree(p) }
@@ -3601,16 +3658,16 @@ func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 		})
 		return
 	}
-	w.worktreeButton(c, tk, p)
+	w.worktreeButtonView(c, tk, p)
 }
 
-// worktreeButton is the PR control in the pane header, left of the pane
+// worktreeButtonView is the PR control in the pane header, left of the pane
 // actions. The first press opens a pull request. Once one exists, PR opens
 // the page and a separate Merge button appears; Merge is muted while GitHub
 // would not merge it, and otherwise merges on the press. After the merge it
 // becomes Archive, which clears the pane and its checkout away. Each form
 // carries the worktree menu on its right, where leaving the checkout sits.
-func (w *workspace) worktreeButton(c *ui.Context, tk tokens, p *pane) {
+func (w *workspace) worktreeButtonView(c *ui.Context, tk tokens, p *pane) {
 	wt := p.Worktree
 	// The checkout can be deleted while gexi runs. There is no git work to
 	// offer then, only a way to clear the binding and find the worktree page.

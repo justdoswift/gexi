@@ -1422,6 +1422,55 @@ func (w *workspace) remoteWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 	if link == nil {
 		return
 	}
+	slot := ui.Row(c).Key("remote-worktree-slot:" + p.ID + ":" + remoteWorktreeChipForm(link))
+	slot.Transition(ui.ElementTransition{
+		Duration: chipMotion,
+		Ease:     ui.EaseOut,
+		Enter:    &ui.Motion{Y: 2},
+		Exit:     &ui.Motion{Y: -2},
+		Match:    worktreeSlot{"remote:" + p.ID},
+	})
+	slot.Children(func() {
+		w.remoteWorktreeForm(c, tk, p)
+	})
+}
+
+// remoteWorktreeChipForm is which of the host's checkout forms the pane is
+// in, so a change of form can cross over in the same slot.
+func remoteWorktreeChipForm(link *remotePaneLink) string {
+	if link == nil {
+		return "none"
+	}
+	wt := link.worktree
+	if wt == nil {
+		if link.worktreeBusy != "" {
+			return "creating"
+		}
+		return "none"
+	}
+	if wt.Missing {
+		return "gone"
+	}
+	if wt.State == worktreeMerged {
+		if wt.Detected {
+			return "detected"
+		}
+		return "archive"
+	}
+	if wt.Busy != "" {
+		return "busy:" + wt.Busy
+	}
+	if wt.PR == 0 {
+		return "pr"
+	}
+	return "pr:" + wt.State
+}
+
+func (w *workspace) remoteWorktreeForm(c *ui.Context, tk tokens, p *pane) {
+	if p.remote == nil {
+		return
+	}
+	link := p.remote
 	wt := link.worktree
 	if wt == nil {
 		label := "W"
@@ -1575,7 +1624,10 @@ func (w *workspace) remoteWorktreeActionChip(c *ui.Context, tk tokens, p *pane, 
 	if quiet {
 		group = badge(group, tk, group.Hovered())
 	} else {
-		group = group.Background(bg)
+		// As on the host's own header: the merge fill eases between the
+		// statuses instead of swapping colour under the pointer.
+		group = group.Background(group.AnimateColor("remoteWorktreeChipFill", bg,
+			ui.Animation{Duration: 200 * time.Millisecond, Ease: ui.EaseOut}))
 	}
 	group.Children(func() {
 		// A checkout gexi only found has no Leave menu: the chip is one
