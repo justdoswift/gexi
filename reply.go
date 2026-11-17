@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/egoist/mygo"
@@ -17,94 +19,181 @@ import (
 	"github.com/justdoswift/gexi/locales"
 )
 
-// The reply reader shows the last complete answer an agent handed the pane,
-// typeset as markdown in a column of its own. It never reads the terminal:
-// the agent's own report already carries the assistant's words, so the reader
-// works without scraping a screen the agent is still drawing.
+// The reply reader shows the conversation an agent and the user had in the
+// pane — what the user said and what the agent answered — typeset as markdown
+// in a column of its own. Tool calls, their output, and the agent's working
+// notes stay out of it: the pane's terminal already shows all of that.
 //
-// Claude Code's Stop hook reports last_assistant_message, which eventcmd.go
-// passes on as Message; Amp's agent.end plugin reports the last assistant
-// message the same way. Other agents keep their words in their own formats;
-// they are not guessed at here.
+// It never reads the terminal: Claude Code's UserPromptSubmit hook carries the
+// prompt and its Stop hook reports last_assistant_message, which eventcmd.go
+// passes on as Prompt and Message; Amp's plugin reports both ends the same way.
+// Other agents keep their words in their own formats; they are not guessed at
+// here. The log lives in memory, so a pane that resumes a conversation older
+// than the window starts the reader at the words said since it opened.
 
 const (
 	replyWidthDefault float32 = 620
 	replyWidthMin     float32 = 420
 	replyWidthMax     float32 = 900
-	// replyMaxBytes caps what a reader will lay out. A hook payload can hold
-	// megabytes; a single reply that large would stall the window, and the
-	// end of such an answer is rarely what the user is reading for.
+	// replyMaxBytes caps one message the reader will lay out. A hook payload
+	// can hold megabytes; a single message that large would stall the window,
+	// and the end of such a message is rarely what the user is reading for.
 	replyMaxBytes = 200 << 10
+	// conversationMaxBytes caps the log as a whole. A session left running is
+	// more prompts and answers than anyone scrolls back through, so the
+	// oldest turns go first.
+	conversationMaxBytes = 400 << 10
+	// replyMeasure is the widest the conversation reads: a line of Chinese
+	// runs about 38 characters here, short enough to follow back to its
+	// start however wide the reader is dragged.
+	replyMeasure float32 = 640
 	// replyMonoFont is the terminal's family with the same fallbacks, so code
 	// in a reply reads like code in the pane.
 	replyMonoFont = terminalFont + ", PingFang SC, SF Mono, Menlo, monospace"
 )
 
-// paneReply is one assistant message, kept with the pane it belongs to.
+// paneMessage is one side of a conversation, kept with the pane it belongs to.
 // Session is the conversation that said it, so a reconnect of the same one
-// does not throw the answer away.
-type paneReply struct {
+// does not throw the log away.
+type paneMessage struct {
+	// FromUser marks the user's own words rather than the agent's answer.
+	FromUser  bool
 	Agent     agentKind
 	Session   string
 	Text      string
 	At        time.Time
 	Truncated bool
-	// doc is the parsed markdown, made when the reader first shows this reply
-	// and kept for the frames after it.
+	// doc is the parsed markdown, made when the reader first shows this
+	// message and kept for the frames after it.
 	doc    ast.Node
 	source []byte
 }
 
-// document parses the reply's markdown once.
-func (r *paneReply) document() (ast.Node, []byte) {
-	if r == nil {
+// document parses the message's markdown once.
+func (m *paneMessage) document() (ast.Node, []byte) {
+	if m == nil {
 		return nil, nil
 	}
-	if r.doc == nil {
-		r.source = []byte(r.Text)
-		r.doc = replyMarkdown.Parser().Parse(text.NewReader(r.source))
+	if m.doc == nil {
+		m.source = []byte(m.Text)
+		m.doc = replyMarkdown.Parser().Parse(text.NewReader(m.source))
 	}
-	return r.doc, r.source
+	return m.doc, m.source
 }
 
 var replyMarkdown = goldmark.New(goldmark.WithExtensions(extension.GFM))
 
-// setReply keeps the assistant text a hook reported. An empty message leaves
-// the previous reply alone: a turn that only ran tools has no new words, and
-// the last answer is still what the pane can show.
-func (p *pane) setReply(agent agentKind, session, text string) {
-	if p == nil || text == "" {
+// agentTalks reports whether an agent reports both sides of its conversation,
+// the prompt the user sent and the answer the turn ended with. The others
+// report no words at all, and there is nothing to show for them.
+func agentTalks(k agentKind) bool {
+	return k == agentClaude || k == agentAmp
+}
+
+// addUserMessage keeps what the user said to start a turn.
+func (p *pane) addUserMessage(agent agentKind, session, text string) {
+	p.addMessage(paneMessage{FromUser: true, Agent: agent, Session: session, Text: text})
+}
+
+// addReplyMessage keeps the answer a turn ended with.
+func (p *pane) addReplyMessage(agent agentKind, session, text string) {
+	p.addMessage(paneMessage{Agent: agent, Session: session, Text: text})
+}
+
+// addMessage appends one side of the conversation. A message with no words
+// adds nothing: a turn that only ran tools has no new words, and the
+// conversation before it is still what the pane can show. An agent other than
+// the one the log holds is a new conversation, so its first words start one.
+func (p *pane) addMessage(m paneMessage) {
+	if p == nil || strings.TrimSpace(m.Text) == "" {
 		return
 	}
-	truncated := false
-	if len(text) > replyMaxBytes {
-		text = text[:replyMaxBytes]
-		for len(text) > 0 && !utf8.ValidString(text) {
-			text = text[:len(text)-1]
-		}
-		truncated = true
+	if agent := p.conversationAgent(); agent != "" && agent != m.Agent {
+		p.clearConversation()
 	}
-	p.reply = &paneReply{
-		Agent:     agent,
-		Session:   session,
-		Text:      text,
-		At:        time.Now(),
-		Truncated: truncated,
+	m.Text, m.Truncated = capMessage(m.Text, replyMaxBytes)
+	m.At = time.Now()
+	p.conversation = append(p.conversation, m)
+	p.trimConversation()
+}
+
+// conversationAgent names the agent whose words the log holds.
+func (p *pane) conversationAgent() agentKind {
+	if p == nil || len(p.conversation) == 0 {
+		return ""
 	}
+	return p.conversation[len(p.conversation)-1].Agent
+}
+
+// clearConversation forgets the log, for a pane that starts another one.
+func (p *pane) clearConversation() {
+	p.conversation = nil
+	p.conversationTrimmed = false
+}
+
+// conversationStale reports that the log belongs to another conversation of
+// the same agent: a session that is known on both sides and differs, or a
+// session this log never learned. Only the agent that owns the log can clear
+// it, so a stray announcement from another one leaves it alone.
+func (p *pane) conversationStale(agent agentKind, session string) bool {
+	if len(p.conversation) == 0 {
+		return false
+	}
+	last := p.conversation[len(p.conversation)-1]
+	if last.Agent != agent {
+		return false
+	}
+	return last.Session == "" || session == "" || last.Session != session
+}
+
+// capMessage cuts a message to max bytes on a rune boundary.
+func capMessage(text string, max int) (string, bool) {
+	if len(text) <= max {
+		return text, false
+	}
+	text = text[:max]
+	for len(text) > 0 && !utf8.ValidString(text) {
+		text = text[:len(text)-1]
+	}
+	return text, true
+}
+
+// trimConversation drops the oldest turns once the log is past its cap.
+func (p *pane) trimConversation() {
+	total := 0
+	for _, m := range p.conversation {
+		total += len(m.Text)
+	}
+	drop := 0
+	for total > conversationMaxBytes && drop < len(p.conversation)-1 {
+		total -= len(p.conversation[drop].Text)
+		drop++
+	}
+	if drop == 0 {
+		return
+	}
+	p.conversation = append([]paneMessage(nil), p.conversation[drop:]...)
+	p.conversationTrimmed = true
 }
 
 // replyState is the reader column, open over the canvas the way the files
-// drawer is. pane and reply are the snapshot it shows, so a new turn ending
-// behind it does not move the text under the reader's eyes.
+// drawer is. msgs is the log as it stood when the reader opened, so a turn
+// ending behind it does not move the text under the reader's eyes.
 type replyState struct {
 	open    bool
 	closing bool
 	shown   bool
 	width   float32
 	pane    *pane
-	reply   *paneReply
-	// gen restarts the reader's scroll when a different reply opens.
+	agent   agentKind
+	msgs    []paneMessage
+	trimmed bool
+	// gen restarts the reader's scroll when a different conversation opens.
 	gen int
+	// toEnd asks the column to open on its newest turn, which is what the
+	// user came to read; scroll is where it shows the text.
+	toEnd  bool
+	scroll ui.ScrollState
 }
 
 func (r *replyState) widthValue() float32 {
@@ -123,7 +212,7 @@ const replyChipLabel = "MD"
 // button it belongs with. It follows the other controls: shown while the
 // pane has the focus or the pointer is over it.
 func (w *workspace) replyChip(c *ui.Context, tk tokens, p *pane) {
-	hint := locales.PaneReplyHint(p.reply.Agent.name())
+	hint := locales.PaneReplyHint(p.conversationAgent().name())
 	el := ui.Row(c).Height(22).Padding(0, 7).Radius(chromeRadius).Center().
 		Border(1, ui.Transparent).Cursor(ui.CursorPointer).
 		Role(ui.RoleButton).Label(hint).Tooltip(hint)
@@ -134,10 +223,11 @@ func (w *workspace) replyChip(c *ui.Context, tk tokens, p *pane) {
 	})
 }
 
-// openReply shows p's reply. It returns false when the pane has no reply to
-// show, which is the normal state of a pane whose agent does not report one.
+// openReply shows p's conversation. It returns false when the pane has no
+// words to show, which is the normal state of a pane the user has not talked
+// to, or whose agent reports none.
 func (w *workspace) openReply(p *pane) bool {
-	if p == nil || p.remote != nil || p.reply == nil || strings.TrimSpace(p.reply.Text) == "" {
+	if p == nil || p.remote != nil || len(p.conversation) == 0 {
 		return false
 	}
 	// The files drawer and the reader are both right-hand columns; showing
@@ -150,14 +240,20 @@ func (w *workspace) openReply(p *pane) bool {
 	r.closing = false
 	r.shown = false
 	r.pane = p
-	r.reply = p.reply
+	r.agent = p.conversationAgent()
+	// The messages are copied so the column keeps the log it opened with; a
+	// markdown document already parsed travels with the copy.
+	r.msgs = append([]paneMessage(nil), p.conversation...)
+	r.trimmed = p.conversationTrimmed
+	r.toEnd = true
+	r.scroll = ui.ScrollState{}
 	r.gen++
 	w.invalidate()
 	return true
 }
 
 // toggleReply opens the reader, or closes it when it already shows p. A pane
-// with no reply says so instead of opening an empty column.
+// with nothing said in it says so instead of opening an empty column.
 func (w *workspace) toggleReply(p *pane) {
 	if w.reply.open && w.reply.pane == p {
 		w.closeReply()
@@ -186,7 +282,11 @@ func (w *workspace) closeReply() {
 			w.reply.closing = false
 			w.reply.shown = false
 			w.reply.pane = nil
-			w.reply.reply = nil
+			w.reply.agent = ""
+			w.reply.msgs = nil
+			w.reply.trimmed = false
+			w.reply.toEnd = false
+			w.reply.scroll = ui.ScrollState{}
 			w.invalidate()
 		})
 	})
@@ -200,8 +300,8 @@ func (w *workspace) replyView(c *ui.Context, tk tokens) {
 		return
 	}
 	// The pane the snapshot belongs to can go away while the reader is open:
-	// closing it, or leaving its session, makes the old answer stop being
-	// what the window is about.
+	// closing it, or leaving its session, makes the old conversation stop
+	// being what the window is about.
 	if r.open && (r.pane == nil || w.paneByID(r.pane.ID) != r.pane ||
 		w.sessionOf(r.pane) != w.selected()) {
 		w.closeReply()
@@ -213,8 +313,9 @@ func (w *workspace) replyView(c *ui.Context, tk tokens) {
 	width := el.Animate("replyWidth", r.widthValue(), sidebarMotion)
 	// A reply is its own surface, as the drawer is: the theme's background and
 	// a hairline, not glass over the terminal.
-	el = el.Width(width).Background(tk.Background).
-		BorderWidth(0, 0, 0, 1).BorderColor(tk.Border).Clip()
+	el = el.Width(width)
+	el = sheet(el.Background(tk.Background).BorderWidth(0, 0, 0, 1).BorderColor(tk.Border), tk)
+	el = el.Clip()
 	if el.OverlayShortcut(0, ui.KeyEscape) {
 		w.closeReply()
 	}
@@ -232,9 +333,7 @@ func (w *workspace) replyView(c *ui.Context, tk tokens) {
 	el.Children(func() {
 		w.replyResizer(c, tk)
 		w.replyHeader(c, tk)
-		if r.reply != nil {
-			w.replyBody(c, tk, r.reply)
-		}
+		w.replyBody(c, tk)
 	})
 }
 
@@ -256,33 +355,55 @@ func (w *workspace) replyResizer(c *ui.Context, tk tokens) {
 	}
 }
 
-// replyHeader names the agent and the reply, with copy and close on the right.
+// replyHeader names the agent and whose conversation this is, with copy and
+// close on the right.
 func (w *workspace) replyHeader(c *ui.Context, tk tokens) {
 	r := &w.reply
-	ui.Row(c).Height(headerHeight).Shrink(0).FillWidth().Padding(0, 8, 0, 6).
+	// The logo sits at 9 so the title's 28 is the same rail the conversation
+	// hangs from; the panel reads as one column, header included.
+	ui.Row(c).Height(headerHeight).Shrink(0).FillWidth().Padding(0, 8, 0, 9).
 		BorderWidth(0, 0, 1, 0).BorderColor(tk.Border).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Gap(6).Shrink(1).Children(func() {
-			if r.reply != nil {
-				if src := agentLogoSource(r.reply.Agent, tk); src != nil {
+			if len(r.msgs) > 0 {
+				if src := agentLogoSource(r.agent, tk); src != nil {
 					ui.Image(c, src).Width(13).Height(13)
 				}
-				title := locales.ReplyTitle(r.reply.Agent.name())
-				ui.Text(c, title).FontSize(12.5).FontWeight(500).
+				title := locales.ReplyTitle(r.agent.name())
+				ui.Text(c, title).FontSize(12).FontWeight(500).
 					SingleLine().Shrink(1).TextColor(tk.Foreground)
-				ui.Text(c, r.reply.At.Format("15:04")).FontSize(10.5).
-					SingleLine().TextColor(tk.MutedForeground)
+				meta := locales.ReplyMeta(strconv.Itoa(len(r.msgs)))
+				ui.Text(c, meta).FontSize(10.5).SingleLine().
+					TextColor(tk.MutedForeground)
 			}
 		})
 		ui.Spacer(c)
-		if r.reply != nil {
-			w.replyCopyButton(c, tk, r.reply.Text)
+		if len(r.msgs) > 0 {
+			w.replyCopyButton(c, tk, conversationMarkdown(r.msgs))
 		}
 		iconButtonInFrame(c, tk, "x", func() { w.closeReply() }, locales.ReplyClose())
 	})
 }
 
-// replyCopyButton puts the reply's markdown on the clipboard, which is more
-// useful than copying its typeset words.
+// conversationMarkdown is the whole conversation as one document, each side
+// named, so a copy reads as a transcript rather than as loose prose.
+func conversationMarkdown(msgs []paneMessage) string {
+	var b strings.Builder
+	for i, m := range msgs {
+		if i > 0 {
+			b.WriteString("\n\n---\n\n")
+		}
+		name := m.Agent.name()
+		if m.FromUser {
+			name = locales.ReplyUser()
+		}
+		b.WriteString("**" + name + "**\n\n")
+		b.WriteString(strings.TrimSpace(m.Text))
+	}
+	return b.String()
+}
+
+// replyCopyButton puts the conversation's markdown on the clipboard, which is
+// more useful than copying its typeset words.
 func (w *workspace) replyCopyButton(c *ui.Context, tk tokens, text string) {
 	el := ui.Row(c).Height(22).Padding(0, 8).Radius(5).Gap(6).
 		AlignItems(ui.Center).Cursor(ui.CursorPointer).Role(ui.RoleButton).
@@ -299,27 +420,78 @@ func (w *workspace) replyCopyButton(c *ui.Context, tk tokens, text string) {
 	})
 }
 
-// replyBody is the scrolling column of typeset markdown. The text is capped
-// to a readable measure even when the reader is dragged wide.
-func (w *workspace) replyBody(c *ui.Context, tk tokens, r *paneReply) {
-	doc, source := r.document()
-	ui.Scroll(c).Fill().Key(w.reply.gen).Children(func() {
+// replyBody is the scrolling column of typeset markdown: the user's turns and
+// the agent's answers in the order they were said. The text is capped to a
+// readable measure even when the reader is dragged wide.
+func (w *workspace) replyBody(c *ui.Context, tk tokens) {
+	r := &w.reply
+	scroll := ui.Scroll(c).Fill().Key(r.gen).TrackScroll(&r.scroll)
+	if r.toEnd && r.scroll.MaxY > 0 {
+		// The column knows how tall the conversation is only after it has
+		// laid it out, so the scroll to its end waits for that frame.
+		r.toEnd = false
+		r.scroll.Y = r.scroll.MaxY
+	}
+	scroll.Children(func() {
 		ui.Column(c).FillWidth().AlignItems(ui.Center).Children(func() {
-			ui.Column(c).FillWidth().MaxWidth(680).Padding(24, 28, 40, 28).
-				Selectable().Children(func() {
-				if doc == nil {
-					ui.Text(c, locales.ReplyEmpty()).FontSize(13).
+			ui.Column(c).FillWidth().MaxWidth(replyMeasure).
+				Padding(22, 28, 36, 28).Selectable().Children(func() {
+				if len(r.msgs) == 0 {
+					ui.Text(c, locales.ReplyEmpty()).FontSize(11.5).
 						TextColor(tk.MutedForeground)
 					return
 				}
-				replyBlocks(c, tk, source, doc, replyStyle{
-					size: 13, color: tk.Foreground,
-				})
-				if r.Truncated {
-					ui.Text(c, locales.ReplyTruncated()).FontSize(11).
-						Margin(12, 0, 0, 0).TextColor(tk.MutedForeground)
+				if r.trimmed {
+					ui.Text(c, locales.ReplyTrimmed()).FontSize(11).
+						Margin(0, 0, 16, 0).TextColor(tk.MutedForeground)
+				}
+				for i := range r.msgs {
+					replyMessage(c, tk, &r.msgs[i], i == 0)
 				}
 			})
+		})
+	})
+}
+
+// replyMessage lays out one side of the conversation. What the user said hangs
+// on a rule at the left under its own label, half a step below the answer's
+// text, so it reads as the question the page is answering; the answer itself
+// is the page.
+func replyMessage(c *ui.Context, tk tokens, m *paneMessage, first bool) {
+	doc, source := m.document()
+	if !m.FromUser {
+		if doc == nil {
+			return
+		}
+		replyBlocks(c, tk, source, doc, replyStyle{size: 13, color: tk.Foreground}, true)
+		if m.Truncated {
+			ui.Text(c, locales.ReplyTruncated()).FontSize(11).
+				Margin(8, 0, 0, 0).TextColor(tk.MutedForeground)
+		}
+		return
+	}
+	top := float32(28)
+	if first {
+		top = 0
+	}
+	ui.Row(c).FillWidth().AlignItems(ui.Stretch).Gap(12).
+		Margin(top, 0, 10, 0).Children(func() {
+		ui.Box(c).Width(2).Radius(1).Background(tk.Control).
+			AlignSelf(ui.Stretch)
+		ui.Column(c).Grow(1).Shrink(1).Children(func() {
+			label := locales.ReplyUser() + " · " + m.At.Format("15:04")
+			ui.Text(c, label).FontSize(10.5).FontWeight(500).
+				TextColor(tk.MutedForeground).Margin(0, 0, 5, 0)
+			if doc == nil {
+				return
+			}
+			replyBlocks(c, tk, source, doc, replyStyle{
+				size: 12.5, color: tk.Foreground,
+			}, true)
+			if m.Truncated {
+				ui.Text(c, locales.ReplyTruncated()).FontSize(11).
+					Margin(6, 0, 0, 0).TextColor(tk.MutedForeground)
+			}
 		})
 	})
 }
@@ -337,17 +509,20 @@ type replyStyle struct {
 	codeBg    ui.Color
 }
 
-// replyBlocks lays out the block children of n in order.
-func replyBlocks(c *ui.Context, tk tokens, source []byte, n ast.Node, base replyStyle) {
+// replyBlocks lays out the block children of n in order. first marks the one
+// that opens a message, which takes the room it needs from the question above
+// rather than from the space between turns.
+func replyBlocks(c *ui.Context, tk tokens, source []byte, n ast.Node, base replyStyle, first bool) {
 	for child := n.FirstChild(); child != nil; child = child.NextSibling() {
-		replyBlock(c, tk, source, child, base)
+		replyBlock(c, tk, source, child, base, first)
+		first = false
 	}
 }
 
-func replyBlock(c *ui.Context, tk tokens, source []byte, n ast.Node, base replyStyle) {
+func replyBlock(c *ui.Context, tk tokens, source []byte, n ast.Node, base replyStyle, first bool) {
 	switch n := n.(type) {
 	case *ast.Heading:
-		replyHeading(c, tk, source, n)
+		replyHeading(c, tk, source, n, first)
 	case *ast.Paragraph:
 		replyParagraph(c, tk, source, n, base)
 	case *ast.TextBlock:
@@ -368,25 +543,30 @@ func replyBlock(c *ui.Context, tk tokens, source []byte, n ast.Node, base replyS
 		replyTable(c, tk, source, n)
 	default:
 		if n.HasChildren() {
-			replyBlocks(c, tk, source, n, base)
+			replyBlocks(c, tk, source, n, base, false)
 		}
 	}
 }
 
 // replyHeading is a heading at one of the reader's three sizes, with room
 // above it so sections separate without a rule.
-func replyHeading(c *ui.Context, tk tokens, source []byte, n *ast.Heading) {
-	size, weight, top := float32(13.5), 600, float32(10)
+func replyHeading(c *ui.Context, tk tokens, source []byte, n *ast.Heading, first bool) {
+	size, weight, top := float32(13), 600, float32(12)
 	switch n.Level {
 	case 1:
-		size, top = 21, 6
+		size, top = 18, 6
 	case 2:
-		size, top = 17, 16
+		size, top = 16, 18
 	case 3:
-		size, top = 14.5, 13
+		size, top = 14, 14
+	}
+	if first {
+		// An answer's first heading keeps a hair of room, so it reads as the
+		// answer's own title rather than as part of the question above it.
+		top = 4
 	}
 	el := ui.RichText(c).FontSize(size).FontWeight(weight).
-		TextColor(tk.Foreground).LineHeight(1.35).Margin(top, 0, 2, 0)
+		TextColor(tk.Foreground).LineHeight(1.3).Margin(top, 0, 2, 0)
 	el.Children(func() {
 		replyInlineChildren(c, tk, source, n, replyStyle{
 			size: size, weight: weight, color: tk.Foreground,
@@ -407,7 +587,10 @@ func replyParagraph(c *ui.Context, tk tokens, source []byte, n ast.Node, base re
 		style.color = tk.Foreground
 	}
 	el := ui.RichText(c).FontSize(style.size).TextColor(style.color).
-		LineHeight(1.55)
+		LineHeight(1.6)
+	if _, tight := n.Parent().(*ast.ListItem); !tight {
+		el = el.Margin(0, 0, 8, 0)
+	}
 	if style.weight > 0 {
 		el.FontWeight(style.weight)
 	}
@@ -465,7 +648,7 @@ func replyList(c *ui.Context, tk tokens, source []byte, n *ast.List, base replyS
 				})
 				content := ui.Column(c).Grow(1).Shrink(1).Gap(4)
 				content.Children(func() {
-					replyBlocks(c, tk, source, li, base)
+					replyBlocks(c, tk, source, li, base, false)
 				})
 			})
 		}
@@ -481,7 +664,7 @@ func replyBlockquote(c *ui.Context, tk tokens, source []byte, n *ast.Blockquote,
 		Children(func() {
 			ui.Box(c).Width(2).Background(tk.Control).AlignSelf(ui.Stretch)
 			ui.Column(c).Grow(1).Shrink(1).Gap(8).Children(func() {
-				replyBlocks(c, tk, source, n, quote)
+				replyBlocks(c, tk, source, n, quote, false)
 			})
 		})
 }
@@ -501,8 +684,8 @@ func replyCode(c *ui.Context, tk tokens, source []byte, n ast.Node, language str
 	if value == "" {
 		return
 	}
-	ui.Column(c).FillWidth().Radius(6).Background(tk.Muted).
-		Border(1, tk.Border).Padding(10, 12).Margin(4, 0, 6, 0).
+	ui.Column(c).FillWidth().Radius(chromeRadius).Background(tk.Muted).
+		Border(1, tk.Border).Padding(9, 11).Margin(6, 0, 8, 0).
 		Children(func() {
 			if lang := strings.TrimSpace(language); lang != "" {
 				ui.Text(c, lang).FontSize(10.5).TextColor(tk.MutedForeground).
@@ -552,8 +735,8 @@ func replyTable(c *ui.Context, tk tokens, source []byte, n *gast.Table) {
 		}
 	}
 	aligns := n.Alignments
-	ui.Column(c).FillWidth().Radius(6).Border(1, tk.Border).Clip().
-		Margin(4, 0, 6, 0).Children(func() {
+	ui.Column(c).FillWidth().Radius(chromeRadius).Border(1, tk.Border).Clip().
+		Margin(6, 0, 8, 0).Children(func() {
 		for i, row := range rows {
 			header := i == 0
 			line := ui.Row(c).FillWidth().AlignItems(ui.Stretch)
@@ -577,7 +760,7 @@ func replyTable(c *ui.Context, tk tokens, source []byte, n *gast.Table) {
 						if tc == nil {
 							return
 						}
-						size, weight := float32(12.5), 0
+						size, weight := float32(12), 0
 						if header {
 							weight = 600
 						}
@@ -646,16 +829,24 @@ func replyInline(c *ui.Context, tk tokens, source []byte, n ast.Node, style repl
 	case *ast.CodeSpan:
 		code := style
 		code.code = true
-		code.codeBg = tk.Control.Alpha(0.14)
+		// One step further from the page than a fenced block, and in the
+		// same direction, so code reads as the same material in both
+		// appearances instead of floating on top of the page in dark.
+		code.codeBg = tk.Muted.MixOklab(ui.RGB(0, 0, 0), 0.04)
 		code.size = 12.5
 		code.color = tk.Foreground
 		replyInlineText(c, string(n.Text(source)), code)
 	case *ast.Emphasis:
 		next := style
-		if n.Level >= 2 {
+		switch {
+		case n.Level >= 2:
 			next.weight = 600
-		} else {
+		case replyItalic(source, n):
 			next.italic = true
+		default:
+			// PingFang has no true italic: a shear through Chinese reads as
+			// a mistake, so a run with Han in it is emphasized by weight.
+			next.weight = 600
 		}
 		replyInlineChildren(c, tk, source, n, next)
 	case *ast.Link:
@@ -711,6 +902,34 @@ func replyInline(c *ui.Context, tk tokens, source []byte, n ast.Node, style repl
 			replyInlineChildren(c, tk, source, n, style)
 		}
 	}
+}
+
+// replyItalic reports whether an emphasis run reads as italic: one that holds
+// Han does not, because the interface font would only slant it.
+func replyItalic(source []byte, n *ast.Emphasis) bool {
+	for child := n.FirstChild(); child != nil; child = child.NextSibling() {
+		switch t := child.(type) {
+		case *ast.Text:
+			if hasHan(string(t.Segment.Value(source))) {
+				return false
+			}
+		case *ast.String:
+			if hasHan(string(t.Value)) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// hasHan reports whether text holds a Han character.
+func hasHan(s string) bool {
+	for _, r := range s {
+		if unicode.Is(unicode.Han, r) {
+			return true
+		}
+	}
+	return false
 }
 
 func replyInlineText(c *ui.Context, value string, style replyStyle) {

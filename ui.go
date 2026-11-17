@@ -1335,7 +1335,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						// The reply sits beside the checkout it is about,
 						// and appears with the other controls so an idle
 						// header stays quiet.
-						if p.reply != nil && p.remote == nil {
+						if p.remote == nil && len(p.conversation) > 0 {
 							w.replyChip(c, tk, p)
 						}
 						// The worktree button is the pane's checkout: a local
