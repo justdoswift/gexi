@@ -9,9 +9,9 @@ import (
 	"github.com/justdoswift/gexi/locales"
 )
 
-// TestMergeChipShimmersLabel checks the PR/merge chip's wait draws the
+// TestMergeChipShowsTheWait checks the PR/merge chip's wait draws the
 // words themselves, as one label, with no spinner beside them.
-func TestMergeChipShimmersLabel(t *testing.T) {
+func TestMergeChipShowsTheWait(t *testing.T) {
 	dir := t.TempDir()
 	view := func(c *ui.Context) {
 		tk := themeTokens(c.Theme())
@@ -37,8 +37,8 @@ func TestMergeChipShimmersLabel(t *testing.T) {
 	tester.Frame()
 }
 
-// A session at work shows a loading indicator where its mark sits: the sweep
-// across the name alone is easy to miss at a glance.
+// A session at work shows a loading indicator where its mark sits: the name
+// alone is easy to miss at a glance.
 func TestWorkingSessionShowsASpinner(t *testing.T) {
 	p := &pane{ID: "p", outAt: time.Now(), activity: &agentActivity{State: activityWorking}}
 	s := &session{ID: "s", Label: "Trace", Root: leaf(p)}
@@ -60,5 +60,34 @@ func TestWorkingSessionShowsASpinner(t *testing.T) {
 	tester.Frame()
 	if _, ok := tester.AccessByRole(ui.RoleProgress, ""); ok {
 		t.Fatal("an idle session still draws a spinner")
+	}
+}
+
+// TestWorkingSessionDoesNotRebuild checks that a working session's row is
+// built once and then only painted: the spinner turns in frames that paint
+// again without building the view, so an agent at work costs no rebuilds
+// while it runs.
+func TestWorkingSessionDoesNotRebuild(t *testing.T) {
+	p := &pane{ID: "p", outAt: time.Now(), activity: &agentActivity{State: activityWorking}}
+	s := &session{ID: "s", Label: "Trace", Root: leaf(p)}
+	pr := &project{ID: "pr", Dir: t.TempDir(), Sessions: []*session{s}}
+	w := &workspace{Projects: []*project{pr}}
+	builds := 0
+	view := func(c *ui.Context) {
+		builds++
+		tk := themeTokens(c.Theme())
+		ui.Column(c).Fill().Padding(12).Children(func() {
+			w.sessionRow(c, tk, pr, s, 0)
+		})
+	}
+	tester := ui.NewTester(view, 320, 120)
+	tester.Frame()
+	if !tester.FramePending() {
+		t.Fatal("a working session asks for no frame: its spinner stands still")
+	}
+	builds = 0
+	tester.Advance(time.Second)
+	if builds != 0 {
+		t.Fatalf("%d rebuilds in a second while a session works, want none", builds)
 	}
 }

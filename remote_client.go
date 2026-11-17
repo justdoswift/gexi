@@ -1523,7 +1523,8 @@ func (w *workspace) remoteWorktreeForm(c *ui.Context, tk tokens, p *pane) {
 	}
 	if busy := worktreeBusyLabelOf(wt.Busy); busy != "" {
 		worktreeChip(c, tk).OnClick(func() {}).Tooltip(busy).Children(func() {
-			shimmerText(c, tk, busy)
+			ui.Text(c, busy).FontSize(11).FontWeight(600).
+				TextColor(tk.Foreground).SingleLine()
 		})
 		return
 	}
