@@ -212,9 +212,12 @@ Zooming a pane floats the panes it hides over the stage's right edge, Stage
 Manager style: each card leans back in perspective and carries a live,
 scaled mirror of its terminal, with the pane's mark inside its lower left.
 Clicking a card grows it into the stage and shrinks the pane it replaces back
-into the rail. When there are more panes than fit, the cards overlap so each
-one's top and mark stay clickable. The rail stays out of the way when the
-session has one pane, the drawer is open, or the stage is too narrow.
+into the rail. A zoom lasts until it is unzoomed: closing the pane on stage
+hands the stage to the next pane, splitting opens the new pane on it, and
+⌘[ / ⌘] walk the stage through the session. When there are more panes than
+fit, the cards overlap so each one's top and mark stay clickable. The rail
+stays out of the way when the session has one pane, the drawer is open, or
+the stage is too narrow.
 
 The window follows Rex's chrome: no title bar, the traffic lights over the
 top-left corner, and a sidebar toggle that never moves. With the sidebar
