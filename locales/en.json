@@ -42,6 +42,8 @@
   "replyTrimmed": "The conversation is long; showing its most recent turns.",
   "replyMeta": "{count} messages",
   "replyUser": "You",
+  "replyExpand": "Fill the window",
+  "replyCollapse": "Give the panes back",
   "paneCloseTitle": "Close pane?",
   "paneCloseSessionTitle": "Close session?",
   "paneCloseProjectTitle": "Close project?",

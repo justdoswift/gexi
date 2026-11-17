@@ -100,8 +100,10 @@ func main() {
 			Content:   ui.View(w.view),
 			// Rex chrome: no title bar; the view draws under the traffic
 			// lights, which the layout leaves room for.
-			TitleBarStyle:        mygo.TitleBarHidden,
-			TrafficLightPosition: &mygo.Point{X: 20, Y: 17},
+			TitleBarStyle: mygo.TitleBarHidden,
+			// The lights share the line of the pane header beside them: its
+			// title sits at about 29 from the top, and a button is 14 tall.
+			TrafficLightPosition: &mygo.Point{X: 20, Y: 22},
 			// The window carries the system's Liquid Glass for the optional
 			// translucent sidebar. The view paints the sidebar and the canvas
 			// as one surface; with the material on, that surface lets the

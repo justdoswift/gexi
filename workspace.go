@@ -124,6 +124,11 @@ type workspace struct {
 	// left zoomed to.
 	zoomSettling bool
 	zoomGen      int
+	// appear is the look the window was last drawn in, and the dissolve of
+	// an appearance change running from it.
+	appear appearanceFade
+	// sidebarPos is how much of the sidebar shows while it slides.
+	sidebarPos sidebarSlide
 	// stageRailShown tells that the off-stage panes' rail has drawn once since
 	// the zoom began, so its cards slide in only on entry.
 	stageRailShown bool

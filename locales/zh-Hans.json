@@ -42,6 +42,8 @@
   "replyTrimmed": "对话过长，只显示最近的部分。",
   "replyMeta": "{count} 条",
   "replyUser": "你",
+  "replyExpand": "放大到整个窗口",
+  "replyCollapse": "还原窗格",
   "paneCloseTitle": "关闭窗格？",
   "paneCloseSessionTitle": "关闭会话？",
   "paneCloseProjectTitle": "关闭项目？",

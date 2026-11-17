@@ -170,6 +170,32 @@ func TestReplySurvivesTheSameSessionStart(t *testing.T) {
 	}
 }
 
+// TestPromptEchoIsSaidOnce: Amp can report one prompt twice — the state
+// stream names a turn from the thread's last message while the start hook
+// reports the same words. The pane reads it as one question, and a prompt the
+// user really sends again after an answer is still two.
+func TestPromptEchoIsSaidOnce(t *testing.T) {
+	p := &pane{ID: "p1"}
+	p.addUserMessage(agentAmp, "T-1", "看一下登录跳转")
+	p.addUserMessage(agentAmp, "T-1", "看一下登录跳转")
+	if len(p.conversation) != 1 {
+		t.Fatalf("conversation = %+v, want the echo dropped", p.conversation)
+	}
+
+	// The same words after the agent answered are a new question.
+	p.addReplyMessage(agentAmp, "T-1", "看过了，没问题。")
+	p.addUserMessage(agentAmp, "T-1", "看一下登录跳转")
+	if len(p.conversation) != 3 {
+		t.Fatalf("conversation = %d messages, want the new question kept", len(p.conversation))
+	}
+
+	// A different prompt a moment later is not an echo.
+	p.addUserMessage(agentAmp, "T-1", "再看一下注册")
+	if len(p.conversation) != 4 {
+		t.Fatalf("conversation = %d messages, want both prompts", len(p.conversation))
+	}
+}
+
 // TestLongMessageIsCapped keeps a huge hook payload from becoming a huge
 // layout. The cut lands on a rune boundary and the reader can say it was cut.
 func TestLongMessageIsCapped(t *testing.T) {

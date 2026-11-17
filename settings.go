@@ -1189,9 +1189,17 @@ func (w *workspace) switchControl(c *ui.Context, tk tokens, on bool, toggle func
 	track := ui.Row(c).Width(36).Height(20).Radius(10).Padding(2).
 		Cursor(ui.CursorPointer)
 
-	trackColor := tk.Active
+	// Off, the track is a surface the page steps up from, and the thumb is a
+	// lit knob over it; on, the track is ink and the thumb is the page. Both
+	// states read in either appearance — the old off track was the page's own
+	// step, which disappears in dark.
+	trackColor := tk.Control
+	thumbColor := tk.Raised
+	if tk.Dark {
+		thumbColor = tk.Foreground
+	}
 	if on {
-		trackColor = tk.Foreground
+		trackColor, thumbColor = tk.Foreground, tk.Background
 	}
 	track = track.Background(track.AnimateColor("track", trackColor, anim))
 
@@ -1208,7 +1216,8 @@ func (w *workspace) switchControl(c *ui.Context, tk tokens, on bool, toggle func
 		if pos > 0 {
 			ui.Box(c).Width(pos * 16).Height(1).OnClick(toggle)
 		}
-		ui.Box(c).Width(16).Height(16).Radius(8).Background(tk.Background).OnClick(toggle)
+		thumb := ui.Box(c).Width(16).Height(16).Radius(8).OnClick(toggle)
+		thumb.Background(thumb.AnimateColor("switchThumb", thumbColor, anim))
 	})
 }
 

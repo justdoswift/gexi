@@ -34,7 +34,13 @@ import (
 const (
 	replyWidthDefault float32 = 620
 	replyWidthMin     float32 = 420
-	replyWidthMax     float32 = 900
+	// replyWidthMax lets the reader take almost the whole window: the text
+	// keeps its measure, so a wide column is air around the words, not a
+	// longer line to read.
+	replyWidthMax float32 = 1400
+	// replyEchoWindow is how close two copies of the same prompt must be to
+	// be one report of it rather than the user asking twice.
+	replyEchoWindow = 3 * time.Second
 	// replyMaxBytes caps one message the reader will lay out. A hook payload
 	// can hold megabytes; a single message that large would stall the window,
 	// and the end of such a message is rarely what the user is reading for.
@@ -43,10 +49,6 @@ const (
 	// more prompts and answers than anyone scrolls back through, so the
 	// oldest turns go first.
 	conversationMaxBytes = 400 << 10
-	// replyMeasure is the widest the conversation reads: a line of Chinese
-	// runs about 38 characters here, short enough to follow back to its
-	// start however wide the reader is dragged.
-	replyMeasure float32 = 640
 	// replyMonoFont is the terminal's family with the same fallbacks, so code
 	// in a reply reads like code in the pane.
 	replyMonoFont = terminalFont + ", PingFang SC, SF Mono, Menlo, monospace"
@@ -107,6 +109,16 @@ func (p *pane) addReplyMessage(agent agentKind, session, text string) {
 func (p *pane) addMessage(m paneMessage) {
 	if p == nil || strings.TrimSpace(m.Text) == "" {
 		return
+	}
+	if m.FromUser && len(p.conversation) > 0 {
+		// Two sources can report one prompt: Amp names a turn from the
+		// thread's last message while its start hook reports the same
+		// words, and a hook installed twice runs twice. The user said it
+		// once; the echo is not a second question.
+		if last := p.conversation[len(p.conversation)-1]; last.FromUser &&
+			last.Text == m.Text && time.Since(last.At) < replyEchoWindow {
+			return
+		}
 	}
 	if agent := p.conversationAgent(); agent != "" && agent != m.Agent {
 		p.clearConversation()
@@ -176,6 +188,28 @@ func (p *pane) trimConversation() {
 	p.conversationTrimmed = true
 }
 
+// replyReaderSize is the size the conversation is read at: the terminal's
+// own, so the reader and the pane it belongs to are set in the same type.
+func (w *workspace) replyReaderSize() float32 {
+	return w.terminalFontSize()
+}
+
+// replyReaderFont is the family the conversation is read in: the terminal's,
+// so a reader's prose and the pane's output are the same letterforms.
+func (w *workspace) replyReaderFont() string {
+	return w.terminalTextFont().Family
+}
+
+// replyMeasureFor is how wide the conversation reads at size: about 49
+// characters, short enough to follow a line back to its start.
+func replyMeasureFor(size float32) float32 {
+	measure := size * 49
+	if measure > 980 {
+		measure = 980
+	}
+	return measure
+}
+
 // replyState is the reader column, open over the canvas the way the files
 // drawer is. msgs is the log as it stood when the reader opened, so a turn
 // ending behind it does not move the text under the reader's eyes.
@@ -194,6 +228,9 @@ type replyState struct {
 	// user came to read; scroll is where it shows the text.
 	toEnd  bool
 	scroll ui.ScrollState
+	// wide fills the window with the reader, for reading a long answer
+	// without the panes beside it.
+	wide bool
 }
 
 func (r *replyState) widthValue() float32 {
@@ -309,11 +346,15 @@ func (w *workspace) replyView(c *ui.Context, tk tokens) {
 			return
 		}
 	}
+	c.Key("reply")
 	el := ui.Column(c).Absolute().Top(0).Bottom(0).Right(0)
-	width := el.Animate("replyWidth", r.widthValue(), sidebarMotion)
 	// A reply is its own surface, as the drawer is: the theme's background and
 	// a hairline, not glass over the terminal.
-	el = el.Width(width)
+	if r.wide {
+		el = el.WidthPercent(100)
+	} else {
+		el = el.Width(el.Animate("replyWidth", r.widthValue(), sidebarMotion))
+	}
 	el = sheet(el.Background(tk.Background).BorderWidth(0, 0, 0, 1).BorderColor(tk.Border), tk)
 	el = el.Clip()
 	if el.OverlayShortcut(0, ui.KeyEscape) {
@@ -343,6 +384,8 @@ func (w *workspace) replyResizer(c *ui.Context, tk tokens) {
 	edge := ui.Box(c).Absolute().Left(-3).Top(0).Width(6).FillHeight().
 		Cursor(ui.CursorResizeEW)
 	if dx, _, ok := edge.Dragged(); ok && dx != 0 {
+		// Dragging the edge is asking for a width again, not for the window.
+		w.reply.wide = false
 		next := w.reply.widthValue() - dx
 		if next < replyWidthMin {
 			next = replyWidthMin
@@ -380,8 +423,23 @@ func (w *workspace) replyHeader(c *ui.Context, tk tokens) {
 		if len(r.msgs) > 0 {
 			w.replyCopyButton(c, tk, conversationMarkdown(r.msgs))
 		}
+		w.replyWideButton(c, tk)
 		iconButtonInFrame(c, tk, "x", func() { w.closeReply() }, locales.ReplyClose())
 	})
+}
+
+// replyWideButton fills the window with the reader, and gives the panes back
+// when the answer is read.
+func (w *workspace) replyWideButton(c *ui.Context, tk tokens) {
+	r := &w.reply
+	name, hint := "expand", locales.ReplyExpand()
+	if r.wide {
+		name, hint = "collapse", locales.ReplyCollapse()
+	}
+	iconButtonInFrame(c, tk, name, func() {
+		r.wide = !r.wide
+		w.invalidate()
+	}, hint)
 }
 
 // conversationMarkdown is the whole conversation as one document, each side
@@ -421,10 +479,11 @@ func (w *workspace) replyCopyButton(c *ui.Context, tk tokens, text string) {
 }
 
 // replyBody is the scrolling column of typeset markdown: the user's turns and
-// the agent's answers in the order they were said. The text is capped to a
-// readable measure even when the reader is dragged wide.
+// the agent's answers in the order they were said, in the terminal's own type
+// and size. The text keeps its measure however wide the reader is dragged.
 func (w *workspace) replyBody(c *ui.Context, tk tokens) {
 	r := &w.reply
+	size, family := w.replyReaderSize(), w.replyReaderFont()
 	scroll := ui.Scroll(c).Fill().Key(r.gen).TrackScroll(&r.scroll)
 	if r.toEnd && r.scroll.MaxY > 0 {
 		// The column knows how tall the conversation is only after it has
@@ -434,19 +493,19 @@ func (w *workspace) replyBody(c *ui.Context, tk tokens) {
 	}
 	scroll.Children(func() {
 		ui.Column(c).FillWidth().AlignItems(ui.Center).Children(func() {
-			ui.Column(c).FillWidth().MaxWidth(replyMeasure).
+			ui.Column(c).FillWidth().MaxWidth(replyMeasureFor(size)).
 				Padding(22, 28, 36, 28).Selectable().Children(func() {
 				if len(r.msgs) == 0 {
-					ui.Text(c, locales.ReplyEmpty()).FontSize(11.5).
+					ui.Text(c, locales.ReplyEmpty()).Font(family).FontSize(size - 4).
 						TextColor(tk.MutedForeground)
 					return
 				}
 				if r.trimmed {
-					ui.Text(c, locales.ReplyTrimmed()).FontSize(11).
+					ui.Text(c, locales.ReplyTrimmed()).Font(family).FontSize(size-4).
 						Margin(0, 0, 16, 0).TextColor(tk.MutedForeground)
 				}
 				for i := range r.msgs {
-					replyMessage(c, tk, &r.msgs[i], i == 0)
+					w.replyMessage(c, tk, &r.msgs[i], i == 0, size, family)
 				}
 			})
 		})
@@ -454,20 +513,28 @@ func (w *workspace) replyBody(c *ui.Context, tk tokens) {
 }
 
 // replyMessage lays out one side of the conversation. What the user said hangs
-// on a rule at the left under its own label, half a step below the answer's
-// text, so it reads as the question the page is answering; the answer itself
-// is the page.
-func replyMessage(c *ui.Context, tk tokens, m *paneMessage, first bool) {
+// on a rule at the left under its own label; the answer hangs on the same rule
+// at the right, so the two speakers are told apart at a glance.
+func (w *workspace) replyMessage(c *ui.Context, tk tokens, m *paneMessage, first bool, size float32, family string) {
 	doc, source := m.document()
 	if !m.FromUser {
 		if doc == nil {
 			return
 		}
-		replyBlocks(c, tk, source, doc, replyStyle{size: 13, color: tk.Foreground}, true)
-		if m.Truncated {
-			ui.Text(c, locales.ReplyTruncated()).FontSize(11).
-				Margin(8, 0, 0, 0).TextColor(tk.MutedForeground)
-		}
+		ui.Row(c).FillWidth().AlignItems(ui.Stretch).Gap(12).Children(func() {
+			ui.Column(c).Grow(1).Shrink(1).Children(func() {
+				replyBlocks(c, tk, source, doc, replyStyle{
+					size: size, family: family, color: tk.Foreground,
+				}, true)
+				if m.Truncated {
+					ui.Text(c, locales.ReplyTruncated()).Font(family).
+						FontSize(size-4).Margin(8, 0, 0, 0).
+						TextColor(tk.MutedForeground)
+				}
+			})
+			ui.Box(c).Width(2).Radius(1).Background(tk.Control).
+				AlignSelf(ui.Stretch)
+		})
 		return
 	}
 	top := float32(28)
@@ -480,17 +547,18 @@ func replyMessage(c *ui.Context, tk tokens, m *paneMessage, first bool) {
 			AlignSelf(ui.Stretch)
 		ui.Column(c).Grow(1).Shrink(1).Children(func() {
 			label := locales.ReplyUser() + " · " + m.At.Format("15:04")
-			ui.Text(c, label).FontSize(10.5).FontWeight(500).
+			ui.Text(c, label).Font(family).FontSize(size-4.5).FontWeight(500).
 				TextColor(tk.MutedForeground).Margin(0, 0, 5, 0)
 			if doc == nil {
 				return
 			}
 			replyBlocks(c, tk, source, doc, replyStyle{
-				size: 12.5, color: tk.Foreground,
+				size: size - 0.5, family: family, color: tk.Foreground,
 			}, true)
 			if m.Truncated {
-				ui.Text(c, locales.ReplyTruncated()).FontSize(11).
-					Margin(6, 0, 0, 0).TextColor(tk.MutedForeground)
+				ui.Text(c, locales.ReplyTruncated()).Font(family).
+					FontSize(size-4).Margin(6, 0, 0, 0).
+					TextColor(tk.MutedForeground)
 			}
 		})
 	})
@@ -500,6 +568,7 @@ func replyMessage(c *ui.Context, tk tokens, m *paneMessage, first bool) {
 // from the RichText around them.
 type replyStyle struct {
 	size      float32
+	family    string
 	weight    int
 	italic    bool
 	color     ui.Color
@@ -522,7 +591,7 @@ func replyBlocks(c *ui.Context, tk tokens, source []byte, n ast.Node, base reply
 func replyBlock(c *ui.Context, tk tokens, source []byte, n ast.Node, base replyStyle, first bool) {
 	switch n := n.(type) {
 	case *ast.Heading:
-		replyHeading(c, tk, source, n, first)
+		replyHeading(c, tk, source, n, base, first)
 	case *ast.Paragraph:
 		replyParagraph(c, tk, source, n, base)
 	case *ast.TextBlock:
@@ -532,15 +601,15 @@ func replyBlock(c *ui.Context, tk tokens, source []byte, n ast.Node, base replyS
 	case *ast.Blockquote:
 		replyBlockquote(c, tk, source, n, base)
 	case *ast.FencedCodeBlock:
-		replyCode(c, tk, source, n, string(n.Language(source)))
+		replyCode(c, tk, source, n, string(n.Language(source)), base)
 	case *ast.CodeBlock:
-		replyCode(c, tk, source, n, "")
+		replyCode(c, tk, source, n, "", base)
 	case *ast.ThematicBreak:
 		ui.Box(c).FillWidth().Height(1).Background(tk.Border).Margin(12, 0, 2, 0)
 	case *ast.HTMLBlock:
 		replyRawHTML(c, tk, source, n)
 	case *gast.Table:
-		replyTable(c, tk, source, n)
+		replyTable(c, tk, source, n, base)
 	default:
 		if n.HasChildren() {
 			replyBlocks(c, tk, source, n, base, false)
@@ -550,15 +619,19 @@ func replyBlock(c *ui.Context, tk tokens, source []byte, n ast.Node, base replyS
 
 // replyHeading is a heading at one of the reader's three sizes, with room
 // above it so sections separate without a rule.
-func replyHeading(c *ui.Context, tk tokens, source []byte, n *ast.Heading, first bool) {
-	size, weight, top := float32(13), 600, float32(12)
+func replyHeading(c *ui.Context, tk tokens, source []byte, n *ast.Heading, base replyStyle, first bool) {
+	body := base.size
+	if body == 0 {
+		body = 13
+	}
+	size, weight, top := body, 600, float32(12)
 	switch n.Level {
 	case 1:
-		size, top = 18, 6
+		size, top = body+5, 6
 	case 2:
-		size, top = 16, 18
+		size, top = body+3, 18
 	case 3:
-		size, top = 14, 14
+		size, top = body+1, 14
 	}
 	if first {
 		// An answer's first heading keeps a hair of room, so it reads as the
@@ -567,9 +640,12 @@ func replyHeading(c *ui.Context, tk tokens, source []byte, n *ast.Heading, first
 	}
 	el := ui.RichText(c).FontSize(size).FontWeight(weight).
 		TextColor(tk.Foreground).LineHeight(1.3).Margin(top, 0, 2, 0)
+	if base.family != "" {
+		el = el.Font(base.family)
+	}
 	el.Children(func() {
 		replyInlineChildren(c, tk, source, n, replyStyle{
-			size: size, weight: weight, color: tk.Foreground,
+			size: size, family: base.family, weight: weight, color: tk.Foreground,
 		})
 	})
 }
@@ -588,6 +664,9 @@ func replyParagraph(c *ui.Context, tk tokens, source []byte, n ast.Node, base re
 	}
 	el := ui.RichText(c).FontSize(style.size).TextColor(style.color).
 		LineHeight(1.6)
+	if style.family != "" {
+		el = el.Font(style.family)
+	}
 	if _, tight := n.Parent().(*ast.ListItem); !tight {
 		el = el.Margin(0, 0, 8, 0)
 	}
@@ -671,7 +750,12 @@ func replyBlockquote(c *ui.Context, tk tokens, source []byte, n *ast.Blockquote,
 
 // replyCode is a fenced or indented code block: its language, when it has
 // one, over a monospaced surface that keeps blank lines and leading spaces.
-func replyCode(c *ui.Context, tk tokens, source []byte, n ast.Node, language string) {
+func replyCode(c *ui.Context, tk tokens, source []byte, n ast.Node, language string, base replyStyle) {
+	mono := base.size
+	if mono == 0 {
+		mono = 13
+	}
+	mono -= 1.5
 	value := ""
 	if lines := n.Lines(); lines != nil && lines.Len() > 0 {
 		value = string(lines.Value(source))
@@ -688,8 +772,8 @@ func replyCode(c *ui.Context, tk tokens, source []byte, n ast.Node, language str
 		Border(1, tk.Border).Padding(9, 11).Margin(6, 0, 8, 0).
 		Children(func() {
 			if lang := strings.TrimSpace(language); lang != "" {
-				ui.Text(c, lang).FontSize(10.5).TextColor(tk.MutedForeground).
-					Margin(0, 0, 6, 0)
+				ui.Text(c, lang).Font(replyMonoFont).FontSize(mono-1).
+					TextColor(tk.MutedForeground).Margin(0, 0, 6, 0)
 			}
 			for _, line := range strings.Split(value, "\n") {
 				if line == "" {
@@ -697,8 +781,8 @@ func replyCode(c *ui.Context, tk tokens, source []byte, n ast.Node, language str
 					// line's height, and the gap inside the code.
 					line = " "
 				}
-				ui.Text(c, line).Font(replyMonoFont).FontSize(12).
-					TextColor(tk.Foreground).FixedLineHeight(18)
+				ui.Text(c, line).Font(replyMonoFont).FontSize(mono).
+					TextColor(tk.Foreground).FixedLineHeight(mono * 1.5)
 			}
 		})
 }
@@ -706,7 +790,12 @@ func replyCode(c *ui.Context, tk tokens, source []byte, n ast.Node, language str
 // replyTable draws a GFM table as a static grid: equal columns, a tinted
 // header, and hairlines between cells. It does not scroll on its own; the
 // reader's column is the one scroll.
-func replyTable(c *ui.Context, tk tokens, source []byte, n *gast.Table) {
+func replyTable(c *ui.Context, tk tokens, source []byte, n *gast.Table, base replyStyle) {
+	cellSize := base.size
+	if cellSize == 0 {
+		cellSize = 13
+	}
+	cellSize--
 	var rows [][]*gast.TableCell
 	add := func(row ast.Node) {
 		var cells []*gast.TableCell
@@ -760,12 +849,15 @@ func replyTable(c *ui.Context, tk tokens, source []byte, n *gast.Table) {
 						if tc == nil {
 							return
 						}
-						size, weight := float32(12), 0
+						size, weight := cellSize, 0
 						if header {
 							weight = 600
 						}
 						el := ui.RichText(c).FontSize(size).LineHeight(1.45).
 							TextColor(tk.Foreground)
+						if base.family != "" {
+							el = el.Font(base.family)
+						}
 						if weight > 0 {
 							el.FontWeight(weight)
 						}
@@ -777,7 +869,8 @@ func replyTable(c *ui.Context, tk tokens, source []byte, n *gast.Table) {
 						}
 						el.Children(func() {
 							replyInlineChildren(c, tk, source, tc, replyStyle{
-								size: size, weight: weight, color: tk.Foreground,
+								size: size, family: base.family, weight: weight,
+								color: tk.Foreground,
 							})
 						})
 					})
@@ -833,7 +926,7 @@ func replyInline(c *ui.Context, tk tokens, source []byte, n ast.Node, style repl
 		// same direction, so code reads as the same material in both
 		// appearances instead of floating on top of the page in dark.
 		code.codeBg = tk.Muted.MixOklab(ui.RGB(0, 0, 0), 0.04)
-		code.size = 12.5
+		code.size = style.size - 0.5
 		code.color = tk.Foreground
 		replyInlineText(c, string(n.Text(source)), code)
 	case *ast.Emphasis:
@@ -939,6 +1032,11 @@ func replyInlineText(c *ui.Context, value string, style replyStyle) {
 	el := ui.Text(c, value)
 	if style.size > 0 {
 		el.FontSize(style.size)
+	}
+	if style.family != "" {
+		// A span carries its own family: the rich text around it only sets
+		// the size and colour its spans inherit.
+		el = el.Font(style.family)
 	}
 	if style.weight > 0 {
 		el.FontWeight(style.weight)
