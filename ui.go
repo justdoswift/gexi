@@ -21,6 +21,96 @@ import (
 // The chrome itself follows shadcn: one neutral palette, 1px borders, 6px
 // radius, quiet hover states.
 
+// sidebarSlide is how much of the sidebar shows, from 0 to 1, with the motion
+// running from where it was to where it is going.
+type sidebarSlide struct {
+	set   bool
+	value float32
+	from  float32
+	to    float32
+	at    time.Time
+}
+
+// sidebarFraction moves the sidebar to to, over the same motion the drawer
+// slides with. The value is kept here rather than in a toolkit animation
+// channel: a channel that is lost for a frame reports its target, which made
+// the panes flash wide while the sidebar closed. Main thread.
+func (w *workspace) sidebarFraction(c *ui.Context, to float32) float32 {
+	s := &w.sidebarPos
+	if !s.set {
+		s.set, s.value, s.from, s.to, s.at = true, to, to, to, time.Now()
+		return to
+	}
+	if to != s.to {
+		s.from, s.at, s.to = s.value, time.Now(), to
+	}
+	p := float32(time.Since(s.at)) / float32(sidebarMotion)
+	if p >= 1 {
+		s.value = s.to
+		return s.value
+	}
+	s.value = s.from + (s.to-s.from)*ui.EaseOut(p)
+	c.After(8 * time.Millisecond)
+	return s.value
+}
+
+// appearanceMotion is how long a change of appearance or material takes to
+// dissolve the page the window was showing into the one it now has.
+const appearanceMotion = 180 * time.Millisecond
+
+// appearanceFade is the look last drawn and the dissolve running from it.
+type appearanceFade struct {
+	set   bool
+	seen  tokens
+	glass bool
+	fade  bool
+	from  ui.Color
+	at    time.Time
+	alpha float32
+}
+
+// trackAppearance notices a change of theme or of the glass material and
+// starts the dissolve, from the page colour the eye was on rather than the one
+// it is going to. Main thread.
+func (w *workspace) trackAppearance(c *ui.Context, tk tokens) {
+	a := &w.appear
+	if !a.set {
+		a.seen, a.glass, a.set = tk, glassChrome(), true
+		return
+	}
+	if tk != a.seen || glassChrome() != a.glass {
+		if !a.fade {
+			a.from = a.seen.Background
+			a.at = time.Now()
+			a.fade = true
+		}
+		a.seen, a.glass = tk, glassChrome()
+	}
+	if !a.fade {
+		return
+	}
+	p := float32(time.Since(a.at)) / float32(appearanceMotion)
+	if p >= 1 {
+		a.fade, a.alpha = false, 0
+		return
+	}
+	// Fast at first, so the old page lifts away rather than lingering.
+	a.alpha = (1 - p) * (1 - p)
+	c.After(8 * time.Millisecond)
+}
+
+// appearanceScrim is the page the window was showing, laid over the one it
+// now has while the dissolve runs. It takes no input: the window underneath
+// is already the new one.
+func (w *workspace) appearanceScrim(c *ui.Context) {
+	a := &w.appear
+	if !a.fade || a.alpha <= 0.01 {
+		return
+	}
+	ui.Box(c).Absolute().Left(0).Top(0).WidthPercent(100).HeightPercent(100).
+		Background(a.from.Alpha(a.alpha)).IgnoreInput(true)
+}
+
 func (w *workspace) view(c *ui.Context) {
 	w.applyInterfaceFont(c)
 	if w.pendingToast != "" {
@@ -32,6 +122,7 @@ func (w *workspace) view(c *ui.Context) {
 		w.pendingToast, w.pendingToastAction, w.pendingAction = "", "", nil
 	}
 	tk := w.tokens(c)
+	w.trackAppearance(c, tk)
 	// The window's material shows where nothing is painted: the toolkit's
 	// root would cover it with the theme's background, so it is cleared
 	// first and the chrome's own sheet is what sits over the glass.
@@ -68,27 +159,38 @@ func (w *workspace) view(c *ui.Context) {
 		root = root.Background(w.backdrop(tk))
 	}
 
-	target := float32(0)
+	shown := float32(0)
 	if !w.settings.SidebarCollapsed {
-		target = sidebarWidth
+		shown = 1
 	}
-	width := root.Animate("sidebarWidth", target, sidebarMotion)
+	width := w.sidebarFraction(c, shown) * sidebarWidth
 
 	root.Children(func() {
 		w.sidebar(c, tk, width)
 		// The sidebar and the space around the panes share one background,
 		// so in comfortable a pane reads as a panel wrapped around its
 		// content. The canvas keeps an extra inset from the top, right, and
-		// bottom edges; the left one is the sidebar's own margin.
+		// bottom edges; while the sidebar shows, its own margin is the left
+		// one, and with the sidebar hidden the canvas takes the same margin
+		// on that side too, so a pane never sits on the window's edge.
 		inset := float32(0)
 		if w.settings.PaneStyle == paneComfortable {
 			inset = canvasInset
 		}
+		// The left margin is what the sidebar leaves behind as it slides
+		// out, so one motion carries both and the pane never sits on the
+		// window's edge.
+		left := inset * (1 - width/sidebarWidth)
 		// The canvas leaves its surface to the root, so the sidebar and the
 		// pane cards sit on the same backdrop. A compact pane fills the
 		// canvas with its terminal, and its text keeps the theme's colour
 		// there rather than the glass.
-		canvas := ui.Column(c).Fill().Padding(inset, inset, inset, 0)
+		// The canvas keeps its identity when a sibling comes or goes: the
+		// sidebar builds no element once it is narrower than a hair, and an
+		// index-based identity would make the whole canvas a new element for
+		// a frame — drawn as a ghost of itself, fading in over the old one.
+		c.Key("canvas")
+		canvas := ui.Column(c).Fill().Padding(inset, inset, inset, left)
 		if w.settings.PaneStyle != paneComfortable {
 			canvas = canvas.Background(w.backdrop(tk))
 		}
@@ -99,7 +201,7 @@ func (w *workspace) view(c *ui.Context) {
 		// collapsing or showing the sidebar leaves it where the hand expects
 		// it.
 		ui.Row(c).Width(iconSize).Height(iconSize).Absolute().
-			Left(bar.Left + 6).Top(11).Children(func() {
+			Left(bar.Left + 6).Top(16).Children(func() {
 			w.sidebarToggle(c, tk)
 		})
 		// The drawer sits above the panes and below nothing: it is the last
@@ -108,6 +210,9 @@ func (w *workspace) view(c *ui.Context) {
 		// The reply reader is the same kind of column, and only one of the
 		// two is ever open.
 		w.replyView(c, tk)
+		// The dissolve of an appearance change covers everything drawn, so
+		// a snap of the terminals comes with it.
+		w.appearanceScrim(c)
 	})
 	if w.hostOpen {
 		w.hostDialog(c, tk)
@@ -305,6 +410,7 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 	if width < 0.5 {
 		return
 	}
+	c.Key("sidebar")
 	// The sidebar paints no background of its own: the root's surface runs
 	// under it and under the canvas, so the two sides are one backdrop.
 	// Collapsed, it takes no width and the canvas covers the surface.
@@ -384,7 +490,10 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 // way while it reads the list.
 func (w *workspace) sidebarHeader(c *ui.Context, tk tokens) {
 	bar := c.TitleBar()
-	ui.Row(c).Height(headerHeight).Padding(11, 8, 0, bar.Left+6+iconSize+8).
+	// Six points taller than a pane's header: the sidebar starts at the
+	// window's top, and its row shares the pane title's line, which a pane
+	// card reaches through its own inset.
+	ui.Row(c).Height(headerHeight+6).Padding(16, 8, 0, bar.Left+6+iconSize+8).
 		DragWindow().Children(func() {
 		ui.Row(c).FillWidth().Height(iconSize).AlignItems(ui.Center).Gap(6).Children(func() {
 			w.dragArea(c, tk)

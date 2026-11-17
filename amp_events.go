@@ -77,6 +77,8 @@ export default function (amp: PluginAPI) {
 	let lastState = "";
 	let lastKind = "";
 	let named = false;
+	let lastPrompt = "";
+	let lastPromptAt = 0;
 	let watching: { unsubscribe(): void } | null = null;
 
 	// send reports one event and remembers what the pane was last told, so
@@ -85,6 +87,19 @@ export default function (amp: PluginAPI) {
 		lastKind = kind;
 		if (kind === "turn.start" && message) named = true;
 		return report(kind, message, session);
+	};
+
+	// prompt reports the words a turn began with, once. The state stream can
+	// name a turn from the thread's last message while its start hook reports
+	// the same words; the pane should read that as one question, not two.
+	const prompt = (text: string, threadId: string): Promise<any> => {
+		if (!text) return Promise.resolve(null);
+		const now = Date.now();
+		if (text === lastPrompt && now - lastPromptAt < 2000) return Promise.resolve(null);
+		lastPrompt = text;
+		lastPromptAt = now;
+		named = true;
+		return send("turn.start", text, threadId);
 	};
 
 	// nameFromThread names the pane from the message the turn began with.
@@ -100,7 +115,7 @@ export default function (amp: PluginAPI) {
 			const text = textOf(last?.content);
 			// The turn may have ended while the message was looked up; a
 			// name does not start a new one.
-			if (text && lastState === "running" && threadId === current) send("turn.start", text, threadId);
+			if (text && lastState === "running" && threadId === current) prompt(text, threadId);
 		} catch {
 			// A thread that cannot be read has no message to name it by;
 			// the terminal's own title still names the pane.
@@ -112,6 +127,8 @@ export default function (amp: PluginAPI) {
 		lastState = "";
 		lastKind = "";
 		named = false;
+		lastPrompt = "";
+		lastPromptAt = 0;
 		await send("session.start", "", event.thread.id);
 		// A tool approval is the one blocked state Amp does not report as an
 		// event; the thread's own state stream carries it, and so does the
@@ -164,7 +181,7 @@ export default function (amp: PluginAPI) {
 		// the state stream above.
 		const message = typeof event.message === "string" ? event.message : "";
 		if (!message) return;
-		const result = await send("turn.start", message, event.thread.id);
+		const result = await prompt(message, event.thread.id);
 		const context = result && typeof result.context === "string" ? result.context : "";
 		if (context) return { message: { content: context } };
 	});

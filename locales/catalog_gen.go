@@ -454,6 +454,26 @@ func (msgs Messages) ReplyUser() string {
 	return Catalog.Format(msgs.locale, "replyUser", nil)
 }
 
+// ReplyExpand says "Fill the window"
+// in the language the app shows.
+func ReplyExpand() string { return In(i18n.Locale()).ReplyExpand() }
+
+// ReplyExpand says "Fill the window"
+// in the language of msgs.
+func (msgs Messages) ReplyExpand() string {
+	return Catalog.Format(msgs.locale, "replyExpand", nil)
+}
+
+// ReplyCollapse says "Give the panes back"
+// in the language the app shows.
+func ReplyCollapse() string { return In(i18n.Locale()).ReplyCollapse() }
+
+// ReplyCollapse says "Give the panes back"
+// in the language of msgs.
+func (msgs Messages) ReplyCollapse() string {
+	return Catalog.Format(msgs.locale, "replyCollapse", nil)
+}
+
 // PaneCloseTitle says "Close pane?"
 // in the language the app shows.
 func PaneCloseTitle() string { return In(i18n.Locale()).PaneCloseTitle() }

@@ -134,11 +134,14 @@ func TestAmpPluginInstalled(t *testing.T) {
 		// The state stream names a turn whose agent.start hook never came,
 		// and ends one whose agent.end hook never came.
 		`nameFromThread`, `ctx.thread.messages({ from: "end", limit: 1, roles: ["user"] })`,
-		`send("turn.start", text, threadId)`,
+		// One prompt, one report: the state stream and the start hook both
+		// carry it, and the pane must not read it as said twice.
+		`prompt(text, threadId)`,
+		`if (text === lastPrompt && now - lastPromptAt < 2000) return Promise.resolve(null)`,
 		`state === "idle" && previous === "running"`,
 		`lastState === "idle" && lastKind !== "turn.end"`,
 		`amp.on("agent.start"`,
-		`await send("turn.start", message, event.thread.id)`,
+		`await prompt(message, event.thread.id)`,
 		`if (current && event.thread.id !== current) return`,
 		`return { message: { content: context } }`,
 		`amp.on("agent.end"`, `send("turn.end", last, event.thread.id)`,

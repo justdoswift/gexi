@@ -646,6 +646,7 @@ func (w *workspace) drawerView(c *ui.Context, tk tokens) {
 		return
 	}
 	w.syncDrawerDir()
+	c.Key("drawer")
 	el := ui.Column(c).Absolute().Top(0).Bottom(0).Right(0)
 	width := el.Animate("drawerWidth", d.width(), sidebarMotion)
 	// A drawer is its own surface: the theme's background and a hairline, not
