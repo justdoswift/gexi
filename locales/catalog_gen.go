@@ -834,6 +834,28 @@ func (msgs Messages) SettingsTerminalFontSize() string {
 	return Catalog.Format(msgs.locale, "settingsTerminalFontSize", nil)
 }
 
+// SettingsTerminalScrollback says "History (MB)"
+// in the language the app shows.
+func SettingsTerminalScrollback() string { return In(i18n.Locale()).SettingsTerminalScrollback() }
+
+// SettingsTerminalScrollback says "History (MB)"
+// in the language of msgs.
+func (msgs Messages) SettingsTerminalScrollback() string {
+	return Catalog.Format(msgs.locale, "settingsTerminalScrollback", nil)
+}
+
+// SettingsTerminalScrollbackDetail says "Panes opened from now on keep this much history."
+// in the language the app shows.
+func SettingsTerminalScrollbackDetail() string {
+	return In(i18n.Locale()).SettingsTerminalScrollbackDetail()
+}
+
+// SettingsTerminalScrollbackDetail says "Panes opened from now on keep this much history."
+// in the language of msgs.
+func (msgs Messages) SettingsTerminalScrollbackDetail() string {
+	return Catalog.Format(msgs.locale, "settingsTerminalScrollbackDetail", nil)
+}
+
 // SettingsThemes says "Themes"
 // in the language the app shows.
 func SettingsThemes() string { return In(i18n.Locale()).SettingsThemes() }

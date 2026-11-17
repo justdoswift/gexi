@@ -57,9 +57,12 @@ type appSettings struct {
 	InterfaceFont string `json:"interfaceFont"`
 	// TerminalFont is the family panes draw text in; "" is the embedded
 	// JetBrains Mono Nerd Font Mono. TerminalFontSize is their text size;
-	// 0 is the default 12.
-	TerminalFont     string  `json:"terminalFont"`
-	TerminalFontSize float32 `json:"terminalFontSize"`
+	// 0 is the default 12. TerminalScrollback is how many megabytes of
+	// output a pane keeps above its screen; 0 is the default, and panes
+	// already open keep the history they were made with.
+	TerminalFont       string  `json:"terminalFont"`
+	TerminalFontSize   float32 `json:"terminalFontSize"`
+	TerminalScrollback int     `json:"terminalScrollback"`
 
 	// Remote access on the local network: whether this Mac can be reached,
 	// the six-digit code a client pairs with, the devices paired so far, and
@@ -90,6 +93,32 @@ const (
 	appearanceLight = "light"
 	appearanceDark  = "dark"
 )
+
+// terminalScrollback bounds the megabytes of history a pane keeps, and
+// terminalScrollbackDefault is what it keeps when the setting is untouched:
+// enough to scroll back through a session, far less than the 10 MB each
+// pane held before it was a choice.
+const (
+	terminalScrollbackMin     = 2
+	terminalScrollbackMax     = 16
+	terminalScrollbackDefault = 4
+)
+
+// terminalScrollbackChoices are the values the picker shows, in order.
+var terminalScrollbackChoices = []string{"2", "4", "8", "16"}
+
+// terminalScrollback is the history a pane keeps, in megabytes.
+func (s appSettings) terminalScrollback() int {
+	if s.TerminalScrollback < terminalScrollbackMin || s.TerminalScrollback > terminalScrollbackMax {
+		return terminalScrollbackDefault
+	}
+	return s.TerminalScrollback
+}
+
+// terminalScrollbackBytes is terminalScrollback as the terminal counts it.
+func (w *workspace) terminalScrollbackBytes() int {
+	return w.settings.terminalScrollback() << 20
+}
 
 func defaultSettings() appSettings {
 	return appSettings{
@@ -124,6 +153,11 @@ func loadSettings() appSettings {
 	// default, as a hand-edited file may carry one.
 	if s.TerminalFontSize < terminalFontSizeMin || s.TerminalFontSize > terminalFontSizeMax {
 		s.TerminalFontSize = 0
+	}
+	// The same for the history: a size outside the picker's range falls
+	// back to the default rather than leaving a pane with a hand-edited one.
+	if s.TerminalScrollback < terminalScrollbackMin || s.TerminalScrollback > terminalScrollbackMax {
+		s.TerminalScrollback = 0
 	}
 	// Remote access needs the code clients pair with; a settings file from
 	// before the feature, or a hand-edited one, gets a fresh code.
@@ -438,6 +472,8 @@ func (w *workspace) generalPage(c *ui.Context, tk tokens) {
 		w.terminalFontRow(c, tk)
 		cardDivider(c, tk)
 		w.terminalFontSizeRow(c, tk)
+		cardDivider(c, tk)
+		w.terminalScrollbackRow(c, tk)
 	})
 }
 
@@ -931,6 +967,31 @@ func (w *workspace) terminalFontSizeRow(c *ui.Context, tk tokens) {
 	w.settings.TerminalFontSize = float32(size)
 	w.settings.save()
 	w.applyTerminalFont()
+}
+
+// terminalScrollbackRow picks how much output a pane keeps above its
+// screen. The terminals already open hold the history they were made with,
+// so the choice lands in the panes opened from then on.
+func (w *workspace) terminalScrollbackRow(c *ui.Context, tk tokens) {
+	if w.terminalScrollbackSeen == "" {
+		w.terminalScrollbackChoice = strconv.Itoa(w.settings.terminalScrollback())
+		w.terminalScrollbackSeen = w.terminalScrollbackChoice
+	}
+	w.settingActionRow(c, tk,
+		locales.SettingsTerminalScrollback(),
+		locales.SettingsTerminalScrollbackDetail(), func() {
+			ui.Select(c, &w.terminalScrollbackChoice, terminalScrollbackChoices)
+		})
+	if w.terminalScrollbackChoice == w.terminalScrollbackSeen {
+		return
+	}
+	w.terminalScrollbackSeen = w.terminalScrollbackChoice
+	mb, err := strconv.Atoi(w.terminalScrollbackChoice)
+	if err != nil {
+		return
+	}
+	w.settings.TerminalScrollback = mb
+	w.settings.save()
 }
 
 // applyTerminalFont hands a new font or size to every terminal on screen,

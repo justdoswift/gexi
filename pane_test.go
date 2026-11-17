@@ -101,6 +101,8 @@ func TestResumesAgent(t *testing.T) {
 // gone, so the client starts over from a snapshot instead of missing bytes.
 func TestPTYLogOffsets(t *testing.T) {
 	c := newPTYConn()
+	// A mirror looks at the log before it reads after an offset.
+	c.watchLog(time.Hour)
 	c.log([]byte("hello "))
 	c.log([]byte("world"))
 	if got, ok := c.outputSince(6); !ok || string(got) != "world" {
@@ -134,6 +136,32 @@ func TestPTYLogOffsets(t *testing.T) {
 	}
 	if got, ok := c.outputSince(c.outEnd - 10); !ok || len(got) != 10 {
 		t.Fatalf("the tail: %d bytes, %v", len(got), ok)
+	}
+}
+
+// Nobody reading a pane's output leaves it nothing to keep: the log is there
+// for a mirror reading after an offset, so an unwatched pane holds its
+// screen alone rather than a tail of its output.
+func TestPTYLogHoldsNothingUnwatched(t *testing.T) {
+	c := newPTYConn()
+	c.log([]byte("gone"))
+	if c.outBytes != 0 || len(c.out) != 0 {
+		t.Fatalf("an unwatched pane kept %d bytes", c.outBytes)
+	}
+	if _, ok := c.outputSince(0); ok {
+		t.Fatal("an unwatched pane reads its log as kept")
+	}
+
+	// A look keeps it from then on, and a look that lapses lets it go.
+	c.watchLog(time.Hour)
+	c.log([]byte("kept"))
+	if c.outBytes != 4 {
+		t.Fatalf("a watched pane kept %d bytes, want 4", c.outBytes)
+	}
+	c.watchLog(-time.Second)
+	c.log([]byte("dropped"))
+	if c.outBytes != 0 || len(c.out) != 0 {
+		t.Fatalf("a lapsed pane kept %d bytes", c.outBytes)
 	}
 }
 

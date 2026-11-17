@@ -247,6 +247,9 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		// A poll is a look at the pane's log, and keeps it going: this one
+		// and those that read after its offset.
+		pane.conn.watchLog(paneLogIdle)
 		offset := int64(intParam(p, "offset"))
 		var snap []byte
 		reset := offset <= 0 || boolParam(p, "snapshot")

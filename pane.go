@@ -21,6 +21,11 @@ import (
 // ask for by offset: past it, the client is sent a fresh snapshot instead.
 const paneOutputLog = 4 << 20
 
+// paneLogIdle is how long the output log goes on after the last look at it.
+// The log is there for a mirror reading after an offset, so with none
+// reading, a pane keeps nothing but its screen.
+const paneLogIdle = time.Minute
+
 // ptyConn is the in-memory backend: gexi owns the PTY, so the terminal
 // reads every byte the shell writes. That is also where agent detection gets
 // its master fd.
@@ -35,12 +40,15 @@ type ptyConn struct {
 	// the oldest byte kept, through outEnd. cutMu holds the log still while
 	// a snapshot is taken, so the snapshot and outEnd name the same state;
 	// busy says the last chunk read may not have reached the terminal yet.
+	// logUntil is when the log stops being kept, pushed on by every look a
+	// mirror takes: no mirror, no log.
 	cutMu    sync.Mutex
 	out      [][]byte
 	outBytes int
 	outStart int64
 	outEnd   int64
 	busy     bool
+	logUntil time.Time
 
 	// waiters are the mirrors parked on this pane's output. A write closes
 	// and forgets them all, which is what wakes a long poll the moment the
@@ -81,17 +89,34 @@ func (c *ptyConn) Read(p []byte) (int, error) {
 }
 
 // log keeps a chunk for the mirrors, letting go of the oldest chunks past
-// paneOutputLog. cutMu is held.
+// paneOutputLog, and of the whole log while no mirror reads it. cutMu is
+// held.
 func (c *ptyConn) log(b []byte) {
+	c.outEnd += int64(len(b))
+	if !time.Now().Before(c.logUntil) {
+		// Nothing reads it, so it is worth nothing: letting it go here is
+		// what keeps a pane nobody watches to the size of its screen.
+		c.out, c.outBytes, c.outStart = nil, 0, c.outEnd
+		c.wake()
+		return
+	}
 	c.out = append(c.out, append([]byte(nil), b...))
 	c.outBytes += len(b)
-	c.outEnd += int64(len(b))
 	c.wake()
 	for c.outBytes > paneOutputLog && len(c.out) > 1 {
 		c.outBytes -= len(c.out[0])
 		c.outStart += int64(len(c.out[0]))
 		c.out = c.out[1:]
 	}
+}
+
+// watchLog keeps the log for d more, as a mirror reading after an offset
+// needs it to be: a poll is a look, and the last look decides when the log
+// stops. Until the first look the log holds nothing.
+func (c *ptyConn) watchLog(d time.Duration) {
+	c.cutMu.Lock()
+	c.logUntil = time.Now().Add(d)
+	c.cutMu.Unlock()
 }
 
 // snapshot returns what the pane shows as escape sequences and the log
@@ -424,7 +449,7 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 			"GEXI_SOCKET=" + socketPath(),
 			"GEXI_HOME=" + supportDir(),
 		},
-		Scrollback: 10 << 20,
+		Scrollback: ws.terminalScrollbackBytes(),
 		Padding:    terminal.Padding{X: panePadX, Y: panePadY},
 		// The pane card is the terminal's own surface, and leaving the grid's
 		// background undrawn lets the card change colour while its pane is
