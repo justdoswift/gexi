@@ -23,6 +23,69 @@ func TestToggleZoom(t *testing.T) {
 	}
 }
 
+// Only unzooming clears a zoom. Splitting, cycling, dropping a pane, and a
+// click on a notification each hand the stage to the pane they bring forward
+// instead, with the pane that leaves it shrinking back into the rail.
+func TestZoomHandsTheStageOver(t *testing.T) {
+	a, b, c := &pane{ID: "a"}, &pane{ID: "b"}, &pane{ID: "c"}
+	s := &session{ID: "s", Root: leaf(a).splitting("a", axisHorizontal, b), zoomedPane: "a"}
+	w := &workspace{
+		Projects:        []*project{{ID: "p", Sessions: []*session{s}}},
+		SelectedSession: "s",
+		FocusedPane:     "a",
+	}
+
+	// Cycling walks the stage through the session.
+	w.cyclePane(1)
+	if s.zoomedPane != "b" || w.FocusedPane != "b" {
+		t.Fatalf("after cycling: zoomed %q, focus %q", s.zoomedPane, w.FocusedPane)
+	}
+	if !a.stageCardShrink {
+		t.Fatal("the pane that left the stage does not shrink into its card")
+	}
+
+	// A split opens its new pane on the stage, as splitPane asks for.
+	s.Root = s.Root.splitting("b", axisVertical, c)
+	w.showPane(c)
+	if s.zoomedPane != "c" {
+		t.Fatalf("after splitting: zoomed %q, want the new pane", s.zoomedPane)
+	}
+	if !b.stageCardShrink {
+		t.Fatal("the pane the split replaced does not shrink into its card")
+	}
+}
+
+// Closing a pane inside a zoom narrows the session: the pane that was first
+// in the rail takes the stage, and closing one behind the stage leaves the
+// zoom alone.
+func TestClosingAPaneInsideAZoomKeepsTheZoom(t *testing.T) {
+	a, b, c := &pane{ID: "a"}, &pane{ID: "b"}, &pane{ID: "c"}
+	for _, p := range []*pane{a, b, c} {
+		term, _ := probeTerminal(t)
+		p.term = term
+	}
+	root := leaf(a).splitting("a", axisHorizontal, b).splitting("a", axisVertical, c)
+	s := &session{ID: "s", Root: root, zoomedPane: "a"}
+	w := &workspace{
+		Projects:        []*project{{ID: "p", Sessions: []*session{s}}},
+		SelectedSession: "s",
+		FocusedPane:     "a",
+	}
+
+	w.closePane(c)
+	if p := w.zoomedIn(s); p != a {
+		t.Fatalf("closing a pane behind the stage left %v on it, want a", p)
+	}
+
+	w.closePane(a)
+	if p := w.zoomedIn(s); p != b {
+		t.Fatalf("closing the staged pane left %v on it, want b", p)
+	}
+	if w.FocusedPane != "b" || w.focusReq != "b" {
+		t.Fatalf("focus after the close: %q/%q, want b", w.FocusedPane, w.focusReq)
+	}
+}
+
 // A pane that is gone leaves the session unzoomed rather than blank.
 func TestZoomForgetsAMissingPane(t *testing.T) {
 	s := &session{ID: "s", Root: leaf(&pane{ID: "a"}), zoomedPane: "gone"}
@@ -62,9 +125,9 @@ func TestSelectSessionKeepsEachSessionsZoom(t *testing.T) {
 }
 
 // A notification click for the pane a session has zoomed keeps the stage;
-// a click that names another pane of that session has to bring the layout
-// back, or the pane it opens stays hidden behind the zoomed one.
-func TestNotificationClickKeepsTheZoomedPane(t *testing.T) {
+// a click that names another pane of that session brings that pane to the
+// stage, so the pane it opens is not left hidden behind the zoom.
+func TestNotificationClickBringsItsPaneToTheStage(t *testing.T) {
 	a := &pane{ID: "a"}
 	b := &pane{ID: "b"}
 	s := &session{ID: "s", Root: leaf(a).splitting("a", axisHorizontal, b), zoomedPane: "a"}
@@ -83,7 +146,7 @@ func TestNotificationClickKeepsTheZoomedPane(t *testing.T) {
 
 	w.openNotification("pane:b")
 	w.revealPendingNotification()
-	if s.zoomedPane != "" || w.FocusedPane != "b" {
+	if s.zoomedPane != "b" || w.FocusedPane != "b" {
 		t.Fatalf("zoom %q, focus %q", s.zoomedPane, w.FocusedPane)
 	}
 }

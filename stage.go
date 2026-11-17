@@ -132,25 +132,45 @@ func (w *workspace) stageRailVisible(s *session) bool {
 // stagePane brings p to the stage: it fills the session, takes the focus, and
 // the pane it replaces joins the rail.
 func (w *workspace) stagePane(p *pane) {
-	if p == nil {
+	if p == nil || !w.showPane(p) {
 		return
+	}
+	w.FocusedPane = p.ID
+	w.focusReq = p.ID
+	w.invalidate()
+	w.scheduleSave()
+}
+
+// showPane hands the stage to p: the pane on it shrinks back into the rail and
+// p grows out of the card it had there. It reports whether the stage moved. A
+// pane already on the stage is left as it is, and so is one in a session that
+// is not zoomed, where every pane already shows.
+func (w *workspace) showPane(p *pane) bool {
+	if p == nil {
+		return false
 	}
 	s := w.sessionOf(p)
 	if s == nil || s.Root == nil || s.zoomedPane == p.ID {
-		return
+		return false
 	}
-	if cur := s.Root.paneByID(s.zoomedPane); cur != nil && cur != p {
+	// Only a zoomed session has a stage to hand over: without a zoom every
+	// pane already shows, and a call to bring one forward changes nothing.
+	if s.zoomedPane == "" {
+		return false
+	}
+	if cur := s.Root.paneByID(s.zoomedPane); cur != nil {
 		// The pane that leaves the stage shrinks into the rail.
 		cur.stageCardShown = false
 		cur.stageCardShrink = true
 	}
 	s.zoomedPane = p.ID
-	w.FocusedPane = p.ID
-	w.focusReq = p.ID
-	p.stageEnter = true
+	// A pane that has been drawn grows out of its card; one that has not is
+	// fading in as the stage anyway, with no card to start from.
+	if p.shown {
+		p.stageEnter = true
+	}
 	w.syncStageMirrors()
-	w.invalidate()
-	w.scheduleSave()
+	return true
 }
 
 // syncStageMirrors starts a live preview for every pane in the rail and

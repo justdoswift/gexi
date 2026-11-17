@@ -49,7 +49,10 @@ type session struct {
 	// zoomedPane fills the session on its own while set, so the other panes
 	// keep their places without being drawn. It belongs to the session, not
 	// the workspace: switching to another session in the sidebar and back
-	// shows the pane this one was left zoomed to.
+	// shows the pane this one was left zoomed to. Only unzooming the pane
+	// clears it: everything else that wants another pane in front hands it
+	// the stage with showPane, so a session stays zoomed until the user says
+	// otherwise.
 	zoomedPane string
 	// remote is set on a session that lives on another Mac; title is the
 	// name its host gives it.
@@ -606,9 +609,9 @@ func (w *workspace) splitPane(p *pane, ax axis, command []string, dir string) (*
 		return nil, fmt.Errorf("No such pane: %s", p.ID)
 	}
 	host.Root = host.Root.splitting(p.ID, ax, np)
-	// A split made while zoomed has to be visible, so the session comes
-	// back to showing all its panes.
-	host.zoomedPane = ""
+	// A split made while zoomed opens its new pane on the stage, so the split
+	// shows without the session coming back to its whole layout.
+	w.showPane(np)
 	w.syncStageMirrors()
 	w.FocusedPane = np.ID
 	w.focusReq = np.ID
@@ -790,12 +793,10 @@ func (w *workspace) detachPane(p *pane) {
 		return
 	}
 	p.bgProject = w.projectOf(w.sessionOf(p))
+	s := w.sessionOf(p)
 	w.stopStageMirror(p)
-	if s := w.sessionOf(p); s != nil && s.zoomedPane == p.ID {
-		s.zoomedPane = ""
-		w.syncStageMirrors()
-	}
 	w.removePaneFromLayout(p)
+	w.stayZoomed(s, p)
 	w.detached = append(w.detached, p)
 	w.fixFocusAfterRemoval(p)
 	w.worktreesScanned = false
@@ -912,14 +913,31 @@ func (w *workspace) fixFocusAfterRemoval(p *pane) {
 // closePane hangs up the pane's program and collapses its slot. Main thread.
 func (w *workspace) closePane(p *pane) {
 	p.close()
-	if s := w.sessionOf(p); s != nil && s.zoomedPane == p.ID {
-		s.zoomedPane = ""
-		w.syncStageMirrors()
-	}
+	s := w.sessionOf(p)
 	w.removePaneFromLayout(p)
+	w.stayZoomed(s, p)
 	w.fixFocusAfterRemoval(p)
 	w.invalidate()
 	w.scheduleSave()
+}
+
+// stayZoomed hands the stage to the next pane after the pane on it left the
+// layout, so closing or detaching a pane inside a zoom narrows the session
+// instead of dropping it back to the whole grid. s is the session the pane
+// was in, read before the removal.
+func (w *workspace) stayZoomed(s *session, gone *pane) {
+	if s == nil || s.zoomedPane != gone.ID {
+		return
+	}
+	// The pane that was first in the rail takes the stage.
+	if s.Root != nil {
+		if ps := s.Root.panes(); len(ps) > 0 && w.showPane(ps[0]) {
+			return
+		}
+	}
+	// Nothing is left to fill the stage, so the zoom goes with the panes.
+	s.zoomedPane = ""
+	w.syncStageMirrors()
 }
 
 // projectPanes is every pane under the project, across its sessions.
@@ -1312,12 +1330,6 @@ func (w *workspace) cyclePane(delta int) {
 	if len(panes) < 2 {
 		return
 	}
-	// Moving between panes brings the whole layout back, so the pane the
-	// focus lands on is visible.
-	if s := w.selected(); s != nil {
-		s.zoomedPane = ""
-	}
-	w.syncStageMirrors()
 	index := 0
 	for i, p := range panes {
 		if p.ID == w.FocusedPane {
@@ -1326,6 +1338,10 @@ func (w *workspace) cyclePane(delta int) {
 		}
 	}
 	next := (index + delta + len(panes)) % len(panes)
+	// The pane the focus lands on is the one in front, so cycling inside a
+	// zoom walks the stage through the session rather than dropping back to
+	// the whole layout.
+	w.showPane(panes[next])
 	w.focusPane(panes[next])
 }
 

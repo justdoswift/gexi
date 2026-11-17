@@ -658,13 +658,10 @@ func (w *workspace) revealPane(p *pane) {
 	if p == nil || w.paneByID(p.ID) != p {
 		return
 	}
-	if s := w.sessionOf(p); s != nil && s.zoomedPane != "" && s.zoomedPane != p.ID {
-		// The pane to show is behind a zoomed one, so the session has to
-		// come back to its whole layout. A click on the zoomed pane keeps
-		// the stage as it was.
-		s.zoomedPane = ""
-		w.syncStageMirrors()
-	}
+	// A pane behind the stage takes it, so the click brings the pane it names
+	// in front without the session leaving its zoom. A click on the zoomed
+	// pane keeps the stage as it was.
+	w.showPane(p)
 	w.focusPane(p)
 	w.dismissSettings()
 	if w.win != nil {

@@ -83,7 +83,6 @@ func (w *workspace) movePane(dragged, target *pane, place paneDropPlace) {
 	if s == nil || s.Root == nil || w.sessionOf(dragged) != s {
 		return
 	}
-	s.zoomedPane = ""
 	switch place {
 	case paneDropLeft:
 		s.Root = s.Root.moving(dragged.ID, target.ID, axisHorizontal, true)
@@ -98,6 +97,9 @@ func (w *workspace) movePane(dragged, target *pane, place paneDropPlace) {
 	default:
 		return
 	}
+	// A pane dropped while the session is zoomed takes the stage, so the
+	// move it made is the one on screen.
+	w.showPane(dragged)
 	w.FocusedPane = dragged.ID
 	w.focusReq = dragged.ID
 	w.invalidate()
