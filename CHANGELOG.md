@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.111
+
+- PR / 工作树区域的动效补齐：标题栏的 worktree / PR / Merge / Archive 切换、checkpoints 卡片与阶段、弹窗、搜索框和设置 › 工作树的行增删都平滑过渡，chip 与按钮的悬停也改为渐入渐出。
+- Droid 在窗格里执行时，左侧会话行与窗格边框显示加载；gexi 启动 droid 时通过 `--settings` 注入 hooks，不修改 `~/.factory`，手动启动的 droid 不上报。
+
 ## 0.0.110
 
 - 侧栏列表可以滚动，展开「闲置」时不再把底部的行挤出窗口。
