@@ -23,7 +23,7 @@ const (
 // worktreeCheckpoints draws a running pull request, merge, or conflict
 // resolution as a line of checkpoints in the pane's upper right corner, over
 // the terminal. Stages appear as the operation reaches them: the ones behind
-// the current stage are marked off, and the current one shimmers. It is on
+// the current stage are marked off, and the current one is lit. It is on
 // screen without a hover, so a wait that runs long says where it is at a
 // glance; the header button keeps only the operation's name.
 func (w *workspace) worktreeCheckpoints(c *ui.Context, tk tokens, p *pane) {
@@ -164,9 +164,9 @@ func checkpointRow(c *ui.Context, tk tokens, p *pane, step worktreeStep,
 		})
 		label := worktreeStepLabel(p, step)
 		// The current stage's label and a passed one are two keys in the
-		// same line: when the operation moves on, the shimmer fades out as
-		// the check's label fades in, rather than the words replacing one
-		// another mid-sentence.
+		// same line: when the operation moves on, the current label fades
+		// out as the check's label fades in, rather than the words
+		// replacing one another mid-sentence.
 		fade := ui.ElementTransition{
 			Duration: 140 * time.Millisecond,
 			Ease:     ui.EaseOut,
@@ -182,14 +182,15 @@ func checkpointRow(c *ui.Context, tk tokens, p *pane, step worktreeStep,
 			check := ui.Text(c, "✓").Key("check").FontSize(10).
 				TextColor(tk.MutedForeground.Alpha(0.8))
 			// The check lands with the stage it marks, rather than being
-			// there the moment the shimmer stops.
+			// there the moment the stage moves on.
 			check.Transition(ui.ElementTransition{
 				Duration: checkpointMotion,
 				Ease:     ui.EaseOut,
 				Enter:    &ui.Motion{Scale: 0.7},
 			})
 		case i == at:
-			shimmerLabel(c, tk, label, 11.5, 500).Key("current").Shrink(1).
+			ui.Text(c, label).Key("current").FontSize(11.5).FontWeight(500).
+				TextColor(tk.Foreground).SingleLine().Shrink(1).
 				Transition(fade)
 		}
 	})

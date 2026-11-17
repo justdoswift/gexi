@@ -516,8 +516,8 @@ func (p *pane) foregroundGroup() int {
 // titleSpinners are the marks an agent puts in front of the terminal title:
 // Claude Code cycles through the quarter circles while it works and rests on
 // a star between turns; Codex, Amp and OpenCode use stars and braille
-// frames. Chrome already says an agent is working with the session label's
-// shimmer, so the mark is noise beside the agent's logo and is dropped.
+// frames. Chrome already says an agent is working with the spinner in the
+// session's mark, so the mark is noise beside the agent's logo and is dropped.
 const titleSpinners = "◐◑◒◓✳✻✶✢✦✧✱✲✽·"
 
 // isTitleSpinner reports whether r is one of those marks: a listed glyph, or

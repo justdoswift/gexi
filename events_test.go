@@ -76,8 +76,8 @@ func TestSubagentCountKeepsASessionWorking(t *testing.T) {
 		t.Fatalf("state with a background subagent = %q, want working", got)
 	}
 
-	// A prompt that needs the user outranks the count: the label stops its
-	// shimmer.
+	// A prompt that needs the user outranks the count: the label reads
+	// waiting.
 	p.activity = &agentActivity{State: activityWaiting}
 	if got := sessionActivityState(s); got != activityWaiting {
 		t.Fatalf("state = %q, want waiting", got)

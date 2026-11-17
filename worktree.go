@@ -3684,14 +3684,14 @@ func (w *workspace) worktreeButtonView(c *ui.Context, tk tokens, p *pane) {
 		return
 	}
 	if busy := worktreeBusyLabel(wt); busy != "" {
-		// The wait says what it is doing in words, and the words shimmer,
-		// rather than a spinner sitting beside them: the label is the
-		// button's own and reads as one control while it works. Archiving
-		// runs while the checkout is already merged, so this comes before
-		// the Archive form.
+		// The wait says what it is doing in words, rather than a spinner
+		// sitting beside them: the label is the button's own and reads as
+		// one control while it works. Archiving runs while the checkout is
+		// already merged, so this comes before the Archive form.
 		worktreeChip(c, tk).OnClick(func() {}).
 			Tooltip(busy).Children(func() {
-			shimmerText(c, tk, busy)
+			ui.Text(c, busy).FontSize(11).FontWeight(600).
+				TextColor(tk.Foreground).SingleLine()
 		})
 		return
 	}

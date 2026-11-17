@@ -707,8 +707,8 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 }
 
 // sessionRow is one piece of work in a project: an agent's mark or a terminal
-// glyph, its name, a sweep over the name while its agent works, and a menu
-// button on hover. The selected row is a card on the sidebar's surface, so
+// glyph, its name, a spinner in the mark's slot while its agent works, and a
+// menu button on hover. The selected row is a card on the sidebar's surface, so
 // the eye finds it without an accent colour. The button's place is kept
 // while the pointer is away, so the name does not move as it comes and goes.
 func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session, indent float32) {
@@ -760,8 +760,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		switch {
 		case activity == activityWorking:
 			// A spinner where the session's mark sits, so a glance reads the
-			// session as working; the sweep across the name alone is easy to
-			// miss.
+			// session as working.
 			mark(func() {
 				loading.Dual(c, loading.Options{Size: 15, Color: tk.Foreground}).IgnoreInput(true)
 			})
@@ -788,18 +787,15 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 			}
 		}
 		label := sessionLabel(s)
-		var labelEl ui.Element
+		// The name reads still: the spinner in the mark's slot is what says
+		// the session works, and a name that moves beside it says nothing
+		// more while it asks for a frame every step.
+		labelEl := ui.Text(c, label).FontSize(13).FontWeight(400).SingleLine()
 		switch activity {
-		case activityWorking:
-			// A sweep across the name says the session is at work, in the
-			// name's own ink rather than a dot beside it.
-			labelEl = shimmerLabel(c, tk, label, 13, 400)
-		case activityWaiting:
-			labelEl = ui.Text(c, label).FontSize(13).FontWeight(400).SingleLine().
-				TextColor(tk.Foreground)
+		case activityWorking, activityWaiting:
+			labelEl = labelEl.TextColor(tk.Foreground)
 		default:
-			labelEl = ui.Text(c, label).FontSize(13).FontWeight(400).SingleLine().
-				TextColor(color)
+			labelEl = labelEl.TextColor(color)
 		}
 		labelEl.OnClick(pick)
 		ui.Spacer(c).OnClick(pick)
