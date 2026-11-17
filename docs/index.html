@@ -4,25 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>gexi — one window, many agents</title>
-<meta name="description" content="gexi is a native macOS terminal workspace: projects and sessions in one window, terminals in nested panes, git worktrees with pull requests, and a CLI that can drive every one of them.">
+<meta name="description" content="gexi is a native macOS terminal workspace: every project's sessions in one window, panes that split any way you like, worktrees that carry a branch all the way to a merged PR, agents that report what they're doing, and a CLI that drives any pane from outside.">
 <link rel="canonical" href="https://justdoswift.github.io/gexi/">
 <link rel="alternate" hreflang="en" href="https://justdoswift.github.io/gexi/">
 <link rel="alternate" hreflang="zh-Hans" href="https://justdoswift.github.io/gexi/zh/">
 <link rel="alternate" hreflang="x-default" href="https://justdoswift.github.io/gexi/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="gexi — one window, many agents">
-<meta property="og:description" content="A native macOS terminal workspace. Split panes, grouped sessions, git worktrees with pull requests, agent events, and a CLI that drives the whole window.">
+<meta property="og:description" content="A native macOS terminal workspace. Splits, sessions grouped by project, worktrees that go all the way to a PR, agents that report themselves, and a CLI that drives the whole window.">
 <meta property="og:url" content="https://justdoswift.github.io/gexi/">
 <meta property="og:image" content="https://justdoswift.github.io/gexi/assets/og.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#f8f6f5">
+<meta name="theme-color" content="#f7f5f2">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/gexi-icon-32.png">
 <link rel="apple-touch-icon" href="assets/gexi-icon-180.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="preload" href="assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/site.css">
-<script>document.documentElement.classList.add('js');</script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"SoftwareApplication","name":"gexi","operatingSystem":"macOS 13 or later","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","url":"https://justdoswift.github.io/gexi/","downloadUrl":"https://github.com/justdoswift/gexi/releases/latest"}
 </script>
@@ -30,104 +27,160 @@
 <body>
 <a class="skip" href="#main">Skip to content</a>
 
-<header class="nav">
-  <div class="wrap nav-inner">
-    <a class="brand" href="index.html"><img src="assets/gexi-icon-32.png" width="28" height="28" alt=""><span>gexi</span></a>
-    <nav class="nav-links" aria-label="Primary">
-      <a href="#canvas">Canvas</a>
-      <a href="#sidebar">Sidebar</a>
-      <a href="#cli">CLI</a>
-      <a href="#install">Install</a>
-    </nav>
-    <div class="nav-actions">
-      <a class="nav-github" href="https://github.com/justdoswift/gexi">GitHub<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
-      <a class="btn btn--sm" href="https://github.com/justdoswift/gexi/releases/latest">Download</a>
-    </div>
+<header class="chrome">
+  <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+  <a class="chrome-brand" href="index.html"><img src="assets/gexi-icon-32.png" width="22" height="22" alt=""><span>gexi</span></a>
+  <p class="chrome-title">One window, many agents</p>
+  <nav class="chrome-nav" aria-label="Main">
+    <a href="#canvas">Canvas</a>
+    <a href="#sidebar">Sidebar</a>
+    <a href="#cli">CLI</a>
+    <a href="#install">Install</a>
+  </nav>
+  <div class="chrome-actions">
+    <a class="ghost-link" href="https://github.com/justdoswift/gexi"><span>GitHub</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
+    <a class="btn btn--sm" href="https://github.com/justdoswift/gexi/releases/latest">Download</a>
   </div>
 </header>
 
-<main id="main">
+<div class="workspace">
 
-  <section class="hero wrap" aria-labelledby="title">
-    <div class="hero-top">
-      <h1 id="title"><span class="line"><span>One window.</span></span><span class="line"><span>Many agents.</span></span></h1>
-      <div class="hero-aside">
-        <p class="hero-sub">gexi is a native macOS terminal workspace. Keep each project’s sessions in one window, split the canvas into panes, and let a CLI drive any pane from the outside.</p>
-        <div class="hero-cta">
-          <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">Download for macOS<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
-          <a class="link-arrow" href="https://github.com/justdoswift/gexi">View source on GitHub<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
-        </div>
-        <p class="hero-meta">Free and MIT licensed · 0.0.41, early · Apple silicon</p>
+  <aside class="rail" aria-label="Page sections">
+    <p class="rail-label">Sections</p>
+    <nav class="rail-list">
+      <a class="rail-item" href="#top" data-rail="top"><span class="rail-glyph" aria-hidden="true"></span>Top<span class="rail-dot" aria-hidden="true"></span></a>
+      <a class="rail-item" href="#canvas" data-rail="canvas"><span class="rail-glyph" aria-hidden="true"></span>Canvas<span class="rail-dot" aria-hidden="true"></span></a>
+      <a class="rail-item" href="#sidebar" data-rail="sidebar"><span class="rail-glyph" aria-hidden="true"></span>Sidebar<span class="rail-dot" aria-hidden="true"></span></a>
+      <a class="rail-item" href="#cli" data-rail="cli"><span class="rail-glyph" aria-hidden="true"></span>CLI<span class="rail-dot" aria-hidden="true"></span></a>
+      <a class="rail-item" href="#agents" data-rail="agents"><span class="rail-glyph" aria-hidden="true"></span>Agents<span class="rail-dot" aria-hidden="true"></span></a>
+      <a class="rail-item" href="#worktrees" data-rail="worktrees"><span class="rail-glyph" aria-hidden="true"></span>Worktrees<span class="rail-dot" aria-hidden="true"></span></a>
+      <a class="rail-item" href="#install" data-rail="install"><span class="rail-glyph" aria-hidden="true"></span>Install<span class="rail-dot" aria-hidden="true"></span></a>
+    </nav>
+    <div class="rail-foot">
+      <div class="rail-lang">
+        <a href="index.html" aria-current="true">EN</a>
+        <a href="zh/index.html" lang="zh-Hans" hreflang="zh-Hans">中文</a>
       </div>
+      <p class="rail-meta">Free, MIT licensed · 0.0.113</p>
+      <a class="rail-cta" href="https://github.com/justdoswift/gexi/releases/latest">Download for macOS<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
     </div>
+  </aside>
 
-    <div class="stage">
-      <p class="stage-hint">The window below is live: split or close a pane with the buttons in its header.</p>
-      <div class="app hero-window" data-ui aria-label="A gexi window with three panes">
-        <div class="app-side">
-          <div class="side-chrome">
-            <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></svg>
-          </div>
-          <div class="side-search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.2"/><path d="m10.4 10.4 3 3"/></svg>Search</div>
-          <div class="side-list">
-            <div class="project">
-              <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>aurora</span></div>
-              <div class="session working"><span class="sess-name">agents</span><span class="dot dot--work"></span></div>
-              <div class="session active"><span class="sess-name">dev server</span></div>
-              <div class="session"><span class="sess-name">pricing</span></div>
-            </div>
-            <div class="project">
-              <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>ledger</span></div>
-              <div class="session"><span class="sess-name">api</span><span class="dot dot--wait"></span></div>
-              <div class="session"><span class="sess-name">pr 128</span></div>
-            </div>
-            <div class="project">
-              <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>site</span></div>
-              <div class="session"><span class="sess-name">homepage</span></div>
-            </div>
+  <main class="canvas" id="main">
+    <nav class="rail-strip" aria-label="Page sections">
+      <a href="#top" data-rail="top">Top</a>
+      <a href="#canvas" data-rail="canvas">Canvas</a>
+      <a href="#sidebar" data-rail="sidebar">Sidebar</a>
+      <a href="#cli" data-rail="cli">CLI</a>
+      <a href="#agents" data-rail="agents">Agents</a>
+      <a href="#worktrees" data-rail="worktrees">Worktrees</a>
+      <a href="#install" data-rail="install">Install</a>
+    </nav>
+    <div class="wrap" id="top">
+
+      <section class="hero" aria-labelledby="title">
+        <div class="hero-head">
+          <p class="eyebrow"><i aria-hidden="true"></i>Native macOS terminal workspace</p>
+          <h1 id="title">
+            <span class="hero-line"><span>One window.</span></span>
+            <span class="hero-line"><span>Many agents<i class="stop-mark" aria-hidden="true"></i></span></span>
+          </h1>
+        </div>
+
+        <div class="hero-sub">
+          <p>Every project's sessions in one window. Real terminals, driven from outside by a CLI.</p>
+          <div class="hero-actions">
+            <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">Download for macOS<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
+            <a class="ghost-link" href="https://github.com/justdoswift/gexi"><span>View source on GitHub</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
           </div>
         </div>
-        <div class="app-main">
-          <div class="panes" data-count="3" data-panes>
-            <section class="pane focused">
-              <header class="pane-head">
-                <span class="pane-title"><span class="agent" aria-hidden="true"></span>claude</span>
-                <span class="branch-pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M6 10.5c3.5 0 5.5-1 5.5-3.5"/></svg>feat/pricing <span class="add">+6</span> <span class="del">−5</span></span>
-                <span class="pane-actions">
-                  <button class="pane-btn" data-act="split" aria-label="Split right"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M8 2.5v11"/></svg></button>
-                  <button class="pane-btn" data-act="split" aria-label="Split down"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 8h12"/></svg></button>
-                  <button class="pane-btn" data-act="close" aria-label="Close pane"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
-                </span>
-              </header>
-              <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> git status
+
+        <div class="stage" data-intro>
+          <p class="stage-hint"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 2.5v8M5 7l3 3 3-3M2.5 13.5h11"/></svg>This window is live: split or close a pane from its header.</p>
+          <div class="win" role="group" data-ui aria-label="A gexi window with three panes">
+            <div class="win-bar">
+              <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="win-path">aurora — gexi</span>
+            </div>
+            <div class="win-body">
+              <div class="win-side">
+                <div class="side-search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.2"/><path d="m10.4 10.4 3 3"/></svg>Search</div>
+                <div class="side-group">
+                  <div class="side-project"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>aurora</span></div>
+                  <div class="sess active"><span>agents</span><span class="dot dot--work"></span></div>
+                  <div class="sess"><span>dev server</span></div>
+                  <div class="sess"><span>pricing</span></div>
+                </div>
+                <div class="side-group">
+                  <div class="side-project"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>ledger</span></div>
+                  <div class="sess"><span>api</span><span class="dot dot--wait"></span></div>
+                  <div class="sess"><span>pr 128</span></div>
+                </div>
+                <div class="side-group">
+                  <div class="side-project"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>site</span></div>
+                  <div class="sess"><span>homepage</span></div>
+                </div>
+              </div>
+              <div class="win-main">
+                <div class="panes" data-count="3" data-panes>
+                  <section class="pane focused">
+                    <header class="pane-head">
+                      <span class="pane-title"><span class="agent-dot" aria-hidden="true"></span>claude</span>
+                      <span class="branch-pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M6 10.5c3.5 0 5.5-1 5.5-3.5"/></svg>feat/pricing <span class="add">+6</span> <span class="del">−5</span></span>
+                      <span class="pane-actions">
+                        <button class="pane-btn" data-act="split" aria-label="Split right"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M8 2.5v11"/></svg></button>
+                        <button class="pane-btn" data-act="split" aria-label="Split down"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 8h12"/></svg></button>
+                        <button class="pane-btn" data-act="close" aria-label="Close pane"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
+                      </span>
+                    </header>
+                    <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> git status
 On branch feat/pricing
 Changes not staged for commit:
   <span class="red">modified:   src/pricing.ts</span>
   <span class="red">modified:   src/pricing.test.ts</span>
 
 no changes added to commit
-<span class="dim">~/aurora</span> <span class="dim">$</span> <span class="cursor"></span></pre>
-            </section>
-            <section class="pane">
-              <header class="pane-head">
-                <span class="pane-title">zsh</span>
-                <span class="pane-path">~/aurora</span>
-                <span class="pane-actions">
-                  <button class="pane-btn" data-act="split" aria-label="Split right"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M8 2.5v11"/></svg></button>
-                  <button class="pane-btn" data-act="split" aria-label="Split down"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 8h12"/></svg></button>
-                  <button class="pane-btn" data-act="close" aria-label="Close pane"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
-                </span>
-              </header>
-              <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> npm test -- pricing
+<span class="dir">~/aurora</span> <span class="dim">$</span> <span class="cursor"></span></pre>
+                  </section>
+                  <section class="pane">
+                    <header class="pane-head">
+                      <span class="pane-title">zsh</span>
+                      <span class="pane-path">~/aurora</span>
+                      <span class="pane-actions">
+                        <button class="pane-btn" data-act="split" aria-label="Split right"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M8 2.5v11"/></svg></button>
+                        <button class="pane-btn" data-act="split" aria-label="Split down"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 8h12"/></svg></button>
+                        <button class="pane-btn" data-act="close" aria-label="Close pane"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
+                      </span>
+                    </header>
+                    <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> npm test -- pricing
 
  <span class="green">PASS</span> src/pricing.test.ts <span class="dim">(4)</span>
  <span class="green">PASS</span> src/checkout.test.ts <span class="dim">(2)</span>
 
- <span class="green">Test Files</span>  2 passed (2)
  <span class="green">Tests</span>       6 passed (6)
  <span class="dim">Duration    0.94s</span></pre>
-            </section>
+                  </section>
+                  <section class="pane">
+                    <header class="pane-head">
+                      <span class="pane-title">zsh</span>
+                      <span class="pane-path">~/aurora</span>
+                      <span class="pane-actions">
+                        <button class="pane-btn" data-act="split" aria-label="Split right"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M8 2.5v11"/></svg></button>
+                        <button class="pane-btn" data-act="split" aria-label="Split down"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 8h12"/></svg></button>
+                        <button class="pane-btn" data-act="close" aria-label="Close pane"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
+                      </span>
+                    </header>
+                    <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> gh pr list
+
+<span class="purple">#128</span>  Fix tax rounding  feat/pricing  <span class="green">checks ok</span>
+<span class="purple">#124</span>  Add invoice PDF   feat/invoice  <span class="yellow">● pending</span></pre>
+                  </section>
+                </div>
+              </div>
+            </div>
+            <p class="visually-hidden" role="status" data-pane-status>3 panes</p>
+          </div>
+          <template id="pane-template">
             <section class="pane">
               <header class="pane-head">
                 <span class="pane-title">zsh</span>
@@ -138,368 +191,381 @@ no changes added to commit
                   <button class="pane-btn" data-act="close" aria-label="Close pane"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
                 </span>
               </header>
-              <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> gh pr list
-
-<span class="purple">#128</span>  Fix tax rounding  feat/pricing  <span class="green">checks ok</span>
-<span class="purple">#124</span>  Add invoice PDF   feat/invoice  <span class="yellow">● pending</span></pre>
-            </section>
-          </div>
-        </div>
-        <p class="visually-hidden" role="status" data-pane-status>3 panes</p>
-      </div>
-      <template id="pane-template">
-        <section class="pane">
-          <header class="pane-head">
-            <span class="pane-title">zsh</span>
-            <span class="pane-path">~/aurora</span>
-            <span class="pane-actions">
-              <button class="pane-btn" data-act="split" aria-label="Split right"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M8 2.5v11"/></svg></button>
-              <button class="pane-btn" data-act="split" aria-label="Split down"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 8h12"/></svg></button>
-              <button class="pane-btn" data-act="close" aria-label="Close pane"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
-            </span>
-          </header>
-          <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> npm run dev
+              <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> npm run dev
 
   <span class="green">VITE v6.2.1</span>  ready in 312 ms
 
   Local:   http://localhost:5173/
 
 <span class="dim">10:42:18  hmr update /src/pricing.ts</span></pre>
-        </section>
-      </template>
-    </div>
-  </section>
+            </section>
+          </template>
+        </div>
+      </section>
 
-  <section class="section wrap" id="canvas">
-    <div class="split">
-      <div class="split-copy" data-reveal>
-        <h2>Split until it fits.</h2>
-        <p class="lead">Every pane is a real terminal with its own shell. Split right or down as deep as the work needs, then move the panes around by hand.</p>
-        <ul class="feature-points">
-          <li>Drag a pane’s title onto a side of another to split that way, or onto its middle to trade places.</li>
-          <li><span><kbd>⌘⇧↩</kbd> fills the session with one pane; the panes it hides float over the right edge, leaning back and mirroring their terminals live. Clicking one grows it onto the stage and shrinks the old pane into a card; more panes than fit overlap. The same keys bring every pane back.</span></li>
-          <li>The files drawer on the right lists the project’s changes and files: the changes tab opens a diff, the files tab walks the tree and reads a file in place. The branch pill or <kbd>⌘⇧E</kbd> opens it, and each file carries a mark for its type.</li>
-          <li>Comfortable cards or edge-to-edge terminals, light or dark. The sidebar shares the canvas’s colour, so one surface wraps the panes; a switch in settings lets it show the desktop through macOS’s translucent sidebar material instead.</li>
-        </ul>
-      </div>
-      <div data-reveal style="--d:90ms">
-        <div class="panel">
-          <div class="app app--canvas" data-ui aria-label="A canvas of four split panes">
-            <div class="app-main">
-              <div class="panes" data-count="4">
-                <section class="pane focused">
-                  <header class="pane-head">
-                    <span class="pane-title"><span class="agent" aria-hidden="true"></span>claude</span>
-                    <span class="branch-pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M6 10.5c3.5 0 5.5-1 5.5-3.5"/></svg>feat/pricing <span class="add">+6</span> <span class="del">−5</span></span>
-                  </header>
-                  <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> git diff --stat
+      <section class="section" id="canvas" aria-labelledby="canvas-title">
+        <div class="section-head">
+          <p class="section-kicker">01 — Canvas</p>
+          <h2 id="canvas-title">Split it however you like.</h2>
+          <p class="lead">Every pane is a real terminal. Split right or down, then drag panes where you want them.</p>
+        </div>
+
+        <div class="band panes" data-panes data-count="3" data-reveal aria-label="Three panes on the canvas">
+          <section class="pane focused">
+            <header class="pane-head"><span class="pane-title"><span class="agent-dot" aria-hidden="true"></span>claude</span>
+              <span class="pane-actions">
+                        <button class="pane-btn" data-act="split" aria-label="Split right"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M8 2.5v11"/></svg></button>
+                        <button class="pane-btn" data-act="split" aria-label="Split down"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 8h12"/></svg></button>
+                        <button class="pane-btn" data-act="close" aria-label="Close pane"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
+                      </span>
+            </header>
+            <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> git diff --stat
  src/pricing.ts       <span class="green">+4</span> <span class="red">−2</span>
  src/pricing.test.ts  <span class="green">+2</span> <span class="red">−3</span>
- 2 files changed, 6 insertions(+), 5 deletions(−)
-
-<span class="dim">~/aurora</span> <span class="dim">$</span> <span class="cursor"></span></pre>
-                </section>
-                <section class="pane">
-                  <header class="pane-head"><span class="pane-title">zsh</span><span class="pane-path">~/aurora</span></header>
-                  <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> npm test
+ 2 files changed
+<span class="dir">~/aurora</span> <span class="dim">$</span> <span class="cursor"></span></pre>
+          </section>
+          <section class="pane">
+            <header class="pane-head"><span class="pane-title">zsh</span><span class="pane-path">~/aurora</span>
+              <span class="pane-actions">
+                        <button class="pane-btn" data-act="split" aria-label="Split right"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M8 2.5v11"/></svg></button>
+                        <button class="pane-btn" data-act="split" aria-label="Split down"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 8h12"/></svg></button>
+                        <button class="pane-btn" data-act="close" aria-label="Close pane"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
+                      </span>
+            </header>
+            <pre class="term"><span class="dir">~/aurora</span> <span class="dim">$</span> npm test
 
  <span class="green">6 tests passed</span>
- <span class="dim">Duration 0.94s</span></pre>
-                </section>
-                <section class="pane">
-                  <header class="pane-head"><span class="pane-title">zsh</span><span class="pane-path">~/ledger</span></header>
-                  <pre class="term"><span class="dir">~/ledger</span> <span class="dim">$</span> go test ./...
-<span class="green">ok</span>   example.com/ledger  <span class="dim">0.41s</span></pre>
-                </section>
-                <section class="pane">
-                  <header class="pane-head"><span class="pane-title">zsh</span><span class="pane-path">~/site</span></header>
-                  <pre class="term"><span class="dir">~/site</span> <span class="dim">$</span> npm run build
+ <span class="dim">Duration 0.94s</span>
+<span class="dir">~/aurora</span> <span class="dim">$</span> <span class="cursor"></span></pre>
+          </section>
+          <section class="pane">
+            <header class="pane-head"><span class="pane-title">zsh</span><span class="pane-path">~/ledger</span>
+              <span class="pane-actions">
+                        <button class="pane-btn" data-act="split" aria-label="Split right"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M8 2.5v11"/></svg></button>
+                        <button class="pane-btn" data-act="split" aria-label="Split down"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 8h12"/></svg></button>
+                        <button class="pane-btn" data-act="close" aria-label="Close pane"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
+                      </span>
+            </header>
+            <pre class="term"><span class="dir">~/ledger</span> <span class="dim">$</span> go test ./...
+<span class="green">ok</span>   example.com/ledger  <span class="dim">0.41s</span>
+<span class="dir">~/ledger</span> <span class="dim">$</span> <span class="cursor"></span></pre>
+          </section>
+        </div>
 
-<span class="green">vite</span> building for production...
-<span class="green">built</span> in 1.28s</pre>
-                </section>
+        <ul class="canvas-notes">
+          <li><span class="k">Drag</span>Drop a pane on another's edge to split that way; drop it in the middle to swap.</li>
+          <li><span class="k">Full canvas</span>Press ⌘⇧↩ to fill the canvas; the panes it covers become tilted cards on the right.</li>
+          <li><span class="k">Drawer</span>Diffs on one page, a directory tree and files on the other.</li>
+          <li><span class="k">Look</span>Comfortable cards or a seamless terminal, light or dark.</li>
+        </ul>
+      </section>
+
+      <section class="section" id="sidebar" aria-labelledby="sidebar-title">
+        <div class="sessions">
+          <div class="section-head" data-reveal>
+            <p class="section-kicker">02 — Sidebar</p>
+            <h2 id="sidebar-title">Projects, not tabs.</h2>
+            <p class="lead">Sessions group by folder and keep running after the window closes. ⌘Q is the real quit.</p>
+            <p class="body-copy" style="margin-top:16px">Layout is saved on quit, and agent panes resume their latest conversation in their own directory. Closing a pane that ran an agent asks first — run it in the background and find it later in Settings.</p>
+            <div class="mini-dialog" data-ui aria-label="Confirming a pane with a running agent">
+              <div class="mini-dialog-head"><img src="assets/gexi-icon-60.png" width="22" height="22" alt=""><strong>Close this pane?</strong></div>
+              <p>claude is still running here.</p>
+              <div class="mini-dialog-actions"><span class="chip">Run in background</span><span class="chip chip--strong">Close</span></div>
+            </div>
+          </div>
+
+          <div class="session-stack" data-reveal>
+            <div class="win-bar">
+              <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="win-path">aurora — gexi</span>
+            </div>
+            <div class="stack-inner">
+            <div class="stack-head">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" style="width:13px;height:13px"><circle cx="7" cy="7" r="4.2"/><path d="m10.4 10.4 3 3"/></svg>
+              Search
+              <span class="count">4 projects · 9 sessions</span>
+            </div>
+            <div class="stack-list">
+              <div class="stack-group">
+                <div class="stack-project"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg>aurora</div>
+                <div class="stack-row" data-on="true"><span class="stack-name">agents</span><span class="stack-what">claude · working</span><span class="stack-state stack-state--work" aria-hidden="true"></span></div>
+                <div class="stack-row"><span class="stack-name">dev server</span><span class="stack-what">zsh · 5173</span></div>
+                <div class="stack-row"><span class="stack-name">pricing</span><span class="stack-what">zsh · feat/pricing</span></div>
+                <div class="stack-row"><span class="stack-name">release</span><span class="stack-what">zsh · idle</span></div>
               </div>
+              <div class="stack-group">
+                <div class="stack-project"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg>ledger</div>
+                <div class="stack-row"><span class="stack-name">api</span><span class="stack-what">claude · waiting</span><span class="stack-state stack-state--wait" aria-hidden="true"></span></div>
+                <div class="stack-row"><span class="stack-name">pr 128</span><span class="stack-what">zsh · gh</span></div>
+              </div>
+              <div class="stack-group">
+                <div class="stack-project"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg>site</div>
+                <div class="stack-row"><span class="stack-name">homepage</span><span class="stack-what">zsh · main</span></div>
+              </div>
+            </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
+      </section>
 
-  <section class="section wrap" id="sidebar">
-    <div class="split split--flip">
-      <div class="split-copy" data-reveal>
-        <h2>Projects, not tabs.</h2>
-        <p class="lead">Sessions are grouped by the folder they run in, and keep running when you close the window. The Dock icon brings the workspace back; <kbd>⌘Q</kbd> is the real quit.</p>
-        <p class="body">On quit the layout is saved, and each pane’s last screen is painted above a fresh shell on launch. Agent panes resume their newest session in the pane’s directory: Claude Code with <code>--resume</code>, Codex with <code>codex resume --last</code>, omp, Devin and Grok with <code>--continue</code>, Droid with <code>--resume --last</code>, and Perch with a plain <code>perch</code>, which keeps one conversation per directory.</p>
-        <p class="body">Closing a pane where an agent has run asks first. <strong>Keep Running</strong> takes it off the stage without ending it, and Settings › Worktrees brings it back with its session intact.</p>
-        <ul class="feature-points">
-          <li>A pane’s title says what is running; a detected agent brings its own name and mark.</li>
-          <li>Working sessions breathe, waiting ones carry an amber dot. Nothing shouts.</li>
-          <li>The interface speaks English and Simplified Chinese, from View › Language or the system’s.</li>
-        </ul>
-      </div>
-      <div data-reveal style="--d:90ms">
-        <div class="panel">
-          <div class="side-card" data-ui aria-label="The gexi sidebar">
-            <div class="app-side">
-              <div class="side-chrome">
+      <section class="section" id="cli" aria-labelledby="cli-title">
+        <div class="section-head">
+          <p class="section-kicker">03 — CLI</p>
+          <h2 id="cli-title">Drive it from outside.</h2>
+          <p class="lead">The window and the CLI speak one JSON-lines protocol over a Unix socket: split panes, type text, read the screen back.</p>
+        </div>
+
+        <div class="cli">
+          <div class="cli-stage">
+            <div class="cli-term win" role="group" data-cli aria-label="gexi CLI">
+              <div class="win-bar">
                 <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></svg>
+                <span class="win-path">3f2a — gexi list</span>
               </div>
-              <div class="side-search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.2"/><path d="m10.4 10.4 3 3"/></svg>Search</div>
-              <div class="side-list">
-                <div class="project">
-                  <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>aurora</span></div>
-                  <div class="session working"><span class="sess-name">agents</span><span class="dot dot--work"></span></div>
-                  <div class="session active"><span class="sess-name">dev server</span></div>
-                  <div class="session"><span class="sess-name">pricing</span></div>
-                  <div class="session"><span class="sess-name">release</span></div>
-                </div>
-                <div class="project">
-                  <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>ledger</span></div>
-                  <div class="session"><span class="sess-name">api</span><span class="dot dot--wait"></span></div>
-                  <div class="session"><span class="sess-name">pr 128</span></div>
-                </div>
-                <div class="project">
-                  <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>site</span></div>
-                  <div class="session"><span class="sess-name">homepage</span></div>
-                </div>
-                <div class="project">
-                  <div class="project-row"><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h2.5l1.4 1.6H12A1.5 1.5 0 0 1 13.5 7.1v4.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5Z"/></svg><span>infra</span></div>
-                  <div class="session"><span class="sess-name">staging</span></div>
-                </div>
+              <pre class="term" aria-live="polite">
+<span class="term-line" data-step="1"><span class="dir">~/aurora</span> <span class="dim">$</span> gexi split --vertical -- "npm run dev"</span>
+<span class="term-line" data-step="1"><span class="green">✓</span> pane c204 created, running npm run dev</span>
+
+<span class="term-line" data-step="2"><span class="dir">~/aurora</span> <span class="dim">$</span> gexi run -- claude</span>
+<span class="term-line" data-step="2"><span class="green">✓</span> claude started in 3f2a</span>
+<span class="term-line" data-step="2"><span class="dir">~/aurora</span> <span class="dim">$</span> gexi send -e "ls -la"</span>
+<span class="term-line" data-step="2"><span class="green">✓</span> sent to 3f2a</span>
+
+<span class="term-line" data-step="3"><span class="dir">~/aurora</span> <span class="dim">$</span> gexi capture -p 3f2a --lines 4</span>
+<span class="term-line" data-step="3"><span class="dim">3f2a</span>  * claude   ~/aurora   <span class="yellow">working</span></span>
+<span class="term-line" data-step="3"><span class="dim">c204</span>    zsh      ~/aurora</span>
+<span class="term-line" data-step="3"><span class="dim">9b71</span>    zsh      ~/ledger   <span class="dim">waiting</span></span></pre>
+            </div>
+          </div>
+
+          <div class="cli-steps">
+            <article class="cli-step" data-step="1">
+              <h3>Split a pane and get the command running.</h3>
+              <p>The new pane lands to the right and the command starts immediately.</p>
+              <span class="step-cmd">gexi split --vertical -- "npm run dev"</span>
+            </article>
+            <article class="cli-step" data-step="2">
+              <h3>Start an agent, or join one already running.</h3>
+              <p>Agents run in the same real terminal as everything else.</p>
+              <span class="step-cmd">gexi run -- claude · gexi send -e "ls -la"</span>
+            </article>
+            <article class="cli-step" data-step="3">
+              <h3>Read a pane's screen as text.</h3>
+              <p>Scrollback, cursor position and state come back as text.</p>
+              <span class="step-cmd">gexi capture -p 3f2a --scrollback --lines 40</span>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="agents" aria-labelledby="agents-title">
+        <div class="section-head">
+          <p class="section-kicker">04 — Agents</p>
+          <h2 id="agents-title">Agents that report themselves.</h2>
+          <p class="lead">A pane's screen shows what the agent printed, not what it is doing. gexi layers on hooks so the pane reports itself.</p>
+        </div>
+
+        <div class="agents">
+          <div data-reveal>
+            <div class="notif">
+              <img src="assets/gexi-icon-60.png" width="30" height="30" alt="">
+              <div>
+                <div class="notif-title">gexi</div>
+                <div class="notif-body">claude in aurora needs your input</div>
               </div>
-                </div>
+              <span class="notif-time">now</span>
+            </div>
+            <div class="state-list">
+              <div class="state-row"><span class="name">claude</span><span class="dir">~/aurora</span><span class="st st--work"><i></i>working</span></div>
+              <div class="state-row"><span class="name">claude</span><span class="dir">~/ledger</span><span class="st st--wait"><i></i>waiting</span></div>
+              <div class="state-row"><span class="name">codex</span><span class="dir">~/site</span><span class="st st--idle"><i></i>idle</span></div>
+            </div>
+            <p class="body-copy" style="margin-top:18px">The same state is in <code>gexi list --json</code>'s <code>activity</code> field; any process can report with <code>gexi event</code>.</p>
+          </div>
+          <div data-reveal>
+            <table class="hooks">
+              <caption class="visually-hidden">Claude Code hooks and the pane state they set</caption>
+              <thead><tr><th scope="col">Hook</th><th scope="col">Event</th><th scope="col">State</th></tr></thead>
+              <tbody>
+                <tr><td><code>UserPromptSubmit</code></td><td class="arrow">turn.start</td><td class="st st--work"><i></i>working</td></tr>
+                <tr><td><code>Stop</code></td><td class="arrow">turn.end</td><td class="st st--idle"><i></i>idle</td></tr>
+                <tr><td><code>Notification</code></td><td class="arrow">needs-input</td><td class="st st--wait"><i></i>waiting</td></tr>
+                <tr><td><code>SessionStart / End</code></td><td class="arrow">session.start / end</td><td class="st st--idle"><i></i>idle</td></tr>
+                <tr><td><code>SubagentStart / Stop</code></td><td class="arrow">subagent.start / end</td><td class="st st--work"><i></i>working</td></tr>
+              </tbody>
+            </table>
+            <p class="body-copy" style="margin-top:16px">Your own hooks still fire; the generated file only covers agents gexi starts.</p>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
+      </section>
 
-  <div class="cli" id="cli">
-    <div class="wrap">
-      <div class="cli-grid">
-        <div data-reveal>
-          <h2>Drive it from outside.</h2>
-          <p class="lead">The window and the CLI speak the same JSON-lines protocol over a Unix socket. Any process in a pane, including the agent running there, can create projects, split panes, type, and read the screen back.</p>
-          <p class="cli-note">Pane arguments take a full id or any unique prefix, and default to <code>$GEXI_PANE</code> or the focused pane. The socket lives at <code>~/Library/Application Support/gexi/control.sock</code>.</p>
+      <section class="section" id="worktrees" aria-labelledby="worktrees-title">
+        <div class="section-head">
+          <p class="section-kicker">05 — Worktrees</p>
+          <h2 id="worktrees-title">From a branch to a merged PR.</h2>
+          <p class="lead">Press W and the pane moves into its own git worktree, cut from the latest origin. The title bar carries the branch, the changes and the PR.</p>
         </div>
-        <div class="cli-steps" data-reveal style="--d:90ms">
-          <div class="cli-step">
-            <p><strong>Open a split with a command in it.</strong></p>
-            <div class="code"><button class="copy" type="button" data-copy aria-label="Copy command"><svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 11h1"/></svg><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg></button><code>gexi split --vertical -- "npm run dev"</code></div>
-          </div>
-          <div class="cli-step">
-            <p><strong>Start an agent, or talk to one already running.</strong></p>
-            <div class="code"><button class="copy" type="button" data-copy aria-label="Copy command"><svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 11h1"/></svg><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg></button><code>gexi run -- claude
-gexi send -e "ls -la"</code></div>
-          </div>
-          <div class="cli-step">
-            <p><strong>Read a pane’s screen back as text.</strong></p>
-            <div class="code"><button class="copy" type="button" data-copy aria-label="Copy command"><svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 11h1"/></svg><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg></button><code>gexi capture -p 3f2a --scrollback --lines 40</code></div>
-            <pre class="capture" aria-label="Example gexi list output"><code><span class="h">$ gexi list</span>
-<span class="n">3f2a</span>  * claude     ~/aurora   <span class="w">working</span>
-<span class="h">9b71</span>    zsh        ~/aurora
-<span class="h">c204</span>    zsh        ~/ledger   <span class="w">waiting</span></code></pre>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <section class="section wrap" id="agents">
-    <div class="split">
-      <div class="split-copy" data-reveal>
-        <h2>An agent that reports for itself.</h2>
-        <p class="lead">A pane’s screen says what an agent printed, not what it is doing. When gexi launches Claude Code it layers a settings file of hooks on top of yours, so the pane reports its own lifecycle.</p>
-        <p class="body"><code>turn.end</code> and <code>needs-input</code> post a banner from gexi itself: the title is the event, the subtitle the agent, project and branch, and the body the first line the agent said. When it waits for you, the banner reads “Needs your approval.” The state appears under <code>activity</code> in <code>gexi list --json</code>, and any process can report the same events with <code>gexi event</code>.</p>
-        <p class="body">Subagents are counted, not folded into the turn: <code>SubagentStart</code> / <code>SubagentStop</code> keep a live set, so a background agent that outlives its turn shows as a count and an amber dot beside the branch badge in the pane’s header; hovering names the agent and says it is still running.</p>
-        <ul class="feature-points">
-          <li>Existing hooks keep firing: the generated file is layered on top of your own.</li>
-          <li>Events cover agents gexi launched, or that a hook points at. A <code>claude</code> typed into a plain shell stays unset.</li>
-          <li>Claude Code, Codex, omp, Devin, Grok, Droid and Perch are recognised by name and mark; Perch is found by its script path, not mistaken for a plain node program.</li>
-        </ul>
-      </div>
-      <div data-reveal style="--d:90ms">
-        <div class="panel">
-          <div class="notif" data-ui aria-label="A notification from a pane">
-            <img src="assets/gexi-icon-60.png" width="32" height="32" alt="">
-            <div>
-              <div class="notif-title">gexi</div>
-              <div class="notif-body">claude in aurora needs your input</div>
-            </div>
-            <span class="notif-time">now</span>
+        <div class="track" data-track>
+          <div class="track-line" aria-hidden="true"><span class="track-fill" data-track-fill></span></div>
+          <ol class="track-stops">
+            <li class="stop" data-on="true">
+              <p class="stop-key">W</p>
+              <h3>Move into a worktree</h3>
+              <p>Cut from the latest origin.</p>
+            </li>
+            <li class="stop">
+              <p class="stop-key">Changes</p>
+              <h3>The branch lives in the title bar</h3>
+              <p>Branch and changes, right in the header.</p>
+            </li>
+            <li class="stop">
+              <p class="stop-key">PR</p>
+              <h3>The commit message comes first</h3>
+              <p>The agent writes it from the diff.</p>
+            </li>
+            <li class="stop">
+              <p class="stop-key">Merge</p>
+              <h3>Colour gives the answer</h3>
+              <p>Green merges, amber checks, red blocks.</p>
+            </li>
+            <li class="stop">
+              <p class="stop-key">Archived</p>
+              <h3>Close the pane, back to the project</h3>
+              <p>Base branch fast-forwards; worktree archived.</p>
+            </li>
+          </ol>
+          <p class="strip-note">The merge button's three answers</p>
+          <div class="pr-strip" data-reveal>
+            <span class="label">Merge</span>
+            <span class="chip chip--green"><i></i>ready</span>
+            <span class="chip chip--amber"><i></i>checks running</span>
+            <span class="chip" style="color:var(--red)"><i></i>blocked</span>
+            <span class="label" style="margin-left:auto">Conflict</span>
+            <span class="chip chip--violet">let claude resolve</span>
           </div>
-          <div class="activity" data-ui aria-label="Agent activity in three panes">
-            <div class="activity-row working"><span class="agent"></span><span class="name">claude</span><span class="dir">~/aurora</span><span class="st">working</span></div>
-            <div class="activity-row"><span class="agent agent--wait"></span><span class="name">claude</span><span class="dir">~/ledger</span><span class="st">waiting</span></div>
-            <div class="activity-row"><span class="agent agent--idle"></span><span class="name">codex</span><span class="dir">~/site</span><span class="st">idle</span></div>
-          </div>
-          <table class="hooks" data-ui>
-            <caption class="visually-hidden">Claude Code hooks and the pane state each reports</caption>
-            <thead><tr><th scope="col">Hook</th><th scope="col">Event</th><th scope="col">State</th></tr></thead>
-            <tbody>
-              <tr><td><code>UserPromptSubmit</code></td><td>turn.start</td><td class="state state--work"><i></i>working</td></tr>
-              <tr><td><code>Stop</code></td><td>turn.end</td><td class="state state--idle"><i></i>idle</td></tr>
-              <tr><td><code>Notification</code></td><td>needs-input</td><td class="state state--wait"><i></i>waiting</td></tr>
-              <tr><td><code>SessionStart / SessionEnd</code></td><td>session.start / end</td><td class="state state--idle"><i></i>idle</td></tr>
-              <tr><td><code>SubagentStart / SubagentStop</code></td><td>subagent.start / end</td><td class="state state--work"><i></i>working</td></tr>
-            </tbody>
-          </table>
         </div>
-      </div>
-    </div>
-  </section>
+      </section>
 
-  <section class="section wrap" id="worktrees">
-    <div class="split split--flip">
-      <div class="split-copy" data-reveal>
-        <h2>From a branch to a merged PR.</h2>
-        <p class="lead">Press <kbd>W</kbd> in a pane’s header and the pane moves into its own git worktree, branched from the latest <code>origin</code> base. The header carries the branch, its diff, and the pull request that follows.</p>
-        <p class="body"><strong>PR</strong> commits any pending changes first, with a message the pane’s agent writes from the diff in its headless mode; when the agent cannot answer, a dialog asks for it. Then it pushes the branch and opens the pull request with <code>gh</code>.</p>
-        <p class="body"><strong>Merge</strong> carries GitHub’s answer as its colour: green when it would merge, amber while checks or reviews are pending, red when something blocks it. Merging fast-forwards your base and archives the worktree on the spot: the pane closes, the checkout goes, and the project folder comes back in front of you, on the merged branch when that checkout has no changes of its own. The branch is kept, so Settings › Worktrees can restore it or delete it.</p>
-        <p class="body">When a conflict blocks the merge and an agent is running, gexi hands it the files, commits and pushes the result, and merges once GitHub sees it. <kbd>W</kbd> does not need a running agent stopped first either: gexi stops it, moves the pane’s uncommitted changes into the new checkout, and opens a fresh session of the same agent there; the conversation itself starts over.</p>
-        <ul class="feature-points">
-          <li>Branches start with a Dota 2 placeholder name; the first prompt renames them to the task.</li>
-          <li>A pane that cd’s into any worktree is recognised too: its header offers that branch’s PR, and leaving the folder returns <kbd>W</kbd>.</li>
-          <li>Opening and merging pull requests uses the GitHub CLI, authenticated.</li>
-        </ul>
-      </div>
-      <div data-reveal style="--d:90ms">
-        <div class="panel">
-          <div class="pr-card" data-ui aria-label="Worktree and pull request controls">
-            <div class="pr-row">
-              <span class="branch-pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M6 10.5c3.5 0 5.5-1 5.5-3.5"/></svg>feat/pricing <span class="add">+6</span> <span class="del">−5</span></span>
-              <span class="pr-btn pr-btn--outline">PR #128</span>
-              <span class="pr-note">opened from the pane</span>
+      <section class="section" id="install" aria-labelledby="install-title">
+        <div class="section-head">
+          <p class="section-kicker">06 — Install</p>
+          <h2 id="install-title">Install gexi.</h2>
+          <p class="lead">Early software, version 0.0.113. Free, MIT licensed, updated from signed releases.</p>
+        </div>
+
+        <div class="install">
+          <div data-reveal>
+            <div class="cmd-card">
+              <p class="cmd-label">One line</p>
+              <div class="cmd-row">
+                <code><span class="prompt">$ </span>curl -fsSL \
+https://<wbr>github.com/<wbr>justdoswift/<wbr>gexi/<wbr>releases/<wbr>latest/<wbr>download/<wbr>install.sh | sh</code>
+                <button class="copy" type="button" data-copy aria-label="Copy install command"><svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 11h1"/></svg><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg></button>
+              </div>
+              <p class="cmd-note">Installs into /Applications, or ~/Applications. Apple silicon, macOS 13+.</p>
             </div>
-            <div class="pr-row">
-              <span class="pr-label">Merge</span>
-              <span class="pr-btn pr-btn--green">Ready to merge</span>
-              <span class="pr-note">checks passed · approved</span>
+            <div class="hero-actions" style="margin-top:20px">
+              <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">Download for macOS<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
+              <a class="ghost-link" href="https://github.com/justdoswift/gexi/releases"><span>All releases</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
             </div>
-            <div class="pr-row">
-              <span class="pr-label">Merge</span>
-              <span class="pr-btn pr-btn--amber">Checks pending</span>
-              <span class="pr-note">2 of 3 finished</span>
+          </div>
+
+          <div data-reveal>
+            <div class="req">
+              <h3>Requirements</h3>
+              <ul class="req-list">
+                <li>macOS 13 or later</li>
+                <li>Signed builds for Apple silicon; Intel builds from source</li>
+                <li>Building needs Go 1.27+, not Xcode</li>
+                <li>Opening PRs and merging needs a signed-in GitHub CLI</li>
+              </ul>
             </div>
-            <div class="pr-row">
-              <span class="pr-label">Merge</span>
-              <span class="pr-btn pr-btn--red">Blocked</span>
-              <span class="pr-note">review requested</span>
-            </div>
-            <div class="pr-row">
-              <span class="pr-label">Conflicts</span>
-              <span class="pr-btn pr-btn--amber">Ask claude</span>
-              <span class="pr-note">the agent settles the files, then merges</span>
-            </div>
-            <div class="pr-row">
-              <span class="pr-label">Merged</span>
-              <span class="pr-btn pr-btn--violet">Back to the project</span>
-              <span class="pr-note">the pane closes, the branch is kept</span>
+            <div class="req">
+              <h3>Build from source</h3>
+              <pre class="source-build"><span style="color:var(--ink-3)">git clone https://github.com/justdoswift/gexi
+cd gexi</span>
+go tool mygo build      <span style="color:var(--ink-3)"># .app and .dmg in build/</span>
+go build -o gexi ./cmd/gexi</pre>
+              <p class="body-copy" style="margin-top:10px;font-size:14px"><code>go tool mygo dev</code> starts a dev build with hot reload.</p>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
 
-  <section class="section wrap" id="install">
-    <div class="install-grid">
-      <div data-reveal>
-        <img class="install-icon" src="assets/gexi-icon-256.png" width="72" height="72" alt="gexi app icon">
-        <h2>Install gexi.</h2>
-        <p class="lead">Early software, version 0.0.41. Free and MIT licensed. Every copy updates itself from signed releases; <em>gexi → Check for Updates…</em> checks on demand.</p>
-        <div class="install-actions">
-          <a class="btn" href="https://github.com/justdoswift/gexi/releases/latest">Download for macOS<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 3v8M5 8.5 8 11.5l3-3M3.5 13.5h9"/></svg></a>
-          <a class="link-arrow" href="https://github.com/justdoswift/gexi/releases">All releases<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
+        <div class="faq win" data-reveal>
+          <div class="win-bar">
+            <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="win-path">gexi — FAQ</span>
+          </div>
+          <div class="faq-body">
+          <div class="faq-head">
+            <h2>Questions.</h2>
+            <p>The ones the README hears most; anything else, ask in the repo.</p>
+            <a class="ghost-link" style="margin-top:14px" href="https://github.com/justdoswift/gexi/issues"><span>Ask in the repo</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg></a>
+          </div>
+          <div class="faq-list">
+            <div class="faq-inner">
+            <details class="qa" name="faq">
+              <summary>Does it need Xcode or cgo?<span class="sign" aria-hidden="true"></span></summary>
+              <div class="answer">No. The window is mygo's native UI, the terminal is Ghostty's <code>libghostty-vt</code>; no cgo. Building needs Go 1.27+ and macOS 13+.</div>
+            </details>
+            <details class="qa" name="faq">
+              <summary>Which agents are supported?<span class="sign" aria-hidden="true"></span></summary>
+              <div class="answer">Any command-line agent runs in a pane. Claude Code gets lifecycle hooks; any process can report with <code>gexi event</code>. Claude Code, Codex, omp, Devin, Grok, Droid and Perch are recognised by name; each resumes its latest conversation on relaunch.</div>
+            </details>
+            <details class="qa" name="faq">
+              <summary>What happens to shells when I close the window?<span class="sign" aria-hidden="true"></span></summary>
+              <div class="answer">They keep running. The Dock icon brings the window back; <kbd>⌘Q</kbd> is the real quit.</div>
+            </details>
+            <details class="qa" name="faq">
+              <summary>What if I close a pane with an agent in it?<span class="sign" aria-hidden="true"></span></summary>
+              <div class="answer">gexi asks first: <strong>run in the background</strong>, or close and end it.</div>
+            </details>
+            <details class="qa" name="faq">
+              <summary>Does it run on an Intel Mac?<span class="sign" aria-hidden="true"></span></summary>
+              <div class="answer">From source, yes; signed downloads are Apple silicon only for now.</div>
+            </details>
+            <details class="qa" name="faq">
+              <summary>Is it really free?<span class="sign" aria-hidden="true"></span></summary>
+              <div class="answer">Yes. MIT licensed, no account, no telemetry, no paid tier.</div>
+            </details>
+            </div>
+          </div>
+          </div>
         </div>
-      </div>
-      <div class="req-card" data-reveal style="--d:90ms">
-        <h3>Requirements</h3>
-        <ul class="req-list">
-          <li>macOS 13 or later</li>
-          <li>Apple silicon for the signed build; Intel from source</li>
-          <li>Go 1.27+ and no Xcode to build</li>
-          <li>GitHub CLI for pull requests</li>
-        </ul>
-        <h3>Build from source</h3>
-        <div class="build-code"><code>git clone https://github.com/justdoswift/gexi
-cd gexi
-go tool mygo build      # .app and .dmg in build/
-go build -o gexi ./cmd/gexi</code></div>
-        <p class="fine"><code>go tool mygo dev</code> runs a development build with live reload.</p>
-      </div>
-    </div>
+      </section>
 
-    <div class="install-command" data-reveal>
-  <div class="code install-code"><button class="copy" type="button" data-copy aria-label="Copy install command"><svg class="icon-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-1a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 11h1"/></svg><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg></button><code>curl -fsSL https://github.com/justdoswift/gexi/releases/latest/download/install.sh | sh</code></div>
-          <p class="fine">Installs the latest signed build into /Applications, or ~/Applications when it cannot write there. Apple silicon. macOS 13 or later. For Intel, build from source.</p>
-    </div>
-
-    <div class="section" id="faq">
-      <div class="faq-grid">
-        <div class="faq-head" data-reveal>
-          <h2>Questions.</h2>
-          <p class="body">The things the README gets asked most. If yours is not here, the repository is the best place to ask.</p>
+      <footer class="footer">
+        <div class="footer-top">
+          <p class="footer-note">A native macOS workspace built with Go, <a href="https://mygo.egoist.dev">mygo</a> and Ghostty.</p>
+          <nav class="footer-nav" aria-label="Footer">
+            <a href="https://github.com/justdoswift/gexi">GitHub</a>
+            <a href="https://github.com/justdoswift/gexi/releases">Releases</a>
+            <a href="https://github.com/justdoswift/gexi/blob/main/CHANGELOG.md">Changelog</a>
+            <a href="https://github.com/justdoswift/gexi/blob/main/LICENSE">MIT License</a>
+            <a href="zh/index.html" lang="zh-Hans" hreflang="zh-Hans">中文</a>
+            <a href="#install">Install</a>
+          </nav>
         </div>
-        <div class="faq-list" data-reveal style="--d:90ms">
-          <details class="qa" name="faq">
-            <summary>Does it need Xcode or cgo?<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">No. The window is mygo native UI and the terminals are Ghostty’s <code>libghostty-vt</code>; there is no cgo and no Xcode. Building needs Go 1.27+ and macOS 13+.</div>
-          </details>
-          <details class="qa" name="faq">
-            <summary>Which agents does it work with?<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">Any CLI agent runs in a pane. Lifecycle hooks ship for Claude Code, and any process can report with <code>gexi event</code>. Claude Code, Codex, omp, Devin, Grok, Droid and Perch are recognised by name and mark. On restart each resumes its newest session in the pane’s directory; Perch keeps one conversation per directory, so a plain <code>perch</code> reopens it. Other agents fall back to a shell.</div>
-          </details>
-          <details class="qa" name="faq">
-            <summary>What happens to my shells when I close the window?<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">They keep running. Closing the window hides it, and the Dock icon brings everything back. <kbd>⌘Q</kbd> is the real quit, and it kills the processes.</div>
-          </details>
-          <details class="qa" name="faq">
-            <summary>What if I close a pane with an agent in it?<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">gexi asks first. <strong>Keep Running</strong> takes the pane off the stage without ending the agent, and <strong>Settings › Worktrees</strong> brings it back with its session intact; <strong>Close</strong> ends it.</div>
-          </details>
-          <details class="qa" name="faq">
-            <summary>Can I run it on an Intel Mac?<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">Build it from source: the code builds for Apple silicon and Intel. The signed, notarized download is Apple silicon only for now.</div>
-          </details>
-          <details class="qa" name="faq">
-            <summary>Is it really free?<span class="sign" aria-hidden="true"></span></summary>
-            <div class="answer">Yes. gexi is MIT licensed, and the source is on <a href="https://github.com/justdoswift/gexi">GitHub</a>. There is no account, no telemetry, and no paid tier.</div>
-          </details>
+        <div class="footer-mark">
+          <span class="word" aria-hidden="true">gexi<i></i></span>
         </div>
-      </div>
-    </div>
-  </section>
+        <div class="footer-bottom">
+          <span>© 2026 Peng Ge. MIT licensed.</span>
+          <div class="footer-end">
+            <a class="footer-get" href="https://github.com/justdoswift/gexi/releases/latest">Get gexi<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 18 18 6M9 6h9v9"/></svg></a>
+          </div>
+        </div>
+      </footer>
 
-</main>
+    </div>
+  </main>
+</div>
 
-<footer class="footer">
-  <div class="wrap">
-    <div class="footer-top">
-      <p class="footer-note"><strong>gexi</strong> is a native macOS workspace built with Go, <a href="https://mygo.egoist.dev">mygo</a>, and Ghostty’s terminal. It is early, and it is honest about that.</p>
-      <nav class="footer-nav" aria-label="Footer">
-        <a href="https://github.com/justdoswift/gexi">GitHub</a>
-        <a href="https://github.com/justdoswift/gexi/releases">Releases</a>
-        <a href="https://github.com/justdoswift/gexi/blob/main/CHANGELOG.md">Changelog</a>
-        <a href="https://github.com/justdoswift/gexi/blob/main/LICENSE">MIT License</a>
-        <a href="zh/index.html" lang="zh-Hans" hreflang="zh-Hans">中文</a>
-        <a href="#install">Install</a>
-      </nav>
-    </div>
-    <div class="footer-mark">
-      <span class="word" aria-hidden="true">gexi</span>
-      <a class="footer-get" href="https://github.com/justdoswift/gexi/releases/latest">Get gexi<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 18 18 6M9 6h9v9"/></svg></a>
-    </div>
-    <div class="footer-bottom">
-      <span>© 2026 Peng Ge. MIT licensed.</span>
-      <span>Made for macOS. Built with Go, mygo, and Ghostty.</span>
-    </div>
-  </div>
-</footer>
-
+<script src="assets/vendor/gsap.min.js" defer></script>
+<script src="assets/vendor/ScrollTrigger.min.js" defer></script>
+<script src="assets/vendor/lenis.min.js" defer></script>
 <script src="assets/site.js" defer></script>
 </body>
 </html>
