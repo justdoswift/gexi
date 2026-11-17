@@ -80,6 +80,8 @@
   "settingsTerminal": "Terminal",
   "settingsTerminalFont": "Terminal font",
   "settingsTerminalFontSize": "Terminal size",
+  "settingsTerminalScrollback": "History (MB)",
+  "settingsTerminalScrollbackDetail": "Panes opened from now on keep this much history.",
   "settingsThemes": "Themes",
   "themesLightMode": "Light Mode",
   "themesDarkMode": "Dark Mode",

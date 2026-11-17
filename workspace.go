@@ -167,6 +167,10 @@ type workspace struct {
 	terminalFontSeen    string
 	terminalSizeChoice  string
 	terminalSizeSeen    string
+	// terminalScrollbackChoice is the terminal page's history picker, with
+	// the same Seen pair.
+	terminalScrollbackChoice string
+	terminalScrollbackSeen   string
 	quitting            bool
 	saveTimer           *time.Timer
 	lastNotify          map[string]time.Time

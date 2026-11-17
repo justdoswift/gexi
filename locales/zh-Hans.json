@@ -80,6 +80,8 @@
   "settingsTerminal": "终端",
   "settingsTerminalFont": "终端字体",
   "settingsTerminalFontSize": "终端字号",
+  "settingsTerminalScrollback": "历史（MB）",
+  "settingsTerminalScrollbackDetail": "之后新开的窗格按这个容量保留历史。",
   "settingsThemes": "主题",
   "themesLightMode": "浅色模式",
   "themesDarkMode": "深色模式",
