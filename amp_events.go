@@ -114,8 +114,10 @@ export default function (amp: PluginAPI) {
 			const last = (await ctx.thread.messages({ from: "end", limit: 1, roles: ["user"] })).at(-1);
 			const text = textOf(last?.content);
 			// The turn may have ended while the message was looked up; a
-			// name does not start a new one.
-			if (text && lastState === "running" && threadId === current) prompt(text, threadId);
+			// name does not start a new one. The start hook may also have
+			// reported the same words meanwhile, which is the same one
+			// question: only a pane still waiting for it takes this one.
+			if (text && !named && lastState === "running" && threadId === current) prompt(text, threadId);
 		} catch {
 			// A thread that cannot be read has no message to name it by;
 			// the terminal's own title still names the pane.

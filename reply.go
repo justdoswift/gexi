@@ -38,9 +38,6 @@ const (
 	// keeps its measure, so a wide column is air around the words, not a
 	// longer line to read.
 	replyWidthMax float32 = 1400
-	// replyEchoWindow is how close two copies of the same prompt must be to
-	// be one report of it rather than the user asking twice.
-	replyEchoWindow = 3 * time.Second
 	// replyMaxBytes caps one message the reader will lay out. A hook payload
 	// can hold megabytes; a single message that large would stall the window,
 	// and the end of such a message is rarely what the user is reading for.
@@ -113,10 +110,15 @@ func (p *pane) addMessage(m paneMessage) {
 	if m.FromUser && len(p.conversation) > 0 {
 		// Two sources can report one prompt: Amp names a turn from the
 		// thread's last message while its start hook reports the same
-		// words, and a hook installed twice runs twice. The user said it
-		// once; the echo is not a second question.
+		// words, a hook installed twice runs twice, and a reloaded plugin
+		// leaves its old copy reporting beside the new one. The reports
+		// can land minutes apart and need not space their words the same
+		// way. The user said it once: a prompt repeating the last one,
+		// with no answer since, is that second report.
 		if last := p.conversation[len(p.conversation)-1]; last.FromUser &&
-			last.Text == m.Text && time.Since(last.At) < replyEchoWindow {
+			last.Agent == m.Agent &&
+			(last.Session == "" || m.Session == "" || last.Session == m.Session) &&
+			strings.TrimSpace(last.Text) == strings.TrimSpace(m.Text) {
 			return
 		}
 	}
