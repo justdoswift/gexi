@@ -284,6 +284,12 @@ const (
 // card sits twice as far from the edge as it does from its neighbour.
 const canvasInset float32 = 6
 
+// compactHeaderTop is the room a compact pane's header leaves above its title.
+// A compact pane starts at the window's top edge, so the room a comfortable
+// card takes from the canvas and its own inset moves into the header band,
+// where it puts the title on the traffic lights' line.
+const compactHeaderTop float32 = 12
+
 // glassChrome reports whether the Liquid Glass setting draws the raised
 // paper chrome. Off, the chrome keeps the flat, bordered look it had before
 // 0.0.103, and the window is opaque too, through mainBackground and liquid.

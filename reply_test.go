@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -180,6 +181,14 @@ func TestPromptEchoIsSaidOnce(t *testing.T) {
 	p.addUserMessage(agentAmp, "T-1", "看一下登录跳转")
 	if len(p.conversation) != 1 {
 		t.Fatalf("conversation = %+v, want the echo dropped", p.conversation)
+	}
+
+	// A second report can land long after the first, and need not space
+	// its words the same way: it is still the one question.
+	p.conversation[0].At = time.Now().Add(-time.Hour)
+	p.addUserMessage(agentAmp, "T-1", "  看一下登录跳转\n")
+	if len(p.conversation) != 1 {
+		t.Fatalf("conversation = %+v, want the late echo dropped", p.conversation)
 	}
 
 	// The same words after the agent answered are a new question.

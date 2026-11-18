@@ -49,7 +49,7 @@ func (w *workspace) worktreeCheckpoints(c *ui.Context, tk tokens, p *pane) {
 		shadow = alpha(ui.RGB(0, 0, 0), 0.42)
 	}
 	card := ui.Column(c).Width(checkpointsWidth).MaxWidthPercent(94).
-		Absolute().Right(8).Top(headerHeight+6).
+		Absolute().Right(8).Top(w.paneHeaderHeight()+6).
 		Radius(12).Clip().
 		Border(1, tk.Border).Background(tk.Background).
 		Shadow(0, 6, 20, 0, shadow).

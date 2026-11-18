@@ -1239,7 +1239,8 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			// Headers are always there: hiding them would leave the collapsed
 			// sidebar toggle over bare terminal content.
 			// No rule under the header: the pane card itself is the frame.
-			header := lit(ui.Row(c).Height(headerHeight).Padding(0, 6, 0, left).
+			headerH := w.paneHeaderHeight()
+			header := lit(ui.Row(c).Height(headerH).Padding(headerH-headerHeight, 6, 0, left).
 				Background(headerBg).ClipY().DragWindow(), tk)
 			// The pane's name is renamed from anywhere on its header bar,
 			// not only the few points the title itself covers.
@@ -1653,4 +1654,14 @@ func checkoutName(dir string) string {
 // sit on that line, even though the header band is taller.
 func chromeLine(bar ui.TitleBar) float32 {
 	return 32
+}
+
+// paneHeaderHeight is the band a pane's title takes. A compact pane starts at
+// the window's top edge, where a comfortable card is set down by the canvas
+// and its own inset, so the band carries that room itself.
+func (w *workspace) paneHeaderHeight() float32 {
+	if w.settings.PaneStyle == paneComfortable {
+		return headerHeight
+	}
+	return headerHeight + compactHeaderTop
 }
