@@ -436,31 +436,33 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 					col = col.MinHeight(w.sidebarListH)
 				}
 				col.Children(func() {
-					shown := false
-					first := true
-					drawProject := func(pr *project) {
-						if !w.projectVisible(pr) {
-							return
-						}
-						if !first {
-							ui.Box(c).Height(8)
-						}
-						first = false
-						shown = true
-						w.projectRow(c, tk, pr)
-					}
-					for _, pr := range w.Projects {
-						drawProject(pr)
-					}
-					// Paired Macs sit under the projects as projects of their own:
-					// their sessions are sessions, and the canvas draws them with
-					// the same code.
-					for _, pr := range w.remoteProjects {
-						drawProject(pr)
-					}
-					if !shown {
+					rows := w.sidebarProjectRows()
+					if len(rows) == 0 {
 						ui.Text(c, locales.NoProjects()).FontSize(12).
 							TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
+					} else {
+						// The projects are one list, so one that comes, goes
+						// or is reordered glides to its place and the rows
+						// below close the gap, instead of jumping there.
+						ids := make([]string, len(rows))
+						for i, pr := range rows {
+							ids[i] = pr.ID
+						}
+						w.sidebarList.Key = func(row int) any {
+							if row < 0 || row >= len(ids) {
+								return ""
+							}
+							return ids[row]
+						}
+						if w.sidebarList.MoveAnimation == nil {
+							w.sidebarList.MoveAnimation = &ui.Animation{
+								Duration: sidebarMotion,
+								Ease:     ui.EaseOut,
+							}
+						}
+						ui.List(c, &w.sidebarList, len(rows), func(i int) {
+							w.projectRow(c, tk, rows[i])
+						}).Gap(8)
 					}
 					ui.Spacer(c)
 					// Idle sessions sit at the very bottom, under everything that
@@ -952,6 +954,24 @@ func sessionLabel(s *session) string {
 		return agent.Kind.name()
 	}
 	return s.title()
+}
+
+// sidebarProjectRows is what the sidebar lists: the projects open here, then
+// the paired Macs, whose sessions are sessions of the same code, filtered by
+// the search box.
+func (w *workspace) sidebarProjectRows() []*project {
+	rows := make([]*project, 0, len(w.Projects)+len(w.remoteProjects))
+	for _, pr := range w.Projects {
+		if w.projectVisible(pr) {
+			rows = append(rows, pr)
+		}
+	}
+	for _, pr := range w.remoteProjects {
+		if w.projectVisible(pr) {
+			rows = append(rows, pr)
+		}
+	}
+	return rows
 }
 
 // projectVisible matches the search box against the folder and its sessions.
