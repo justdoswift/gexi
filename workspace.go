@@ -139,6 +139,9 @@ type workspace struct {
 	// content is at least that tall, which keeps the idle fold at the
 	// list's bottom until the list outgrows the window and scrolls.
 	sidebarListH float32
+	// sidebarList gives the project rows their identity, so one that comes,
+	// goes or is reordered glides to its place.
+	sidebarList ui.ListState
 	// paneCellW and paneCellH are the cell size the last laid-out pane
 	// measured, which a pane restored straight into the rail takes for its
 	// own grid: no view has laid it out yet, and every pane draws the same
