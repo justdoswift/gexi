@@ -191,6 +191,15 @@ func TestPaneMirrorReplaysFromSnapshot(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+	// The program ends right after its last line, and the terminal writes the
+	// disconnect line itself. Waiting for it keeps the comparison from racing
+	// that line, which a snapshot taken before it would leave out.
+	for !strings.Contains(term.Text(), "[Disconnected]") {
+		if time.Now().After(deadline) {
+			t.Fatalf("the disconnect never showed: %q", term.Text())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	off, snap := conn.snapshot(term)
 	delta, ok := conn.outputSince(off)
 	if !ok {

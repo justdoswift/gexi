@@ -1065,7 +1065,7 @@ func settingsCard(c *ui.Context, tk tokens, rows func()) {
 // remaining rows slide up into the gap, instead of the whole card snapping
 // one row shorter.
 func settingsCardMotion(c *ui.Context, tk tokens, id string, rows func()) {
-	card := ui.Column(c).Key("settings-card:" + id).FillWidth().Radius(10).
+	card := ui.Column(c.Key("settings-card:" + id)).FillWidth().Radius(10).
 		Clip().Background(tk.Background)
 	// The card is clipped to its bounds, so the leaving copy does not paint
 	// over the section label below it while the height eases down.
@@ -1086,7 +1086,7 @@ func settingsCardMotion(c *ui.Context, tk tokens, id string, rows func()) {
 type settingControlSlotKey struct{ id string }
 
 func settingControlSlot(c *ui.Context, id, form string, build func()) {
-	el := ui.Row(c).Shrink(0).Key("setting-control:" + id + ":" + form)
+	el := ui.Row(c.Key("setting-control:" + id + ":" + form)).Shrink(0)
 	el.Transition(ui.ElementTransition{
 		Duration: chipMotion,
 		Ease:     ui.EaseOut,

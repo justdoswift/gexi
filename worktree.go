@@ -3589,7 +3589,7 @@ type worktreeSlot struct{ pane string }
 // worktree for the pane; once it has one, the same slot shows PR / Merge
 // instead.
 func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
-	slot := ui.Row(c).Key("worktree-slot:" + p.ID + ":" + w.worktreeChipForm(p))
+	slot := ui.Row(c.Key("worktree-slot:" + p.ID + ":" + w.worktreeChipForm(p)))
 	slot.Transition(ui.ElementTransition{
 		Duration: chipMotion,
 		Ease:     ui.EaseOut,

@@ -1422,7 +1422,7 @@ func (w *workspace) remoteWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 	if link == nil {
 		return
 	}
-	slot := ui.Row(c).Key("remote-worktree-slot:" + p.ID + ":" + remoteWorktreeChipForm(link))
+	slot := ui.Row(c.Key("remote-worktree-slot:" + p.ID + ":" + remoteWorktreeChipForm(link)))
 	slot.Transition(ui.ElementTransition{
 		Duration: chipMotion,
 		Ease:     ui.EaseOut,
