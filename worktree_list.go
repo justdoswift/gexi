@@ -439,7 +439,7 @@ func worktreeRowKey(row worktreeRow) string {
 // worktreeRowSlot is one worktree row and the divider above it, keyed so the
 // card can animate the row in and out without the list jumping.
 func (w *workspace) worktreeRowSlot(c *ui.Context, tk tokens, row worktreeRow, first bool) {
-	slot := ui.Column(c).Key("worktree-row:" + worktreeRowKey(row))
+	slot := ui.Column(c.Key("worktree-row:" + worktreeRowKey(row)))
 	slot.Transition(ui.ElementTransition{
 		Duration: rowMotion,
 		Ease:     ui.EaseOut,

@@ -486,7 +486,7 @@ func (w *workspace) replyCopyButton(c *ui.Context, tk tokens, text string) {
 func (w *workspace) replyBody(c *ui.Context, tk tokens) {
 	r := &w.reply
 	size, family := w.replyReaderSize(), w.replyReaderFont()
-	scroll := ui.Scroll(c).Fill().Key(r.gen).TrackScroll(&r.scroll)
+	scroll := ui.Scroll(c.Key(r.gen)).Fill().TrackScroll(&r.scroll)
 	if r.toEnd && r.scroll.MaxY > 0 {
 		// The column knows how tall the conversation is only after it has
 		// laid it out, so the scroll to its end waits for that frame.

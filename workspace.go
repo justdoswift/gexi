@@ -150,6 +150,9 @@ type workspace struct {
 
 	win         *mygo.Window
 	settingsWin *mygo.Window
+	// keepRunning holds off App Nap while the window is hidden and an agent
+	// is still working; releaseKeepRunning gives it back.
+	keepRunning func()
 	settings    appSettings
 	// settingsShown tells that the settings page has drawn once in its
 	// window, so the frame after can settle it in instead of showing it
@@ -176,9 +179,9 @@ type workspace struct {
 	// the same Seen pair.
 	terminalScrollbackChoice string
 	terminalScrollbackSeen   string
-	quitting            bool
-	saveTimer           *time.Timer
-	lastNotify          map[string]time.Time
+	quitting                 bool
+	saveTimer                *time.Timer
+	lastNotify               map[string]time.Time
 
 	collapsed   map[string]bool
 	searchQuery string
@@ -1357,6 +1360,40 @@ func (w *workspace) invalidate() {
 	}
 }
 
+// holdKeepRunning keeps the app out of App Nap while its window is hidden and
+// an agent is still working. macOS lowers a hidden app's priority within a
+// minute and coalesces its timers, which slows a background turn. Main thread.
+func (w *workspace) holdKeepRunning() {
+	if w.keepRunning != nil || !w.agentPaneRunning() {
+		return
+	}
+	w.keepRunning = mygo.Power.KeepRunning("An agent is working in a hidden window")
+}
+
+// releaseKeepRunning lets App Nap return. Main thread.
+func (w *workspace) releaseKeepRunning() {
+	if w.keepRunning == nil {
+		return
+	}
+	w.keepRunning()
+	w.keepRunning = nil
+}
+
+// agentPaneRunning reports whether a pane holds an agent that has not exited,
+// whether the pane was opened with the agent's command or the agent was
+// started inside its shell. Main thread.
+func (w *workspace) agentPaneRunning() bool {
+	for _, p := range w.livePanes() {
+		if p.exited {
+			continue
+		}
+		if p.agent != nil || paneRunsAgent(p.command) {
+			return true
+		}
+	}
+	return false
+}
+
 // flash queues a toast for the next frame. Main thread.
 func (w *workspace) flash(message string) {
 	if message == "" {
@@ -1528,6 +1565,10 @@ func (w *workspace) startAgentMonitor() {
 				}
 				if changed {
 					w.scheduleSave()
+				}
+				// A hidden window whose last agent ended can nap again.
+				if w.keepRunning != nil && !w.agentPaneRunning() {
+					w.releaseKeepRunning()
 				}
 			})
 		}

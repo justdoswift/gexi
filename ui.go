@@ -342,7 +342,7 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 		// A session of its own is another layout: the one replacing another
 		// comes in while that one fades out, so the switch reads as a change
 		// of view instead of a flash of the next tree.
-		stage := ui.Column(c).Key(tb.ID).Fill().Transition(ui.ElementTransition{
+		stage := ui.Column(c.Key(tb.ID)).Fill().Transition(ui.ElementTransition{
 			Duration: 160 * time.Millisecond,
 			Ease:     ui.EaseOut,
 			Enter:    &ui.Motion{Opacity: 0, Scale: 0.99},

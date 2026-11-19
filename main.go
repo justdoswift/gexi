@@ -115,7 +115,11 @@ func main() {
 			BackgroundColor: w.mainBackground(),
 		})
 		w.win = win
-		win.OnShow(func() { win.Invalidate() })
+		win.OnShow(func() {
+			// A window on screen no longer naps, so the hold is not needed.
+			w.releaseKeepRunning()
+			win.Invalidate()
+		})
 
 		// gexi: closing the window hides it; shells keep running.
 		win.OnClose(func(e *mygo.CloseEvent) {
@@ -124,6 +128,7 @@ func main() {
 			}
 			e.PreventDefault()
 			win.Hide()
+			w.holdKeepRunning()
 		})
 
 		mygo.App.SetMenu(mainMenu(w))
@@ -138,6 +143,7 @@ func main() {
 		w.startRemoteClients()
 		stop := startControl(w)
 		mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
+			w.releaseKeepRunning()
 			w.quitting = true
 			w.stopRelay()
 			w.stopRemoteServer()
