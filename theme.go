@@ -115,24 +115,30 @@ func groupLabelColor(tk tokens) ui.Color {
 }
 
 // glassTint is the theme's paper as a tint on the window's Liquid Glass, in
-// the syntax mygo.WindowOptions.VibrancyTint takes. The alpha is fixed, not a
-// setting: the system's frost is what keeps the chrome readable over a bright
-// desktop, and a tint near opaque would hide the material behind a flat
-// colour, which is what the old painted surface did. A slider over the range
-// below moved the window too little to read as a change, so the value it
-// settled on is the only one the window uses.
+// the syntax mygo.WindowOptions.VibrancyTint takes. The two appearances do not
+// share an alpha, because they do not fail the same way. Light at 55% over a
+// desktop still reads as paper: white over anything is white. Dark at 55% is
+// the desktop's colour, not the theme's: #18181b over a warm wallpaper comes
+// out a grey-brown, and the whole window takes the wallpaper's cast. Dark
+// therefore sits near opaque, as Rex's does, and keeps only enough translucency
+// for the material to light its rim.
 func (w *workspace) glassTint() string {
 	light, dark := w.appearanceTokens(false), w.appearanceTokens(true)
 	return fmt.Sprintf("light-dark(#%02x%02x%02x%02x, #%02x%02x%02x%02x)",
-		light.Background.R, light.Background.G, light.Background.B, glassTintAlpha,
-		dark.Background.R, dark.Background.G, dark.Background.B, glassTintAlpha)
+		light.Background.R, light.Background.G, light.Background.B, glassTintAlphaLight,
+		dark.Background.R, dark.Background.G, dark.Background.B, glassTintAlphaDark)
 }
 
-// glassTintAlpha is the tint's alpha byte: a little over half, the point where
-// the desktop still reads through the frost while the pane cards carry the
-// contrast. At 0.92 the tint is opaque enough that the window reads as a
-// painted panel and the material behind it does nothing visible.
-const glassTintAlpha uint8 = 0x8c
+const (
+	// glassTintAlphaLight is the light window's tint: a little over half, the
+	// point where the desktop still reads through the frost while the pane
+	// cards carry the contrast.
+	glassTintAlphaLight uint8 = 0x8c
+	// glassTintAlphaDark is the dark window's: near opaque, so the window is
+	// the theme's black rather than the wallpaper's colour. At the light
+	// value a warm desktop turned the whole window grey-brown.
+	glassTintAlphaDark uint8 = 0xf2
+)
 
 // paneGlass is the sheet a pane card is made of on the glass chrome.
 //
@@ -329,6 +335,20 @@ const compactHeaderTop float32 = 12
 // 0.0.103, and the window is opaque too, through mainBackground and liquid.
 func glassChrome() bool { return sidebarMaterial }
 
+// floatingFill is the paper a surface takes when it floats over the work
+// rather than sitting in it: a dialog, the checkpoints card, a tag on a
+// header. The pane's own paper is tk.Background, so a floating surface of
+// that same colour has nothing but its hairline and shadow to exist by, and
+// on warm white that reads as a grey outline. The fill steps off the paper
+// instead, toward the ink in light and toward white in dark, which is the
+// direction each appearance has room to move.
+func floatingFill(tk tokens) ui.Color {
+	if tk.Dark {
+		return tk.Background.MixOklab(ui.RGB(0xff, 0xff, 0xff), 0.07)
+	}
+	return tk.Background.MixOklab(tk.Foreground, 0.035)
+}
+
 // raised lifts a card off the surface the way leaf's pages are lifted: a
 // hairline in place of a border, then shadows that spread wider and softer
 // the further they fall. The card keeps its own fill, so a pane still reads
@@ -413,13 +433,26 @@ func badgeLook(e ui.Element, tk tokens, hovered bool) ui.Element {
 		}
 		return e.Background(fill)
 	}
-	fill, low := tk.Background, tk.Background
+	// A tag has to read as its own surface on the header it sits on. The
+	// header is the pane's paper, so a fill of that same paper leaves the
+	// tag with nothing but its hairline and a 2px contact shadow: on warm
+	// white that is a grey smudge, not a chip. The fill steps off the paper
+	// instead, and the gradient runs from that step down toward the paper,
+	// so the tag reads as laid on the header rather than cut into it.
+	fill := tk.Background.MixOklab(tk.Foreground, 0.05)
+	low := fill.MixOklab(tk.Background, 0.5)
 	if tk.Dark {
-		// One small step above the card, as leaf's chips sit above its page.
-		fill = tk.Background.MixOklab(ui.RGB(0xff, 0xff, 0xff), 0.06)
-		low = fill
+		// Dark steps up toward white, as leaf's chips sit above its page.
+		fill = tk.Background.MixOklab(ui.RGB(0xff, 0xff, 0xff), 0.12)
+		low = fill.MixOklab(tk.Background, 0.45)
+		if hovered {
+			fill = tk.Background.MixOklab(ui.RGB(0xff, 0xff, 0xff), 0.17)
+			low = fill.MixOklab(tk.Background, 0.45)
+		}
+	} else if hovered {
+		fill = tk.Background.MixOklab(tk.Foreground, 0.08)
+		low = fill.MixOklab(tk.Background, 0.5)
 	}
-	low = low.MixOklab(tk.Muted, 0.35)
 	e = lit(e.Gradient(fill, low, 180), tk)
 	if tk.Dark {
 		e = e.Border(1, ui.RGB(0xff, 0xff, 0xff).Alpha(0.08)).

@@ -74,7 +74,7 @@ func dialogTheme(tk tokens) *ui.Theme {
 	return t
 }
 
-// dialogPaper is the tint the panel's glass carries: the theme's own paper,
+// dialogPaper is the tint the panel's glass carries: the floating paper,
 // lifted with the same 6% of warm white the pane cards take, at the density
 // the pane cards' glass uses (DESIGN.md). Dark mode takes a higher density:
 // its paper and its canvas are only a few levels apart, so the cards' 72%
@@ -85,7 +85,7 @@ func dialogPaper(tk tokens) ui.Color {
 	if tk.Dark {
 		density = 0.86
 	}
-	return tk.Background.MixOklab(ui.RGB(255, 255, 255), 0.06).Alpha(density)
+	return floatingFill(tk).MixOklab(ui.RGB(255, 255, 255), 0.06).Alpha(density)
 }
 
 // dialogFrame draws the panel every dialog shares: Liquid Glass over the
