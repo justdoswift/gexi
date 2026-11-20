@@ -416,8 +416,7 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 			//
 			// A bar as wide as its thumb keeps the thumb on the sidebar's
 			// last few DIPs, over the padding below rather than the rows.
-			list := ui.Scroll(c).Fill().
-				ScrollbarStyle(ui.ScrollbarStyle{TrackWidth: 6, ThumbWidth: 6})
+			list := ui.Scroll(c).Fill().ScrollbarStyle(sidebarScrollbar)
 			list.Children(func() {
 				// No gap: each row carries its own rowMarginY, so the air
 				// between two rows is one margin, not a margin plus a gap.
@@ -570,9 +569,10 @@ func (w *workspace) searchDialog(c *ui.Context, tk tokens) {
 						FontSize(14).FontWeight(300).FillWidth().AutoFocus()
 				})
 				ui.Box(c).Height(1).FillWidth().Background(tk.Border)
-				ui.Scroll(c).FillWidth().MaxHeight(360).Padding(6).Children(func() {
-					w.searchResults(c, tk)
-				})
+				ui.Scroll(c).FillWidth().MaxHeight(360).Padding(6).
+					ScrollbarStyle(sidebarScrollbar).Children(func() {
+						w.searchResults(c, tk)
+					})
 			})
 		})
 	})
@@ -636,7 +636,7 @@ func (w *workspace) searchResultRow(c *ui.Context, tk tokens, s *session) {
 		} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(14).Height(14).OnClick(pick)
 		}
-		ui.Text(c, sessionLabel(s)).FontSize(13).FontWeight(400).SingleLine().
+		ui.Text(c, sessionLabel(s)).FontSize(sidebarRowFont).FontWeight(400).SingleLine().
 			TextColor(tk.Foreground).OnClick(pick)
 	})
 }
@@ -655,14 +655,24 @@ func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
 // its own: the session card is the only thing that takes a surface.
 func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 	open := !w.collapsed[pr.ID] || strings.TrimSpace(w.searchQuery) != ""
-	row := ui.Row(c).Height(groupRowHeight).Padding(0, 8, 0, 8).Gap(5).Radius(chromeRadius).
-		MarginX(2).MarginY(rowMarginY)
+	row := ui.Row(c).Height(sidebarRowHeight).
+		Padding(0, sidebarRowEnd, 0, sidebarRowInset).Gap(sidebarRowGap).
+		Radius(sidebarRowRadius()).MarginX(2).MarginY(rowMarginY).
+		Border(1, ui.Transparent)
 	hovered := row.Hovered()
 	// The selected session's capsule marks where the work is; the project
 	// label above it stays a quiet section heading, as Rex's groups do.
 	color := groupLabelColor(tk)
 	if hovered {
 		color = tk.Foreground
+		// The pointer gives a header the same material it gives a row: the
+		// idle fold's header already took it, and a project header that only
+		// changed its text colour read as not responding at all.
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Foreground.Alpha(0.045))
+		}
 	}
 	toggle := func() { w.toggleProject(pr) }
 	row.OnClick(toggle).ContextMenu(func(m *ui.Menu) { w.projectRowMenu(m, pr) }).Children(func() {
@@ -680,7 +690,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 				ui.Image(c, src).Width(13).Height(13).OnClick(toggle)
 			}
 		}
-		ui.Text(c, pr.name()).FontSize(11.5).FontWeight(400).SingleLine().
+		ui.Text(c, pr.name()).FontSize(sidebarRowFont).FontWeight(400).SingleLine().
 			TextColor(color).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		if pr.remote != nil && pr.remote.conn.err != "" {
@@ -775,8 +785,10 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 	}
 	key := remoteGroupKey(pr.ID, g.project.ID)
 	open := !w.collapsed[key] || strings.TrimSpace(w.searchQuery) != ""
-	row := ui.Row(c).Height(groupRowHeight).PaddingStart(8 + indent).PaddingEnd(8).Gap(5).
-		Radius(chromeRadius).MarginX(2)
+	row := ui.Row(c).Height(sidebarRowHeight).
+		PaddingStart(sidebarRowInset + indent).PaddingEnd(sidebarRowEnd).Gap(sidebarRowGap).
+		Radius(sidebarRowRadius()).MarginX(2).MarginY(rowMarginY).
+		Border(1, ui.Transparent)
 	hovered := row.Hovered()
 	color := groupLabelColor(tk)
 	if hovered {
@@ -801,7 +813,7 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 		if src := iconSource("folder", colorHex(color)); src != nil {
 			ui.Image(c, src).Width(13).Height(13).IgnoreInput(true).OnClick(toggle)
 		}
-		ui.Text(c, g.project.Name).FontSize(11.5).FontWeight(400).SingleLine().
+		ui.Text(c, g.project.Name).FontSize(sidebarRowFont).FontWeight(400).SingleLine().
 			TextColor(color).Tooltip(g.project.Dir).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		if hovered {
@@ -834,12 +846,10 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	// On glass a session is a capsule, as Rex's chosen row is: the white sheet
 	// needs the softer end to read as a lifted piece of paper rather than a
 	// small rectangular card. With glass off it keeps the square-ish 6pt card.
-	radius := chromeRadius
-	if glassChrome() {
-		radius = rowHeightPx / 2
-	}
-	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8+indent+16).PaddingEnd(8).Gap(8).
-		Radius(radius).MarginX(2).MarginY(rowMarginY).Border(1, ui.Transparent)
+	row := ui.Row(c).Height(sidebarRowHeight).
+		PaddingStart(sidebarRowInset + indent + sidebarRowStep).PaddingEnd(sidebarRowEnd).Gap(sidebarRowGap).
+		Radius(sidebarRowRadius()).MarginX(2).MarginY(rowMarginY).
+		Border(1, ui.Transparent)
 	hovered := row.Hovered()
 	if sel || hovered {
 		color = tk.Foreground
@@ -901,7 +911,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		case agent != nil:
 			if src := agentLogoSource(agent.Kind, tk); src != nil {
 				mark(func() {
-					ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
+					ui.Image(c, src).Width(sidebarRowMark).Height(sidebarRowMark).IgnoreInput(true)
 				})
 			}
 		default:
@@ -916,7 +926,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 				}
 			} else if src := iconSource("terminal", colorHex(markColor)); src != nil {
 				mark(func() {
-					ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
+					ui.Image(c, src).Width(sidebarRowMark).Height(sidebarRowMark).IgnoreInput(true)
 				})
 			}
 		}
@@ -924,7 +934,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		// The name reads still: the spinner in the mark's slot is what says
 		// the session works, and a name that moves beside it says nothing
 		// more while it asks for a frame every step.
-		labelEl := ui.Text(c, label).FontSize(13).FontWeight(400).SingleLine()
+		labelEl := ui.Text(c, label).FontSize(sidebarRowFont).FontWeight(400).SingleLine()
 		switch activity {
 		case activityWorking, activityWaiting:
 			labelEl = labelEl.TextColor(tk.Foreground)
@@ -1809,4 +1819,23 @@ func (w *workspace) paneHeaderHeight() float32 {
 		return headerHeight
 	}
 	return headerHeight + compactHeaderTop
+}
+
+// chromeView is the window's view under the chrome's own theme: the window's
+// theme with the scroll bar the chrome wears, so every list in the app takes
+// it, including the panels the toolkit draws itself.
+//
+// A scroll bar set on a container only reaches that container. The toolkit's
+// default is a 12 DIP track around a 6 DIP thumb, which leaves a 3 DIP gutter
+// on either side: on a narrow sidebar or a menu that reads as a thick bar.
+func (w *workspace) chromeView(c *ui.Context) {
+	t := *c.Theme()
+	t.ScrollbarStyle = sidebarScrollbar
+	// The wrapper paints nothing: the window's material shows where nothing
+	// is drawn, and a background here would stand between the glass and the
+	// view, as the root's own would.
+	t.Background = ui.Transparent
+	ui.Themed(c, &t).Fill().Children(func() {
+		w.view(c)
+	})
 }

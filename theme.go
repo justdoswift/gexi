@@ -94,6 +94,54 @@ func defaultTokens(dark bool, accent ui.Color) tokens {
 
 const chromeRadius float32 = 6
 
+// sidebarScrollbar is the bar every scrolling list in the chrome wears: a
+// thumb as wide as its track, so it sits on the last few DIPs of the list
+// rather than floating in a gutter of its own. The toolkit's default track is
+// wider than the thumb, which on a narrow sidebar reads as a thick bar.
+var sidebarScrollbar = ui.ScrollbarStyle{TrackWidth: 6, ThumbWidth: 6}
+
+// The metrics every row of the sidebar shares, header or session. They were
+// written out at each site and drifted: a header was 28 tall with a gap of 5
+// and no hairline, a session row 32 with a gap of 8 and one, so a header and
+// the rows under it did not line up.
+const (
+	// sidebarRowHeight is every row's height, a header's and a session's
+	// alike: one column, one rhythm.
+	sidebarRowHeight float32 = rowHeightPx
+	// sidebarRowGap is the room between a row's mark and its name.
+	sidebarRowGap float32 = 8
+	// sidebarRowInset is the room at a row's leading edge, before the step
+	// its depth adds. A header and a session row share it, so their marks
+	// start in one column.
+	sidebarRowInset float32 = 8
+	// sidebarRowEnd is the room at a row's trailing edge.
+	sidebarRowEnd float32 = 8
+	// sidebarRowMark is the width of a row's mark: a header's chevron and a
+	// session's icon, so the two line up down the column.
+	sidebarRowMark float32 = 12
+	// sidebarRowFont is the size of every name in the sidebar, a header's
+	// and a session's alike.
+	sidebarRowFont float32 = 11.5
+	// sidebarRowStep is how far a session steps in from the header that
+	// names it. It is the mark and the gap, so a session's name starts
+	// where the header's name does rather than a few DIPs off.
+	sidebarRowStep float32 = sidebarRowMark + sidebarRowGap
+)
+
+// sidebarRowRadius is the corner of every row in the sidebar, header or
+// session: one rule for the whole column, so a header and a row under it read
+// as the same kind of thing.
+//
+// On glass a row is a capsule, as Rex's chosen row is: the sheet needs the
+// softer end to read as a lifted piece of paper rather than a small
+// rectangular card. With glass off it keeps the square-ish chrome radius.
+func sidebarRowRadius() float32 {
+	if glassChrome() {
+		return rowHeightPx / 2
+	}
+	return chromeRadius
+}
+
 // panePadX and panePadY are the terminal's inset inside a pane card. They are
 // larger than the old 12/10: a terminal reads as a page when its text has air
 // around it, and the header uses the same left inset so its title lines up
