@@ -67,14 +67,25 @@ reads as grey. A notification banner measures a **warm** white:
 | macOS notification | `(255, 248, 224)` | `(255, 254, 240)` |
 | gexi before the fix | `(251, 250, 245)` | `(251, 250, 245)` |
 
-The fix is the tint, not the material:
+The fix is the tint, not the material. But **derive it from the theme, never
+fix it**:
 
 ```go
-tint := tk.Background            // #ffffff — neutral, reads grey
-if !tk.Dark {
-    tint = ui.RGB(0xff, 0xfb, 0xef)  // warm white, matches the banner
-}
+// glassTint, in theme.go
+if tk.Dark { return tk.Background }        // no warmth to add in the dark
+warm := ui.RGB(0xff, 0xf8, 0xe4)
+return tk.Background.MixOklab(warm, 0.55)  // the paper's own lean, warmed
 ```
+
+A fixed `#fffbef` looks right on the default theme and wrong on every other:
+with Claude Light (`#faf9f5`, already warm) the glass came out the same colour
+as on the neutral theme while everything around it got warmer, so the glass
+was the one surface that did not belong to the palette. `tokensForTheme`
+derives every other chrome colour from the terminal theme's background and
+foreground; the glass has to follow the same rule.
+
+`TestGlassTintFollowsTheTheme` guards this: two themes with different papers
+must not get the same tint, and the tint must be warmer than its paper.
 
 ## Clarity is a trap at small sizes
 
@@ -189,3 +200,6 @@ renders a headless frame and measures pixels is not — it measures the hole.
 6. **`tk.SystemAccent` for a menu highlight.** That is the terminal theme's
    cursor colour, not the desktop accent.
 7. **Measuring a headless frame.** It does not draw glass.
+8. **A fixed tint colour.** Every other chrome colour is derived from the
+   terminal theme; a fixed glass tint makes the glass the one surface that
+   ignores the theme. Derive it.

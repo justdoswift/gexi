@@ -92,16 +92,11 @@ func dialogGlass(tk tokens) glass.Glass {
 	// light page comes out a flat grey board; the system's material samples
 	// what is under the window and keeps its body.
 	//
-	// The tint carries the paper's warmth rather than the theme's pure white:
-	// a banner measures a warm white, and frosted neutral white has no colour
-	// of its own, which is what read as grey.
-	tint := tk.Background
-	if !tk.Dark {
-		tint = ui.RGB(0xff, 0xfb, 0xef)
-	}
+	// The tint is the theme's own paper, warmed: glassTint derives it, so a
+	// warm theme keeps its warmth instead of being overruled by a fixed value.
 	return glass.Glass{
 		Native:  true,
-		Tint:    tint.Alpha(density),
+		Tint:    glassTint(tk).Alpha(density),
 		Clarity: 0,
 	}
 }

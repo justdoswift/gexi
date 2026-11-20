@@ -173,20 +173,32 @@ func paneGlass(tk tokens) glass.Glass {
 // the whole point at this size, and a clearer setting would only thin the
 // rim.
 func noticeGlass(tk tokens) glass.Glass {
-	// The tint carries the paper's warmth, not the theme's pure white. A
-	// notification banner measures (255, 248, 224) at its top and climbs to
-	// (255, 254, 240) at its middle: a warm white, not a neutral one. Frosted
-	// neutral white over a light page has no colour of its own, which is what
-	// read as grey.
-	tint := tk.Background
-	if !tk.Dark {
-		tint = ui.RGB(0xff, 0xfb, 0xef)
-	}
 	return glass.Glass{
 		Native:  true,
-		Tint:    tint.Alpha(0.62),
+		Tint:    glassTint(tk).Alpha(0.62),
 		Clarity: 0,
 	}
+}
+
+// glassTint is the colour a glass surface is tinted with: the theme's own
+// paper, warmed a step in light mode.
+//
+// It is derived, not fixed. A notification banner measures a warm white
+// (255, 248, 224 at its top, 255, 254, 240 at its middle) rather than a
+// neutral one, and frosted neutral white over a light page has no colour of
+// its own, which is what read as grey. But the warmth has to come from the
+// theme: a fixed #fffbef ignores a theme whose paper is already warm, and
+// then the glass is the one surface in the window that does not belong to the
+// palette around it. Mixing toward the paper's own hue keeps every theme's
+// glass in its own family.
+func glassTint(tk tokens) ui.Color {
+	if tk.Dark {
+		return tk.Background
+	}
+	// Toward a warm white, by the paper's own lean: a neutral theme lands on
+	// the banner's tone, a warm one keeps its warmth.
+	warm := ui.RGB(0xff, 0xf8, 0xe4)
+	return tk.Background.MixOklab(warm, 0.55)
 }
 
 // noticeGlassLit is noticeGlass for a surface that also needs a lit edge.
