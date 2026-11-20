@@ -258,6 +258,10 @@ func (w *workspace) view(c *ui.Context) {
 // zoom. A pane too narrow for all four keeps the front of that list, so the
 // way out is never the thing that goes missing.
 //
+// Close is counted first but drawn last: it holds the far edge, where the
+// window's own controls are. The count and the drawing order are two
+// different questions, and this one is about what survives a narrow pane.
+//
 // The buttons are iconSize wide with a 2pt gap, and the header keeps a
 // little air at its right edge. canZoom says whether the zoom button would
 // be drawn at all: a pane with nowhere to go has nothing to zoom to, and
@@ -1560,12 +1564,6 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					need := float32(fit)*iconSize + float32(fit-1)*2
 					showTags := width == 0 || left >= need+tagRoom
 					actions.Children(func() {
-						// The reply sits beside the checkout it is about,
-						// and appears with the other controls so an idle
-						// header stays quiet.
-						if showTags && p.remote == nil && len(p.conversation) > 0 {
-							w.replyChip(c, tk, p)
-						}
 						// The worktree button is the pane's checkout: a local
 						// one here, and a host's pressed through it, since
 						// the checkout and its pull request are the host's.
@@ -1576,8 +1574,6 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 								w.remoteWorktreeButton(c, tk, p)
 							}
 						}
-						iconButtonOnCard(c, tk, "x", func() { w.requestCloseByUser(p) },
-							locales.MenuClosePane()+" (⌘W)")
 						if fit >= 2 {
 							iconButtonOnCard(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, "") },
 								locales.MenuSplitRight()+" (⌘D)")
@@ -1594,6 +1590,12 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 							}
 							iconButtonOnCard(c, tk, name, func() { w.toggleZoom(p) }, hint)
 						}
+						// Close sits at the far edge, where the window's own
+						// controls are and where the hand goes to shut a thing:
+						// a close button in the middle of a row reads as one
+						// more action rather than the way out.
+						iconButtonOnCard(c, tk, "x", func() { w.requestCloseByUser(p) },
+							locales.MenuClosePane()+" (⌘W)")
 					})
 					// The row's width follows the buttons it holds, so the
 					// next frame sets the path and the pill beside it.

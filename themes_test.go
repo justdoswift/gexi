@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+	"os"
 	"bytes"
 	"testing"
 
@@ -293,5 +295,59 @@ func TestGlassTintFollowsTheTheme(t *testing.T) {
 	if got := glassTint(dark); got != dark.Background {
 		t.Fatalf("dark: the glass tint %s is not the theme's background %s",
 			colorHex(got), colorHex(dark.Background))
+	}
+}
+
+// TestPaneHeaderControlsAreInOrder checks the header's controls are the ones
+// the app means to show, in the order it means to show them.
+//
+// Three rules, each of which was a request: the reader's chip is gone from the
+// header (the reader is still reachable from the menu and its shortcut), the
+// checkout is called WD rather than the whole word, and close holds the far
+// edge where the window's own controls are.
+func TestPaneHeaderControlsAreInOrder(t *testing.T) {
+	src, err := os.ReadFile("ui.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(src)
+	start := strings.Index(body, "actions.Children(func() {")
+	if start < 0 {
+		t.Fatal("the header's action row is gone")
+	}
+	end := strings.Index(body[start:], "\n\t\t\t\t\t})")
+	if end < 0 {
+		t.Fatal("the header's action row has no end")
+	}
+	row := body[start : start+end]
+
+	if strings.Contains(row, "replyChip") {
+		t.Fatal("the reader's chip is back in the header")
+	}
+	// Close is drawn last, so its call is the last of the controls'. Every
+	// other control has to come before it: a close button in the middle of
+	// the row reads as one more action rather than the way out.
+	closeAt := strings.LastIndex(row, `"x"`)
+	if closeAt < 0 {
+		t.Fatal("the header has no close button")
+	}
+	for _, other := range []string{`"columns-2"`, `"rows-2"`, `"expand"`, "paneWorktreeButton"} {
+		at := strings.Index(row, other)
+		if at < 0 {
+			t.Fatalf("%s is gone from the header", other)
+		}
+		if at > closeAt {
+			t.Fatalf("%s is drawn after close; close holds the far edge", other)
+		}
+	}
+
+
+	// The checkout's label is WD.
+	wt, err := os.ReadFile("worktree.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(wt), `label := "WD"`) {
+		t.Fatal("the checkout control is not labelled WD")
 	}
 }
