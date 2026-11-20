@@ -781,9 +781,9 @@ func (w *workspace) requestCloseByUser(p *pane) {
 	if p.agent != nil || p.sawAgent || len(p.lastAgentRestore) > 0 {
 		w.closeTarget = p
 		if p.agent != nil {
-			w.closeMsg = locales.PaneCloseAgentRunning()
+			w.closeMsg = locales.PaneCloseAgentRunning(p.title())
 		} else {
-			w.closeMsg = locales.PaneCloseAgentOpened()
+			w.closeMsg = locales.PaneCloseAgentOpened(p.title())
 		}
 		w.closeOpen = true
 		w.invalidate()

@@ -74,20 +74,33 @@ func dialogTheme(tk tokens) *ui.Theme {
 	return t
 }
 
+// dialogPaper is the tint the panel's glass carries: the theme's own paper,
+// lifted with the same 6% of warm white the pane cards take, at the density
+// the pane cards' glass uses (DESIGN.md). Dark mode takes a higher density:
+// its paper and its canvas are only a few levels apart, so the cards' 72%
+// would leave the panel barely above the page it covers. It is a function so
+// the test can read the tint the frame actually draws.
+func dialogPaper(tk tokens) ui.Color {
+	density := float32(0.72)
+	if tk.Dark {
+		density = 0.86
+	}
+	return tk.Background.MixOklab(ui.RGB(255, 255, 255), 0.06).Alpha(density)
+}
+
 // dialogFrame draws the panel every dialog shares: Liquid Glass over the
 // dimmed window, so whatever it covers shows through, frosted and lit at the
 // rim. build adds the heading, the form, and the footer to a column that
 // fills the panel. Escape and a press outside close the dialog through
 // *open.
 func dialogFrame(c *ui.Context, tk tokens, open *bool, width float32, build func()) {
-	// Nearly clear glass over a frosted backdrop. The glass is drawn larger
-	// than the panel and clipped to it, so its 1px rim, meant for a toolbar,
-	// is cut away: the pane reads as a soft sheet of glass with no drawn
-	// outline around it. Light mode keeps a little more body so dark text
-	// behind it does not ghost through.
-	shade, tint, clarity := ui.RGBA(0, 0, 0, 0.24), float32(0.06), float32(0.5)
+	// The panel is a sheet of the theme's paper, not a hole in the window.
+	// A nearly clear tint let the dim behind the panel show through and
+	// pulled it darker than the page it covers, which read as a cut rather
+	// than a sheet laid on top. dialogPaper carries the density.
+	shade := ui.RGBA(0, 0, 0, 0.24)
 	if !tk.Dark {
-		shade, tint, clarity = ui.RGBA(0, 0, 0, 0.12), 0.2, 0.5
+		shade = ui.RGBA(0, 0, 0, 0.12)
 	}
 	shadow := alpha(ui.RGB(0, 0, 0), 0.5)
 	if !tk.Dark {
@@ -125,7 +138,7 @@ func dialogFrame(c *ui.Context, tk tokens, open *bool, width float32, build func
 						// outside: only the even middle of the glass shows.
 						ui.Box(c).Absolute().Left(-6).Top(-6).Right(-6).Bottom(-6).
 							Radius(28).ZIndex(-1).IgnoreInput(true).
-							Material(glass.Glass{Tint: tk.Background.Alpha(tint), Clarity: clarity})
+							Material(glass.Glass{Tint: dialogPaper(tk), Clarity: 0.3})
 						// A light from above, soft and without an edge.
 						ui.Box(c).Absolute().Left(2).Right(2).Top(2).Height(96).IgnoreInput(true).
 							Gradient(ui.RGBA(255, 255, 255, 0.09), ui.Transparent, 180)
@@ -160,7 +173,7 @@ func dialogMessage(c *ui.Context, tk tokens, message string) {
 			if para == "" {
 				continue
 			}
-			ui.Text(c, para).FontSize(13).TextColor(tk.MutedForeground).
+			ui.Text(c, para).FontSize(13).LineHeight(1.45).TextColor(tk.MutedForeground).
 				Width(0).MinWidthPercent(100)
 		}
 	})
@@ -213,26 +226,36 @@ func dialogError(c *ui.Context, tk tokens, message string) {
 // quiet actions come first, and the one the dialog exists for last, where
 // the eye and the Return key expect it.
 func dialogFooter(c *ui.Context, tk tokens, actions ...dialogAction) {
+	// A dialog carries one filled button. Where a primary action is among
+	// them, a destructive one is the way out of that action rather than the
+	// point of the dialog, and steps back to the quiet glass: two saturated
+	// pills side by side leave the eye to guess which one Return takes.
+	demoteDanger := false
+	for _, a := range actions {
+		if a.kind == dialogPrimary {
+			demoteDanger = true
+		}
+	}
 	ui.Row(c).FillWidth().Height(60).Padding(0, 18).Gap(8).
 		AlignItems(ui.Center).Justify(ui.End).Children(func() {
-		// The rule fades out toward the corners, so it reads as a fold in
-		// the glass rather than a line drawn across it.
-		ui.Box(c).Absolute().Left(18).Right(18).Top(0).Height(1).IgnoreInput(true).
-			LinearGradient(ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{
-				{Color: ui.Transparent, At: 0},
-				{Color: tk.Foreground.Alpha(0.14), At: 0.5},
-				{Color: ui.Transparent, At: 1},
-			}})
-		for _, a := range actions {
-			dialogButton(c, tk, a)
-		}
-	})
+			// The rule fades out toward the corners, so it reads as a fold in
+			// the glass rather than a line drawn across it.
+			ui.Box(c).Absolute().Left(18).Right(18).Top(0).Height(1).IgnoreInput(true).
+				LinearGradient(ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{
+					{Color: ui.Transparent, At: 0},
+					{Color: tk.Foreground.Alpha(0.14), At: 0.5},
+					{Color: ui.Transparent, At: 1},
+				}})
+			for _, a := range actions {
+				dialogButton(c, tk, a, demoteDanger)
+			}
+		})
 }
 
 // dialogButton is one action in the footer: quiet for Cancel and the like,
-// the chrome's own high contrast for the action that carries the dialog, and
-// the danger colour for one that throws work away.
-func dialogButton(c *ui.Context, tk tokens, a dialogAction) {
+// the chrome's own ink turned over for the action that carries the dialog,
+// and the danger colour for one that throws work away.
+func dialogButton(c *ui.Context, tk tokens, a dialogAction, demoteDanger bool) {
 	b := ui.Button(c, "").Label(a.label).Height(32).Padding(0, 16).
 		Radius(16).Cursor(ui.CursorPointer).OnClick(a.run).
 		Children(func() {
@@ -241,20 +264,32 @@ func dialogButton(c *ui.Context, tk tokens, a dialogAction) {
 	if a.auto {
 		b = b.AutoFocus()
 	}
-	switch a.kind {
+	kind := a.kind
+	if kind == dialogDanger && demoteDanger {
+		kind = dialogQuiet
+	}
+	switch kind {
 	case dialogPrimary:
-		// A prominent glass button: the system accent tinting the glass,
-		// with the press growing it, as AppKit's.
-		b.Material(glass.Glass{Tint: tk.SystemAccent, Interactive: true}).
-			TextColor(ui.RGB(255, 255, 255)).
-			Border(1, ui.RGBA(255, 255, 255, 0.28))
+		// The chrome's ink, turned over, with the press growing it as
+		// AppKit's does. The app is monochrome on warm paper; a system
+		// blue pill would be the only colour on the glass.
+		b.Material(glass.Glass{Tint: tk.Foreground, Interactive: true}).
+			TextColor(tk.Background).
+			Border(1, tk.Background.Alpha(0.16))
 	case dialogDanger:
 		b.Material(glass.Glass{Tint: tk.Danger, Interactive: true}).
 			TextColor(ui.RGB(255, 255, 255)).
 			Border(1, ui.RGBA(255, 255, 255, 0.24))
 	default:
+		// A demoted destructive action keeps the danger colour on its
+		// words: still legible as the one that costs something, without
+		// competing with the default.
+		text := tk.Foreground
+		if a.kind == dialogDanger {
+			text = tk.Danger
+		}
 		b.Material(glass.Glass{Tint: tk.Foreground.Alpha(0.06), Interactive: true}).
-			TextColor(tk.Foreground).Border(1, tk.Foreground.Alpha(0.14))
+			TextColor(text).Border(1, tk.Foreground.Alpha(0.14))
 	}
 }
 

@@ -504,24 +504,26 @@ func (msgs Messages) PaneCloseProjectTitle() string {
 	return Catalog.Format(msgs.locale, "paneCloseProjectTitle", nil)
 }
 
-// PaneCloseAgentRunning says "An agent is running in this pane. Closing it ends its session."
+// PaneCloseAgentRunning says "An agent is running in {title}. Closing the pane ends its session.\n\nKeep Running takes the pane out of the layout and…"
 // in the language the app shows.
-func PaneCloseAgentRunning() string { return In(i18n.Locale()).PaneCloseAgentRunning() }
-
-// PaneCloseAgentRunning says "An agent is running in this pane. Closing it ends its session."
-// in the language of msgs.
-func (msgs Messages) PaneCloseAgentRunning() string {
-	return Catalog.Format(msgs.locale, "paneCloseAgentRunning", nil)
+func PaneCloseAgentRunning(title string) string {
+	return In(i18n.Locale()).PaneCloseAgentRunning(title)
 }
 
-// PaneCloseAgentOpened says "An agent was opened in this pane. Closing it ends the panel."
-// in the language the app shows.
-func PaneCloseAgentOpened() string { return In(i18n.Locale()).PaneCloseAgentOpened() }
-
-// PaneCloseAgentOpened says "An agent was opened in this pane. Closing it ends the panel."
+// PaneCloseAgentRunning says "An agent is running in {title}. Closing the pane ends its session.\n\nKeep Running takes the pane out of the layout and…"
 // in the language of msgs.
-func (msgs Messages) PaneCloseAgentOpened() string {
-	return Catalog.Format(msgs.locale, "paneCloseAgentOpened", nil)
+func (msgs Messages) PaneCloseAgentRunning(title string) string {
+	return Catalog.Format(msgs.locale, "paneCloseAgentRunning", map[string]any{"title": title})
+}
+
+// PaneCloseAgentOpened says "An agent was opened in {title}. Closing the pane ends the panel.\n\nKeep Running takes the pane out of the layout; brin…"
+// in the language the app shows.
+func PaneCloseAgentOpened(title string) string { return In(i18n.Locale()).PaneCloseAgentOpened(title) }
+
+// PaneCloseAgentOpened says "An agent was opened in {title}. Closing the pane ends the panel.\n\nKeep Running takes the pane out of the layout; brin…"
+// in the language of msgs.
+func (msgs Messages) PaneCloseAgentOpened(title string) string {
+	return Catalog.Format(msgs.locale, "paneCloseAgentOpened", map[string]any{"title": title})
 }
 
 // PaneCloseSessionBody says "This session has an agent in it. Closing the session ends it."
