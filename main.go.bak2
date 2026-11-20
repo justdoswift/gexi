@@ -1,0 +1,268 @@
+package main
+
+import (
+	_ "embed"
+	"log"
+	"os"
+
+	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
+	"github.com/egoist/mygo/ui"
+
+	"github.com/justdoswift/gexi/locales"
+)
+
+// updateIcon is the app's mark without its paper backdrop: the update window
+// draws the icon as a square against the system's own background, where the
+// icon's cream edges would read as a box pasted onto the window.
+//
+//go:embed resources/icon-update.png
+var updateIcon []byte
+
+// Version is what ping and info report.
+const Version = "0.0.118"
+
+func main() {
+	// Hooks call back into this same binary (`gexi event turn.start`), so it
+	// has to answer that before any window is built.
+	if runEventCommand(os.Args[1:]) {
+		return
+	}
+
+	// A bundle can hold a newer version than the process that is running;
+	// start it rather than report and update as the older one.
+	relaunchIntoUpdatedBundle()
+
+	// Panes start their shells with the interactive shell's PATH; look it up
+	// off the UI thread so the first restored pane does not wait on it.
+	go interactivePath()
+
+	// Daily background checks in the manner of Sparkle; the menu item below
+	// opens the same window on demand. The window shows the mark without the
+	// paper backdrop of the app icon, so it sits on the system background.
+	mygo.Use(updater.New(updater.Options{Icon: updateIcon}))
+	// The published manifest carries every version's notes; read it through
+	// a source that keeps only the versions after this one, so updating
+	// across several releases shows what each of them changed.
+	mygo.Updater.SetSource(updateNotesSource{manifestURL: updateManifestURL})
+
+	w := newWorkspace()
+
+	// A banner names the pane it is about: clicking it opens that pane, also
+	// when the click is what launched the app.
+	mygo.App.OnNotificationClick(func(id string) { w.openNotification(id) })
+
+	// Start in the appearance the user pinned, so the first frame is right
+	// instead of flashing the system's. "" follows the system.
+	mygo.Theme.SetSource(appearanceSource(w.settings.Appearance))
+
+	// Panes are built after the window is ready; the font has to be in
+	// Core Text before the first terminal measures a cell.
+	registerTerminalFont()
+
+	// Restored panes carry the --settings path saved last run; make sure the
+	// file is there before any of them try to launch. The user's own settings
+	// take the same hooks, so a claude started by hand in a pane reports too.
+	_, _ = installClaudeHooks()
+	// Droid takes the hooks as a per-launch settings overlay. Writing it at
+	// startup means a restored droid command finds its file; hand-started
+	// droids do not carry the flag, so they report nothing.
+	_, _ = installDroidHooks()
+	// Amp reads plugins from the user's config dir. This one is inert outside
+	// a gexi pane, so a hand-started amp reports without needing a flag.
+	if _, err := installAmpEvents(); err != nil {
+		log.Printf("amp plugin: %v", err)
+	}
+	// The user's global settings belong to the installed app: a test build's
+	// binary goes away with its worktree, and the hooks left behind would
+	// point at nothing. Test panes still report through their own settings
+	// file, whose path the app passes to each agent it starts.
+	if !testBuild() {
+		if err := installGlobalClaudeHooks(); err != nil {
+			log.Printf("claude hooks: %v", err)
+		}
+	}
+
+	var win *mygo.Window
+
+	mygo.App.WhenReady(func() {
+		// The language the app shows: the one the user picked, or the
+		// system's when they follow it.
+		mygo.App.SetLocale(w.settings.Language)
+
+		win = mygo.NewWindow(mygo.WindowOptions{
+			Title:     "gexi",
+			Width:     1180,
+			Height:    760,
+			MinWidth:  760,
+			MinHeight: 440,
+			StateKey:  "gexi",
+			Content:   ui.View(w.view),
+			// Rex chrome: no title bar; the view draws under the traffic
+			// lights, which the layout leaves room for.
+			TitleBarStyle: mygo.TitleBarHidden,
+			// The lights share the line of the pane header beside them: its
+			// title sits at about 29 from the top, and a button is 14 tall.
+			TrafficLightPosition: &mygo.Point{X: 20, Y: 22},
+			// The window carries the system's Liquid Glass for the optional
+			// translucent sidebar. The view paints the sidebar and the canvas
+			// as one surface; with the material on, that surface lets the
+			// glass through instead of covering it.
+			Transparent: true,
+			Vibrancy:    mygo.VibrancyGlass,
+			// Still the window color on the platforms whose material shows
+			// none, where the view paints the same backdrop itself.
+			BackgroundColor: w.mainBackground(),
+		})
+		w.win = win
+		win.OnShow(func() {
+			// A window on screen no longer naps, so the hold is not needed.
+			w.releaseKeepRunning()
+			win.Invalidate()
+		})
+
+		// gexi: closing the window hides it; shells keep running.
+		win.OnClose(func(e *mygo.CloseEvent) {
+			if w.quitting {
+				return
+			}
+			e.PreventDefault()
+			win.Hide()
+			w.holdKeepRunning()
+		})
+
+		mygo.App.SetMenu(mainMenu(w))
+		w.restoreOrCreate()
+		w.revealPendingNotification()
+		w.refreshGit()
+		w.startAgentMonitor()
+		w.startWorktreeMonitor()
+		w.startGitMonitor()
+		w.startRemoteServer()
+		w.startRelay()
+		w.startRemoteClients()
+		stop := startControl(w)
+		mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
+			w.releaseKeepRunning()
+			w.quitting = true
+			w.stopRelay()
+			w.stopRemoteServer()
+			w.stopRemoteClients()
+			w.saveNow()
+			stop()
+		})
+	})
+
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { w.quitting = true })
+	mygo.App.OnWindowAllClosed(func() {})
+	mygo.App.OnActivate(func(hasVisibleWindows bool) {
+		if !hasVisibleWindows && win != nil {
+			win.Show()
+			win.Focus()
+		}
+	})
+
+	if err := mygo.App.Run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// mainMenu adds the app shortcuts: new project, new session, split, close
+// pane, and moving between panes.
+func mainMenu(w *workspace) *mygo.Menu {
+	split := func(ax axis) func(*mygo.MenuItem, *mygo.Window) {
+		return func(*mygo.MenuItem, *mygo.Window) {
+			p, err := w.resolvePane("")
+			if err != nil {
+				return
+			}
+			_, _ = w.splitPane(p, ax, nil, "")
+		}
+	}
+	// A session needs a project: the one being worked in, or a folder the
+	// user picks when there is none.
+	newSession := func(*mygo.MenuItem, *mygo.Window) {
+		if s := w.selected(); s != nil {
+			if pr := w.projectOf(s); pr != nil {
+				_, _ = w.newSession(pr, nil, pr.Dir)
+				return
+			}
+		}
+		w.pickProject()
+	}
+	return mygo.NewMenu([]*mygo.MenuItem{
+		{Label: "gexi", Submenu: []*mygo.MenuItem{
+			{Role: mygo.RoleAbout},
+			updater.MenuItem(),
+			mygo.Separator(),
+			{Role: mygo.RoleHide},
+			{Role: mygo.RoleHideOthers},
+			{Role: mygo.RoleUnhide},
+			mygo.Separator(),
+			{Role: mygo.RoleQuit},
+		}},
+		{Label: locales.MenuFile(), Submenu: []*mygo.MenuItem{
+			{Label: locales.MenuNewSession(), Accelerator: "CmdOrCtrl+T", Click: newSession},
+			{Label: locales.MenuNewProject(), Accelerator: "CmdOrCtrl+Shift+N", Click: func(*mygo.MenuItem, *mygo.Window) { w.pickProject() }},
+			mygo.Separator(),
+			{Label: locales.MenuClosePane(), Accelerator: "CmdOrCtrl+W", Click: func(*mygo.MenuItem, *mygo.Window) {
+				if p, err := w.resolvePane(""); err == nil {
+					w.requestCloseByUser(p)
+				}
+			}},
+			mygo.Separator(),
+			{Role: mygo.RoleClose},
+		}},
+		{Role: mygo.RoleEditMenu},
+		{Label: locales.MenuView(), Submenu: []*mygo.MenuItem{
+			{Label: locales.MenuSplitRight(), Accelerator: "CmdOrCtrl+D", Click: split(axisHorizontal)},
+			{Label: locales.MenuSplitDown(), Accelerator: "CmdOrCtrl+Shift+D", Click: split(axisVertical)},
+			{Label: locales.MenuZoomPane(), Accelerator: "CmdOrCtrl+Shift+Return", Click: func(*mygo.MenuItem, *mygo.Window) {
+				if p, err := w.resolvePane(""); err == nil {
+					w.toggleZoom(p)
+				}
+			}},
+			mygo.Separator(),
+			{Label: locales.MenuPreviousPane(), Accelerator: "CmdOrCtrl+[", Click: func(*mygo.MenuItem, *mygo.Window) { w.cyclePane(-1) }},
+			{Label: locales.MenuNextPane(), Accelerator: "CmdOrCtrl+]", Click: func(*mygo.MenuItem, *mygo.Window) { w.cyclePane(1) }},
+			mygo.Separator(),
+			{Label: locales.MenuToggleSidebar(), Accelerator: "CmdOrCtrl+B", Click: func(*mygo.MenuItem, *mygo.Window) {
+				w.settings.SidebarCollapsed = !w.settings.SidebarCollapsed
+				w.settings.save()
+				w.invalidate()
+			}},
+			{Label: locales.MenuToggleFiles(), Accelerator: "CmdOrCtrl+Shift+E", Click: func(*mygo.MenuItem, *mygo.Window) {
+				w.toggleDrawer()
+			}},
+			{Label: locales.MenuShowReply(), Accelerator: "CmdOrCtrl+Shift+R", Click: func(*mygo.MenuItem, *mygo.Window) {
+				if p, err := w.resolvePane(""); err == nil {
+					w.toggleReply(p)
+				}
+			}},
+			{Label: locales.MenuLanguage(), Submenu: languageMenu(w)},
+			{Label: locales.MenuSettings(), Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { w.openSettings() }},
+		}},
+		{Role: mygo.RoleWindowMenu},
+	})
+}
+
+// languageMenu lists the languages the app ships, and the system's choice
+// above them. Picking one shows it at once and keeps it for the next
+// launches; the menu is rebuilt so its labels are in the new language.
+func languageMenu(w *workspace) []*mygo.MenuItem {
+	item := func(label, tag string) *mygo.MenuItem {
+		return &mygo.MenuItem{
+			Label:   label,
+			Type:    mygo.MenuItemRadio,
+			Checked: w.settings.Language == tag,
+			Click: func(*mygo.MenuItem, *mygo.Window) {
+				w.setLanguage(tag)
+			},
+		}
+	}
+	return []*mygo.MenuItem{
+		item(locales.MenuLanguageSystem(), ""),
+		item("English", "en"),
+		item("简体中文", "zh-Hans"),
+	}
+}
