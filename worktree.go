@@ -3212,7 +3212,7 @@ func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg
 		// The quiet chip is a raised tag of its own, as leaf's chips are,
 		// rather than a surface that only appears under the pointer: the
 		// header always says where the checkout is.
-		group = badge(group, tk, group.Hovered())
+		group = badge(c, group, tk, group.Hovered())
 	} else {
 		// The merge chip's fill is its status: green can merge, amber is
 		// still checking, red is blocked. Easing the fill lets a check
@@ -3257,12 +3257,12 @@ func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg
 			// the label it follows.
 			chevron = tk.MutedForeground
 		}
-		w.worktreeMenuSegment(c, p, chevron)
+		w.worktreeMenuSegment(c, tk, p, chevron)
 	})
 }
 
 // worktreeMenuSegment is the chevron half of worktreeActionChip.
-func (w *workspace) worktreeMenuSegment(c *ui.Context, p *pane, fg ui.Color) {
+func (w *workspace) worktreeMenuSegment(c *ui.Context, tk tokens, p *pane, fg ui.Color) {
 	seg := ui.Row(c).Width(18).Height(22).Radius(headerRadius).
 		Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeLeaveHint())
 	wt := p.Worktree
@@ -3277,6 +3277,9 @@ func (w *workspace) worktreeMenuSegment(c *ui.Context, p *pane, fg ui.Color) {
 		if m.Item(locales.WorktreeLeave()).Disabled(wt == nil || wt.busy != "").Chosen() {
 			w.promptLeaveWorktree(p)
 		}
+	}, ui.PopoverMenuButtonOptions{
+		Panel: func(panel ui.Element) { menuPanel(panel, c, tk) },
+		Item:  func(item ui.Element) { menuItemLook(c, item, tk) },
 	}).Children(func() {
 		if src := iconSource("chevron-down", colorHex(fg)); src != nil {
 			// The glyph sits inside the button: the press has to reach
@@ -3647,7 +3650,7 @@ func (w *workspace) paneWorktreeForm(c *ui.Context, tk tokens, p *pane) {
 		el := ui.Row(c).Height(chipHeight).Padding(0, chipPadX).Radius(chipRadius).
 			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(hint)
-		el = badge(el, tk, el.Hovered())
+		el = badge(c, el, tk, el.Hovered())
 		el.OnClick(action).Children(func() {
 			if busy != "" {
 				worktreeSpinner(c, tk, busy)
@@ -3676,7 +3679,7 @@ func (w *workspace) worktreeButtonView(c *ui.Context, tk tokens, p *pane) {
 		el := ui.Row(c).Height(chipHeight).Padding(0, chipPadX).Radius(chipRadius).
 			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeGoneHint())
-		el = badge(el, tk, el.Hovered())
+		el = badge(c, el, tk, el.Hovered())
 		el.OnClick(action).Children(func() {
 			ui.Text(c, locales.WorktreeGone()).FontSize(chipFont).FontWeight(600).
 				TextColor(tk.MutedForeground).OnClick(action)
@@ -3731,7 +3734,7 @@ func worktreeChip(c *ui.Context, tk tokens) ui.Element {
 	el := ui.Row(c).Height(chipHeight).Padding(0, chipPadX).Radius(chipRadius).
 		Border(1, ui.Transparent).
 		Center().Cursor(ui.CursorPointer)
-	return badge(el, tk, el.Hovered())
+	return badge(c, el, tk, el.Hovered())
 }
 
 func worktreeBusyLabel(wt *paneWorktree) string {

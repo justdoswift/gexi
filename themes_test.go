@@ -21,7 +21,7 @@ func TestGlassSwitchChangesTheChrome(t *testing.T) {
 			ui.Column(c).Fill().Background(tk.Muted).Padding(24).Children(func() {
 				raised(ui.Column(c).FillWidth().Height(60).Background(tk.Background), tk)
 				ui.Row(c).Height(8)
-				badge(ui.Row(c).Width(60).Height(22).Background(tk.Background), tk, false)
+				badge(c, ui.Row(c).Width(60).Height(22).Background(tk.Background), tk, false)
 			})
 		}, 200, 140)
 		tester.Frame()
@@ -158,7 +158,7 @@ func TestHeaderChipsAreQuietAtRest(t *testing.T) {
 			tk := themeTokens(c.Theme())
 			ui.Column(c).Fill().Background(tk.Background).Padding(20).Children(func() {
 				el := ui.Row(c).Height(chipHeight).Radius(chipRadius).Padding(0, chipPadX)
-				el = badge(el, tk, false)
+				el = badge(c, el, tk, false)
 				el.Children(func() {
 					ui.Text(c, "novelmaker").FontSize(chipFont).TextColor(tk.MutedForeground)
 				})
@@ -200,7 +200,7 @@ func TestNarrowPaneKeepsOnlyItsTitle(t *testing.T) {
 				row.Children(func() {
 					s := ui.Row(c).Height(chipHeight).AlignItems(ui.Center).
 						Padding(0, 6).Radius(chipRadius).Shrink(1)
-					s = badge(s, tk, false)
+					s = badge(c, s, tk, false)
 					s.Children(func() {
 						ui.Text(c, "Amp ~/gitlab").FontSize(12).SingleLine().
 							Shrink(1).TextColor(tk.Foreground)
@@ -208,7 +208,7 @@ func TestNarrowPaneKeepsOnlyItsTitle(t *testing.T) {
 					if roomy {
 						p := ui.Row(c).Height(chipHeight).Radius(chipRadius).
 							Padding(0, chipPadX)
-						p = badge(p, tk, false)
+						p = badge(c, p, tk, false)
 						p.Children(func() {
 							ui.Text(c, "gitlab").FontSize(chipFont).TextColor(tk.MutedForeground)
 						})

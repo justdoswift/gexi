@@ -156,6 +156,141 @@ func paneGlass(tk tokens) glass.Glass {
 	}
 }
 
+// noticeGlass is the material a small floating surface takes: a selected
+// session, a header chip, a hovered row. It is the system's own glass, the
+// same NSGlassEffectView a notification banner is made of, so it frosts what
+// is behind it and lights its own rim instead of being a flat fill with a
+// hairline drawn round it.
+//
+// It is Native on purpose. The shader glass reads pixels the page has already
+// painted, and a row in the sidebar sits over a flat surface: there is
+// nothing there to blur, so the shader came out identical to the flat fill.
+// The system's material samples what is under the window, which is what gives
+// a notification its body.
+//
+// Clarity stays at 0. A pane up to 100 DIPs keeps the measured material
+// whatever the clarity, and these surfaces are 22 to 32 DIPs: the frost is
+// the whole point at this size, and a clearer setting would only thin the
+// rim.
+func noticeGlass(tk tokens) glass.Glass {
+	// The tint carries the paper's warmth, not the theme's pure white. A
+	// notification banner measures (255, 248, 224) at its top and climbs to
+	// (255, 254, 240) at its middle: a warm white, not a neutral one. Frosted
+	// neutral white over a light page has no colour of its own, which is what
+	// read as grey.
+	tint := tk.Background
+	if !tk.Dark {
+		tint = ui.RGB(0xff, 0xfb, 0xef)
+	}
+	return glass.Glass{
+		Native:  true,
+		Tint:    tint.Alpha(0.62),
+		Clarity: 0,
+	}
+}
+
+// noticeGlassLit is noticeGlass for a surface that also needs a lit edge.
+//
+// A native glass is its own layer under the page: the inset shadows that make
+// the lit edge paint on the page, so they land on a hole and disappear, which
+// is why a native panel's top edge was a hard jump from white to the surface
+// with nothing between. The shader glass paints in the page, so the shadows
+// land on it and the band shows.
+func noticeGlassLit(tk tokens) glass.Glass {
+	return glass.Glass{
+		Tint:    tk.Background.Alpha(0.62),
+		Clarity: 0,
+	}
+}
+
+// menuPanel is the look of every menu the app draws in the window: a sheet
+// of the system's own material, as a notification banner is, rather than the
+// theme's flat background with a hairline round it. The default panel is an
+// opaque fill, which is what made a menu read as a white board laid over the
+// work; the material frosts what is behind it and lights its own rim.
+//
+// The shadow stays, and is the panel's own: a menu floats well above the
+// work, and the system's rim alone does not say how far.
+func menuPanel(e ui.Element, c *ui.Context, tk tokens) ui.Element {
+	// The theme's own panel is a fill with a hairline round it; both have to
+	// go, or the material wears a drawn edge the system's rim already gives.
+	e = e.Radius(12).NoShadow().Border(1, ui.Transparent).
+		Shadow(0, 8, 24, -4, ui.RGB(0, 0, 0).Alpha(0.12))
+	if tk.Dark {
+		e = e.Shadow(0, 16, 40, -8, ui.RGB(0, 0, 0).Alpha(0.38))
+	}
+	if glassChrome() {
+		// noticeSkin carries the light along the top edge and the shade
+		// along the bottom, which is what gives a notification its body.
+		return noticeSkin(e, c, tk)
+	}
+	return e.Background(tk.Background).Border(1, tk.Border)
+}
+
+// menuItemLook is one row of those menus. The row the pointer or the keys are
+// on keeps a blue highlight: a menu is the one surface where that is right,
+// because it is the system's own menu behaviour and a Mac user reads it
+// without thinking. The glass is the panel around it, not the row.
+//
+// The highlight is the desktop's own accent, not the terminal theme's and not
+// the toolkit's fixed #3b82f6: a menu that stayed orange while the Mac was set
+// to graphite would be the one control in the window that ignored the setting.
+// tk.SystemAccent is the terminal theme's cursor colour, which is where the
+// orange came from; c.Preferences().Accent is the one macOS reports.
+//
+// The row's own background is set before this runs, so it has to be set here
+// to take its place.
+func menuItemLook(c *ui.Context, e ui.Element, tk tokens) ui.Element {
+	e = e.Radius(7).Padding(5, 9)
+	if !e.Highlighted() {
+		return e
+	}
+	accent := c.Preferences().Accent
+	if accent.A == 0 {
+		accent = tk.SystemAccent
+	}
+	return e.Background(accent).TextColor(ui.RGB(255, 255, 255))
+}
+
+// noticeSkin draws a small floating surface over the app's own work: a menu,
+// a dialog, a tag on a header. With the glass chrome off it is the flat raised
+// card the app had before, so the switch still turns the whole look over at
+// once.
+//
+// It uses the shader, not the system's glass, because it wants a lit edge. A
+// native glass paints a hole and the material shows through it, so the inset
+// shadows that make the edge land on that hole and vanish; the shader paints
+// in the page, so they land on it. That is the whole difference between a
+// panel whose top edge is a band of light and one whose top edge is a jump.
+func noticeSkin(e ui.Element, c *ui.Context, tk tokens) ui.Element {
+	if !liquid(c) {
+		return e
+	}
+	// The shader frosts at the density a control's material has, which over a
+	// light page comes out a flat grey: the panel reads as a grey board, not a
+	// sheet of glass. The system's own material is what a notification is
+	// made of, and it samples what is under the window instead of blurring the
+	// page, so it keeps its body. It paints a hole, so the lit edge cannot go
+	// on it — the material lights its own rim.
+	return e.Material(noticeGlass(tk))
+}
+
+// rowSkin draws a row in the sidebar, the chosen one or the one under the
+// pointer. It is the system's glass, not the shader: a row sits on the
+// sidebar's flat surface, and the shader can only blur pixels the page has
+// already painted, so over a flat fill it has nothing to work with and comes
+// out as a plain grey block. The system's material samples what is under the
+// window, which is what gives a row its body.
+//
+// It takes no lit edge for the same reason it cannot: the shadows would land
+// on the hole the native glass paints. The material lights its own rim.
+func rowSkin(e ui.Element, c *ui.Context, tk tokens) ui.Element {
+	if !liquid(c) {
+		return e
+	}
+	return e.Material(noticeGlass(tk))
+}
+
 // paneSkin draws a pane card. On glass the card is the system's material and
 // nothing else: NSGlassEffectView lights its own rim and casts no shadow, as
 // AppKit's does not, so a cast shadow here would only smear a grey band under
@@ -423,17 +558,30 @@ func lifted(e ui.Element, tk tokens) ui.Element {
 		Shadow(0, 6, 14, -6, ink.Alpha(0.11))
 }
 
-// lit is the light a raised surface catches along its top edge: one hairline
-// of white, so the card reads as facing up. It goes on the element that
-// paints the top edge itself, since an opaque child would cover it.
+// lit is the light a raised surface catches along its top edge, so the card
+// reads as facing up. It goes on the element that paints the top edge itself,
+// since an opaque child would cover it.
+//
+// It is not a white line. Measured off a notification banner, the top edge
+// goes dark first and then climbs to the panel's own tone: the surface turns
+// away from the light at its very edge, catches it just inside, and the band
+// between is a gradient rather than a rule. A hairline of white at the top is
+// the opposite of that, which is why it read as a drawn border.
+//
+// So: a soft shade on the outside, then the light inside it, both blurred
+// enough to be a band and not a line.
 func lit(e ui.Element, tk tokens) ui.Element {
 	if !glassChrome() {
 		return e
 	}
 	if tk.Dark {
-		return e.InsetShadow(0, 1, 0, 0, ui.RGB(0xff, 0xff, 0xff).Alpha(0.06))
+		return e.
+			InsetShadow(0, 1, 2, 0, ui.RGB(0, 0, 0, ).Alpha(0.18)).
+			InsetShadow(0, 2, 7, 0, ui.RGB(0xff, 0xff, 0xff).Alpha(0.07))
 	}
-	return e.InsetShadow(0, 1, 0, 0, ui.RGB(0xff, 0xff, 0xff).Alpha(0.90))
+	return e.
+		InsetShadow(0, 1, 2, 0, ui.RGB(0x11, 0x11, 0x1a).Alpha(0.10)).
+		InsetShadow(0, 2, 7, 0, ui.RGB(0xff, 0xff, 0xff).Alpha(0.55))
 }
 
 // badge is a tag in a pane header. At rest it is only its words; the surface
@@ -442,8 +590,8 @@ func lit(e ui.Element, tk tokens) ui.Element {
 // something is. The shadow is a contact shadow, a pixel or two deep, rather
 // than a card's: a 22pt tag lies on the header, it does not float over it.
 // The step eases, so the surface follows the pointer instead of blinking on.
-func badge(e ui.Element, tk tokens, raised bool) ui.Element {
-	el := badgeLook(e, tk, raised)
+func badge(c *ui.Context, e ui.Element, tk tokens, raised bool) ui.Element {
+	el := badgeLook(c, e, tk, raised)
 	return el.Transition(ui.ElementTransition{
 		Duration: hoverMotion,
 		Ease:     ui.EaseOut,
@@ -462,7 +610,7 @@ func badge(e ui.Element, tk tokens, raised bool) ui.Element {
 // raised is not only hover: the branch pill passes its drawer's open state,
 // so a chip that stands for something the user turned on keeps its surface
 // without the pointer being there.
-func badgeLook(e ui.Element, tk tokens, raised bool) ui.Element {
+func badgeLook(c *ui.Context, e ui.Element, tk tokens, raised bool) ui.Element {
 	if !glassChrome() {
 		// The old header chip: one flat fill, a step darker under the
 		// pointer, with no gradient or contact shadow.
@@ -476,6 +624,14 @@ func badgeLook(e ui.Element, tk tokens, raised bool) ui.Element {
 		// shadow. The border stays reserved as a transparent hairline so
 		// the words do not shift by a pixel when the surface arrives.
 		return e.Background(ui.Transparent).Border(1, ui.Transparent)
+	}
+	// Under the pointer the tag is the system's own material, as the chosen
+	// session row is: it frosts the header behind it and lights its own rim.
+	// A flat fill with a hairline drawn round it was the thing that read as
+	// a grey box; the material is what a notification banner is made of, and
+	// a tag under the pointer is the same kind of small floating surface.
+	if liquid(c) {
+		return e.Material(noticeGlass(tk))
 	}
 	// The chosen row's paper, stepped off the header it lies on. The row
 	// itself can take tk.Raised because the sidebar sits on the muted paper;

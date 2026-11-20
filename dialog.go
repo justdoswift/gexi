@@ -74,18 +74,36 @@ func dialogTheme(tk tokens) *ui.Theme {
 	return t
 }
 
-// dialogPaper is the tint the panel's glass carries: the floating paper,
-// lifted with the same 6% of warm white the pane cards take, at the density
-// the pane cards' glass uses (DESIGN.md). Dark mode takes a higher density:
-// its paper and its canvas are only a few levels apart, so the cards' 72%
-// would leave the panel barely above the page it covers. It is a function so
-// the test can read the tint the frame actually draws.
-func dialogPaper(tk tokens) ui.Color {
-	density := float32(0.72)
+// dialogGlass is the material the panel is made of. It is the system's own
+// glass, the same NSGlassEffectView a notification banner is: a dialog is the
+// largest small surface the app draws, and an opaque paper with a hairline
+// round it was what made it read as a white board laid over the work.
+//
+// The tint stays light. The system's material already frosts and tones what
+// is behind it, so a dense tint on top would only make it opaque again, which
+// is what the panel was before.
+func dialogGlass(tk tokens) glass.Glass {
+	density := float32(0.55)
 	if tk.Dark {
-		density = 0.86
+		density = 0.62
 	}
-	return floatingFill(tk).MixOklab(ui.RGB(255, 255, 255), 0.06).Alpha(density)
+	// The system's own material, as a notification banner is, and the same one
+	// the menu wears. The shader frosts at a control's density, which over a
+	// light page comes out a flat grey board; the system's material samples
+	// what is under the window and keeps its body.
+	//
+	// The tint carries the paper's warmth rather than the theme's pure white:
+	// a banner measures a warm white, and frosted neutral white has no colour
+	// of its own, which is what read as grey.
+	tint := tk.Background
+	if !tk.Dark {
+		tint = ui.RGB(0xff, 0xfb, 0xef)
+	}
+	return glass.Glass{
+		Native:  true,
+		Tint:    tint.Alpha(density),
+		Clarity: 0,
+	}
 }
 
 // dialogFrame draws the panel every dialog shares: Liquid Glass over the
@@ -94,10 +112,8 @@ func dialogPaper(tk tokens) ui.Color {
 // fills the panel. Escape and a press outside close the dialog through
 // *open.
 func dialogFrame(c *ui.Context, tk tokens, open *bool, width float32, build func()) {
-	// The panel is a sheet of the theme's paper, not a hole in the window.
-	// A nearly clear tint let the dim behind the panel show through and
-	// pulled it darker than the page it covers, which read as a cut rather
-	// than a sheet laid on top. dialogPaper carries the density.
+	// The panel is a sheet of the system's material, not a hole in the
+	// window: dialogGlass carries its tint and the rim the material lights.
 	shade := ui.RGBA(0, 0, 0, 0.24)
 	if !tk.Dark {
 		shade = ui.RGBA(0, 0, 0, 0.12)
@@ -136,9 +152,16 @@ func dialogFrame(c *ui.Context, tk tokens, open *bool, width float32, build func
 					inner.Children(func() {
 						// The pane, larger than the clip so its rim falls
 						// outside: only the even middle of the glass shows.
+						// It is the system's own material, as a notification
+						// banner is, so the sheet frosts what is behind it
+						// and lights its own rim rather than being an opaque
+						// paper with a hairline drawn round it.
+						// No inset shadows: the native glass paints a hole, so
+						// they would land on it and vanish. The material lights
+						// its own rim.
 						ui.Box(c).Absolute().Left(-6).Top(-6).Right(-6).Bottom(-6).
 							Radius(28).ZIndex(-1).IgnoreInput(true).
-							Material(glass.Glass{Tint: dialogPaper(tk), Clarity: 0.3})
+							Material(dialogGlass(tk))
 						// A light from above, soft and without an edge.
 						ui.Box(c).Absolute().Left(2).Right(2).Top(2).Height(96).IgnoreInput(true).
 							Gradient(ui.RGBA(255, 255, 255, 0.09), ui.Transparent, 180)

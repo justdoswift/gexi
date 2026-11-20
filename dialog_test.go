@@ -108,33 +108,28 @@ func TestDialogFooterCarriesOneFilledAction(t *testing.T) {
 
 
 
-// TestDialogPanelSitsAboveThePage checks the panel reads as its own sheet of
-// paper rather than as a slightly dimmed copy of what it covers. The glass is
-// a GPU effect, so a headless frame cannot show it; this composes what it
-// draws from the tint dialogPaper returns: the page, dimmed by the backdrop,
-// with that tint laid over at the opacity glass.paint uses (0.88 of the
-// tint's alpha). A nearly clear tint leaves the panel within a few levels of
-// the page, which is what read as grey and muddy; a sheet of paper sits
-// clearly above it.
-func TestDialogPanelSitsAboveThePage(t *testing.T) {
-	// How far above the page the panel has to sit to read as raised. The
-	// old near-clear tint came in under 4 in both appearances. Dark mode
-	// tops out near 17: its paper and its canvas are only a few levels
-	// apart to begin with.
-	const raised = 10.0
+// TestDialogPanelIsTheSystemMaterial checks the panel is made of the system's
+// own glass rather than a painted fill. A dialog is the largest small surface
+// the app draws, and an opaque paper with a hairline round it was what made it
+// read as a white board laid over the work; the material frosts what is behind
+// it and lights its own rim.
+func TestDialogPanelIsTheSystemMaterial(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		tk := defaultTokens(dark, ui.LightTheme().Accent)
-		shade := float32(0.12)
-		if dark {
-			shade = 0.24
+		g := dialogGlass(tk)
+		// The system's own material, as a notification banner is. The shader
+		// frosts at a control's density, which over a light page comes out a
+		// flat grey board.
+		if !g.Native {
+			t.Fatalf("dark=%v: the dialog is not the system's material", dark)
 		}
-		page := float32(tk.Muted.R) * (1 - shade)
-		paper := dialogPaper(tk)
-		a := float32(paper.A) / 255 * 0.88
-		panel := float32(paper.R)*a + page*(1-a)
-		if panel-page < raised {
-			t.Fatalf("dark=%v: the panel (%.1f) sits only %.1f above the page (%.1f); it reads as a dimmed copy, not a sheet",
-				dark, panel, panel-page, page)
+		// The tint has to stay light: the material already tones what is
+		// behind it, and a dense tint would make the panel opaque again.
+		if a := float32(g.Tint.A) / 255; a > 0.75 {
+			t.Fatalf("dark=%v: the dialog's tint is %.2f, dense enough to hide the material", dark, a)
+		}
+		if g.Clarity != 0 {
+			t.Fatalf("dark=%v: the dialog asks for clarity %v; at this size the frost is the point", dark, g.Clarity)
 		}
 	}
 }
