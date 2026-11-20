@@ -263,3 +263,35 @@ func TestCloseButtonAlwaysFits(t *testing.T) {
 		t.Fatalf("a pane with no zoom target fits %d controls, want three", got)
 	}
 }
+
+// TestGlassTintFollowsTheTheme checks the glass tint is derived from the
+// theme's own paper rather than fixed. A fixed warm white ignores a theme
+// whose paper is already warm, and the glass then becomes the one surface in
+// the window that does not belong to the palette around it: with the default
+// theme and with Claude Light the same glass came out the same colour, while
+// everything around it did not.
+func TestGlassTintFollowsTheTheme(t *testing.T) {
+	neutral := defaultTokens(false, ui.LightTheme().Accent)
+	warm := neutral
+	warm.Background = ui.RGB(0xfa, 0xf9, 0xf5) // Claude Light's paper
+
+	a, b := glassTint(neutral), glassTint(warm)
+	if a == b {
+		t.Fatalf("two themes with different papers got the same glass tint %s", colorHex(a))
+	}
+	// Both have to be warmer than the paper they came from: that is the whole
+	// point of the tint, and it is what stops the glass reading as grey.
+	for name, pair := range map[string][2]ui.Color{"neutral": {neutral.Background, a}, "warm": {warm.Background, b}} {
+		paper, tint := pair[0], pair[1]
+		if int(tint.B) >= int(paper.B) {
+			t.Fatalf("%s: the glass tint %s is not warmer than its paper %s",
+				name, colorHex(tint), colorHex(paper))
+		}
+	}
+	// Dark mode keeps the theme's own background: there is no warmth to add.
+	dark := defaultTokens(true, ui.LightTheme().Accent)
+	if got := glassTint(dark); got != dark.Background {
+		t.Fatalf("dark: the glass tint %s is not the theme's background %s",
+			colorHex(got), colorHex(dark.Background))
+	}
+}
