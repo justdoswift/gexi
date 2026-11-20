@@ -39,9 +39,10 @@ type appSettings struct {
 	// settled by the agent first. Off, the dialog and the Merge button
 	// wait for the user.
 	AutoMergePR bool `json:"autoMergePR"`
-	// GlassTint is how opaque the glass window is, as a percent: 0 shows the
-	// desktop through, 100 is solid paper. Nil is the default for settings
-	// written before the control existed.
+	// GlassTint is how much body the glass window keeps, as a percent: it is
+	// the window material's clarity, so 100 is the frostiest (the desktop
+	// barely reads through) and 0 the clearest. Nil is the default for
+	// settings written before the control existed.
 	GlassTint *int `json:"glassTint,omitempty"`
 	// ArchiveAfterMerge clears a merged worktree and its pane away as the
 	// pull request merges. Off, the header offers Archive and the user
@@ -185,12 +186,17 @@ func appearanceSource(value string) mygo.ThemeSource {
 	}
 }
 
-// The glass setting's range and default. 92% keeps the desktop as a quiet
-// suggestion behind the theme; 100% is a solid paper window.
+// The glass setting's range and default. The number is how much body the
+// window's tint keeps, so 78% leaves the desktop reading through the frost
+// while the pane cards carry the contrast; 100% is the frostiest.
 const (
-	glassTintMin     = 0
-	glassTintMax     = 100
-	glassTintDefault = 92
+	glassTintMin = 0
+	glassTintMax = 100
+	// 78% was the first glass density and still the honest one: the desktop
+	// reads through the frost, and the pane cards carry the contrast. At 92%
+	// the tint is opaque enough that the window reads as a painted panel and
+	// the material behind it does nothing visible.
+	glassTintDefault = 78
 )
 
 // glassTintPercent clamps a saved tint and fills in the default for settings
@@ -823,9 +829,9 @@ func (w *workspace) paneStyleRow(c *ui.Context, tk tokens) {
 	})
 }
 
-// glassTintSlider is how much of the desktop the glass window lets through:
-// the whole useful range, with a live percentage beside it. 100% turns the
-// material off without giving up the raised chrome.
+// glassTintSlider is how much body the glass window keeps: the whole useful
+// range, with a live percentage beside it. It is the material's clarity, so
+// 100% is the frostiest window and 0% the clearest; either end is still glass.
 func (w *workspace) glassTintSlider(c *ui.Context, tk tokens) {
 	current := float64(glassTintPercent(w.settings.GlassTint))
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {

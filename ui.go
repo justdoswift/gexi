@@ -142,19 +142,15 @@ func (w *workspace) view(c *ui.Context) {
 	// has a quiet vertical light even when the desktop behind it is plain.
 	root := ui.Row(c).Fill()
 	if liquid(c) {
-		// The theme's paper, not a clear pane: the glass density setting
-		// decides how much of the desktop shows through the sidebar, while
-		// the terminal card below adds its own sheet so the text keeps the
-		// theme's contrast.
-		tint := float32(glassTintPercent(w.settings.GlassTint)) / 100
-		top := tk.Background.Alpha(tint)
-		if !tk.Dark && w.settings.PaneStyle == paneComfortable {
-			// The light comfortable canvas starts one step deeper than the
-			// page and rises to it, so the sidebar carries the window's
-			// vertical light. A dark theme keeps its own canvas flat.
-			top = tk.Muted.Alpha(tint)
-		}
-		root = root.Gradient(top, tk.Background.Alpha(tint), 180)
+		// Nothing is painted here. The window's own Liquid Glass is what
+		// shows, tinted through WindowOptions.VibrancyTint, and any colour
+		// drawn at this level would stand between the glass and the desktop
+		// and turn it back into a painted panel. That is what the old
+		// surface did: a theme colour at 92% alpha, which is why the window
+		// read as paper no matter how the density was set.
+		//
+		// The cards on top ask for the same system glass (paneSkin), so
+		// they bend the desktop and this surface behind them.
 	} else {
 		root = root.Background(w.backdrop(tk))
 	}
@@ -382,13 +378,10 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 		// the theme's own sheet, a hairline, and the card's shadow.
 		if w.settings.PaneStyle == paneComfortable {
 			col = col.Radius(windowRadius).Clip()
-			if liquid(c) {
-				top, bottom := paneSurface(tk)
-				col = col.Gradient(top, bottom, 180)
-			} else {
+			if !liquid(c) {
 				col = col.Background(tk.Background)
 			}
-			col = raised(col, tk)
+			col = paneSkin(col, c, tk)
 		}
 		headerBg := tk.Background
 		if liquid(c) {
@@ -428,7 +421,9 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 			// the list, outside the scroll.
 			list := ui.Scroll(c).Fill()
 			list.Children(func() {
-				col := ui.Column(c).FillWidth().Gap(2)
+				// No gap: each row carries its own rowMarginY, so the air
+				// between two rows is one margin, not a margin plus a gap.
+				col := ui.Column(c).FillWidth().Gap(0)
 				// The list is at least as tall as its window, so the
 				// spacer below the projects still holds the idle fold at
 				// the bottom while everything fits.
@@ -654,7 +649,7 @@ func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
 func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 	open := !w.collapsed[pr.ID] || strings.TrimSpace(w.searchQuery) != ""
 	row := ui.Row(c).Height(groupRowHeight).Padding(0, 8, 0, 8).Gap(5).Radius(chromeRadius).
-		MarginX(2)
+		MarginX(2).MarginY(rowMarginY)
 	hovered := row.Hovered()
 	// The selected session's capsule marks where the work is; the project
 	// label above it stays a quiet section heading, as Rex's groups do.
@@ -837,7 +832,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		radius = rowHeightPx / 2
 	}
 	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8+indent+16).PaddingEnd(8).Gap(8).
-		Radius(radius).MarginX(2).Border(1, ui.Transparent)
+		Radius(radius).MarginX(2).MarginY(rowMarginY).Border(1, ui.Transparent)
 	hovered := row.Hovered()
 	if sel || hovered {
 		color = tk.Foreground
@@ -1230,13 +1225,10 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		col = col.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
 		if card {
 			col = col.Radius(windowRadius).Clip()
-			if liquid(c) {
-				top, bottom := paneSurface(tk)
-				col = col.Gradient(top, bottom, 180)
-			} else {
+			if !liquid(c) {
 				col = col.Background(tk.Background)
 			}
-			col = raised(col, tk)
+			col = paneSkin(col, c, tk)
 		}
 		dragging := false
 		blend := ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut}
