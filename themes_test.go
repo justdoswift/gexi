@@ -181,6 +181,46 @@ func TestHeaderChipsAreQuietAtRest(t *testing.T) {
 	}
 }
 
+// TestHeaderChipStaysPutUnderThePointer checks a chip does not move as the
+// surface arrives. A border takes room inside the chip, so a raised chip that
+// dropped the hairline it reserves at rest pulled its words a pixel to the
+// left on hover: the branch pill and the path chip both sit in a header the
+// hand crosses, and a tag that shifts under the pointer reads as a slip.
+func TestHeaderChipStaysPutUnderThePointer(t *testing.T) {
+	old := sidebarMaterial
+	sidebarMaterial = true
+	defer func() { sidebarMaterial = old }()
+
+	tester := ui.NewTester(func(c *ui.Context) {
+		tk := themeTokens(c.Theme())
+		ui.Column(c).Fill().Background(tk.Background).Padding(20).Children(func() {
+			el := ui.Row(c).Height(chipHeight).Radius(chipRadius).Padding(0, chipPadX).
+				Gap(chipGap).AlignItems(ui.Center)
+			el = badge(c, el, tk, el.Hovered())
+			el.Children(func() {
+				if src := iconSource("branch", colorHex(tk.MutedForeground)); src != nil {
+					ui.Image(c, src).Width(12).Height(12).IgnoreInput(true)
+				}
+				ui.Text(c, "aghanims-scepter").FontSize(chipFont).SingleLine().
+					TextColor(tk.MutedForeground)
+			})
+		})
+	}, 400, 100)
+	tester.SetDark(true)
+	tester.SetVibrancy(true)
+	tester.Frame()
+	rest, ok := tester.Find("aghanims-scepter")
+	if !ok {
+		t.Fatal("the chip's words are not in the frame")
+	}
+	tester.Move(rest.X+rest.W/2, rest.Y+rest.H/2)
+	tester.Frame()
+	tester.Advance(hoverMotion * 3)
+	if over, _ := tester.Find("aghanims-scepter"); over != rest {
+		t.Fatalf("the chip's words moved under the pointer: %+v -> %+v", rest, over)
+	}
+}
+
 // TestNarrowPaneKeepsOnlyItsTitle checks the header drops the checkout and
 // the branch before it lets the title be cut. A crowded layout is quiet at
 // rest, not only under the pointer: the rule is the pane's width, so nothing
