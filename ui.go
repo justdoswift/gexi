@@ -338,11 +338,21 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 		// A session of its own is another layout: the one replacing another
 		// comes in while that one fades out, so the switch reads as a change
 		// of view instead of a flash of the next tree.
+		//
+		// Size stays out of the transition. Its default lays the content out
+		// at every size on the way, which for a pane means the terminal is
+		// given a new grid on each frame of the fade: every one of those is a
+		// resize of the PTY, and a full-screen TUI redraws its whole screen
+		// for each. A zoom changes the stage's size in one frame anyway, so
+		// the fade alone carries the change and the terminal keeps the grid
+		// it ends at. Colors is named because leaving every property unset
+		// would turn them all back on.
 		stage := ui.Column(c.Key(tb.ID)).Fill().Transition(ui.ElementTransition{
 			Duration: 160 * time.Millisecond,
 			Ease:     ui.EaseOut,
 			Enter:    &ui.Motion{Opacity: 0, Scale: 0.99},
 			Exit:     &ui.Motion{Opacity: 0},
+			Colors:   true,
 		})
 		// The scale is its own animation, keyed by the zoom, so each zoom
 		// starts it afresh instead of gliding from where the last one ended.
@@ -1181,6 +1191,35 @@ func (w *workspace) splitView(c *ui.Context, tk tokens, n *splitNode, leading bo
 // written as macOS writes it on a Mac keyboard.
 const zoomShortcut = "⇧⌘↩"
 
+// headerWidth is the width the header lays its parts out against. The frame
+// that lands on a new size reads the one before it, so a resize that crosses
+// one of the header's thresholds would show a part on that frame and drop it
+// on the next, or the reverse, and the title would jump between them. A
+// width is taken once two frames agree on it, so a size still settling
+// cannot flip the header's parts, and a size the user has stopped at is
+// followed on the frame after it settles.
+func (p *pane) headerWidth(measured float32) float32 {
+	if measured <= 0 {
+		return p.headerW
+	}
+	// The first frame has nothing to hold against: it takes what it
+	// measured, so a pane opens at its real width instead of at nothing.
+	if p.headerW == 0 {
+		p.headerW, p.headerWPrev = measured, measured
+		return measured
+	}
+	if measured == p.headerW {
+		p.headerWPrev = measured
+		return p.headerW
+	}
+	// Two frames in a row at the new width: it is the size the pane has.
+	if measured == p.headerWPrev {
+		p.headerW = measured
+	}
+	p.headerWPrev = measured
+	return p.headerW
+}
+
 func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	bar := c.TitleBar()
 	focused := p.ID == w.FocusedPane
@@ -1285,8 +1324,10 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				// so a narrowing pane gives them up in that order and a wide
 				// one shows them all. The line's width is the one it had in the
 				// frame before, which is exact until the pane or its split is
-				// resized and settles a frame later.
-				width := line.Bounds().W
+				// resized and settles a frame later. headerWidth holds that
+				// width across the frame a resize lands on, so the parts
+				// below cannot appear on one frame and go on the next.
+				width := p.headerWidth(line.Bounds().W)
 				// The title picks the pane up once there is a second pane
 				// to trade with. Alone in the window it keeps dragging the
 				// window, as a title bar does, since there is nowhere to

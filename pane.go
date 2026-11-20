@@ -334,6 +334,13 @@ type pane struct {
 	// frame before, so a header can set its path and branch pill beside the
 	// room they leave rather than by fixed thresholds.
 	headerActionsW float32
+	// headerW is the header line's width as the frame before laid it out,
+	// held across the frame a resize lands on so the header's parts do not
+	// appear and disappear on alternate frames. headerWPrev is what the
+	// frame before that measured, so a width is taken only once two frames
+	// agree on it. See headerWidth.
+	headerW     float32
+	headerWPrev float32
 	ws             *workspace
 	// bgProject is the project whose session held this pane when it went to
 	// the background, so reattaching lands it in the same place.
