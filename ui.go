@@ -413,17 +413,28 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 		// MinHeight(0) lets the body give way under the header: its own
 		// content never has to fit without the scroll, which is what the
 		// scroll is for.
-		ui.Column(c).Fill().MinHeight(0).Padding(10, 6, 8, 8).Gap(2).Children(func() {
+		//
+		// The body keeps no right padding of its own, so the bar runs
+		// along the sidebar's edge; the list's own right padding holds
+		// the rows clear of it instead.
+		ui.Column(c).Fill().MinHeight(0).Padding(10, 0, 8, 8).Gap(2).Children(func() {
 			// Projects and the idle fold scroll together, as one list:
 			// a project with many sessions, or the fold opened over them,
 			// would otherwise run past the window's bottom edge, where
 			// the rows can no longer be reached. The footer stays under
 			// the list, outside the scroll.
-			list := ui.Scroll(c).Fill()
+			//
+			// A bar as wide as its thumb keeps the thumb on the sidebar's
+			// last few DIPs, over the padding below rather than the rows.
+			list := ui.Scroll(c).Fill().
+				ScrollbarStyle(ui.ScrollbarStyle{TrackWidth: 6, ThumbWidth: 6})
 			list.Children(func() {
 				// No gap: each row carries its own rowMarginY, so the air
 				// between two rows is one margin, not a margin plus a gap.
-				col := ui.Column(c).FillWidth().Gap(0)
+				//
+				// The right padding is the bar's: the rows end before it,
+				// where the selected row's fill no longer runs under it.
+				col := ui.Column(c).FillWidth().PaddingEnd(6).Gap(0)
 				// The list is at least as tall as its window, so the
 				// spacer below the projects still holds the idle fold at
 				// the bottom while everything fits.
@@ -469,9 +480,11 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 			w.sidebarListH = list.LayoutBounds().H
 			// The footer holds the sidebar's two menus: remote Macs on the
 			// left, settings on the right, under the list and clear of the
-			// header's own controls.
+			// header's own controls. Its right padding takes back what the
+			// body no longer has, so the gear keeps its distance from the
+			// window's edge.
 			ui.Box(c).Height(1).FillWidth().Background(tk.Border)
-			ui.Row(c).Height(iconSize).Gap(2).Padding(0, 2, 0, 2).Children(func() {
+			ui.Row(c).Height(iconSize).Gap(2).Padding(0, 8, 0, 2).Children(func() {
 				iconMenuButton(c, tk, "monitor", w.remoteMenu, locales.RemoteMenuHint())
 				ui.Spacer(c)
 				iconButton(c, tk, "setting", func() { w.openSettings() },
