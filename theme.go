@@ -422,14 +422,14 @@ func lit(e ui.Element, tk tokens) ui.Element {
 	return e.InsetShadow(0, 1, 0, 0, ui.RGB(0xff, 0xff, 0xff).Alpha(0.90))
 }
 
-// badge is a tag in a pane header, as leaf's words in its headline are: the
-// card's own surface laid on the header, lit from above and outlined by a
-// hairline. The shadow is a contact shadow, a pixel or two deep, rather than
-// a card's: a 22pt tag lies on the header, it does not float over it.
-// Under the pointer it grows one step, so the tag lifts without moving. The
-// step itself eases, so the lift follows the pointer instead of blinking on.
-func badge(e ui.Element, tk tokens, hovered bool) ui.Element {
-	el := badgeLook(e, tk, hovered)
+// badge is a tag in a pane header. At rest it is only its words; the surface
+// — the card's own paper, lit from above and outlined by a hairline — arrives
+// under the pointer, so the header stays quiet until the pointer asks what
+// something is. The shadow is a contact shadow, a pixel or two deep, rather
+// than a card's: a 22pt tag lies on the header, it does not float over it.
+// The step eases, so the surface follows the pointer instead of blinking on.
+func badge(e ui.Element, tk tokens, raised bool) ui.Element {
+	el := badgeLook(e, tk, raised)
 	return el.Transition(ui.ElementTransition{
 		Duration: hoverMotion,
 		Ease:     ui.EaseOut,
@@ -438,20 +438,30 @@ func badge(e ui.Element, tk tokens, hovered bool) ui.Element {
 	})
 }
 
-// badgeLook is the surface a header chip wears. It is the same sheet the
-// sidebar's chosen row is made of — a solid paper fill, a hairline, and the
-// light along the top edge — so a tag in the header and a chosen row in the
-// sidebar read as the same material at two sizes. What it is not is a wash
-// of ink: that reads as a hover highlight, not as a tag that is there.
-func badgeLook(e ui.Element, tk tokens, hovered bool) ui.Element {
+// badgeLook is the surface a header chip wears. A chip at rest is only its
+// words: a row of tags each wearing a fill, a hairline and a shadow reads as
+// a wall of boxes over the terminal, and the header is meant to be quiet
+// until the pointer asks what something is. The surface arrives on hover,
+// the same sheet the sidebar's chosen row is made of, so a tag under the
+// pointer and a chosen row read as the same material at two sizes.
+//
+// raised is not only hover: the branch pill passes its drawer's open state,
+// so a chip that stands for something the user turned on keeps its surface
+// without the pointer being there.
+func badgeLook(e ui.Element, tk tokens, raised bool) ui.Element {
 	if !glassChrome() {
 		// The old header chip: one flat fill, a step darker under the
 		// pointer, with no gradient or contact shadow.
-		fill := tk.Active
-		if hovered {
-			fill = tk.Control
+		if !raised {
+			return e.Background(ui.Transparent)
 		}
-		return e.Background(fill)
+		return e.Background(tk.Control)
+	}
+	if !raised {
+		// At rest the chip is words on the header: no fill, no hairline, no
+		// shadow. The border stays reserved as a transparent hairline so
+		// the words do not shift by a pixel when the surface arrives.
+		return e.Background(ui.Transparent).Border(1, ui.Transparent)
 	}
 	// The chosen row's paper, stepped off the header it lies on. The row
 	// itself can take tk.Raised because the sidebar sits on the muted paper;
@@ -459,28 +469,19 @@ func badgeLook(e ui.Element, tk tokens, hovered bool) ui.Element {
 	// white and the tag exists only by its hairline. floatingFill is the
 	// same step the dialog and the checkpoints card take.
 	fill := floatingFill(tk)
-	if hovered {
-		fill = fill.MixOklab(tk.Foreground, 0.05)
-	}
 	e = lit(e.Background(fill), tk)
 	if tk.Dark {
-		e = e.Border(1, ui.RGB(0xff, 0xff, 0xff).Alpha(0.10)).
+		return e.Border(1, ui.RGB(0xff, 0xff, 0xff).Alpha(0.10)).
 			Shadow(0, 1, 2, 0, ui.RGB(0, 0, 0).Alpha(0.22)).
-			Shadow(0, 3, 8, -4, ui.RGB(0, 0, 0).Alpha(0.30))
-		if hovered {
-			e = e.Shadow(0, 4, 10, -4, ui.RGB(0, 0, 0).Alpha(0.38))
-		}
-		return e
+			Shadow(0, 3, 8, -4, ui.RGB(0, 0, 0).Alpha(0.30)).
+			Shadow(0, 4, 10, -4, ui.RGB(0, 0, 0).Alpha(0.38))
 	}
 	// A clean hairline and a short shadow: on paper a white tag has no other
 	// edge, and a card's long shadow would read as a smudge under it.
-	e = e.Border(1, tk.Border).
+	return e.Border(1, tk.Border).
 		Shadow(0, 1, 2, 0, ui.RGB(0x11, 0x11, 0x1a).Alpha(0.05)).
-		Shadow(0, 3, 8, -4, ui.RGB(0x11, 0x11, 0x1a).Alpha(0.07))
-	if hovered {
-		e = e.Shadow(0, 4, 10, -4, ui.RGB(0x11, 0x11, 0x1a).Alpha(0.10))
-	}
-	return e
+		Shadow(0, 3, 8, -4, ui.RGB(0x11, 0x11, 0x1a).Alpha(0.07)).
+		Shadow(0, 4, 10, -4, ui.RGB(0x11, 0x11, 0x1a).Alpha(0.10))
 }
 
 // sheet is what a panel sliding over the canvas casts: a shadow on the edge

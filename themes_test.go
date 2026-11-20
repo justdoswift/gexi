@@ -123,8 +123,11 @@ func TestHeaderChipsShareOneShape(t *testing.T) {
 	if chipRadius != chromeRadius {
 		t.Fatalf("chipRadius = %v, want the chrome's %v", chipRadius, chromeRadius)
 	}
-	// The fill has to step off the header's paper, or a chip is white on
-	// white and exists only by its hairline.
+	// At rest a chip is only its words: no fill, no hairline, no shadow. A
+	// row of tags each wearing a surface reads as a wall of boxes over the
+	// terminal, which is what the header is meant not to be. The surface
+	// arrives under the pointer, and then it does have to step off the
+	// header's paper or it is white on white.
 	for _, dark := range []bool{false, true} {
 		tk := defaultTokens(dark, ui.LightTheme().Accent)
 		fill := floatingFill(tk)
@@ -133,8 +136,45 @@ func TestHeaderChipsShareOneShape(t *testing.T) {
 			d = -d
 		}
 		if d < 6 {
-			t.Fatalf("dark=%v: a chip's fill %s is %d levels off the header %s",
+			t.Fatalf("dark=%v: a raised chip's fill %s is %d levels off the header %s",
 				dark, colorHex(fill), d, colorHex(tk.Background))
+		}
+	}
+}
+
+// TestHeaderChipsAreQuietAtRest checks a chip at rest is only its words. A
+// row of tags each wearing a fill, a hairline and a shadow reads as a wall of
+// boxes over the terminal; the header is meant to stay quiet until the
+// pointer asks what something is. The surface arrives on hover, and the
+// branch pill also raises itself while its drawer is open, which is a state
+// the user turned on rather than a pointer passing through.
+func TestHeaderChipsAreQuietAtRest(t *testing.T) {
+	old := sidebarMaterial
+	sidebarMaterial = true
+	defer func() { sidebarMaterial = old }()
+
+	for _, dark := range []bool{false, true} {
+		tester := ui.NewTester(func(c *ui.Context) {
+			tk := themeTokens(c.Theme())
+			ui.Column(c).Fill().Background(tk.Background).Padding(20).Children(func() {
+				el := ui.Row(c).Height(chipHeight).Radius(chipRadius).Padding(0, chipPadX)
+				el = badge(el, tk, false)
+				el.Children(func() {
+					ui.Text(c, "novelmaker").FontSize(chipFont).TextColor(tk.MutedForeground)
+				})
+			})
+		}, 300, 100)
+		tester.SetDark(dark)
+		tester.Frame()
+		tester.Advance(hoverMotion * 3)
+		img := tester.Image()
+		// A pixel inside the chip's box but clear of its words: at rest it
+		// has to be the header's own colour.
+		pr, pg, pb, _ := img.At(24, 30).RGBA()
+		cr, cg, cb, _ := img.At(280, 90).RGBA()
+		if pr>>8 != cr>>8 || pg>>8 != cg>>8 || pb>>8 != cb>>8 {
+			t.Fatalf("dark=%v: a resting chip painted (%d,%d,%d) over a header of (%d,%d,%d)",
+				dark, pr>>8, pg>>8, pb>>8, cr>>8, cg>>8, cb>>8)
 		}
 	}
 }
