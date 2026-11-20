@@ -544,10 +544,9 @@ type archivedClearProgress struct {
 }
 
 // confirmClearArchived asks before every archived entry (kept false) or every
-// branch kept by Leave (kept true) is deleted. The alert is the app's own,
-// drawn over the settings window like the rest of its dialogs.
+// branch kept by Leave (kept true) is deleted, in the system's own alert.
 func (w *workspace) confirmClearArchived(kept bool) {
-	if w.archivedClear != nil || w.clearArchivedOpen {
+	if w.archivedClear != nil || w.clearArchivedEntries != nil {
 		return
 	}
 	var entries []archivedWorktree
@@ -563,35 +562,32 @@ func (w *workspace) confirmClearArchived(kept bool) {
 	if kept {
 		body = locales.WorktreeClearKeptBody(strconv.Itoa(len(entries)))
 	}
-	w.clearArchivedOpen = true
 	w.clearArchivedKept = kept
 	w.clearArchivedMsg = body
 	w.clearArchivedEntries = entries
+	title := locales.WorktreeClearArchivedTitle()
+	if kept {
+		title = locales.WorktreeClearKeptTitle()
+	}
+	w.askConfirm(nativeAsk{
+		kind:        mygo.MessageWarning,
+		title:       title,
+		message:     body,
+		buttons:     []string{locales.Cancel(), locales.ArchiveDelete()},
+		def:         0,
+		cancel:      0,
+		destructive: 1,
+	}, func(button int) {
+		if button == 1 {
+			w.clearArchived(entries, kept)
+		}
+		w.clearArchivedEntries = nil
+	})
 	w.invalidateSettings()
 }
 
 // clearArchivedDialog is the batch deletion's confirmation, over the page
 // that asked for it. Cancel holds Return, since Enter must not delete a
-// batch of branches.
-func (w *workspace) clearArchivedDialog(c *ui.Context, tk tokens) {
-	title := locales.WorktreeClearArchivedTitle()
-	if w.clearArchivedKept {
-		title = locales.WorktreeClearKeptTitle()
-	}
-	entries, kept := w.clearArchivedEntries, w.clearArchivedKept
-	dialogAlert(c, tk, &w.clearArchivedOpen, 430, title, w.clearArchivedMsg,
-		dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
-			w.clearArchivedOpen = false
-			w.clearArchivedEntries = nil
-		}},
-		dialogAction{label: locales.ArchiveDelete(), kind: dialogDanger, run: func() {
-			w.clearArchivedOpen = false
-			w.clearArchivedEntries = nil
-			w.clearArchived(entries, kept)
-		}},
-	)
-}
-
 // clearArchived deletes the branches behind the entries and drops the ones
 // that went. Entries whose branch could not be deleted stay on the page. Each
 // entry reports back to the page as it finishes, so a batch that takes a

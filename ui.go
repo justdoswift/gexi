@@ -234,64 +234,6 @@ func (w *workspace) view(c *ui.Context) {
 	if w.paneRenameOpen {
 		w.paneRenameDialog(c, tk)
 	}
-	if w.closeTarget != nil {
-		p := w.closeTarget
-		dialogAlert(c, tk, &w.closeOpen, 420, locales.PaneCloseTitle(), w.closeMsg,
-			dialogAction{label: locales.Cancel(), kind: dialogQuiet, run: func() {
-				w.closeOpen = false
-			}},
-			dialogAction{label: locales.MenuClosePane(), kind: dialogDanger, run: func() {
-				w.closeOpen = false
-				if w.paneByID(p.ID) == p {
-					w.requestClose(p)
-				}
-			}},
-			dialogAction{label: locales.PaneCloseBackground(), kind: dialogPrimary, auto: true, run: func() {
-				w.closeOpen = false
-				if w.paneByID(p.ID) == p {
-					w.detachPane(p)
-				}
-			}},
-		)
-		if !w.closeOpen {
-			w.closeTarget = nil
-		}
-	}
-	if w.closeProjectTarget != nil {
-		w.closeProjectDialog(c, tk)
-	}
-	if w.leaveTarget != nil {
-		p := w.leaveTarget
-		dialogAlert(c, tk, &w.leaveOpen, 420, locales.WorktreeLeaveTitle(), w.leaveMsg,
-			dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
-				w.leaveOpen = false
-			}},
-			dialogAction{label: locales.WorktreeLeaveConfirm(), kind: dialogDanger, run: func() {
-				w.leaveOpen = false
-				w.leaveConfirmed(p)
-			}},
-		)
-		if !w.leaveOpen {
-			w.leaveTarget = nil
-		}
-	}
-	if w.remoteLeaveTarget != nil {
-		p := w.remoteLeaveTarget
-		dialogAlert(c, tk, &w.remoteLeaveOpen, 420, locales.WorktreeLeaveTitle(), w.remoteLeaveMsg,
-			dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
-				w.remoteLeaveOpen = false
-			}},
-			dialogAction{label: locales.WorktreeLeaveConfirm(), kind: dialogDanger, run: func() {
-				w.remoteLeaveOpen = false
-				if p.remote != nil {
-					p.remote.conn.paneWorktree(p, "leaveConfirm")
-				}
-			}},
-		)
-		if !w.remoteLeaveOpen {
-			w.remoteLeaveTarget = nil
-		}
-	}
 	if w.archiveTarget != nil {
 		w.archiveWorktreeDialog(c, tk)
 		if !w.archiveOpen {

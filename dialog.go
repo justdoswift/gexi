@@ -37,6 +37,21 @@ func alpha(c ui.Color, a float32) ui.Color {
 	return ui.RGBA(c.R, c.G, c.B, a)
 }
 
+// systemDanger is the red a destructive control wears: the system's own, not
+// the terminal theme's ANSI red.
+//
+// A theme's red is chosen to sit on that theme's background as text, so it
+// comes out a muted brick (#a84b3a on Claude Light) that reads as a warning
+// line in a diff. A button is not a line of text: macOS paints its
+// destructive controls in system red, and a brick pill beside a blue one
+// looks like a third-party widget rather than part of the sheet.
+func systemDanger(tk tokens) ui.Color {
+	if tk.Dark {
+		return ui.RGB(0xff, 0x45, 0x3a) // systemRed, dark appearance
+	}
+	return ui.RGB(0xff, 0x3b, 0x30) // systemRed, light appearance
+}
+
 // dialogTheme is the palette the toolkit's controls (fields, check boxes,
 // focus rings) take in a dialog: the chrome's text over glass, with the
 // accent turned over, since the rest of the chrome is monochrome too. Its
@@ -60,7 +75,7 @@ func dialogTheme(tk tokens) *ui.Theme {
 	t.AccentHover = tk.Foreground
 	t.AccentPressed = tk.Foreground
 	t.AccentText = tk.Background
-	t.Danger = tk.Danger
+	t.Danger = systemDanger(tk)
 	t.Warning = tk.Waiting
 	t.Success = tk.Working
 	t.Selection = alpha(tk.Foreground, 0.28)
@@ -202,8 +217,8 @@ func dialogMessage(c *ui.Context, tk tokens, message string) {
 func dialogWarning(c *ui.Context, tk tokens, message string) {
 	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Start).Children(func() {
 		ui.Box(c).Width(6).Height(6).Radius(3).Shrink(0).Margin(5, 0, 0, 0).
-			Background(tk.Danger)
-		ui.Text(c, message).FontSize(12.5).TextColor(tk.Danger).Grow(1)
+			Background(systemDanger(tk))
+		ui.Text(c, message).FontSize(12.5).TextColor(systemDanger(tk)).Grow(1)
 	})
 }
 
@@ -230,7 +245,7 @@ func dialogError(c *ui.Context, tk tokens, message string) {
 	if message == "" {
 		return
 	}
-	ui.Text(c, message).FontSize(12).TextColor(tk.Danger).
+	ui.Text(c, message).FontSize(12).TextColor(systemDanger(tk)).
 		Width(0).MinWidthPercent(100).
 		Transition(ui.ElementTransition{
 			Duration: 140 * time.Millisecond,
@@ -271,8 +286,14 @@ func dialogFooter(c *ui.Context, tk tokens, actions ...dialogAction) {
 }
 
 // dialogButton is one action in the footer: quiet for Cancel and the like,
-// the chrome's own ink turned over for the action that carries the dialog,
-// and the danger colour for one that throws work away.
+// the accent for the action that carries the dialog, and the danger colour
+// for one that throws work away.
+//
+// These are flat fills, not glass. The panel behind them is already the
+// system's material, and a glass button on top of it samples the hole that
+// material paints: a shader's frost has nothing under it but transparency,
+// which comes out a flat grey board. A control on a sheet of glass is a
+// control, not a second sheet.
 func dialogButton(c *ui.Context, tk tokens, a dialogAction, demoteDanger bool) {
 	b := ui.Button(c, "").Label(a.label).Height(32).Padding(0, 16).
 		Radius(16).Cursor(ui.CursorPointer).OnClick(a.run).
@@ -286,43 +307,43 @@ func dialogButton(c *ui.Context, tk tokens, a dialogAction, demoteDanger bool) {
 	if kind == dialogDanger && demoteDanger {
 		kind = dialogQuiet
 	}
+	// The accent is the one macOS reports, not the terminal theme's cursor
+	// colour: a dialog's default button is the system's blue on a Mac set to
+	// blue, as a menu's chosen row is.
+	accent := c.Preferences().Accent
+	if accent.A == 0 {
+		accent = tk.SystemAccent
+	}
+	hover := b.Hovered()
 	switch kind {
 	case dialogPrimary:
-		// The chrome's ink, turned over, with the press growing it as
-		// AppKit's does. The app is monochrome on warm paper; a system
-		// blue pill would be the only colour on the glass.
-		b.Material(glass.Glass{Tint: tk.Foreground, Interactive: true}).
-			TextColor(tk.Background).
-			Border(1, tk.Background.Alpha(0.16))
+		fill := accent
+		if hover {
+			fill = accent.MixOklab(ui.RGB(255, 255, 255), 0.14)
+		}
+		b.Background(fill).TextColor(ui.RGB(255, 255, 255))
 	case dialogDanger:
-		b.Material(glass.Glass{Tint: tk.Danger, Interactive: true}).
-			TextColor(ui.RGB(255, 255, 255)).
-			Border(1, ui.RGBA(255, 255, 255, 0.24))
+		fill := systemDanger(tk)
+		if hover {
+			fill = fill.MixOklab(ui.RGB(255, 255, 255), 0.14)
+		}
+		b.Background(fill).TextColor(ui.RGB(255, 255, 255))
 	default:
 		// A demoted destructive action keeps the danger colour on its
 		// words: still legible as the one that costs something, without
 		// competing with the default.
 		text := tk.Foreground
 		if a.kind == dialogDanger {
-			text = tk.Danger
+			text = systemDanger(tk)
 		}
-		b.Material(glass.Glass{Tint: tk.Foreground.Alpha(0.06), Interactive: true}).
-			TextColor(text).Border(1, tk.Foreground.Alpha(0.14))
+		// The quiet button is the panel's own paper, a step darker under
+		// the pointer: a filled control, not a wash that vanishes into the
+		// glass behind it.
+		fill := tk.Foreground.Alpha(0.07)
+		if hover {
+			fill = tk.Foreground.Alpha(0.12)
+		}
+		b.Background(fill).TextColor(text).Border(1, tk.Foreground.Alpha(0.12))
 	}
 }
 
-// dialogAlert shows a title and a message with the actions under it, in the
-// same frame as the forms: a warning about a running agent or a checkout
-// should read as part of the app, not as a system sheet that appears out of
-// another look.
-func dialogAlert(c *ui.Context, tk tokens, open *bool, width float32, title, message string, actions ...dialogAction) {
-	dialogFrame(c, tk, open, width, func() {
-		ui.Column(c).FillWidth().Padding(24, 24, 20, 24).Gap(10).Children(func() {
-			ui.Text(c, title).FontSize(16).FontWeight(600).TextColor(tk.Foreground)
-			if message != "" {
-				dialogMessage(c, tk, message)
-			}
-		})
-		dialogFooter(c, tk, actions...)
-	})
-}

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/plugins/terminal"
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/justdoswift/gexi/locales"
@@ -1388,7 +1389,20 @@ func (rc *remoteConn) paneWorktree(p *pane, action string) {
 			case !out.Left && (out.Dirty || out.Ahead > 0):
 				rc.ws.remoteLeaveTarget = p
 				rc.ws.remoteLeaveMsg = remoteLeaveMessage(out.Dirty, out.Ahead, out.Branch)
-				rc.ws.remoteLeaveOpen = true
+				rc.ws.askConfirm(nativeAsk{
+					kind:        mygo.MessageWarning,
+					title:       locales.WorktreeLeaveTitle(),
+					message:     rc.ws.remoteLeaveMsg,
+					buttons:     []string{locales.WorktreeLeaveConfirm(), locales.Cancel()},
+					def:         1,
+					cancel:      1,
+					destructive: 0,
+				}, func(button int) {
+					if button == 0 && p.remote != nil {
+						p.remote.conn.paneWorktree(p, "leaveConfirm")
+					}
+					rc.ws.remoteLeaveTarget = nil
+				})
 				rc.ws.invalidate()
 			}
 		})

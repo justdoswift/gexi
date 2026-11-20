@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/justdoswift/gexi/locales"
@@ -901,20 +902,33 @@ func TestWorktreesPageShowsClearProgress(t *testing.T) {
 		t.Fatalf("the row lost its detail while clearing; it shows %q", tester.Texts())
 	}
 
-	// Once the batch is done, the button asks first, in the app's own
-	// dialog rather than a system sheet.
+	// Once the batch is done, the button asks first, in the system's alert.
 	w.archivedClear = nil
 	tester.Frame()
+	asked := make(chan mygo.MessageOptions, 1)
+	answered := make(chan int, 1)
+	prev := askNative
+	askNative = func(o mygo.MessageOptions) (mygo.MessageResult, error) {
+		asked <- o
+		return mygo.MessageResult{Button: <-answered}, nil
+	}
+	defer func() { askNative = prev }()
 	if err := tester.Click(locales.ArchiveDelete()); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
-	if !w.clearArchivedOpen {
-		t.Fatal("Delete started the batch without asking")
+	o := <-asked
+	if o.Title != locales.WorktreeClearArchivedTitle() {
+		t.Fatalf("the alert asks %q, want the clear question", o.Title)
 	}
-	if !tester.HasText(locales.WorktreeClearArchivedTitle()) {
-		t.Fatalf("the confirmation is not drawn; the page shows %q", tester.Texts())
+	// Enter must not delete a batch of branches: Cancel holds Return.
+	if o.DefaultButton != 0 || o.CancelButton != 0 {
+		t.Fatalf("Return takes button %d (cancel %d), want Cancel", o.DefaultButton, o.CancelButton)
 	}
+	if len(o.DestructiveButtons) != 1 || o.DestructiveButtons[0] != 1 {
+		t.Fatalf("deleting is not marked destructive: %v", o.DestructiveButtons)
+	}
+	answered <- 0
 }
 
 // TestArchiveDialogShowsWhatGoes checks the archive confirmation names the
@@ -961,34 +975,59 @@ func TestCoreGitRefusesMissingCheckout(t *testing.T) {
 	}
 }
 
-// TestRequestCloseByUserAsks checks a pane where an agent ran opens the
-// close alert instead of closing at once, and a plain shell still closes
+// TestRequestCloseByUserAsks checks a pane where an agent ran asks the
+// system's alert instead of closing at once, and a plain shell still closes
 // straight away.
+//
+// The alert is the native one, so the test answers it through askNative: the
+// real message box needs a running app and blocks until a person clicks.
 func TestRequestCloseByUserAsks(t *testing.T) {
+	asked := make(chan mygo.MessageOptions, 4)
+	answered := make(chan int, 4)
+	prev := askNative
+	askNative = func(o mygo.MessageOptions) (mygo.MessageResult, error) {
+		asked <- o
+		return mygo.MessageResult{Button: <-answered}, nil
+	}
+	defer func() { askNative = prev }()
+
 	w := &workspace{}
 	agentPane := &pane{ID: "agent", sawAgent: true}
 	w.requestCloseByUser(agentPane)
-	if w.closeTarget != agentPane || !w.closeOpen {
-		t.Fatalf("an agent pane closed without asking: target=%v open=%v", w.closeTarget, w.closeOpen)
-	}
+	o := <-asked
 	if agentPane.closing {
 		t.Fatal("the agent pane started closing while the alert is up")
 	}
-	if w.closeMsg == "" {
-		t.Fatal("the alert has no message")
+	if o.Title == "" || o.Message == "" {
+		t.Fatalf("the alert has no words: title=%q message=%q", o.Title, o.Message)
+	}
+	// The question is about work that is running, so the answer that throws
+	// it away has to be the one the system draws as destructive, and Return
+	// has to take the one that keeps the agent alive.
+	if len(o.DestructiveButtons) != 1 || o.DestructiveButtons[0] != 1 {
+		t.Fatalf("closing is not marked destructive: %v", o.DestructiveButtons)
+	}
+	if o.DefaultButton != 2 {
+		t.Fatalf("Return takes button %d, want the one that keeps the agent running", o.DefaultButton)
+	}
+	if o.CancelButton != 0 {
+		t.Fatalf("Escape takes button %d, want Cancel", o.CancelButton)
+	}
+	answered <- 0 // Cancel
+	if agentPane.closing {
+		t.Fatal("Cancel closed the pane")
 	}
 
 	w = &workspace{}
 	resumed := &pane{ID: "resumed", lastAgentRestore: []string{"claude", "--resume", "x"}}
 	w.requestCloseByUser(resumed)
-	if w.closeTarget != resumed {
-		t.Fatal("a pane with a saved resume closed without asking")
-	}
+	<-asked
+	answered <- 0
 
 	w = &workspace{}
 	plain := &pane{ID: "plain"}
 	w.requestCloseByUser(plain)
-	if w.closeTarget != nil || !plain.closing {
+	if !plain.closing {
 		t.Fatal("a plain shell did not close at once")
 	}
 }
@@ -998,55 +1037,33 @@ func TestRequestCloseByUserAsks(t *testing.T) {
 func TestCloseProjectAsks(t *testing.T) {
 	plain := &pane{ID: "plain"}
 	pr := &project{ID: "pr", Dir: t.TempDir(), Sessions: []*session{{ID: "s", Root: leaf(plain)}}}
+	asked := make(chan mygo.MessageOptions, 2)
+	answered := make(chan int, 2)
+	prev := askNative
+	askNative = func(o mygo.MessageOptions) (mygo.MessageResult, error) {
+		asked <- o
+		return mygo.MessageResult{Button: <-answered}, nil
+	}
+	defer func() { askNative = prev }()
+
 	w := &workspace{Projects: []*project{pr}}
 	w.closeProject(pr)
-	if !w.closeProjectOpen || w.closeProjectTarget != pr {
-		t.Fatalf("the project closed without asking: open=%v target=%v", w.closeProjectOpen, w.closeProjectTarget)
-	}
+	o := <-asked
 	if plain.closing {
 		t.Fatal("the panes started closing while the alert is up")
 	}
-	if w.closeProjectMsg != locales.PaneCloseProjectBodyIdle() {
-		t.Fatalf("message = %q, want the plain close consequence", w.closeProjectMsg)
+	if o.Message != locales.PaneCloseProjectBodyIdle() {
+		t.Fatalf("message = %q, want the plain close consequence", o.Message)
 	}
+	answered <- 0
 
 	agent := &pane{ID: "agent", sawAgent: true}
 	pr = &project{ID: "pr", Dir: t.TempDir(), Sessions: []*session{{ID: "s", Root: leaf(agent)}}}
 	w = &workspace{Projects: []*project{pr}}
 	w.closeProject(pr)
-	if w.closeProjectMsg != locales.PaneCloseProjectBody() {
-		t.Fatalf("message = %q, want the agent close consequence", w.closeProjectMsg)
+	if o := <-asked; o.Message != locales.PaneCloseProjectBody() {
+		t.Fatalf("message = %q, want the agent close consequence", o.Message)
 	}
+	answered <- 0
 }
 
-// TestCloseProjectDialogActions checks Cancel leaves the project in place and
-// Close removes it, through the buttons the alert actually draws.
-func TestCloseProjectDialogActions(t *testing.T) {
-	pr := &project{ID: "pr", Dir: t.TempDir()}
-	w := &workspace{Projects: []*project{pr}}
-	w.closeProject(pr)
-	tester := ui.NewTester(func(c *ui.Context) {
-		w.closeProjectDialog(c, themeTokens(c.Theme()))
-	}, 600, 500)
-	tester.Frame()
-	if !tester.HasText(locales.PaneCloseProjectTitle()) || !tester.HasText(locales.PaneCloseProjectBodyIdle()) {
-		t.Fatalf("the alert does not show the close question; it shows %q", tester.Texts())
-	}
-	if err := tester.Click(locales.Cancel()); err != nil {
-		t.Fatal(err)
-	}
-	tester.Frame()
-	if w.closeProjectTarget != nil || len(w.Projects) != 1 {
-		t.Fatal("Cancel closed the project")
-	}
-
-	w.closeProject(pr)
-	tester.Frame()
-	if err := tester.Click(locales.CloseProject()); err != nil {
-		t.Fatal(err)
-	}
-	tester.Frame()
-	if len(w.Projects) != 0 || w.closeProjectTarget != nil {
-		t.Fatal("Close left the project open")
-	}
-}

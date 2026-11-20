@@ -2,6 +2,8 @@ package main
 
 import (
 	"image"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -131,5 +133,35 @@ func TestDialogPanelIsTheSystemMaterial(t *testing.T) {
 		if g.Clarity != 0 {
 			t.Fatalf("dark=%v: the dialog asks for clarity %v; at this size the frost is the point", dark, g.Clarity)
 		}
+	}
+}
+
+// TestDialogButtonsAreNotGlass checks the footer's actions are flat fills.
+//
+// The panel behind them is the system's material, which paints a hole in the
+// window. A shader glass on top of that hole has nothing to sample: its frost
+// maps the transparency to a flat grey, which is what turned all three
+// buttons into grey slabs. A control on a sheet of glass is a control.
+func TestDialogButtonsAreNotGlass(t *testing.T) {
+	src, err := os.ReadFile("dialog.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(src)
+	start := strings.Index(body, "func dialogButton(")
+	if start < 0 {
+		t.Fatal("dialogButton is gone")
+	}
+	end := strings.Index(body[start:], "\n}\n")
+	if end < 0 {
+		t.Fatal("dialogButton has no end")
+	}
+	fn := body[start : start+end]
+	if strings.Contains(fn, "Material(") {
+		t.Fatalf("dialogButton sets a material again; its glass samples the panel's hole and comes out grey:\n%s", fn)
+	}
+	// And the destructive one wears system red, not the theme's ANSI red.
+	if !strings.Contains(fn, "systemDanger(") {
+		t.Fatal("dialogButton does not use systemDanger: a theme's ANSI red is a muted brick, not system red")
 	}
 }
