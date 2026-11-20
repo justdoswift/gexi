@@ -253,7 +253,7 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane, hint string) {
 	unmeasured := info.changed && info.added+info.deleted == 0
 	color := tk.MutedForeground
 	active := showing
-	el := ui.Row(c).Height(22).Radius(headerRadius).Padding(0, 8).Gap(5).
+	el := ui.Row(c).Height(chipHeight).Radius(chipRadius).Padding(0, chipPadX).Gap(chipGap).
 		AlignItems(ui.Center).Shrink(1).Cursor(ui.CursorPointer)
 	if el.Hovered() {
 		active = true
@@ -283,14 +283,14 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane, hint string) {
 		if unmeasured {
 			textColor = tk.Waiting
 		}
-		ui.Text(c, shortBranch(info.branch)).FontSize(11).SingleLine().
+		ui.Text(c, shortBranch(info.branch)).FontSize(chipFont).SingleLine().
 			Shrink(1).TextColor(textColor).OnClick(pick)
 		if info.added > 0 {
-			ui.Text(c, "+"+strconv.Itoa(info.added)).FontSize(10).Shrink(0).
+			ui.Text(c, "+"+strconv.Itoa(info.added)).FontSize(chipFontNum).Shrink(0).
 				TextColor(tk.Working).OnClick(pick)
 		}
 		if info.deleted > 0 {
-			ui.Text(c, "−"+strconv.Itoa(info.deleted)).FontSize(10).Shrink(0).
+			ui.Text(c, "−"+strconv.Itoa(info.deleted)).FontSize(chipFontNum).Shrink(0).
 				TextColor(tk.Danger).OnClick(pick)
 		}
 	})

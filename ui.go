@@ -1104,7 +1104,7 @@ func (w *workspace) subagentPill(c *ui.Context, tk tokens, p *pane) {
 	if n <= 0 {
 		return
 	}
-	el := ui.Row(c).Height(22).Radius(headerRadius).Padding(0, 6).Gap(4).
+	el := ui.Row(c).Height(chipHeight).Radius(chipRadius).Padding(0, chipPadX).Gap(4).
 		AlignItems(ui.Center)
 	dot := tk.Working
 	if p.activity == nil || p.activity.State != activityWorking {
@@ -1115,7 +1115,7 @@ func (w *workspace) subagentPill(c *ui.Context, tk tokens, p *pane) {
 	el = badge(el, tk, el.Hovered())
 	el.Tooltip(subagentHint(p)).Children(func() {
 		ui.Box(c).Width(6).Height(6).Radius(3).Background(dot)
-		ui.Text(c, fmt.Sprint(n)).FontSize(10).FontWeight(500).
+		ui.Text(c, fmt.Sprint(n)).FontSize(chipFontNum).FontWeight(500).
 			TextColor(tk.MutedForeground)
 	})
 }
@@ -1417,8 +1417,12 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				line.Children(func() {
 					// The hover hairline is reserved while it is away, so the
 					// title does not move as the pointer comes and goes.
-					strip := ui.Row(c).Height(24).AlignItems(ui.Center).Shrink(1).
-						Gap(4).Padding(0, stripPad).Radius(chromeRadius).
+					// The title is a chip like the ones beside it: the same
+					// sheet, the same hover. It used to take a bare ink wash,
+					// which read as a highlight rather than as a tag, and left
+					// the row with two different hover behaviours in it.
+					strip := ui.Row(c).Height(chipHeight).AlignItems(ui.Center).Shrink(1).
+						Gap(4).Padding(0, stripPad).Radius(chipRadius).
 						Border(1, ui.Transparent)
 					if movable {
 						strip = strip.Drag(paneMoved{Pane: p}).Cursor(ui.CursorGrab).
@@ -1427,7 +1431,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					} else {
 						strip = strip.DragWindow()
 					}
-					strip = hoverWash(c, strip, tk)
+					strip = badge(strip, tk, strip.Hovered())
 					strip.Children(func() {
 						if agent != nil {
 							if src := agentLogoSource(agent.Kind, tk); src != nil && showMark {
@@ -1455,8 +1459,8 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					// gexi worktree is tinted so it reads as a place; any other
 					// checkout keeps the quiet control surface.
 					if path != "" {
-						chip := ui.Row(c).Height(18).Radius(4).Padding(0, 5).
-							AlignItems(ui.Center).Shrink(1)
+						chip := ui.Row(c).Height(chipHeight).Radius(chipRadius).
+							Padding(0, chipPadX).AlignItems(ui.Center).Shrink(1)
 						chip = badge(chip, tk, chip.Hovered())
 						// The checkout's name stays quiet; a gexi
 						// worktree takes the system accent, so it reads
@@ -1468,7 +1472,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						// The header keeps the checkout's name; the pointer
 						// brings the full path it stands for.
 						chip.Tooltip(dir).Children(func() {
-							ui.Text(c, path).FontSize(11).SingleLine().
+							ui.Text(c, path).FontSize(chipFont).SingleLine().
 								Shrink(1).TextColor(color)
 						})
 					}
