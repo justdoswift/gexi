@@ -636,8 +636,10 @@ func (p *pane) title() string {
 	if p.remote != nil && p.remote.title != "" {
 		return cleanTitle(p.remote.title)
 	}
-	if t := cleanTitle(p.term.Title()); t != "" {
-		return t
+	if p.term != nil {
+		if t := cleanTitle(p.term.Title()); t != "" {
+			return t
+		}
 	}
 	if len(p.command) > 0 {
 		return filepath.Base(p.command[0])
