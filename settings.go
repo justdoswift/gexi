@@ -246,11 +246,9 @@ func (w *workspace) openSettings() {
 	w.settingsWin.OnClosed(func() {
 		w.settingsWin = nil
 		w.settingsShown = false
-		// A confirmation left open when the window closes must not greet
-		// the next visit.
-		w.clearArchivedOpen = false
+		// A confirmation left pending when the window closes must not
+		// greet the next visit.
 		w.clearArchivedEntries = nil
-		w.archivedDeleteOpen = false
 		w.archivedDeleteID = ""
 	})
 }
@@ -288,12 +286,6 @@ func (w *workspace) settingsView(c *ui.Context) {
 	})
 	// The page's own alerts sit over it, in the same glass frame as the
 	// dialogs on the main window.
-	if w.clearArchivedOpen {
-		w.clearArchivedDialog(c, tk)
-	}
-	if w.archivedDeleteOpen {
-		w.archivedSessionDeleteDialog(c, tk)
-	}
 }
 
 // settingsSidebar is the window's left rail: the pages above, the config

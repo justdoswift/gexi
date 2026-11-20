@@ -203,3 +203,47 @@ renders a headless frame and measures pixels is not — it measures the hole.
 8. **A fixed tint colour.** Every other chrome colour is derived from the
    terminal theme; a fixed glass tint makes the glass the one surface that
    ignores the theme. Derive it.
+
+## When not to draw a dialog at all
+
+A confirmation is not a surface to style. macOS already has a shape for "this
+will throw work away", and `mygo.Dialog.Message` is a real `NSAlert`:
+
+```go
+res, err := mygo.Dialog.Message(mygo.MessageOptions{
+    Parent:             w.win,
+    Type:               mygo.MessageWarning,
+    Title:              locales.PaneCloseTitle(),
+    Message:            msg,
+    Buttons:            []string{cancel, close, background},
+    DefaultButton:      2,          // Return keeps the agent alive
+    CancelButton:       0,          // Escape cancels
+    DestructiveButtons: []int{1},   // system red, and Return may not take it
+})
+```
+
+The system draws the destructive button in system red, the default in the
+accent colour, and spaces and rounds them as every other alert on the machine.
+A hand-drawn sheet beside a real one is the thing that reads as someone else's
+app, no matter how good the glass is.
+
+Two things to know:
+
+- **It blocks.** Run it off the UI thread and come back with `onMain`.
+- **It needs a running app**, so a headless test cannot call it. Put a seam in
+  front of it (`var askNative = func(o mygo.MessageOptions) (...)`) and let the
+  test answer.
+
+There is no native *button* on its own: `ui.Button` is always drawn by mygo.
+The choice is a whole native alert or a whole drawn one, not a mix.
+
+## Colours a control wears
+
+- **Destructive**: system red, `#ff3b30` light / `#ff453a` dark. Not the
+  theme's ANSI red, which is picked to be legible as *text* on that theme's
+  background and comes out a muted brick (`#a84b3a` on Claude Light).
+- **Default/primary**: `c.Preferences().Accent`, the accent macOS reports. Not
+  `tk.SystemAccent`, which is the terminal theme's cursor colour.
+- **Quiet**: the panel's own ink at 7%, 12% under the pointer. A flat fill, not
+  a glass: the panel behind it is already the material, and a shader glass on
+  top of a native panel samples its hole and comes out grey.

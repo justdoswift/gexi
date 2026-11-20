@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/loading"
 	"github.com/egoist/mygo/ui"
 
@@ -3003,7 +3004,20 @@ func (w *workspace) askLeaveWorktree(p *pane, wt *paneWorktree, clean bool, ahea
 	}
 	w.leaveTarget = p
 	w.leaveMsg = msg
-	w.leaveOpen = true
+	w.askConfirm(nativeAsk{
+		kind:        mygo.MessageWarning,
+		title:       locales.WorktreeLeaveTitle(),
+		message:     msg,
+		buttons:     []string{locales.WorktreeLeaveConfirm(), locales.Cancel()},
+		def:         1,
+		cancel:      1,
+		destructive: 0,
+	}, func(button int) {
+		if button == 0 {
+			w.leaveConfirmed(p)
+		}
+		w.leaveTarget = nil
+	})
 	w.invalidate()
 }
 

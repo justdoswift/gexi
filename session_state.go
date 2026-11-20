@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/justdoswift/gexi/locales"
@@ -161,33 +162,26 @@ func (w *workspace) confirmDeleteArchivedSession(id string) {
 	if _, ok := findStoredSession(w.archivedSessions, id); !ok {
 		return
 	}
-	w.archivedDeleteID = id
-	w.archivedDeleteOpen = true
-	w.invalidateSettings()
-}
-
-// archivedSessionDeleteDialog is the settings window's alert for that delete.
-func (w *workspace) archivedSessionDeleteDialog(c *ui.Context, tk tokens) {
-	rec, ok := findStoredSession(w.archivedSessions, w.archivedDeleteID)
+	rec, ok := findStoredSession(w.archivedSessions, id)
 	if !ok {
-		w.archivedDeleteOpen = false
-		w.archivedDeleteID = ""
 		return
 	}
-	dialogAlert(c, tk, &w.archivedDeleteOpen, 430,
-		locales.ArchiveSessionDeleteTitle(),
-		locales.ArchiveSessionDeleteBody(storedSessionTitle(rec)),
-		dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
-			w.archivedDeleteOpen = false
-		}},
-		dialogAction{label: locales.ArchiveDelete(), kind: dialogDanger, run: func() {
-			w.archivedDeleteOpen = false
-			w.deleteArchivedSession(rec.Session.ID)
-		}},
-	)
-	if !w.archivedDeleteOpen {
+	w.archivedDeleteID = id
+	w.askConfirm(nativeAsk{
+		kind:        mygo.MessageWarning,
+		title:       locales.ArchiveSessionDeleteTitle(),
+		message:     locales.ArchiveSessionDeleteBody(storedSessionTitle(rec)),
+		buttons:     []string{locales.Cancel(), locales.ArchiveDelete()},
+		def:         0,
+		cancel:      0,
+		destructive: 1,
+	}, func(button int) {
+		if button == 1 {
+			w.deleteArchivedSession(id)
+		}
 		w.archivedDeleteID = ""
-	}
+	})
+	w.invalidateSettings()
 }
 
 // deleteArchivedSession forgets the saved session and the screens kept for
