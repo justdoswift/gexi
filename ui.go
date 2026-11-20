@@ -618,7 +618,11 @@ func (w *workspace) searchResultRow(c *ui.Context, tk tokens, s *session) {
 	row := ui.Row(c).Height(32).FillWidth().AlignItems(ui.Center).Gap(8).
 		PaddingStart(8).PaddingEnd(8).Radius(chromeRadius).Cursor(ui.CursorPointer)
 	if row.Hovered() {
-		row = row.Background(tk.Foreground.Alpha(0.045))
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Foreground.Alpha(0.045))
+		}
 	}
 	pick := func() {
 		w.selectSession(s.ID)
