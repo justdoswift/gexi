@@ -1157,18 +1157,26 @@ func (w *workspace) splitView(c *ui.Context, tk tokens, n *splitNode, leading bo
 	// divider. mygo's split always draws a line, so this lays the cards out
 	// by percentage instead.
 	if w.settings.PaneStyle == paneComfortable {
+		// The split's share moves on a spring, so a pane that opens or closes
+		// takes its slot from the pane beside it instead of the layout
+		// jumping to the new sizes in one frame. The ratio is the tree's own
+		// value; the element only animates what it draws, so a drag still
+		// writes the ratio directly and the spring follows it.
+		// The key is the node itself: every split in the tree animates its own
+		// share, and a shared key would make two splits fight over one value.
+		ratio := ui.Box(c).AnimateTo(n, n.ratio, paneSpring)
 		if n.axis == axisHorizontal {
 			ui.Row(c).Fill().Children(func() {
-				ui.Row(c).WidthPercent(n.ratio).FillHeight().
+				ui.Row(c).WidthPercent(ratio).FillHeight().
 					Children(func() { w.splitView(c, tk, n.first, leading) })
-				ui.Row(c).WidthPercent(100 - n.ratio).FillHeight().
+				ui.Row(c).WidthPercent(100 - ratio).FillHeight().
 					Children(func() { w.splitView(c, tk, n.second, false) })
 			})
 		} else {
 			ui.Column(c).Fill().Children(func() {
-				ui.Column(c).HeightPercent(n.ratio).FillWidth().
+				ui.Column(c).HeightPercent(ratio).FillWidth().
 					Children(func() { w.splitView(c, tk, n.first, leading) })
-				ui.Column(c).HeightPercent(100 - n.ratio).FillWidth().
+				ui.Column(c).HeightPercent(100 - ratio).FillWidth().
 					Children(func() { w.splitView(c, tk, n.second, false) })
 			})
 		}
@@ -1274,7 +1282,16 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			pose = ui.Pose{Scale: 0.22, X: w.stageCardOffset(), Fade: 1}
 			c.After(time.Millisecond)
 		}
-		col = col.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
+		// A pane arrives and leaves on a spring: a split opens a slot that did
+		// not exist a frame ago, and a close collapses one, so the card should
+		// settle into its place as something with weight rather than fade in
+		// over a layout that already jumped. The stage's own move keeps the
+		// plain ease — it is a scale into a card, not a slot opening.
+		poseAnim := paneSpring
+		if p.stageEnter {
+			poseAnim = ui.Animation{Duration: paneMotion, Ease: ui.EaseOut}
+		}
+		col = col.AnimatePose(pose, poseAnim)
 		if card {
 			col = col.Radius(windowRadius).Clip()
 			if !liquid(c) {
@@ -1381,13 +1398,21 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				if hasPill {
 					pillW = branchPillWidth(c, info)
 				}
-				showPill := hasPill && (width == 0 || kept+pillW <= width)
+				// A narrow pane keeps only what names it: the title, and the
+				// buttons the pointer brings. The checkout and the branch are
+				// the first things to go, because a sliver of a pane has no
+				// room for a row of tags and the title is what tells the
+				// panes apart. This is a width rule, not a hover one: a
+				// crowded layout is quiet at rest, not only under the
+				// pointer, and nothing moves as the hand crosses it.
+				roomy := width == 0 || width >= paneHeaderRoomy
+				showPill := hasPill && roomy && kept+pillW <= width
 				pillSpace := float32(0)
 				if showPill {
 					pillSpace = pillW + 4
 				}
 				subW := w.subagentPillWidth(c, p)
-				showSub := subW > 0 && (width == 0 || kept+pillSpace+subW <= width)
+				showSub := subW > 0 && roomy && kept+pillSpace+subW <= width
 				subSpace := float32(0)
 				if showSub {
 					subSpace = subW + 4
@@ -1407,7 +1432,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				// its hover names the path it folded in.
 				merged := showPill && name == info.branch
 				path := ""
-				if !merged {
+				if !merged && roomy {
 					room := pathRoom - 10 // the chip's padding a side
 					tw, _ := c.MeasureText(0, ui.Span{Text: name, Size: 11})
 					if width == 0 || (room > 0 && tw <= room) {

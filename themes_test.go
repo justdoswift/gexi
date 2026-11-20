@@ -178,3 +178,52 @@ func TestHeaderChipsAreQuietAtRest(t *testing.T) {
 		}
 	}
 }
+
+// TestNarrowPaneKeepsOnlyItsTitle checks the header drops the checkout and
+// the branch before it lets the title be cut. A crowded layout is quiet at
+// rest, not only under the pointer: the rule is the pane's width, so nothing
+// moves as the hand crosses a pane. The title is what tells one pane from
+// another, so it is the last thing to give way.
+func TestNarrowPaneKeepsOnlyItsTitle(t *testing.T) {
+	old := sidebarMaterial
+	sidebarMaterial = true
+	defer func() { sidebarMaterial = old }()
+
+	// Draws the header at one width, with the checkout and the branch shown
+	// only when the width is roomy, and reports the ink it painted.
+	ink := func(width float32) int {
+		tester := ui.NewTester(func(c *ui.Context) {
+			tk := themeTokens(c.Theme())
+			ui.Column(c).Fill().Background(tk.Background).Padding(10).Children(func() {
+				roomy := width >= paneHeaderRoomy
+				row := ui.Row(c).Width(width).Height(36).Gap(4).AlignItems(ui.Center)
+				row.Children(func() {
+					s := ui.Row(c).Height(chipHeight).AlignItems(ui.Center).
+						Padding(0, 6).Radius(chipRadius).Shrink(1)
+					s = badge(s, tk, false)
+					s.Children(func() {
+						ui.Text(c, "Amp ~/gitlab").FontSize(12).SingleLine().
+							Shrink(1).TextColor(tk.Foreground)
+					})
+					if roomy {
+						p := ui.Row(c).Height(chipHeight).Radius(chipRadius).
+							Padding(0, chipPadX)
+						p = badge(p, tk, false)
+						p.Children(func() {
+							ui.Text(c, "gitlab").FontSize(chipFont).TextColor(tk.MutedForeground)
+						})
+					}
+				})
+			})
+		}, 420, 70)
+		tester.Frame()
+		tester.Advance(hoverMotion * 3)
+		return inkPixels(tester.Image())
+	}
+
+	narrow, roomy := ink(paneHeaderRoomy-40), ink(paneHeaderRoomy+80)
+	if narrow >= roomy {
+		t.Fatalf("a narrow header painted %d and a roomy one %d: the checkout did not give way",
+			narrow, roomy)
+	}
+}

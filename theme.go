@@ -312,6 +312,14 @@ const (
 	chipFontNum float32 = 10
 )
 
+// paneHeaderRoomy is the width at which a pane header shows its checkout and
+// its branch beside the title. Below it the header keeps only the title and
+// the buttons the pointer brings: a row of tags in a sliver of a pane reads
+// as noise, and the title is what tells one pane from another. The number is
+// where a title, a checkout and a branch stop fitting on one line without
+// the title being cut.
+const paneHeaderRoomy float32 = 260
+
 // windowRadius is the radius AppKit rounds the window to: a comfortable pane
 // card takes the same one, so the card's corners follow the window's.
 const windowRadius float32 = 16
@@ -533,3 +541,13 @@ const (
 	dialogMotion     = 180 * time.Millisecond
 	dialogExitMotion = 140 * time.Millisecond
 )
+
+// paneSpring is how a pane arrives and leaves. A split opens a slot that did
+// not exist a frame ago, and a close collapses one; a cubic ease makes that
+// read as a redraw, while a spring makes the card settle into its slot as
+// something with weight. Bounce is small on purpose: a terminal is not a toy,
+// and the overshoot only has to be felt.
+var paneSpring = ui.Animation{Spring: ui.SpringOptions{
+	Duration: 320 * time.Millisecond,
+	Bounce:   0.18,
+}}
