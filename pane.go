@@ -283,6 +283,16 @@ type pane struct {
 	// that neither writes nor animates is done, whatever its hook said.
 	outSeen int64
 	outAt   time.Time
+	// dormant says the pane is a saved layout and nothing more: no terminal,
+	// no shell, no agent. A session nobody has looked at since the launch
+	// restores this way, so opening a window with fourteen sessions does not
+	// start fourteen shells and fourteen agents for one that shows. wake
+	// builds the terminal and starts the program the first time the pane is
+	// drawn, and the pane is an ordinary one from then on.
+	dormant bool
+	// wakeErr is why a dormant pane could not come up, kept so the pane can
+	// say so instead of looking like a shell that printed nothing.
+	wakeErr error
 	// subagents are the Task/Agent calls the agent reports running in this
 	// pane, keyed by the id a start and its stop share. A background one
 	// outlives its turn, which is what keeps the session visibly busy after
@@ -406,6 +416,18 @@ func (p *pane) subagentsJSON() []map[string]any {
 }
 
 func newPane(ws *workspace, id string, command []string, dir string, snapshot string) (*pane, error) {
+	return buildPane(ws, id, command, dir, snapshot, false)
+}
+
+// newDormantPane lays a saved pane out without starting anything: the pane
+// keeps its id, its command and its folder, and takes a terminal the first
+// time it is drawn. Restoring a window this way costs a struct per pane
+// instead of a shell and an agent per pane.
+func newDormantPane(ws *workspace, id string, command []string, dir string) (*pane, error) {
+	return buildPane(ws, id, command, dir, "", true)
+}
+
+func buildPane(ws *workspace, id string, command []string, dir string, snapshot string, dormant bool) (*pane, error) {
 	if id == "" {
 		id = newID()
 	}
@@ -452,11 +474,27 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 		p.sawAgent = true
 	}
 
+	if dormant {
+		p.dormant = true
+		return p, nil
+	}
+	if err := p.wake(launch, dir, snapshot); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// wake gives the pane its terminal and starts its program. A pane restored
+// from a saved layout that nobody has looked at yet skips this at launch and
+// takes it the first time it is drawn, which is what keeps a window with many
+// sessions from starting a shell and an agent for each of them.
+func (p *pane) wake(launch []string, dir, snapshot string) error {
+	ws := p.ws
 	lightTheme, darkTheme := ws.terminalThemes()
 	term, err := terminal.New(terminal.Options{
 		Conn: connOf(p),
 		Env: []string{
-			"GEXI_PANE=" + id,
+			"GEXI_PANE=" + p.ID,
 			"GEXI_INSTANCE=" + ws.InstanceID,
 			"GEXI_SOCKET=" + socketPath(),
 			"GEXI_HOME=" + supportDir(),
@@ -481,7 +519,7 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 		},
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	p.term = term
 
@@ -493,9 +531,10 @@ func newPane(ws *workspace, id string, command []string, dir string, snapshot st
 
 	if err := p.start(launch, dir); err != nil {
 		_ = term.Close()
-		return nil, err
+		p.term = nil
+		return err
 	}
-	return p, nil
+	return nil
 }
 
 func connOf(p *pane) *ptyConn { return p.conn }
@@ -772,9 +811,22 @@ func (p *pane) savedCommand() []string {
 	return p.restoreCommand
 }
 
-func (p *pane) send(text string) { p.term.Send([]byte(text)) }
+// A dormant pane has no terminal to type into yet: the text waits for the
+// frame that wakes it, so a command sent to a session nobody has opened is
+// not lost to a nil terminal.
+func (p *pane) send(text string) {
+	if p.term == nil {
+		return
+	}
+	p.term.Send([]byte(text))
+}
 
-func (p *pane) text() string { return p.term.Text() }
+func (p *pane) text() string {
+	if p.term == nil {
+		return ""
+	}
+	return p.term.Text()
+}
 
 func (p *pane) close() {
 	if p.ws != nil {
@@ -786,7 +838,9 @@ func (p *pane) close() {
 	if p.ptmx != nil {
 		_ = p.ptmx.Close()
 	}
-	_ = p.term.Close()
+	if p.term != nil {
+		_ = p.term.Close()
+	}
 }
 
 // cleanEnvironment drops the markers of a Claude Code host when the app was
@@ -897,4 +951,28 @@ func withPath(shellPath string, env []string) []string {
 
 func withInteractivePath(env []string) []string {
 	return withPath(interactivePath(), env)
+}
+
+// wakePane starts a dormant pane's program. It runs on the frame that first
+// draws the pane, so the cost of a shell and an agent lands on the session the
+// user opened rather than on the launch. A pane that fails to start keeps its
+// place and says why, instead of vanishing from the layout.
+func (w *workspace) wakePane(p *pane) {
+	if !p.dormant {
+		return
+	}
+	p.dormant = false
+	resolved := resolveAgentCommand(p.command)
+	launch := resolved.launch
+	if paneRunsAgent(resolved.launch) {
+		launch = withShellFallback(resolved.launch)
+	}
+	snapshot := ""
+	if w.settings.RestoreScreen {
+		snapshot = loadSnapshot(p.ID)
+	}
+	if err := p.wake(launch, p.initialDir, snapshot); err != nil {
+		p.wakeErr = err
+		w.invalidate()
+	}
 }

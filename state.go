@@ -356,16 +356,28 @@ func (sp savedDetachedPane) restore(w *workspace) *pane {
 }
 
 func (n *savedNode) restore(w *workspace) (*splitNode, error) {
+	return n.restoreAs(w, false)
+}
+
+// restoreAs lays a saved layout out. With dormant set the panes come back as
+// layout only, and start their programs when they are first drawn.
+func (n *savedNode) restoreAs(w *workspace, dormant bool) (*splitNode, error) {
 	switch n.Type {
 	case "leaf":
 		if n.Pane == nil {
 			return nil, fmt.Errorf("saved leaf without a pane")
 		}
-		snapshot := ""
-		if w.settings.RestoreScreen {
-			snapshot = loadSnapshot(n.Pane.ID)
+		var p *pane
+		var err error
+		if dormant {
+			p, err = newDormantPane(w, n.Pane.ID, n.Pane.Command, n.Pane.WorkingDirectory)
+		} else {
+			snapshot := ""
+			if w.settings.RestoreScreen {
+				snapshot = loadSnapshot(n.Pane.ID)
+			}
+			p, err = newPane(w, n.Pane.ID, n.Pane.Command, n.Pane.WorkingDirectory, snapshot)
 		}
-		p, err := newPane(w, n.Pane.ID, n.Pane.Command, n.Pane.WorkingDirectory, snapshot)
 		if err != nil {
 			return nil, err
 		}
@@ -378,11 +390,11 @@ func (n *savedNode) restore(w *workspace) (*splitNode, error) {
 		if n.First == nil || n.Second == nil {
 			return nil, fmt.Errorf("saved split without both sides")
 		}
-		first, err := n.First.restore(w)
+		first, err := n.First.restoreAs(w, dormant)
 		if err != nil {
 			return nil, err
 		}
-		second, err := n.Second.restore(w)
+		second, err := n.Second.restoreAs(w, dormant)
 		if err != nil {
 			return nil, err
 		}
@@ -417,6 +429,14 @@ func (w *workspace) restoreOrCreate() {
 		w.worktreeRestores = map[string][]string{}
 	}
 
+	// Only the session the window comes back to starts its programs. Every
+	// other one comes back as its layout, and takes a shell when it is first
+	// shown: a window with fourteen sessions used to start fourteen shells
+	// and the agents behind them, for the one the user is looking at.
+	live := state.SelectedSession
+	if live == "" {
+		live = state.SelectedTab
+	}
 	for _, sp := range state.Projects {
 		// Remote projects are gone; their panes were ssh sessions.
 		if sp.RemoteHost != "" {
@@ -425,7 +445,7 @@ func (w *workspace) restoreOrCreate() {
 		pr := &project{ID: sp.ID, Dir: sp.Dir, Label: sp.Label, Flows: sp.Flows}
 		for _, ss := range sp.Sessions {
 			ss.Root.dropMissingWorktrees(sp.Dir)
-			root, err := ss.Root.restore(w)
+			root, err := ss.Root.restoreAs(w, ss.ID != live)
 			if err != nil {
 				continue
 			}

@@ -1611,8 +1611,24 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			}
 			header.Background(header.AnimateColor("paneLiftBg", panelBg, blend))
 
+			// A pane restored as layout alone starts here, the first time it
+			// is drawn: the window comes back with every session in the
+			// sidebar and only the one on screen running. The frame that
+			// wakes it draws the empty card, and the shell's first output
+			// brings the next one.
+			if p.dormant {
+				w.wakePane(p)
+			}
 			var el ui.Element
-			if p.remote != nil {
+			if p.term == nil {
+				// A pane that has no terminal yet, or one whose program
+				// would not start: the card is there and says so, rather
+				// than the view reading a nil terminal.
+				el = ui.Box(c).Fill()
+				if p.wakeErr != nil {
+					el = ui.Text(c, p.wakeErr.Error()).Fill()
+				}
+			} else if p.remote != nil {
 				// A pane on another Mac shows that Mac's screen at that
 				// Mac's grid: scaled down to fit when the card is smaller,
 				// centered when it is bigger, so every part of the screen
