@@ -631,11 +631,15 @@ func badgeLook(c *ui.Context, e ui.Element, tk tokens, raised bool) ui.Element {
 		}
 		return e.Background(tk.Control)
 	}
+	// The hairline is reserved whether the surface is there or not: a border
+	// takes room inside the chip, so a raised state that dropped it would
+	// pull the words a pixel to the left as the pointer arrives, and a chip
+	// that moves under the hand is the one thing a hover must not do.
+	e = e.Border(1, ui.Transparent)
 	if !raised {
 		// At rest the chip is words on the header: no fill, no hairline, no
-		// shadow. The border stays reserved as a transparent hairline so
-		// the words do not shift by a pixel when the surface arrives.
-		return e.Background(ui.Transparent).Border(1, ui.Transparent)
+		// shadow.
+		return e.Background(ui.Transparent)
 	}
 	// Under the pointer the tag is the system's own material, as the chosen
 	// session row is: it frosts the header behind it and lights its own rim.
