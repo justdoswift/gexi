@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"io"
 	"strings"
 	"testing"
@@ -187,5 +188,85 @@ func TestStageRailHidesUnderTheDrawer(t *testing.T) {
 	w.drawer.open = true
 	if w.stageRailVisible(s) {
 		t.Fatal("the rail draws under the open drawer")
+	}
+}
+
+// TestStageRailIsGlass checks the rail's cards wear the system's material
+// rather than a flat fill.
+//
+// The card floats over the stage and hides a pane behind it, which is what
+// the material is for. A flat fill made it the one opaque surface in a window
+// made of glass, and it read as a screenshot pasted on the stage.
+func TestStageRailIsGlass(t *testing.T) {
+	src, err := os.ReadFile("stage.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(src)
+	start := strings.Index(body, "func (w *workspace) stageCardAt(")
+	if start < 0 {
+		t.Fatal("stageCardAt is gone")
+	}
+	end := strings.Index(body[start:], "\n}\n")
+	if end < 0 {
+		t.Fatal("stageCardAt has no end")
+	}
+	fn := body[start : start+end]
+	if !strings.Contains(fn, "noticeGlass(") {
+		t.Fatal("the card does not wear the system's material")
+	}
+	// The flat fill stays only as the fallback for a window without glass.
+	if !strings.Contains(fn, "if liquid(c)") {
+		t.Fatal("the card does not check for glass before filling it flat")
+	}
+}
+
+// TestStageMirrorsShareOneClock checks the rail paces every preview from one
+// timer instead of one per card.
+//
+// A Mirror.Frame() builds a fresh render state and copies every row of the
+// screen, because the changed-row marks go to whichever render state reads
+// them first. A ticker per card therefore cost one whole-screen copy per card
+// per tick: six hidden panes paid six full copies twelve times a second.
+func TestStageMirrorsShareOneClock(t *testing.T) {
+	src, err := os.ReadFile("stage.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(src)
+	start := strings.Index(body, "func (sm *stageMirror) pump()")
+	if start < 0 {
+		t.Fatal("pump is gone")
+	}
+	end := strings.Index(body[start:], "\n}\n")
+	fn := body[start : start+end]
+	if strings.Contains(fn, "time.NewTicker") {
+		t.Fatal("pump made its own ticker again; the rail shares one clock")
+	}
+	if !strings.Contains(fn, "stageTick") {
+		t.Fatal("pump does not read the rail's shared clock")
+	}
+	// And a card that is not on screen is not copied for.
+	if !strings.Contains(fn, "live.Load()") {
+		t.Fatal("pump copies the screen for cards that are not drawn")
+	}
+}
+
+// TestStageMirrorsStopWhenNothingShows checks the rail stops copying when no
+// card is on screen: a narrow stage, a covered edge, a hidden window.
+func TestStageMirrorsStopWhenNothingShows(t *testing.T) {
+	src, err := os.ReadFile("stage.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), "func (w *workspace) markStageMirrorsIdle()") {
+		t.Fatal("nothing clears the live flag")
+	}
+	ui, err := os.ReadFile("ui.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(ui), "w.markStageMirrorsIdle()") {
+		t.Fatal("the frame loop never marks the mirrors idle when the rail is away")
 	}
 }
