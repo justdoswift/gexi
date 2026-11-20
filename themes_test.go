@@ -109,3 +109,32 @@ func TestDarkWindowKeepsItsOwnColour(t *testing.T) {
 		}
 	}
 }
+
+// TestHeaderChipsShareOneShape checks the pane header's chips are one control
+// at one size. They had drifted to three heights (18, 22, 24), two corners
+// (4 and 6) and two hover treatments, so a row of them read as three
+// different kinds of thing rather than as one band of tags.
+func TestHeaderChipsShareOneShape(t *testing.T) {
+	// Every chip is built from these, so a chip that hardcodes its own
+	// height or corner fails here rather than in a screenshot.
+	if chipHeight != 22 {
+		t.Fatalf("chipHeight = %v, want 22", chipHeight)
+	}
+	if chipRadius != chromeRadius {
+		t.Fatalf("chipRadius = %v, want the chrome's %v", chipRadius, chromeRadius)
+	}
+	// The fill has to step off the header's paper, or a chip is white on
+	// white and exists only by its hairline.
+	for _, dark := range []bool{false, true} {
+		tk := defaultTokens(dark, ui.LightTheme().Accent)
+		fill := floatingFill(tk)
+		d := int(fill.R) - int(tk.Background.R)
+		if d < 0 {
+			d = -d
+		}
+		if d < 6 {
+			t.Fatalf("dark=%v: a chip's fill %s is %d levels off the header %s",
+				dark, colorHex(fill), d, colorHex(tk.Background))
+		}
+	}
+}

@@ -3644,7 +3644,7 @@ func (w *workspace) paneWorktreeForm(c *ui.Context, tk tokens, p *pane) {
 			busy = locales.WorktreeCreating()
 			action = func() {}
 		}
-		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
+		el := ui.Row(c).Height(chipHeight).Padding(0, chipPadX).Radius(chipRadius).
 			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(hint)
 		el = badge(el, tk, el.Hovered())
@@ -3653,7 +3653,7 @@ func (w *workspace) paneWorktreeForm(c *ui.Context, tk tokens, p *pane) {
 				worktreeSpinner(c, tk, busy)
 				return
 			}
-			ui.Text(c, label).FontSize(11).FontWeight(600).
+			ui.Text(c, label).FontSize(chipFont).FontWeight(600).
 				TextColor(tk.Foreground).OnClick(action)
 		})
 		return
@@ -3673,12 +3673,12 @@ func (w *workspace) worktreeButtonView(c *ui.Context, tk tokens, p *pane) {
 	// offer then, only a way to clear the binding and find the worktree page.
 	if !worktreeCheckoutExists(wt) {
 		action := func() { w.dropGoneWorktree(p) }
-		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
+		el := ui.Row(c).Height(chipHeight).Padding(0, chipPadX).Radius(chipRadius).
 			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeGoneHint())
 		el = badge(el, tk, el.Hovered())
 		el.OnClick(action).Children(func() {
-			ui.Text(c, locales.WorktreeGone()).FontSize(11).FontWeight(600).
+			ui.Text(c, locales.WorktreeGone()).FontSize(chipFont).FontWeight(600).
 				TextColor(tk.MutedForeground).OnClick(action)
 		})
 		return
@@ -3690,7 +3690,7 @@ func (w *workspace) worktreeButtonView(c *ui.Context, tk tokens, p *pane) {
 		// already merged, so this comes before the Archive form.
 		worktreeChip(c, tk).OnClick(func() {}).
 			Tooltip(busy).Children(func() {
-			ui.Text(c, busy).FontSize(11).FontWeight(600).
+			ui.Text(c, busy).FontSize(chipFont).FontWeight(600).
 				TextColor(tk.Foreground).SingleLine()
 		})
 		return
@@ -3728,7 +3728,7 @@ func (w *workspace) worktreeButtonView(c *ui.Context, tk tokens, p *pane) {
 }
 
 func worktreeChip(c *ui.Context, tk tokens) ui.Element {
-	el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
+	el := ui.Row(c).Height(chipHeight).Padding(0, chipPadX).Radius(chipRadius).
 		Border(1, ui.Transparent).
 		Center().Cursor(ui.CursorPointer)
 	return badge(el, tk, el.Hovered())

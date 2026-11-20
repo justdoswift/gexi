@@ -297,6 +297,21 @@ func windowBackground(light, dark tokens) string {
 // branch and subagent pills.
 const headerRadius float32 = chromeRadius
 
+// The pane header's chips are one control, whatever they name: the title's
+// own strip, the checkout, the branch, the subagent count, and the worktree
+// button. They had drifted to three heights (18, 22, 24), two corners (4 and
+// 6) and two hover treatments, so a row of them read as three different
+// kinds of thing. These are the one set they all take; a chip that needs
+// more room grows its padding, never its height.
+const (
+	chipHeight  float32 = 22
+	chipRadius  float32 = chromeRadius
+	chipPadX    float32 = 7
+	chipGap     float32 = 5
+	chipFont    float32 = 11
+	chipFontNum float32 = 10
+)
+
 // windowRadius is the radius AppKit rounds the window to: a comfortable pane
 // card takes the same one, so the card's corners follow the window's.
 const windowRadius float32 = 16
@@ -423,6 +438,11 @@ func badge(e ui.Element, tk tokens, hovered bool) ui.Element {
 	})
 }
 
+// badgeLook is the surface a header chip wears. It is the same sheet the
+// sidebar's chosen row is made of — a solid paper fill, a hairline, and the
+// light along the top edge — so a tag in the header and a chosen row in the
+// sidebar read as the same material at two sizes. What it is not is a wash
+// of ink: that reads as a hover highlight, not as a tag that is there.
 func badgeLook(e ui.Element, tk tokens, hovered bool) ui.Element {
 	if !glassChrome() {
 		// The old header chip: one flat fill, a step darker under the
@@ -433,29 +453,18 @@ func badgeLook(e ui.Element, tk tokens, hovered bool) ui.Element {
 		}
 		return e.Background(fill)
 	}
-	// A tag has to read as its own surface on the header it sits on. The
-	// header is the pane's paper, so a fill of that same paper leaves the
-	// tag with nothing but its hairline and a 2px contact shadow: on warm
-	// white that is a grey smudge, not a chip. The fill steps off the paper
-	// instead, and the gradient runs from that step down toward the paper,
-	// so the tag reads as laid on the header rather than cut into it.
-	fill := tk.Background.MixOklab(tk.Foreground, 0.05)
-	low := fill.MixOklab(tk.Background, 0.5)
-	if tk.Dark {
-		// Dark steps up toward white, as leaf's chips sit above its page.
-		fill = tk.Background.MixOklab(ui.RGB(0xff, 0xff, 0xff), 0.12)
-		low = fill.MixOklab(tk.Background, 0.45)
-		if hovered {
-			fill = tk.Background.MixOklab(ui.RGB(0xff, 0xff, 0xff), 0.17)
-			low = fill.MixOklab(tk.Background, 0.45)
-		}
-	} else if hovered {
-		fill = tk.Background.MixOklab(tk.Foreground, 0.08)
-		low = fill.MixOklab(tk.Background, 0.5)
+	// The chosen row's paper, stepped off the header it lies on. The row
+	// itself can take tk.Raised because the sidebar sits on the muted paper;
+	// the pane header is tk.Background, so a raised fill there is white on
+	// white and the tag exists only by its hairline. floatingFill is the
+	// same step the dialog and the checkpoints card take.
+	fill := floatingFill(tk)
+	if hovered {
+		fill = fill.MixOklab(tk.Foreground, 0.05)
 	}
-	e = lit(e.Gradient(fill, low, 180), tk)
+	e = lit(e.Background(fill), tk)
 	if tk.Dark {
-		e = e.Border(1, ui.RGB(0xff, 0xff, 0xff).Alpha(0.08)).
+		e = e.Border(1, ui.RGB(0xff, 0xff, 0xff).Alpha(0.10)).
 			Shadow(0, 1, 2, 0, ui.RGB(0, 0, 0).Alpha(0.22)).
 			Shadow(0, 3, 8, -4, ui.RGB(0, 0, 0).Alpha(0.30))
 		if hovered {
