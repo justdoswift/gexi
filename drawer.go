@@ -870,7 +870,8 @@ func (w *workspace) drawerChanges(c *ui.Context, tk tokens) {
 	}
 	root := filepath.Base(d.dir)
 	ui.Column(c).Fill().Children(func() {
-		ui.Scroll(c).Fill().Padding(4, 6, 10, 6).Children(func() {
+		ui.Scroll(c).Fill().Padding(4, 6, 10, 6).
+			ScrollbarStyle(sidebarScrollbar).Children(func() {
 			for _, g := range groupChanges(files) {
 				label := g.dir
 				if label == "" {
@@ -1059,7 +1060,8 @@ func (w *workspace) drawerFiles(c *ui.Context, tk tokens) {
 	if dir == "" {
 		return
 	}
-	ui.Scroll(c).Fill().Padding(6, 6, 6, 6).Children(func() {
+	ui.Scroll(c).Fill().Padding(6, 6, 6, 6).
+		ScrollbarStyle(sidebarScrollbar).Children(func() {
 		w.drawerTree(c, tk, dir, "", 0)
 	})
 }

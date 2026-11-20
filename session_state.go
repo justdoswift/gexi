@@ -210,8 +210,10 @@ func (w *workspace) idleSessionSection(c *ui.Context, tk tokens) {
 		return
 	}
 	open := w.idleOpen
-	row := ui.Row(c).Height(groupRowHeight).Padding(0, 8, 0, 8).Gap(5).
-		Radius(chromeRadius).MarginX(2)
+	row := ui.Row(c).Height(sidebarRowHeight).
+		Padding(0, sidebarRowEnd, 0, sidebarRowInset).Gap(sidebarRowGap).
+		Radius(sidebarRowRadius()).MarginX(2).MarginY(rowMarginY).
+		Border(1, ui.Transparent)
 	color := tk.MutedForeground
 	if row.Hovered() {
 		color = tk.Foreground
@@ -239,7 +241,7 @@ func (w *workspace) idleSessionSection(c *ui.Context, tk tokens) {
 		if src := iconSource("folder", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(13).Height(13).IgnoreInput(true).OnClick(toggle)
 		}
-		ui.Text(c, locales.SessionIdle()).FontSize(11.5).FontWeight(600).SingleLine().
+		ui.Text(c, locales.SessionIdle()).FontSize(sidebarRowFont).FontWeight(600).SingleLine().
 			TextColor(color).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		ui.Text(c, strconv.Itoa(len(w.idleSessions))).FontSize(10.5).
@@ -248,7 +250,11 @@ func (w *workspace) idleSessionSection(c *ui.Context, tk tokens) {
 	// The rows open to their full height and close again, so the list
 	// makes room for them smoothly. The header owns the height's animation:
 	// it is the part drawn in both states.
-	rowsH := float32(len(w.idleSessions))*(rowHeightPx+2) - 2
+	// A row is its height, the gap under it, and the room its margins take:
+	// the same margins the session rows keep, so the fold's rows line up with
+	// the list above them.
+	rowStride := rowHeightPx + 2*rowMarginY + 2
+	rowsH := float32(len(w.idleSessions))*rowStride - 2
 	target := float32(0)
 	if open {
 		target = rowsH
@@ -277,8 +283,12 @@ func (w *workspace) idleSessionSection(c *ui.Context, tk tokens) {
 // stray click on the fold cannot start work by accident; Restore in the
 // menu is the only way back.
 func (w *workspace) idleSessionRow(c *ui.Context, tk tokens, rec storedSession) {
-	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8 + 16).PaddingEnd(8).Gap(8).
-		Radius(chromeRadius).MarginX(2)
+	// The hairline is reserved here too, so a row of the fold is exactly as
+	// wide as a session row above it.
+	row := ui.Row(c).Height(sidebarRowHeight).
+		PaddingStart(sidebarRowInset + sidebarRowStep).PaddingEnd(sidebarRowEnd).Gap(sidebarRowGap).
+		Radius(sidebarRowRadius()).MarginX(2).MarginY(rowMarginY).
+		Border(1, ui.Transparent)
 	color := tk.MutedForeground
 	if row.Hovered() {
 		color = tk.Foreground
@@ -299,9 +309,9 @@ func (w *workspace) idleSessionRow(c *ui.Context, tk tokens, rec storedSession) 
 		}
 	}).Children(func() {
 		if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(14).Height(14)
+			ui.Image(c, src).Width(sidebarRowMark).Height(sidebarRowMark)
 		}
-		ui.Text(c, storedSessionTitle(rec)).FontSize(13).FontWeight(500).SingleLine().
+		ui.Text(c, storedSessionTitle(rec)).FontSize(sidebarRowFont).FontWeight(500).SingleLine().
 			TextColor(color)
 		ui.Spacer(c)
 	})

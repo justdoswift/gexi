@@ -20,7 +20,7 @@ import (
 var updateIcon []byte
 
 // Version is what ping and info report.
-const Version = "0.0.131"
+const Version = "0.0.132"
 
 func main() {
 	// Hooks call back into this same binary (`gexi event turn.start`), so it
@@ -97,7 +97,7 @@ func main() {
 			MinWidth:  760,
 			MinHeight: 440,
 			StateKey:  "gexi",
-			Content:   ui.View(w.view),
+			Content:   ui.View(w.chromeView),
 			// Rex chrome: no title bar; the view draws under the traffic
 			// lights, which the layout leaves room for.
 			TitleBarStyle: mygo.TitleBarHidden,
