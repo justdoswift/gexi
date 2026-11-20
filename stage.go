@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo/plugins/terminal"
@@ -23,6 +24,7 @@ const (
 	stageTiltY       float32 = -18 // degrees around the card's vertical axis
 	stagePerspective float32 = 520 // DIPs from the viewer
 	stageMirrorFPS           = 12
+	stageCardRadius  float32 = 10
 )
 
 // stageMirror is one off-stage pane's preview: a sink terminal that shows
@@ -32,6 +34,11 @@ type stageMirror struct {
 	conn   *mirrorConn
 	mirror *terminal.Mirror
 	stop   chan struct{}
+	// live says the card is on screen. A mirror whose card is hidden — the
+	// window is in the background, the rail is off because the stage is too
+	// narrow, the drawer covers that edge — keeps its sink but stops
+	// copying the screen, and catches up in one frame when it comes back.
+	live atomic.Bool
 }
 
 // mirrorConn carries mirror frames to the sink terminal. Frames are deltas,
@@ -234,8 +241,30 @@ func (w *workspace) startStageMirror(p *pane) {
 		return
 	}
 	sm := &stageMirror{sink: sink, conn: conn, mirror: m, stop: make(chan struct{})}
+	// A mirror starts live: it was made because a card wants it. The rail
+	// clears the flag on the next frame for any card that does not draw.
+	sm.live.Store(true)
 	p.stageMirror = sm
+	startStageClock()
 	go sm.pump()
+}
+
+// startStageClock runs the rail's one timer while any card is on it.
+func startStageClock() {
+	stageTickOnce.Do(func() {
+		go func() {
+			ticker := time.NewTicker(time.Second / stageMirrorFPS)
+			defer ticker.Stop()
+			for t := range ticker.C {
+				// A tick nobody took is a tick that would have drawn the same
+				// frame twice: drop it rather than queue behind the rail.
+				select {
+				case stageTick <- t:
+				default:
+				}
+			}
+		}()
+	})
 }
 
 func (w *workspace) stopStageMirror(p *pane) {
@@ -252,20 +281,39 @@ func (w *workspace) stopStageMirror(p *pane) {
 
 // pump keeps a preview current at a thumbnail's pace. A pane's output may
 // change many times a frame; the rail needs the shape of it, not every byte.
+//
+// The pace comes from one clock for the whole rail, not one ticker per card.
+// A Mirror.Frame() is not cheap: it builds a fresh render state and copies
+// every row of the screen, because the changed-row marks go to whichever
+// render state reads them first and two mirrors cannot share them. A ticker
+// per card therefore cost one whole-screen copy per card per tick, so a
+// session with six hidden panes paid six full copies twelve times a second
+// for thumbnails nobody was reading closely.
 func (sm *stageMirror) pump() {
-	ticker := time.NewTicker(time.Second / stageMirrorFPS)
-	defer ticker.Stop()
 	for {
 		select {
 		case <-sm.stop:
 			return
-		case <-ticker.C:
+		case <-stageTick:
+			if !sm.live.Load() {
+				// Not on screen: the frame it would copy is a frame nobody
+				// sees. The mirror keeps its place, and the first tick after
+				// it comes back sends everything that changed meanwhile.
+				continue
+			}
 			if frame, _ := sm.mirror.Frame(); len(frame) > 0 {
 				sm.conn.push(frame)
 			}
 		}
 	}
 }
+
+// stageTick paces every preview on the rail. It is started once and stopped
+// when the last mirror goes, so an app with no rail running has no timer.
+var (
+	stageTickOnce sync.Once
+	stageTick     = make(chan time.Time, 1)
+)
 
 // stageOverlay draws the rail over the stage: cards floating at the right
 // edge, vertically centered, each one the mirror of a pane it hides.
@@ -274,6 +322,10 @@ func (w *workspace) stageOverlay(c *ui.Context, tk tokens, s *session, stageH fl
 	if len(panes) == 0 {
 		return
 	}
+	// Every mirror starts this frame hidden; the cards that draw below mark
+	// themselves live. A rail that is not drawn at all leaves them all
+	// hidden, which is what stops the copying while nothing shows.
+	w.markStageMirrorsIdle()
 	// A full stack when there is room; otherwise the cards overlap, as
 	// Stage Manager piles the windows behind the one in front, so every
 	// pane keeps its top strip and its mark reachable.
@@ -305,6 +357,55 @@ func (w *workspace) stageOverlay(c *ui.Context, tk tokens, s *session, stageH fl
 			w.stageCardAt(c, tk, p, float32(i)*step)
 		}
 	})
+	// Only the cards drawn this frame are worth copying the screen for. The
+	// rail is rebuilt every frame, so this is where "on screen" is known.
+	for _, p := range panes {
+		if p.stageMirror != nil {
+			p.stageMirror.live.Store(true)
+		}
+	}
+}
+
+// markStageMirrorsIdle clears the live flag on every preview, so a card that
+// does not draw this frame is not copied for.
+//
+// A window nobody is looking at is the largest version of this: a minimised
+// or hidden window still runs its frame loop, and its rail would go on
+// copying every hidden pane's screen for a picture on no display. The
+// mirrors keep their sinks and catch up in one frame when it comes back.
+func (w *workspace) markStageMirrorsIdle() {
+	if w.win != nil && !w.win.IsVisible() {
+		w.stageMirrorsOff()
+		return
+	}
+	for _, pr := range w.allProjects() {
+		for _, s := range pr.Sessions {
+			if s.Root == nil {
+				continue
+			}
+			for _, p := range s.Root.panes() {
+				if p.stageMirror != nil {
+					p.stageMirror.live.Store(false)
+				}
+			}
+		}
+	}
+}
+
+// stageMirrorsOff clears every preview's live flag in one pass.
+func (w *workspace) stageMirrorsOff() {
+	for _, pr := range w.allProjects() {
+		for _, s := range pr.Sessions {
+			if s.Root == nil {
+				continue
+			}
+			for _, p := range s.Root.panes() {
+				if p.stageMirror != nil {
+					p.stageMirror.live.Store(false)
+				}
+			}
+		}
+	}
 }
 
 // stageCardOffset is how far the rail's card centers sit from the stage's
@@ -340,12 +441,26 @@ func (w *workspace) stageCardAt(c *ui.Context, tk tokens, p *pane, top float32) 
 	wrap = wrap.AnimatePose(pose, ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut})
 	pick := func() { w.stagePane(p) }
 	wrap.OnClick(pick).Cursor(ui.CursorPointer).Tooltip(p.title()).Children(func() {
-		panel := ui.Box(c).Fill().Clip().Radius(8).
-			Border(1, tk.Foreground.Alpha(0.14)).
-			Background(tk.Background).
-			Shadow(0, 16, 48, 2, stageShadow(tk)).
+		// The card is a sheet of the system's material, as a notification
+		// banner is, not the theme's paper with a hairline round it. It
+		// floats over the stage and hides a pane behind it, which is exactly
+		// what the material is for: it frosts what is under it and lights its
+		// own rim. A flat fill here was the one opaque surface in a window
+		// made of glass, and it read as a screenshot pasted on the stage.
+		panel := ui.Box(c).Fill().Clip().Radius(stageCardRadius).
 			RotateY(stageTiltY).Perspective(stagePerspective).
 			Rotate(-3.5)
+		if liquid(c) {
+			// The native material paints a hole, so a drawn hairline and a
+			// cast shadow would land on it and vanish; the material lights
+			// its own rim. The shadow goes on the wrapper, outside the hole.
+			panel = panel.Material(noticeGlass(tk))
+			wrap = wrap.Shadow(0, 18, 44, 2, stageShadow(tk))
+		} else {
+			panel = panel.Border(1, tk.Foreground.Alpha(0.14)).
+				Background(tk.Background).
+				Shadow(0, 16, 48, 2, stageShadow(tk))
+		}
 		if panel.Hovered() {
 			panel = panel.AnimatePose(ui.Pose{Scale: 1.035},
 				ui.Animation{Duration: 140 * time.Millisecond, Ease: ui.EaseOut})

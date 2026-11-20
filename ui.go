@@ -352,6 +352,11 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 		w.stageW = b.W
 		if w.zoomedIn(tb) != nil && w.stageRailVisible(tb) {
 			w.stageOverlay(c, tk, tb, b.H)
+		} else {
+			// No rail this frame: nothing on it is worth copying a screen
+			// for. The mirrors keep their sinks and catch up in one frame
+			// when the rail comes back.
+			w.markStageMirrorsIdle()
 		}
 		return
 	}
