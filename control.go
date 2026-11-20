@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -131,6 +132,29 @@ func (w *workspace) dispatch(req controlRequest) (any, error) {
 			"version": Version,
 			"pid":     os.Getpid(),
 			"socket":  socketPath(),
+		}, nil
+
+	case "mem.stats":
+		// What the process holds, for a report of the app's own memory
+		// rather than the shared libraries AppKit maps in. HeapAlloc is
+		// what is live; HeapSys is what the runtime has taken from the
+		// system, which is the number a memory reading sees.
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		return map[string]any{
+			"heapAllocMB":  roundMB(m.HeapAlloc),
+			"heapInuseMB":  roundMB(m.HeapInuse),
+			"heapIdleMB":   roundMB(m.HeapIdle),
+			"heapSysMB":    roundMB(m.HeapSys),
+			"stackMB":      roundMB(m.StackInuse),
+			"sysMB":        roundMB(m.Sys),
+			"totalAllocMB": roundMB(m.TotalAlloc),
+			"numGC":        m.NumGC,
+			"numGoroutine": runtime.NumGoroutine(),
+			"panes":        len(w.allPanes()),
+			"livePanes":    len(w.livePanes()),
+			"mirrors":      w.stageMirrorCount(),
+			"sessions":     w.sessionCount(),
 		}, nil
 
 	case "host.info":
@@ -755,4 +779,30 @@ func serveControl(w *workspace, conn net.Conn) {
 
 	resp := w.handle(req)
 	_ = json.NewEncoder(conn).Encode(resp)
+}
+
+// roundMB is a byte count in megabytes to one decimal, which is the precision
+// a memory report is read at.
+func roundMB(n uint64) float64 {
+	return float64(n/(1<<10)) / 1024
+}
+
+// stageMirrorCount is how many previews the rail is keeping alive.
+func (w *workspace) stageMirrorCount() int {
+	n := 0
+	for _, p := range w.allPanes() {
+		if p.stageMirror != nil {
+			n++
+		}
+	}
+	return n
+}
+
+// sessionCount is how many sessions the window holds, open and idle.
+func (w *workspace) sessionCount() int {
+	n := len(w.idleSessions) + len(w.archivedSessions)
+	for _, pr := range w.allProjects() {
+		n += len(pr.Sessions)
+	}
+	return n
 }
