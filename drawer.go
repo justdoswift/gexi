@@ -261,7 +261,7 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane, hint string) {
 	if active {
 		color = tk.Foreground
 	}
-	el = badge(el, tk, active)
+	el = badge(c, el, tk, active)
 	// A remote pane's branch is the host's: its changes open on the host,
 	// not here, so the pill only names it.
 	pick := func() { w.toggleChangesDrawer(info.dir) }

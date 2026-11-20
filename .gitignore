@@ -5,7 +5,9 @@ build/
 /gexi
 mygo-spike/
 *.log
-.claude/skills/
+.claude/skills/*
+# The project's own skills ship with the repo; the rest are local.
+!.claude/skills/liquid-glass/
 .claude/worktrees/
 .perch/
 .env

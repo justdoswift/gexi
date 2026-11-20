@@ -896,15 +896,36 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	}
 	// The hairline is reserved on every row, so selecting one does not shift
 	// its contents by a pixel.
+	//
+	// On the glass chrome the chosen row is the system's own material, as a
+	// notification banner is: it frosts what is behind it and lights its own
+	// rim, instead of being a flat fill with a hairline drawn round it. The
+	// pointer's row keeps the quiet ink wash — a wash is a hint, and a
+	// material on every row under the pointer would turn the list into a
+	// stack of panes.
 	switch {
 	case sel:
-		fill := tk.Raised
-		if tk.Dark {
-			fill = tk.Foreground.Alpha(0.10)
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			fill := tk.Raised
+			if tk.Dark {
+				fill = tk.Foreground.Alpha(0.10)
+			}
+			row = lit(lifted(row.Background(fill), tk), tk)
 		}
-		row = lit(lifted(row.Background(fill), tk), tk)
 	case hovered:
-		row = row.Background(tk.Foreground.Alpha(0.045))
+		// The pointer's row is the same material the chosen one wears: a
+		// wash of ink reads as a grey block on the glass, while a material
+		// frosts what is behind it and lights its rim. It is set only while
+		// the pointer is on the row — a native glass is its own layer and an
+		// element's opacity does not reach it, so a material set always is
+		// always drawn, which would put glass behind every row in the list.
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Foreground.Alpha(0.045))
+		}
 	}
 	pick := func() { w.selectSession(s.ID) }
 	activity := sessionActivityState(s)
@@ -1146,7 +1167,7 @@ func (w *workspace) subagentPill(c *ui.Context, tk tokens, p *pane) {
 		// continued past the prompt that started it.
 		dot = tk.Waiting
 	}
-	el = badge(el, tk, el.Hovered())
+	el = badge(c, el, tk, el.Hovered())
 	el.Tooltip(subagentHint(p)).Children(func() {
 		ui.Box(c).Width(6).Height(6).Radius(3).Background(dot)
 		ui.Text(c, fmt.Sprint(n)).FontSize(chipFontNum).FontWeight(500).
@@ -1490,7 +1511,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					} else {
 						strip = strip.DragWindow()
 					}
-					strip = badge(strip, tk, strip.Hovered())
+					strip = badge(c, strip, tk, strip.Hovered())
 					strip.Children(func() {
 						if agent != nil {
 							if src := agentLogoSource(agent.Kind, tk); src != nil && showMark {
@@ -1520,7 +1541,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					if path != "" {
 						chip := ui.Row(c).Height(chipHeight).Radius(chipRadius).
 							Padding(0, chipPadX).AlignItems(ui.Center).Shrink(1)
-						chip = badge(chip, tk, chip.Hovered())
+						chip = badge(c, chip, tk, chip.Hovered())
 						// The checkout's name stays quiet; a gexi
 						// worktree takes the system accent, so it reads
 						// as a place rather than another path.

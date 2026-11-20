@@ -255,7 +255,7 @@ func (w *workspace) replyChip(c *ui.Context, tk tokens, p *pane) {
 	el := ui.Row(c).Height(22).Padding(0, 7).Radius(chromeRadius).Center().
 		Border(1, ui.Transparent).Cursor(ui.CursorPointer).
 		Role(ui.RoleButton).Label(hint).Tooltip(hint)
-	el = badge(el, tk, el.Hovered())
+	el = badge(c, el, tk, el.Hovered())
 	el.OnClick(func() { w.toggleReply(p) }).Children(func() {
 		ui.Text(c, replyChipLabel).FontSize(11).FontWeight(600).
 			TextColor(tk.MutedForeground).IgnoreInput(true)

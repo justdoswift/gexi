@@ -302,14 +302,31 @@ func controlWash(c *ui.Context, el ui.Element, tk tokens, wash float32, fallback
 	return el.Background(tk.Foreground.Alpha(wash))
 }
 
-// hoverWash is what a control takes under the pointer: the theme's ink at 5%,
-// a soft lift on paper rather than the grey block a Control fill paints.
-// Over the window's material it stays a little stronger, since the frozen
-// backdrop swallows a faint tint. It eases in and out, so a pointer crossing
-// a row does not flash a grey block.
+// hoverWash is what a control takes under the pointer. On the glass chrome it
+// is the system's own material, as a notification banner is: it frosts what
+// is behind it and lights its own rim, instead of being a flat wash of ink
+// that reads as a grey block laid on the surface. The material cannot be
+// animated the way a colour can, so it is always there and its opacity is
+// what eases: at rest it is fully transparent, and the pointer brings it in.
+//
+// With the glass chrome off it is the ink wash the app had before, so the
+// switch still turns the whole look over at once.
 func hoverWash(c *ui.Context, el ui.Element, tk tokens) ui.Element {
+	hovered := el.Hovered()
+	if glassChrome() && liquid(c) {
+		// The material is only there while the pointer is. A native glass
+		// is its own layer under the page, so an element's opacity does not
+		// reach it: a material that is always set is always drawn, which is
+		// what put a pane of glass behind every button at rest. It arrives
+		// and leaves with the pointer instead, and the fade is the colour
+		// wash underneath, which the material covers while it shows.
+		if hovered {
+			return el.Material(noticeGlass(tk))
+		}
+		return el.Background(ui.Transparent)
+	}
 	target := ui.Transparent
-	if el.Hovered() {
+	if hovered {
 		target = hoverInk(c, tk)
 	}
 	return el.Background(el.AnimateColor("hoverWash", target,
