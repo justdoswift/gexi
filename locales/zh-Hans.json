@@ -97,8 +97,6 @@
   "themesNone": "没有匹配的主题",
   "settingsLiquidGlass": "液态玻璃",
   "settingsLiquidGlassDetail": "窗口使用系统玻璃和抬起的纸张层次；关闭后回到平面、带描边的旧外观。",
-  "settingsGlassTint": "玻璃浓度",
-  "settingsGlassTintDetail": "0% 完全透出桌面；100% 完全不透。",
   "settingsRestoreScreen": "恢复上次屏幕",
   "settingsRestoreScreenDetail": "在新 shell 上方重绘上一次的屏幕内容。",
   "worktreeCreateHint": "为此窗格创建工作树",

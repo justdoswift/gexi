@@ -115,23 +115,24 @@ func groupLabelColor(tk tokens) ui.Color {
 }
 
 // glassTint is the theme's paper as a tint on the window's Liquid Glass, in
-// the syntax mygo.WindowOptions.VibrancyTint takes. The density setting is
-// the tint's alpha, capped low: the system's frost is what keeps the chrome
-// readable over a bright desktop, and a tint near opaque would hide the
-// material behind a flat colour, which is what the old painted surface did.
+// the syntax mygo.WindowOptions.VibrancyTint takes. The alpha is fixed, not a
+// setting: the system's frost is what keeps the chrome readable over a bright
+// desktop, and a tint near opaque would hide the material behind a flat
+// colour, which is what the old painted surface did. A slider over the range
+// below moved the window too little to read as a change, so the value it
+// settled on is the only one the window uses.
 func (w *workspace) glassTint() string {
 	light, dark := w.appearanceTokens(false), w.appearanceTokens(true)
 	return fmt.Sprintf("light-dark(#%02x%02x%02x%02x, #%02x%02x%02x%02x)",
-		light.Background.R, light.Background.G, light.Background.B, tintByte(w.settings.GlassTint),
-		dark.Background.R, dark.Background.G, dark.Background.B, tintByte(w.settings.GlassTint))
+		light.Background.R, light.Background.G, light.Background.B, glassTintAlpha,
+		dark.Background.R, dark.Background.G, dark.Background.B, glassTintAlpha)
 }
 
-// tintByte is the density setting as a tint alpha byte, at most a little over
-// half: see glassTint.
-func tintByte(percent *int) uint8 {
-	const most = 0.55
-	return uint8(math.Round(most * float64(glassTintPercent(percent)) / 100 * 255))
-}
+// glassTintAlpha is the tint's alpha byte: a little over half, the point where
+// the desktop still reads through the frost while the pane cards carry the
+// contrast. At 0.92 the tint is opaque enough that the window reads as a
+// painted panel and the material behind it does nothing visible.
+const glassTintAlpha uint8 = 0x8c
 
 // paneGlass is the sheet a pane card is made of on the glass chrome.
 //
