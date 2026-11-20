@@ -73,6 +73,9 @@ func (s *session) title() string {
 		return locales.Terminal()
 	}
 	p := ps[0]
+	if p.term == nil {
+		return locales.Terminal()
+	}
 	if title := cleanTitle(p.term.Title()); title != "" {
 		return title
 	}
