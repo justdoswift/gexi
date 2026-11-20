@@ -157,10 +157,15 @@ func (w *workspace) setTheme(dark bool, name string) {
 }
 
 // updateChrome repaints the windows' own backgrounds after a theme changes,
-// so the frame behind the page matches it too.
+// so the frame behind the page matches it too, and re-tints the main window's
+// material: the tint carries the theme's paper, so a theme change that did not
+// reach it would leave the glass in the old colour.
 func (w *workspace) updateChrome() {
 	if w.win != nil {
 		_ = w.win.SetBackgroundColor(w.mainBackground())
+		if sidebarMaterial {
+			_ = w.win.SetVibrancyTint(w.glassTint())
+		}
 	}
 	if w.settingsWin != nil {
 		_ = w.settingsWin.SetBackgroundColor(w.chromeBackground())

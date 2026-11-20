@@ -5,6 +5,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 )
@@ -113,26 +114,53 @@ func groupLabelColor(tk tokens) ui.Color {
 	return tk.MutedForeground.MixOklab(tk.Background, mix)
 }
 
-// paneSurface is the pane card's own sheet. On glass it is a sheet of the
-// theme's page laid over the window's tint, with a few percent of a warm white
-// at its foot: the terminal then sits on a lit sheet, not a flat fill. The
-// sheet is 72% over the root's tint, so the effective colour is about 96% of
-// the theme and the terminal keeps the contrast its theme was written for;
-// the sidebar and the canvas around the card carry more of the glass. With
-// glass off the sheet is the opaque theme background.
-func paneSurface(tk tokens) (top, bottom ui.Color) {
-	top, bottom = tk.Background, tk.Background
-	if !glassChrome() {
-		return top, bottom
+// glassTint is the theme's paper as a tint on the window's Liquid Glass, in
+// the syntax mygo.WindowOptions.VibrancyTint takes. The density setting is
+// the tint's alpha, capped low: the system's frost is what keeps the chrome
+// readable over a bright desktop, and a tint near opaque would hide the
+// material behind a flat colour, which is what the old painted surface did.
+func (w *workspace) glassTint() string {
+	light, dark := w.appearanceTokens(false), w.appearanceTokens(true)
+	return fmt.Sprintf("light-dark(#%02x%02x%02x%02x, #%02x%02x%02x%02x)",
+		light.Background.R, light.Background.G, light.Background.B, tintByte(w.settings.GlassTint),
+		dark.Background.R, dark.Background.G, dark.Background.B, tintByte(w.settings.GlassTint))
+}
+
+// tintByte is the density setting as a tint alpha byte, at most a little over
+// half: see glassTint.
+func tintByte(percent *int) uint8 {
+	const most = 0.55
+	return uint8(math.Round(most * float64(glassTintPercent(percent)) / 100 * 255))
+}
+
+// paneGlass is the sheet a pane card is made of on the glass chrome.
+//
+// Native asks for the system's NSGlassEffectView, the same glass the window
+// itself carries: it samples what is under the window's surface, so the card
+// bends the desktop and the canvas behind it, and its rim is lit by the
+// system. The shader glass (Native false) can only read pixels the page has
+// already painted, which is why it works in a dialog over the app's own
+// chrome and not over an empty window.
+func paneGlass(tk tokens) glass.Glass {
+	return glass.Glass{
+		Native:  true,
+		Tint:    tk.Background.Alpha(0.55),
+		Clarity: 0.45,
 	}
-	const alpha = float32(0.72)
-	top = top.Alpha(alpha)
-	bottom = bottom.Alpha(alpha)
-	if !tk.Dark {
-		warm := ui.RGB(0xff, 0xf6, 0xe4).Alpha(alpha)
-		bottom = bottom.MixOklab(warm, 0.06)
+}
+
+// paneSkin draws a pane card. On glass the card is the system's material and
+// nothing else: NSGlassEffectView lights its own rim and casts no shadow, as
+// AppKit's does not, so a cast shadow here would only smear a grey band under
+// a surface that is lit from within. That band is what made a card's bottom
+// edge read wrong against its top: the window's glass closes with a lit
+// gradient on both sides, and a shadow on one side broke the symmetry.
+// Off glass it is raised(), unchanged.
+func paneSkin(e ui.Element, c *ui.Context, tk tokens) ui.Element {
+	if !liquid(c) {
+		return raised(e, tk)
 	}
-	return top, bottom
+	return e.Material(paneGlass(tk))
 }
 
 // themeTokensFor returns the chrome's tokens for one appearance: the neutral
@@ -274,7 +302,12 @@ const (
 	// sessions, lighter than the sessions themselves.
 	groupRowHeight float32 = 28
 	rowHeightPx    float32 = 32
-	iconSize       float32 = 26
+	// rowMarginY is the air above and below a sidebar row. Without it a
+	// capsule sits flush against its neighbours and against the list's own
+	// edges, so the first and last rows look cut off by the window's border
+	// rather than set inside it: Rex's rows each stand clear of the next.
+	rowMarginY float32 = 3
+	iconSize   float32 = 26
 	// iconSmallSize is a list-row control's hit area, beside 12pt text.
 	iconSmallSize float32 = 20
 )
