@@ -320,6 +320,12 @@ const (
 // the title being cut.
 const paneHeaderRoomy float32 = 260
 
+// tagRoom is the width the header's tags — the reply and the checkout —
+// need beside the pane's four buttons before they are worth drawing. They
+// give way first: a header that pushes the close button off its own edge has
+// kept the wrong thing.
+const tagRoom float32 = 96
+
 // windowRadius is the radius AppKit rounds the window to: a comfortable pane
 // card takes the same one, so the card's corners follow the window's.
 const windowRadius float32 = 16

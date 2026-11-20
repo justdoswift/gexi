@@ -227,3 +227,39 @@ func TestNarrowPaneKeepsOnlyItsTitle(t *testing.T) {
 			narrow, roomy)
 	}
 }
+
+// TestCloseButtonAlwaysFits checks the pane's way out survives any width. A
+// header that pushes the close button off its own edge has kept the wrong
+// thing: the tags beside it name work, while close is how the pane is
+// driven. The four controls are counted in the order they matter — close,
+// split right, split down, zoom — and the tags give way before any of them.
+func TestCloseButtonAlwaysFits(t *testing.T) {
+	w := &workspace{}
+	// Every width from a sliver to a wide pane keeps at least the close
+	// button, and the count never goes up as the pane narrows.
+	// A width of 0 means the first frame has no row to read yet: it shows
+	// everything and lets the next frame settle it, so it is not part of the
+	// narrowing curve.
+	prev := 0
+	for width := float32(4); width <= 400; width += 4 {
+		got := w.paneActionsFit(nil, width, true)
+		if got < 1 {
+			t.Fatalf("width %v fits %d controls; the close button must always fit", width, got)
+		}
+		if prev > 0 && got < prev {
+			t.Fatalf("width %v fits %d controls, fewer than the narrower %v did", width, got, width-4)
+		}
+		if prev > 0 && got > prev+1 {
+			t.Fatalf("width %v jumped from %d to %d controls", width, prev, got)
+		}
+		prev = got
+	}
+	// A wide pane holds all four.
+	if got := w.paneActionsFit(nil, 400, true); got != 4 {
+		t.Fatalf("a 400pt pane fits %d controls, want all four", got)
+	}
+	// A pane with nowhere to zoom counts three, and still keeps close.
+	if got := w.paneActionsFit(nil, 400, false); got != 3 {
+		t.Fatalf("a pane with no zoom target fits %d controls, want three", got)
+	}
+}

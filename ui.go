@@ -311,8 +311,42 @@ func (w *workspace) view(c *ui.Context) {
 // a double click. A Row centers its items, so a bare Spacer would be no
 // taller than its empty content and take no press: stretching it fills the
 // row's height.
+// paneActionsFit is how many of the pane's controls fit in a header of this
+// width, counted in the order they matter: close, split right, split down,
+// zoom. A pane too narrow for all four keeps the front of that list, so the
+// way out is never the thing that goes missing.
+//
+// The buttons are iconSize wide with a 2pt gap, and the header keeps a
+// little air at its right edge. canZoom says whether the zoom button would
+// be drawn at all: a pane with nowhere to go has nothing to zoom to, and
+// counting it would cost the splits their room.
+func (w *workspace) paneActionsFit(c *ui.Context, width float32, canZoom bool) int {
+	total := 3
+	if canZoom {
+		total = 4
+	}
+	if width == 0 {
+		// The first frame has no row to read yet; show everything and let
+		// the next frame settle it.
+		return total
+	}
+	const gap = 2
+	for n := total; n >= 1; n-- {
+		need := float32(n)*iconSize + float32(n-1)*gap
+		if width >= need {
+			return n
+		}
+	}
+	return 1
+}
+
+// dragArea is the empty stretch of a pane header, where a drag picks the
+// window up. It grows into the room the title and the chips leave, and it
+// must not take the buttons' room: a Grow box painted over them swallows
+// their clicks, so the split, zoom and close buttons draw but do nothing.
+// It is laid out before them and shrinks to what is left.
 func (w *workspace) dragArea(c *ui.Context, tk tokens) ui.Element {
-	return ui.Box(c).Grow(1).AlignSelf(ui.Stretch).DragWindow()
+	return ui.Box(c).Grow(1).Shrink(1).AlignSelf(ui.Stretch).DragWindow()
 }
 
 func (w *workspace) backdrop(tk tokens) ui.Color {
@@ -1523,49 +1557,80 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					}
 					w.dragArea(c, tk)
 					// The buttons keep their room and fade, so the row does
-					// not jump as the pointer comes and goes; they take no
-					// click while invisible.
+					// not jump as the pointer comes and goes. They stay
+					// clickable while faded: a button that draws but takes
+					// no click is worse than one that is plainly absent,
+					// and the fade only says the header is idle.
 					alpha := float32(0)
 					if showActions {
 						alpha = 1
 					}
 					actions := ui.Row(c).Gap(2).Height(chromeLine(bar)).AlignItems(ui.Center).Shrink(0)
-					actions = actions.IgnoreInput(!showActions).
+					actions = actions.
 						Opacity(actions.AnimateTo("actions", alpha, ui.Animation{Duration: 150 * time.Millisecond, Ease: ui.EaseOut}))
+					// The controls go in the order they matter when the room
+					// runs out: close first, then the two splits, then zoom.
+					// A pane too narrow for all four keeps the ones at the
+					// front of that list rather than dropping the whole set,
+					// so the way out is always there and the splits come next.
+					//
+					// The tags beside them — the reply and the checkout —
+					// give way first of all: they name work, while these
+					// four are how the pane is driven, and a header that
+					// pushes the close button off its own edge has kept the
+					// wrong thing.
+					// The buttons are measured against the room the title
+					// leaves, not the whole header: the title is what names
+					// the pane and it keeps its place, so what the buttons
+					// may take is what is left after it.
+					canZoom := len(w.visiblePanes()) > 1 || w.isZoomed(p)
+					left := width
+					if width > 0 {
+						left = width - markW - titleW - 2*stripPad - 8
+						if left < 0 {
+							left = 0
+						}
+					}
+					fit := w.paneActionsFit(c, left, canZoom)
+					// The room the buttons need, plus the gap before them;
+					// what is left over is the tags'.
+					need := float32(fit)*iconSize + float32(fit-1)*2
+					showTags := width == 0 || left >= need+tagRoom
 					actions.Children(func() {
 						// The reply sits beside the checkout it is about,
 						// and appears with the other controls so an idle
 						// header stays quiet.
-						if p.remote == nil && len(p.conversation) > 0 {
+						if showTags && p.remote == nil && len(p.conversation) > 0 {
 							w.replyChip(c, tk, p)
 						}
 						// The worktree button is the pane's checkout: a local
 						// one here, and a host's pressed through it, since
 						// the checkout and its pull request are the host's.
-						if p.remote == nil {
-							w.paneWorktreeButton(c, tk, p)
-						} else {
-							w.remoteWorktreeButton(c, tk, p)
-						}
-						// A pane too narrow for all three keeps only the way
-						// out: splitting and zooming are in the View menu, and
-						// a clipped button is worse than an absent one.
-						if width == 0 || width >= 380 {
-							iconButtonOnCard(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, "") },
-								locales.MenuSplitRight()+" (⌘D)")
-							iconButtonOnCard(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, "") },
-								locales.MenuSplitDown()+" (⌘⇧D)")
-							// A pane with nowhere to go has nothing to zoom to.
-							if len(w.visiblePanes()) > 1 || w.isZoomed(p) {
-								name, hint := "expand", locales.PaneZoom()+" ("+zoomShortcut+")"
-								if w.isZoomed(p) {
-									name, hint = "collapse", locales.PaneUnzoom()+" ("+zoomShortcut+")"
-								}
-								iconButtonOnCard(c, tk, name, func() { w.toggleZoom(p) }, hint)
+						if showTags {
+							if p.remote == nil {
+								w.paneWorktreeButton(c, tk, p)
+							} else {
+								w.remoteWorktreeButton(c, tk, p)
 							}
 						}
 						iconButtonOnCard(c, tk, "x", func() { w.requestCloseByUser(p) },
 							locales.MenuClosePane()+" (⌘W)")
+						if fit >= 2 {
+							iconButtonOnCard(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, "") },
+								locales.MenuSplitRight()+" (⌘D)")
+						}
+						if fit >= 3 {
+							iconButtonOnCard(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, "") },
+								locales.MenuSplitDown()+" (⌘⇧D)")
+						}
+						// A pane with nowhere to go has nothing to zoom to.
+						if fit >= 4 && canZoom {
+							name, hint := "expand", locales.PaneZoom()+" ("+zoomShortcut+")"
+							if w.isZoomed(p) {
+								name, hint = "collapse", locales.PaneUnzoom()+" ("+zoomShortcut+")"
+							}
+							iconButtonOnCard(c, tk, name, func() { w.toggleZoom(p) }, hint)
+						}
 					})
 					// The row's width follows the buttons it holds, so the
 					// next frame sets the path and the pill beside it.
