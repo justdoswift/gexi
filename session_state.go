@@ -215,7 +215,14 @@ func (w *workspace) idleSessionSection(c *ui.Context, tk tokens) {
 	color := tk.MutedForeground
 	if row.Hovered() {
 		color = tk.Foreground
-		row = row.Background(tk.Active)
+		// The fold's header is a row of the sidebar like any other, so the
+		// pointer gives it the same material the session rows wear. A flat
+		// fill here was the one opaque block left in a list made of glass.
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Active)
+		}
 	}
 	toggle := func() {
 		w.idleOpen = !w.idleOpen
@@ -275,7 +282,11 @@ func (w *workspace) idleSessionRow(c *ui.Context, tk tokens, rec storedSession) 
 	color := tk.MutedForeground
 	if row.Hovered() {
 		color = tk.Foreground
-		row = row.Background(tk.Foreground.Alpha(0.045))
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Foreground.Alpha(0.045))
+		}
 	}
 	pick := func() { w.restoreIdleSession(rec.Session.ID) }
 	row.Tooltip(storedSessionDetail(rec)).ContextMenu(func(m *ui.Menu) {

@@ -944,7 +944,11 @@ func (w *workspace) drawerChangeRow(c *ui.Context, tk tokens, f changedFile) {
 	row := ui.Row(c).FillWidth().Height(30).Padding(0, 8, 0, 8).Gap(8).
 		Radius(chromeRadius).Cursor(ui.CursorPointer)
 	if row.Hovered() {
-		row = row.Background(tk.Active)
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Active)
+		}
 	}
 	row.OnClick(pick).Children(func() {
 		w.drawerStatusChip(c, tk, f.Status, pick)
@@ -1096,7 +1100,11 @@ func (w *workspace) drawerTree(c *ui.Context, tk tokens, dir, rel string, depth 
 		row := ui.Row(c).FillWidth().Height(30).PaddingStart(8 + float32(depth)*12).
 			PaddingEnd(8).Gap(6).Radius(chromeRadius).Cursor(ui.CursorPointer)
 		if row.Hovered() {
-			row = row.Background(tk.Active)
+			if liquid(c) {
+				row = rowSkin(row, c, tk)
+			} else {
+				row = row.Background(tk.Active)
+			}
 		}
 		if e.dir {
 			open := w.drawer.expanded[e.path]
