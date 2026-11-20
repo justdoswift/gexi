@@ -43,7 +43,10 @@ func (w *workspace) worktreeCheckpoints(c *ui.Context, tk tokens, p *pane) {
 		}
 	}
 	// The card is a floating surface, so it takes the component's soft lift
-	// rather than the chrome's flat border alone.
+	// rather than the chrome's flat border alone. Its fill steps off the
+	// pane's paper: a card of that same paper over a pane of that same paper
+	// has nothing but its hairline to exist by, which reads as a grey outline
+	// rather than as a card floating over the terminal.
 	shadow := alpha(ui.RGB(0, 0, 0), 0.14)
 	if tk.Dark {
 		shadow = alpha(ui.RGB(0, 0, 0), 0.42)
@@ -51,7 +54,7 @@ func (w *workspace) worktreeCheckpoints(c *ui.Context, tk tokens, p *pane) {
 	card := ui.Column(c).Width(checkpointsWidth).MaxWidthPercent(94).
 		Absolute().Right(8).Top(w.paneHeaderHeight()+6).
 		Radius(12).Clip().
-		Border(1, tk.Border).Background(tk.Background).
+		Border(1, tk.Border).Background(floatingFill(tk)).
 		Shadow(0, 6, 20, 0, shadow).
 		IgnoreInput(true)
 	// The card drops into its corner, faded, as the stage's cards and the
