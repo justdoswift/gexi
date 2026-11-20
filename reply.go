@@ -242,25 +242,6 @@ func (r *replyState) widthValue() float32 {
 	return r.width
 }
 
-// replyChipLabel names the reader in the pane's controls. Markdown is what
-// the column shows, and two letters keep the control as small as the icons
-// beside it.
-const replyChipLabel = "MD"
-
-// replyChip is the pane header's way into the reader, beside the worktree
-// button it belongs with. It follows the other controls: shown while the
-// pane has the focus or the pointer is over it.
-func (w *workspace) replyChip(c *ui.Context, tk tokens, p *pane) {
-	hint := locales.PaneReplyHint(p.conversationAgent().name())
-	el := ui.Row(c).Height(22).Padding(0, 7).Radius(chromeRadius).Center().
-		Border(1, ui.Transparent).Cursor(ui.CursorPointer).
-		Role(ui.RoleButton).Label(hint).Tooltip(hint)
-	el = badge(c, el, tk, el.Hovered())
-	el.OnClick(func() { w.toggleReply(p) }).Children(func() {
-		ui.Text(c, replyChipLabel).FontSize(11).FontWeight(600).
-			TextColor(tk.MutedForeground).IgnoreInput(true)
-	})
-}
 
 // openReply shows p's conversation. It returns false when the pane has no
 // words to show, which is the normal state of a pane the user has not talked

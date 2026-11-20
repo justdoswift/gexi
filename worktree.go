@@ -3653,7 +3653,9 @@ func (w *workspace) worktreeChipForm(p *pane) string {
 
 func (w *workspace) paneWorktreeForm(c *ui.Context, tk tokens, p *pane) {
 	if p.Worktree == nil {
-		label := "worktree"
+		// WD, not the whole word: the control sits in a row of icons and
+		// tags, and two letters keep it the width of the ones beside it.
+		label := "WD"
 		action := func() { w.createPaneWorktree(p) }
 		hint := locales.WorktreeCreateHint()
 		busy := ""
