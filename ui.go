@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/plugins/loading"
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
@@ -187,8 +188,8 @@ func (w *workspace) view(c *ui.Context) {
 		// a frame — drawn as a ghost of itself, fading in over the old one.
 		c.Key("canvas")
 		canvas := ui.Column(c).Fill().Padding(inset, inset, inset, left)
-		if w.settings.PaneStyle != paneComfortable {
-			canvas = canvas.Background(w.backdrop(tk))
+		if w.settings.PaneStyle != paneComfortable || liquid(c) {
+			canvas = canvas.Background(tk.Muted)
 		}
 		canvas.Children(func() {
 			w.canvas(c, tk)
@@ -398,6 +399,16 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 	// under it and under the canvas, so the two sides are one backdrop.
 	// Collapsed, it takes no width and the canvas covers the surface.
 	side := ui.Column(c).Width(width).FillHeight().Clip().Shrink(0)
+	if liquid(c) {
+		// A pane of glass in its own right, not a tint over the whole window:
+		// the canvas keeps the theme's paper, and this sheet keeps its rim, its
+		// lens, and the desktop showing through.
+		side = side.Material(glass.Glass{
+			Tint:    glassTint(tk).Alpha(0.85),
+			Clarity: 0.55,
+		}).Radius(16).Margin(6, 8, 6, 6)
+		side = lifted(side, tk)
+	}
 	side.Children(func() {
 		w.sidebarHeader(c, tk)
 		// MinHeight(0) lets the body give way under the header: its own
