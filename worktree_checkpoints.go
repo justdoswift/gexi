@@ -43,7 +43,10 @@ func (w *workspace) worktreeCheckpoints(c *ui.Context, tk tokens, p *pane) {
 		}
 	}
 	// The card is a floating surface, so it takes the component's soft lift
-	// rather than the chrome's flat border alone.
+	// rather than the chrome's flat border alone. Its fill steps off the
+	// pane's paper: a card of that same paper over a pane of that same paper
+	// has nothing but its hairline to exist by, which reads as a grey outline
+	// rather than as a card floating over the terminal.
 	shadow := alpha(ui.RGB(0, 0, 0), 0.14)
 	if tk.Dark {
 		shadow = alpha(ui.RGB(0, 0, 0), 0.42)
@@ -51,7 +54,7 @@ func (w *workspace) worktreeCheckpoints(c *ui.Context, tk tokens, p *pane) {
 	card := ui.Column(c).Width(checkpointsWidth).MaxWidthPercent(94).
 		Absolute().Right(8).Top(w.paneHeaderHeight()+6).
 		Radius(12).Clip().
-		Border(1, tk.Border).Background(tk.Background).
+		Border(1, tk.Border).Background(floatingFill(tk)).
 		Shadow(0, 6, 20, 0, shadow).
 		IgnoreInput(true)
 	// The card drops into its corner, faded, as the stage's cards and the
@@ -105,7 +108,7 @@ func checkpointRow(c *ui.Context, tk tokens, p *pane, step worktreeStep,
 	// A stage is keyed by itself rather than by its line: a new operation
 	// that reuses the card animates its stages in, while one already drawn
 	// keeps its place as the operation moves on to the next.
-	row := ui.Row(c).Key("step-"+strconv.Itoa(int(step))).
+	row := ui.Row(c.Key("step-"+strconv.Itoa(int(step)))).
 		FillWidth().Height(checkpointRowHeight).Padding(0, 12).Gap(8).
 		AlignItems(ui.Center)
 	// A stage that has just been reached rises into its line, faded, so the
@@ -175,11 +178,11 @@ func checkpointRow(c *ui.Context, tk tokens, p *pane, step worktreeStep,
 		}
 		switch {
 		case i < at:
-			ui.Text(c, label).Key("passed").FontSize(11.5).
+			ui.Text(c.Key("passed"), label).FontSize(11.5).
 				TextColor(tk.MutedForeground).SingleLine().Shrink(1).
 				Transition(fade)
 			ui.Spacer(c)
-			check := ui.Text(c, "✓").Key("check").FontSize(10).
+			check := ui.Text(c.Key("check"), "✓").FontSize(10).
 				TextColor(tk.MutedForeground.Alpha(0.8))
 			// The check lands with the stage it marks, rather than being
 			// there the moment the stage moves on.
@@ -189,7 +192,7 @@ func checkpointRow(c *ui.Context, tk tokens, p *pane, step worktreeStep,
 				Enter:    &ui.Motion{Scale: 0.7},
 			})
 		case i == at:
-			ui.Text(c, label).Key("current").FontSize(11.5).FontWeight(500).
+			ui.Text(c.Key("current"), label).FontSize(11.5).FontWeight(500).
 				TextColor(tk.Foreground).SingleLine().Shrink(1).
 				Transition(fade)
 		}

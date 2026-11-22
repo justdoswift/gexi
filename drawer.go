@@ -253,7 +253,7 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane, hint string) {
 	unmeasured := info.changed && info.added+info.deleted == 0
 	color := tk.MutedForeground
 	active := showing
-	el := ui.Row(c).Height(22).Radius(headerRadius).Padding(0, 8).Gap(5).
+	el := ui.Row(c).Height(chipHeight).Radius(chipRadius).Padding(0, chipPadX).Gap(chipGap).
 		AlignItems(ui.Center).Shrink(1).Cursor(ui.CursorPointer)
 	if el.Hovered() {
 		active = true
@@ -261,7 +261,7 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane, hint string) {
 	if active {
 		color = tk.Foreground
 	}
-	el = badge(el, tk, active)
+	el = badge(c, el, tk, active)
 	// A remote pane's branch is the host's: its changes open on the host,
 	// not here, so the pill only names it.
 	pick := func() { w.toggleChangesDrawer(info.dir) }
@@ -283,14 +283,14 @@ func (w *workspace) branchPill(c *ui.Context, tk tokens, p *pane, hint string) {
 		if unmeasured {
 			textColor = tk.Waiting
 		}
-		ui.Text(c, shortBranch(info.branch)).FontSize(11).SingleLine().
+		ui.Text(c, shortBranch(info.branch)).FontSize(chipFont).SingleLine().
 			Shrink(1).TextColor(textColor).OnClick(pick)
 		if info.added > 0 {
-			ui.Text(c, "+"+strconv.Itoa(info.added)).FontSize(10).Shrink(0).
+			ui.Text(c, "+"+strconv.Itoa(info.added)).FontSize(chipFontNum).Shrink(0).
 				TextColor(tk.Working).OnClick(pick)
 		}
 		if info.deleted > 0 {
-			ui.Text(c, "−"+strconv.Itoa(info.deleted)).FontSize(10).Shrink(0).
+			ui.Text(c, "−"+strconv.Itoa(info.deleted)).FontSize(chipFontNum).Shrink(0).
 				TextColor(tk.Danger).OnClick(pick)
 		}
 	})
@@ -870,7 +870,8 @@ func (w *workspace) drawerChanges(c *ui.Context, tk tokens) {
 	}
 	root := filepath.Base(d.dir)
 	ui.Column(c).Fill().Children(func() {
-		ui.Scroll(c).Fill().Padding(4, 6, 10, 6).Children(func() {
+		ui.Scroll(c).Fill().Padding(4, 6, 10, 6).
+			ScrollbarStyle(sidebarScrollbar).Children(func() {
 			for _, g := range groupChanges(files) {
 				label := g.dir
 				if label == "" {
@@ -944,7 +945,11 @@ func (w *workspace) drawerChangeRow(c *ui.Context, tk tokens, f changedFile) {
 	row := ui.Row(c).FillWidth().Height(30).Padding(0, 8, 0, 8).Gap(8).
 		Radius(chromeRadius).Cursor(ui.CursorPointer)
 	if row.Hovered() {
-		row = row.Background(tk.Active)
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Active)
+		}
 	}
 	row.OnClick(pick).Children(func() {
 		w.drawerStatusChip(c, tk, f.Status, pick)
@@ -1055,7 +1060,8 @@ func (w *workspace) drawerFiles(c *ui.Context, tk tokens) {
 	if dir == "" {
 		return
 	}
-	ui.Scroll(c).Fill().Padding(6, 6, 6, 6).Children(func() {
+	ui.Scroll(c).Fill().Padding(6, 6, 6, 6).
+		ScrollbarStyle(sidebarScrollbar).Children(func() {
 		w.drawerTree(c, tk, dir, "", 0)
 	})
 }
@@ -1096,7 +1102,11 @@ func (w *workspace) drawerTree(c *ui.Context, tk tokens, dir, rel string, depth 
 		row := ui.Row(c).FillWidth().Height(30).PaddingStart(8 + float32(depth)*12).
 			PaddingEnd(8).Gap(6).Radius(chromeRadius).Cursor(ui.CursorPointer)
 		if row.Hovered() {
-			row = row.Background(tk.Active)
+			if liquid(c) {
+				row = rowSkin(row, c, tk)
+			} else {
+				row = row.Background(tk.Active)
+			}
 		}
 		if e.dir {
 			open := w.drawer.expanded[e.path]

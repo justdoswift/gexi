@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/plugins/terminal"
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/justdoswift/gexi/locales"
@@ -1388,7 +1389,20 @@ func (rc *remoteConn) paneWorktree(p *pane, action string) {
 			case !out.Left && (out.Dirty || out.Ahead > 0):
 				rc.ws.remoteLeaveTarget = p
 				rc.ws.remoteLeaveMsg = remoteLeaveMessage(out.Dirty, out.Ahead, out.Branch)
-				rc.ws.remoteLeaveOpen = true
+				rc.ws.askConfirm(nativeAsk{
+					kind:        mygo.MessageWarning,
+					title:       locales.WorktreeLeaveTitle(),
+					message:     rc.ws.remoteLeaveMsg,
+					buttons:     []string{locales.WorktreeLeaveConfirm(), locales.Cancel()},
+					def:         1,
+					cancel:      1,
+					destructive: 0,
+				}, func(button int) {
+					if button == 0 && p.remote != nil {
+						p.remote.conn.paneWorktree(p, "leaveConfirm")
+					}
+					rc.ws.remoteLeaveTarget = nil
+				})
 				rc.ws.invalidate()
 			}
 		})
@@ -1422,7 +1436,7 @@ func (w *workspace) remoteWorktreeButton(c *ui.Context, tk tokens, p *pane) {
 	if link == nil {
 		return
 	}
-	slot := ui.Row(c).Key("remote-worktree-slot:" + p.ID + ":" + remoteWorktreeChipForm(link))
+	slot := ui.Row(c.Key("remote-worktree-slot:" + p.ID + ":" + remoteWorktreeChipForm(link)))
 	slot.Transition(ui.ElementTransition{
 		Duration: chipMotion,
 		Ease:     ui.EaseOut,
@@ -1483,7 +1497,7 @@ func (w *workspace) remoteWorktreeForm(c *ui.Context, tk tokens, p *pane) {
 		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
 			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(hint)
-		el = badge(el, tk, el.Hovered())
+		el = badge(c, el, tk, el.Hovered())
 		el.OnClick(action).Children(func() {
 			if link.worktreeBusy != "" {
 				worktreeSpinner(c, tk, locales.WorktreeCreating())
@@ -1501,7 +1515,7 @@ func (w *workspace) remoteWorktreeForm(c *ui.Context, tk tokens, p *pane) {
 		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
 			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeGoneHint())
-		el = badge(el, tk, el.Hovered())
+		el = badge(c, el, tk, el.Hovered())
 		el.OnClick(action).Children(func() {
 			ui.Text(c, locales.WorktreeGone()).FontSize(11).FontWeight(600).
 				TextColor(tk.MutedForeground).OnClick(action)
@@ -1623,7 +1637,7 @@ func (w *workspace) remoteWorktreeActionChip(c *ui.Context, tk tokens, p *pane, 
 	group := ui.Row(c).Height(22).Radius(headerRadius).Center().
 		Border(1, ui.Transparent)
 	if quiet {
-		group = badge(group, tk, group.Hovered())
+		group = badge(c, group, tk, group.Hovered())
 	} else {
 		// As on the host's own header: the merge fill eases between the
 		// statuses instead of swapping colour under the pointer.
@@ -1659,6 +1673,9 @@ func (w *workspace) remoteWorktreeActionChip(c *ui.Context, tk tokens, p *pane, 
 					p.remote.conn.paneWorktree(p, "leave")
 				}
 			}
+		}, ui.PopoverMenuButtonOptions{
+			Panel: func(panel ui.Element) { menuPanel(panel, c, tk) },
+			Item:  func(item ui.Element) { menuItemLook(c, item, tk) },
 		}).Children(func() {
 			if src := iconSource("chevron-down", colorHex(chevron)); src != nil {
 				ui.Image(c, src).Width(10).Height(10).IgnoreInput(true)

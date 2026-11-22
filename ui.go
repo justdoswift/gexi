@@ -142,7 +142,17 @@ func (w *workspace) view(c *ui.Context) {
 	// deeper paper into the page's colour toward the bottom, so the window
 	// has a quiet vertical light even when the desktop behind it is plain.
 	root := ui.Row(c).Fill()
-	if !liquid(c) {
+	if liquid(c) {
+		// Nothing is painted here. The window's own Liquid Glass is what
+		// shows, tinted through WindowOptions.VibrancyTint, and any colour
+		// drawn at this level would stand between the glass and the desktop
+		// and turn it back into a painted panel. That is what the old
+		// surface did: a theme colour at 92% alpha, which is why the window
+		// read as paper no matter how the density was set.
+		//
+		// The cards on top ask for the same system glass (paneSkin), so
+		// they bend the desktop and this surface behind them.
+	} else {
 		root = root.Background(w.backdrop(tk))
 	}
 
@@ -225,64 +235,6 @@ func (w *workspace) view(c *ui.Context) {
 	if w.paneRenameOpen {
 		w.paneRenameDialog(c, tk)
 	}
-	if w.closeTarget != nil {
-		p := w.closeTarget
-		dialogAlert(c, tk, &w.closeOpen, 420, locales.PaneCloseTitle(), w.closeMsg,
-			dialogAction{label: locales.Cancel(), kind: dialogQuiet, run: func() {
-				w.closeOpen = false
-			}},
-			dialogAction{label: locales.MenuClosePane(), kind: dialogDanger, run: func() {
-				w.closeOpen = false
-				if w.paneByID(p.ID) == p {
-					w.requestClose(p)
-				}
-			}},
-			dialogAction{label: locales.PaneCloseBackground(), kind: dialogPrimary, auto: true, run: func() {
-				w.closeOpen = false
-				if w.paneByID(p.ID) == p {
-					w.detachPane(p)
-				}
-			}},
-		)
-		if !w.closeOpen {
-			w.closeTarget = nil
-		}
-	}
-	if w.closeProjectTarget != nil {
-		w.closeProjectDialog(c, tk)
-	}
-	if w.leaveTarget != nil {
-		p := w.leaveTarget
-		dialogAlert(c, tk, &w.leaveOpen, 420, locales.WorktreeLeaveTitle(), w.leaveMsg,
-			dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
-				w.leaveOpen = false
-			}},
-			dialogAction{label: locales.WorktreeLeaveConfirm(), kind: dialogDanger, run: func() {
-				w.leaveOpen = false
-				w.leaveConfirmed(p)
-			}},
-		)
-		if !w.leaveOpen {
-			w.leaveTarget = nil
-		}
-	}
-	if w.remoteLeaveTarget != nil {
-		p := w.remoteLeaveTarget
-		dialogAlert(c, tk, &w.remoteLeaveOpen, 420, locales.WorktreeLeaveTitle(), w.remoteLeaveMsg,
-			dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
-				w.remoteLeaveOpen = false
-			}},
-			dialogAction{label: locales.WorktreeLeaveConfirm(), kind: dialogDanger, run: func() {
-				w.remoteLeaveOpen = false
-				if p.remote != nil {
-					p.remote.conn.paneWorktree(p, "leaveConfirm")
-				}
-			}},
-		)
-		if !w.remoteLeaveOpen {
-			w.remoteLeaveTarget = nil
-		}
-	}
 	if w.archiveTarget != nil {
 		w.archiveWorktreeDialog(c, tk)
 		if !w.archiveOpen {
@@ -302,8 +254,46 @@ func (w *workspace) view(c *ui.Context) {
 // a double click. A Row centers its items, so a bare Spacer would be no
 // taller than its empty content and take no press: stretching it fills the
 // row's height.
+// paneActionsFit is how many of the pane's controls fit in a header of this
+// width, counted in the order they matter: close, split right, split down,
+// zoom. A pane too narrow for all four keeps the front of that list, so the
+// way out is never the thing that goes missing.
+//
+// Close is counted first but drawn last: it holds the far edge, where the
+// window's own controls are. The count and the drawing order are two
+// different questions, and this one is about what survives a narrow pane.
+//
+// The buttons are iconSize wide with a 2pt gap, and the header keeps a
+// little air at its right edge. canZoom says whether the zoom button would
+// be drawn at all: a pane with nowhere to go has nothing to zoom to, and
+// counting it would cost the splits their room.
+func (w *workspace) paneActionsFit(c *ui.Context, width float32, canZoom bool) int {
+	total := 3
+	if canZoom {
+		total = 4
+	}
+	if width == 0 {
+		// The first frame has no row to read yet; show everything and let
+		// the next frame settle it.
+		return total
+	}
+	const gap = 2
+	for n := total; n >= 1; n-- {
+		need := float32(n)*iconSize + float32(n-1)*gap
+		if width >= need {
+			return n
+		}
+	}
+	return 1
+}
+
+// dragArea is the empty stretch of a pane header, where a drag picks the
+// window up. It grows into the room the title and the chips leave, and it
+// must not take the buttons' room: a Grow box painted over them swallows
+// their clicks, so the split, zoom and close buttons draw but do nothing.
+// It is laid out before them and shrinks to what is left.
 func (w *workspace) dragArea(c *ui.Context, tk tokens) ui.Element {
-	return ui.Box(c).Grow(1).AlignSelf(ui.Stretch).DragWindow()
+	return ui.Box(c).Grow(1).Shrink(1).AlignSelf(ui.Stretch).DragWindow()
 }
 
 func (w *workspace) backdrop(tk tokens) ui.Color {
@@ -329,11 +319,21 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 		// A session of its own is another layout: the one replacing another
 		// comes in while that one fades out, so the switch reads as a change
 		// of view instead of a flash of the next tree.
-		stage := ui.Column(c).Key(tb.ID).Fill().Transition(ui.ElementTransition{
+		//
+		// Size stays out of the transition. Its default lays the content out
+		// at every size on the way, which for a pane means the terminal is
+		// given a new grid on each frame of the fade: every one of those is a
+		// resize of the PTY, and a full-screen TUI redraws its whole screen
+		// for each. A zoom changes the stage's size in one frame anyway, so
+		// the fade alone carries the change and the terminal keeps the grid
+		// it ends at. Colors is named because leaving every property unset
+		// would turn them all back on.
+		stage := ui.Column(c.Key(tb.ID)).Fill().Transition(ui.ElementTransition{
 			Duration: 160 * time.Millisecond,
 			Ease:     ui.EaseOut,
 			Enter:    &ui.Motion{Opacity: 0, Scale: 0.99},
 			Exit:     &ui.Motion{Opacity: 0},
+			Colors:   true,
 		})
 		// The scale is its own animation, keyed by the zoom, so each zoom
 		// starts it afresh instead of gliding from where the last one ended.
@@ -369,13 +369,10 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 		// the theme's own sheet, a hairline, and the card's shadow.
 		if w.settings.PaneStyle == paneComfortable {
 			col = col.Radius(windowRadius).Clip()
-			if liquid(c) {
-				top, bottom := paneSurface(tk)
-				col = col.Gradient(top, bottom, 180)
-			} else {
+			if !liquid(c) {
 				col = col.Background(tk.Background)
 			}
-			col = raised(col, tk)
+			col = paneSkin(col, c, tk)
 		}
 		headerBg := tk.Background
 		if liquid(c) {
@@ -407,7 +404,7 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 		// the canvas keeps the theme's paper, and this sheet keeps its rim, its
 		// lens, and the desktop showing through.
 		side = side.Material(glass.Glass{
-			Tint:    tk.Background.Alpha(float32(100-glassTintPercent(w.settings.GlassTint)) / 100 * 0.85),
+			Tint:    glassTint(tk).Alpha(0.85),
 			Clarity: 0.55,
 		}).Radius(16).Margin(6, 8, 6, 6)
 		side = lifted(side, tk)
@@ -417,15 +414,27 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 		// MinHeight(0) lets the body give way under the header: its own
 		// content never has to fit without the scroll, which is what the
 		// scroll is for.
-		ui.Column(c).Fill().MinHeight(0).Padding(10, 6, 8, 8).Gap(2).Children(func() {
+		//
+		// The body keeps no right padding of its own, so the bar runs
+		// along the sidebar's edge; the list's own right padding holds
+		// the rows clear of it instead.
+		ui.Column(c).Fill().MinHeight(0).Padding(10, 0, 8, 8).Gap(2).Children(func() {
 			// Projects and the idle fold scroll together, as one list:
 			// a project with many sessions, or the fold opened over them,
 			// would otherwise run past the window's bottom edge, where
 			// the rows can no longer be reached. The footer stays under
 			// the list, outside the scroll.
-			list := ui.Scroll(c).Fill()
+			//
+			// A bar as wide as its thumb keeps the thumb on the sidebar's
+			// last few DIPs, over the padding below rather than the rows.
+			list := ui.Scroll(c).Fill().ScrollbarStyle(sidebarScrollbar)
 			list.Children(func() {
-				col := ui.Column(c).FillWidth().Gap(2)
+				// No gap: each row carries its own rowMarginY, so the air
+				// between two rows is one margin, not a margin plus a gap.
+				//
+				// The right padding is the bar's: the rows end before it,
+				// where the selected row's fill no longer runs under it.
+				col := ui.Column(c).FillWidth().PaddingEnd(6).Gap(0)
 				// The list is at least as tall as its window, so the
 				// spacer below the projects still holds the idle fold at
 				// the bottom while everything fits.
@@ -433,31 +442,33 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 					col = col.MinHeight(w.sidebarListH)
 				}
 				col.Children(func() {
-					shown := false
-					first := true
-					drawProject := func(pr *project) {
-						if !w.projectVisible(pr) {
-							return
-						}
-						if !first {
-							ui.Box(c).Height(8)
-						}
-						first = false
-						shown = true
-						w.projectRow(c, tk, pr)
-					}
-					for _, pr := range w.Projects {
-						drawProject(pr)
-					}
-					// Paired Macs sit under the projects as projects of their own:
-					// their sessions are sessions, and the canvas draws them with
-					// the same code.
-					for _, pr := range w.remoteProjects {
-						drawProject(pr)
-					}
-					if !shown {
+					rows := w.sidebarProjectRows()
+					if len(rows) == 0 {
 						ui.Text(c, locales.NoProjects()).FontSize(12).
 							TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
+					} else {
+						// The projects are one list, so one that comes, goes
+						// or is reordered glides to its place and the rows
+						// below close the gap, instead of jumping there.
+						ids := make([]string, len(rows))
+						for i, pr := range rows {
+							ids[i] = pr.ID
+						}
+						w.sidebarList.Key = func(row int) any {
+							if row < 0 || row >= len(ids) {
+								return ""
+							}
+							return ids[row]
+						}
+						if w.sidebarList.MoveAnimation == nil {
+							w.sidebarList.MoveAnimation = &ui.Animation{
+								Duration: sidebarMotion,
+								Ease:     ui.EaseOut,
+							}
+						}
+						ui.List(c, &w.sidebarList, len(rows), func(i int) {
+							w.projectRow(c, tk, rows[i])
+						}).Gap(8)
 					}
 					ui.Spacer(c)
 					// Idle sessions sit at the very bottom, under everything that
@@ -469,9 +480,11 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 			w.sidebarListH = list.LayoutBounds().H
 			// The footer holds the sidebar's two menus: remote Macs on the
 			// left, settings on the right, under the list and clear of the
-			// header's own controls.
+			// header's own controls. Its right padding takes back what the
+			// body no longer has, so the gear keeps its distance from the
+			// window's edge.
 			ui.Box(c).Height(1).FillWidth().Background(tk.Border)
-			ui.Row(c).Height(iconSize).Gap(2).Padding(0, 2, 0, 2).Children(func() {
+			ui.Row(c).Height(iconSize).Gap(2).Padding(0, 8, 0, 2).Children(func() {
 				iconMenuButton(c, tk, "monitor", w.remoteMenu, locales.RemoteMenuHint())
 				ui.Spacer(c)
 				iconButton(c, tk, "setting", func() { w.openSettings() },
@@ -567,9 +580,10 @@ func (w *workspace) searchDialog(c *ui.Context, tk tokens) {
 						FontSize(14).FontWeight(300).FillWidth().AutoFocus()
 				})
 				ui.Box(c).Height(1).FillWidth().Background(tk.Border)
-				ui.Scroll(c).FillWidth().MaxHeight(360).Padding(6).Children(func() {
-					w.searchResults(c, tk)
-				})
+				ui.Scroll(c).FillWidth().MaxHeight(360).Padding(6).
+					ScrollbarStyle(sidebarScrollbar).Children(func() {
+						w.searchResults(c, tk)
+					})
 			})
 		})
 	})
@@ -615,7 +629,11 @@ func (w *workspace) searchResultRow(c *ui.Context, tk tokens, s *session) {
 	row := ui.Row(c).Height(32).FillWidth().AlignItems(ui.Center).Gap(8).
 		PaddingStart(8).PaddingEnd(8).Radius(chromeRadius).Cursor(ui.CursorPointer)
 	if row.Hovered() {
-		row = row.Background(tk.Foreground.Alpha(0.045))
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Foreground.Alpha(0.045))
+		}
 	}
 	pick := func() {
 		w.selectSession(s.ID)
@@ -629,7 +647,7 @@ func (w *workspace) searchResultRow(c *ui.Context, tk tokens, s *session) {
 		} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(14).Height(14).OnClick(pick)
 		}
-		ui.Text(c, sessionLabel(s)).FontSize(13).FontWeight(400).SingleLine().
+		ui.Text(c, sessionLabel(s)).FontSize(sidebarRowFont).FontWeight(400).SingleLine().
 			TextColor(tk.Foreground).OnClick(pick)
 	})
 }
@@ -648,14 +666,24 @@ func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
 // its own: the session card is the only thing that takes a surface.
 func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 	open := !w.collapsed[pr.ID] || strings.TrimSpace(w.searchQuery) != ""
-	row := ui.Row(c).Height(groupRowHeight).Padding(0, 8, 0, 8).Gap(5).Radius(chromeRadius).
-		MarginX(2)
+	row := ui.Row(c).Height(sidebarRowHeight).
+		Padding(0, sidebarRowEnd, 0, sidebarRowInset).Gap(sidebarRowGap).
+		Radius(sidebarRowRadius()).MarginX(2).MarginY(rowMarginY).
+		Border(1, ui.Transparent)
 	hovered := row.Hovered()
 	// The selected session's capsule marks where the work is; the project
 	// label above it stays a quiet section heading, as Rex's groups do.
 	color := groupLabelColor(tk)
 	if hovered {
 		color = tk.Foreground
+		// The pointer gives a header the same material it gives a row: the
+		// idle fold's header already took it, and a project header that only
+		// changed its text colour read as not responding at all.
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Foreground.Alpha(0.045))
+		}
 	}
 	toggle := func() { w.toggleProject(pr) }
 	row.OnClick(toggle).ContextMenu(func(m *ui.Menu) { w.projectRowMenu(m, pr) }).Children(func() {
@@ -673,7 +701,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 				ui.Image(c, src).Width(13).Height(13).OnClick(toggle)
 			}
 		}
-		ui.Text(c, pr.name()).FontSize(11.5).FontWeight(400).SingleLine().
+		ui.Text(c, pr.name()).FontSize(sidebarRowFont).FontWeight(400).SingleLine().
 			TextColor(color).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		if pr.remote != nil && pr.remote.conn.err != "" {
@@ -768,8 +796,10 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 	}
 	key := remoteGroupKey(pr.ID, g.project.ID)
 	open := !w.collapsed[key] || strings.TrimSpace(w.searchQuery) != ""
-	row := ui.Row(c).Height(groupRowHeight).PaddingStart(8 + indent).PaddingEnd(8).Gap(5).
-		Radius(chromeRadius).MarginX(2)
+	row := ui.Row(c).Height(sidebarRowHeight).
+		PaddingStart(sidebarRowInset + indent).PaddingEnd(sidebarRowEnd).Gap(sidebarRowGap).
+		Radius(sidebarRowRadius()).MarginX(2).MarginY(rowMarginY).
+		Border(1, ui.Transparent)
 	hovered := row.Hovered()
 	color := groupLabelColor(tk)
 	if hovered {
@@ -794,7 +824,7 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 		if src := iconSource("folder", colorHex(color)); src != nil {
 			ui.Image(c, src).Width(13).Height(13).IgnoreInput(true).OnClick(toggle)
 		}
-		ui.Text(c, g.project.Name).FontSize(11.5).FontWeight(400).SingleLine().
+		ui.Text(c, g.project.Name).FontSize(sidebarRowFont).FontWeight(400).SingleLine().
 			TextColor(color).Tooltip(g.project.Dir).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		if hovered {
@@ -827,27 +857,46 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	// On glass a session is a capsule, as Rex's chosen row is: the white sheet
 	// needs the softer end to read as a lifted piece of paper rather than a
 	// small rectangular card. With glass off it keeps the square-ish 6pt card.
-	radius := chromeRadius
-	if glassChrome() {
-		radius = rowHeightPx / 2
-	}
-	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8+indent+16).PaddingEnd(8).Gap(8).
-		Radius(radius).MarginX(2).Border(1, ui.Transparent)
+	row := ui.Row(c).Height(sidebarRowHeight).
+		PaddingStart(sidebarRowInset + indent + sidebarRowStep).PaddingEnd(sidebarRowEnd).Gap(sidebarRowGap).
+		Radius(sidebarRowRadius()).MarginX(2).MarginY(rowMarginY).
+		Border(1, ui.Transparent)
 	hovered := row.Hovered()
 	if sel || hovered {
 		color = tk.Foreground
 	}
 	// The hairline is reserved on every row, so selecting one does not shift
 	// its contents by a pixel.
+	//
+	// On the glass chrome the chosen row is the system's own material, as a
+	// notification banner is: it frosts what is behind it and lights its own
+	// rim, instead of being a flat fill with a hairline drawn round it. The
+	// pointer's row keeps the quiet ink wash — a wash is a hint, and a
+	// material on every row under the pointer would turn the list into a
+	// stack of panes.
 	switch {
 	case sel:
-		fill := tk.Raised
-		if tk.Dark {
-			fill = tk.Foreground.Alpha(0.10)
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			fill := tk.Raised
+			if tk.Dark {
+				fill = tk.Foreground.Alpha(0.10)
+			}
+			row = lit(lifted(row.Background(fill), tk), tk)
 		}
-		row = lit(lifted(row.Background(fill), tk), tk)
 	case hovered:
-		row = row.Background(tk.Foreground.Alpha(0.045))
+		// The pointer's row is the same material the chosen one wears: a
+		// wash of ink reads as a grey block on the glass, while a material
+		// frosts what is behind it and lights its rim. It is set only while
+		// the pointer is on the row — a native glass is its own layer and an
+		// element's opacity does not reach it, so a material set always is
+		// always drawn, which would put glass behind every row in the list.
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Foreground.Alpha(0.045))
+		}
 	}
 	pick := func() { w.selectSession(s.ID) }
 	activity := sessionActivityState(s)
@@ -873,7 +922,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		case agent != nil:
 			if src := agentLogoSource(agent.Kind, tk); src != nil {
 				mark(func() {
-					ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
+					ui.Image(c, src).Width(sidebarRowMark).Height(sidebarRowMark).IgnoreInput(true)
 				})
 			}
 		default:
@@ -888,7 +937,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 				}
 			} else if src := iconSource("terminal", colorHex(markColor)); src != nil {
 				mark(func() {
-					ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
+					ui.Image(c, src).Width(sidebarRowMark).Height(sidebarRowMark).IgnoreInput(true)
 				})
 			}
 		}
@@ -896,7 +945,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		// The name reads still: the spinner in the mark's slot is what says
 		// the session works, and a name that moves beside it says nothing
 		// more while it asks for a frame every step.
-		labelEl := ui.Text(c, label).FontSize(13).FontWeight(400).SingleLine()
+		labelEl := ui.Text(c, label).FontSize(sidebarRowFont).FontWeight(400).SingleLine()
 		switch activity {
 		case activityWorking, activityWaiting:
 			labelEl = labelEl.TextColor(tk.Foreground)
@@ -949,6 +998,24 @@ func sessionLabel(s *session) string {
 		return agent.Kind.name()
 	}
 	return s.title()
+}
+
+// sidebarProjectRows is what the sidebar lists: the projects open here, then
+// the paired Macs, whose sessions are sessions of the same code, filtered by
+// the search box.
+func (w *workspace) sidebarProjectRows() []*project {
+	rows := make([]*project, 0, len(w.Projects)+len(w.remoteProjects))
+	for _, pr := range w.Projects {
+		if w.projectVisible(pr) {
+			rows = append(rows, pr)
+		}
+	}
+	for _, pr := range w.remoteProjects {
+		if w.projectVisible(pr) {
+			rows = append(rows, pr)
+		}
+	}
+	return rows
 }
 
 // projectVisible matches the search box against the folder and its sessions.
@@ -1063,7 +1130,7 @@ func (w *workspace) subagentPill(c *ui.Context, tk tokens, p *pane) {
 	if n <= 0 {
 		return
 	}
-	el := ui.Row(c).Height(22).Radius(headerRadius).Padding(0, 6).Gap(4).
+	el := ui.Row(c).Height(chipHeight).Radius(chipRadius).Padding(0, chipPadX).Gap(4).
 		AlignItems(ui.Center)
 	dot := tk.Working
 	if p.activity == nil || p.activity.State != activityWorking {
@@ -1071,10 +1138,10 @@ func (w *workspace) subagentPill(c *ui.Context, tk tokens, p *pane) {
 		// continued past the prompt that started it.
 		dot = tk.Waiting
 	}
-	el = badge(el, tk, el.Hovered())
+	el = badge(c, el, tk, el.Hovered())
 	el.Tooltip(subagentHint(p)).Children(func() {
 		ui.Box(c).Width(6).Height(6).Radius(3).Background(dot)
-		ui.Text(c, fmt.Sprint(n)).FontSize(10).FontWeight(500).
+		ui.Text(c, fmt.Sprint(n)).FontSize(chipFontNum).FontWeight(500).
 			TextColor(tk.MutedForeground)
 	})
 }
@@ -1116,18 +1183,26 @@ func (w *workspace) splitView(c *ui.Context, tk tokens, n *splitNode, leading bo
 	// divider. mygo's split always draws a line, so this lays the cards out
 	// by percentage instead.
 	if w.settings.PaneStyle == paneComfortable {
+		// The split's share moves on a spring, so a pane that opens or closes
+		// takes its slot from the pane beside it instead of the layout
+		// jumping to the new sizes in one frame. The ratio is the tree's own
+		// value; the element only animates what it draws, so a drag still
+		// writes the ratio directly and the spring follows it.
+		// The key is the node itself: every split in the tree animates its own
+		// share, and a shared key would make two splits fight over one value.
+		ratio := ui.Box(c).AnimateTo(n, n.ratio, paneSpring)
 		if n.axis == axisHorizontal {
 			ui.Row(c).Fill().Children(func() {
-				ui.Row(c).WidthPercent(n.ratio).FillHeight().
+				ui.Row(c).WidthPercent(ratio).FillHeight().
 					Children(func() { w.splitView(c, tk, n.first, leading) })
-				ui.Row(c).WidthPercent(100 - n.ratio).FillHeight().
+				ui.Row(c).WidthPercent(100 - ratio).FillHeight().
 					Children(func() { w.splitView(c, tk, n.second, false) })
 			})
 		} else {
 			ui.Column(c).Fill().Children(func() {
-				ui.Column(c).HeightPercent(n.ratio).FillWidth().
+				ui.Column(c).HeightPercent(ratio).FillWidth().
 					Children(func() { w.splitView(c, tk, n.first, leading) })
-				ui.Column(c).HeightPercent(100 - n.ratio).FillWidth().
+				ui.Column(c).HeightPercent(100 - ratio).FillWidth().
 					Children(func() { w.splitView(c, tk, n.second, false) })
 			})
 		}
@@ -1149,6 +1224,35 @@ func (w *workspace) splitView(c *ui.Context, tk tokens, n *splitNode, leading bo
 // zoomShortcut is the accelerator the menu and the pane's zoom button show,
 // written as macOS writes it on a Mac keyboard.
 const zoomShortcut = "⇧⌘↩"
+
+// headerWidth is the width the header lays its parts out against. The frame
+// that lands on a new size reads the one before it, so a resize that crosses
+// one of the header's thresholds would show a part on that frame and drop it
+// on the next, or the reverse, and the title would jump between them. A
+// width is taken once two frames agree on it, so a size still settling
+// cannot flip the header's parts, and a size the user has stopped at is
+// followed on the frame after it settles.
+func (p *pane) headerWidth(measured float32) float32 {
+	if measured <= 0 {
+		return p.headerW
+	}
+	// The first frame has nothing to hold against: it takes what it
+	// measured, so a pane opens at its real width instead of at nothing.
+	if p.headerW == 0 {
+		p.headerW, p.headerWPrev = measured, measured
+		return measured
+	}
+	if measured == p.headerW {
+		p.headerWPrev = measured
+		return p.headerW
+	}
+	// Two frames in a row at the new width: it is the size the pane has.
+	if measured == p.headerWPrev {
+		p.headerW = measured
+	}
+	p.headerWPrev = measured
+	return p.headerW
+}
 
 func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 	bar := c.TitleBar()
@@ -1204,16 +1308,22 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			pose = ui.Pose{Scale: 0.22, X: w.stageCardOffset(), Fade: 1}
 			c.After(time.Millisecond)
 		}
-		col = col.AnimatePose(pose, ui.Animation{Duration: paneMotion, Ease: ui.EaseOut})
+		// A pane arrives and leaves on a spring: a split opens a slot that did
+		// not exist a frame ago, and a close collapses one, so the card should
+		// settle into its place as something with weight rather than fade in
+		// over a layout that already jumped. The stage's own move keeps the
+		// plain ease — it is a scale into a card, not a slot opening.
+		poseAnim := paneSpring
+		if p.stageEnter {
+			poseAnim = ui.Animation{Duration: paneMotion, Ease: ui.EaseOut}
+		}
+		col = col.AnimatePose(pose, poseAnim)
 		if card {
 			col = col.Radius(windowRadius).Clip()
-			if liquid(c) {
-				top, bottom := paneSurface(tk)
-				col = col.Gradient(top, bottom, 180)
-			} else {
+			if !liquid(c) {
 				col = col.Background(tk.Background)
 			}
-			col = raised(col, tk)
+			col = paneSkin(col, c, tk)
 		}
 		dragging := false
 		blend := ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut}
@@ -1257,8 +1367,10 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				// so a narrowing pane gives them up in that order and a wide
 				// one shows them all. The line's width is the one it had in the
 				// frame before, which is exact until the pane or its split is
-				// resized and settles a frame later.
-				width := line.Bounds().W
+				// resized and settles a frame later. headerWidth holds that
+				// width across the frame a resize lands on, so the parts
+				// below cannot appear on one frame and go on the next.
+				width := p.headerWidth(line.Bounds().W)
 				// The title picks the pane up once there is a second pane
 				// to trade with. Alone in the window it keeps dragging the
 				// window, as a title bar does, since there is nowhere to
@@ -1312,13 +1424,21 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				if hasPill {
 					pillW = branchPillWidth(c, info)
 				}
-				showPill := hasPill && (width == 0 || kept+pillW <= width)
+				// A narrow pane keeps only what names it: the title, and the
+				// buttons the pointer brings. The checkout and the branch are
+				// the first things to go, because a sliver of a pane has no
+				// room for a row of tags and the title is what tells the
+				// panes apart. This is a width rule, not a hover one: a
+				// crowded layout is quiet at rest, not only under the
+				// pointer, and nothing moves as the hand crosses it.
+				roomy := width == 0 || width >= paneHeaderRoomy
+				showPill := hasPill && roomy && kept+pillW <= width
 				pillSpace := float32(0)
 				if showPill {
 					pillSpace = pillW + 4
 				}
 				subW := w.subagentPillWidth(c, p)
-				showSub := subW > 0 && (width == 0 || kept+pillSpace+subW <= width)
+				showSub := subW > 0 && roomy && kept+pillSpace+subW <= width
 				subSpace := float32(0)
 				if showSub {
 					subSpace = subW + 4
@@ -1338,7 +1458,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				// its hover names the path it folded in.
 				merged := showPill && name == info.branch
 				path := ""
-				if !merged {
+				if !merged && roomy {
 					room := pathRoom - 10 // the chip's padding a side
 					tw, _ := c.MeasureText(0, ui.Span{Text: name, Size: 11})
 					if width == 0 || (room > 0 && tw <= room) {
@@ -1348,8 +1468,12 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 				line.Children(func() {
 					// The hover hairline is reserved while it is away, so the
 					// title does not move as the pointer comes and goes.
-					strip := ui.Row(c).Height(24).AlignItems(ui.Center).Shrink(1).
-						Gap(4).Padding(0, stripPad).Radius(chromeRadius).
+					// The title is a chip like the ones beside it: the same
+					// sheet, the same hover. It used to take a bare ink wash,
+					// which read as a highlight rather than as a tag, and left
+					// the row with two different hover behaviours in it.
+					strip := ui.Row(c).Height(chipHeight).AlignItems(ui.Center).Shrink(1).
+						Gap(4).Padding(0, stripPad).Radius(chipRadius).
 						Border(1, ui.Transparent)
 					if movable {
 						strip = strip.Drag(paneMoved{Pane: p}).Cursor(ui.CursorGrab).
@@ -1358,7 +1482,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					} else {
 						strip = strip.DragWindow()
 					}
-					strip = hoverWash(c, strip, tk)
+					strip = badge(c, strip, tk, strip.Hovered())
 					strip.Children(func() {
 						if agent != nil {
 							if src := agentLogoSource(agent.Kind, tk); src != nil && showMark {
@@ -1386,9 +1510,9 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					// gexi worktree is tinted so it reads as a place; any other
 					// checkout keeps the quiet control surface.
 					if path != "" {
-						chip := ui.Row(c).Height(18).Radius(4).Padding(0, 5).
-							AlignItems(ui.Center).Shrink(1)
-						chip = badge(chip, tk, chip.Hovered())
+						chip := ui.Row(c).Height(chipHeight).Radius(chipRadius).
+							Padding(0, chipPadX).AlignItems(ui.Center).Shrink(1)
+						chip = badge(c, chip, tk, chip.Hovered())
 						// The checkout's name stays quiet; a gexi
 						// worktree takes the system accent, so it reads
 						// as a place rather than another path.
@@ -1399,7 +1523,7 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 						// The header keeps the checkout's name; the pointer
 						// brings the full path it stands for.
 						chip.Tooltip(dir).Children(func() {
-							ui.Text(c, path).FontSize(11).SingleLine().
+							ui.Text(c, path).FontSize(chipFont).SingleLine().
 								Shrink(1).TextColor(color)
 						})
 					}
@@ -1425,47 +1549,76 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 					}
 					w.dragArea(c, tk)
 					// The buttons keep their room and fade, so the row does
-					// not jump as the pointer comes and goes; they take no
-					// click while invisible.
+					// not jump as the pointer comes and goes. They stay
+					// clickable while faded: a button that draws but takes
+					// no click is worse than one that is plainly absent,
+					// and the fade only says the header is idle.
 					alpha := float32(0)
 					if showActions {
 						alpha = 1
 					}
 					actions := ui.Row(c).Gap(2).Height(chromeLine(bar)).AlignItems(ui.Center).Shrink(0)
-					actions = actions.IgnoreInput(!showActions).
+					actions = actions.
 						Opacity(actions.AnimateTo("actions", alpha, ui.Animation{Duration: 150 * time.Millisecond, Ease: ui.EaseOut}))
-					actions.Children(func() {
-						// The reply sits beside the checkout it is about,
-						// and appears with the other controls so an idle
-						// header stays quiet.
-						if p.remote == nil && len(p.conversation) > 0 {
-							w.replyChip(c, tk, p)
+					// The controls go in the order they matter when the room
+					// runs out: close first, then the two splits, then zoom.
+					// A pane too narrow for all four keeps the ones at the
+					// front of that list rather than dropping the whole set,
+					// so the way out is always there and the splits come next.
+					//
+					// The tags beside them — the reply and the checkout —
+					// give way first of all: they name work, while these
+					// four are how the pane is driven, and a header that
+					// pushes the close button off its own edge has kept the
+					// wrong thing.
+					// The buttons are measured against the room the title
+					// leaves, not the whole header: the title is what names
+					// the pane and it keeps its place, so what the buttons
+					// may take is what is left after it.
+					canZoom := len(w.visiblePanes()) > 1 || w.isZoomed(p)
+					left := width
+					if width > 0 {
+						left = width - markW - titleW - 2*stripPad - 8
+						if left < 0 {
+							left = 0
 						}
+					}
+					fit := w.paneActionsFit(c, left, canZoom)
+					// The room the buttons need, plus the gap before them;
+					// what is left over is the tags'.
+					need := float32(fit)*iconSize + float32(fit-1)*2
+					showTags := width == 0 || left >= need+tagRoom
+					actions.Children(func() {
 						// The worktree button is the pane's checkout: a local
 						// one here, and a host's pressed through it, since
 						// the checkout and its pull request are the host's.
-						if p.remote == nil {
-							w.paneWorktreeButton(c, tk, p)
-						} else {
-							w.remoteWorktreeButton(c, tk, p)
-						}
-						// A pane too narrow for all three keeps only the way
-						// out: splitting and zooming are in the View menu, and
-						// a clipped button is worse than an absent one.
-						if width == 0 || width >= 380 {
-							iconButtonOnCard(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, "") },
-								locales.MenuSplitRight()+" (⌘D)")
-							iconButtonOnCard(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, "") },
-								locales.MenuSplitDown()+" (⌘⇧D)")
-							// A pane with nowhere to go has nothing to zoom to.
-							if len(w.visiblePanes()) > 1 || w.isZoomed(p) {
-								name, hint := "expand", locales.PaneZoom()+" ("+zoomShortcut+")"
-								if w.isZoomed(p) {
-									name, hint = "collapse", locales.PaneUnzoom()+" ("+zoomShortcut+")"
-								}
-								iconButtonOnCard(c, tk, name, func() { w.toggleZoom(p) }, hint)
+						if showTags {
+							if p.remote == nil {
+								w.paneWorktreeButton(c, tk, p)
+							} else {
+								w.remoteWorktreeButton(c, tk, p)
 							}
 						}
+						if fit >= 2 {
+							iconButtonOnCard(c, tk, "columns-2", func() { _, _ = w.splitPane(p, axisHorizontal, nil, "") },
+								locales.MenuSplitRight()+" (⌘D)")
+						}
+						if fit >= 3 {
+							iconButtonOnCard(c, tk, "rows-2", func() { _, _ = w.splitPane(p, axisVertical, nil, "") },
+								locales.MenuSplitDown()+" (⌘⇧D)")
+						}
+						// A pane with nowhere to go has nothing to zoom to.
+						if fit >= 4 && canZoom {
+							name, hint := "expand", locales.PaneZoom()+" ("+zoomShortcut+")"
+							if w.isZoomed(p) {
+								name, hint = "collapse", locales.PaneUnzoom()+" ("+zoomShortcut+")"
+							}
+							iconButtonOnCard(c, tk, name, func() { w.toggleZoom(p) }, hint)
+						}
+						// Close sits at the far edge, where the window's own
+						// controls are and where the hand goes to shut a thing:
+						// a close button in the middle of a row reads as one
+						// more action rather than the way out.
 						iconButtonOnCard(c, tk, "x", func() { w.requestCloseByUser(p) },
 							locales.MenuClosePane()+" (⌘W)")
 					})
@@ -1483,8 +1636,24 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 			}
 			header.Background(header.AnimateColor("paneLiftBg", panelBg, blend))
 
+			// A pane restored as layout alone starts here, the first time it
+			// is drawn: the window comes back with every session in the
+			// sidebar and only the one on screen running. The frame that
+			// wakes it draws the empty card, and the shell's first output
+			// brings the next one.
+			if p.dormant {
+				w.wakePane(p)
+			}
 			var el ui.Element
-			if p.remote != nil {
+			if p.term == nil {
+				// A pane that has no terminal yet, or one whose program
+				// would not start: the card is there and says so, rather
+				// than the view reading a nil terminal.
+				el = ui.Box(c).Fill()
+				if p.wakeErr != nil {
+					el = ui.Text(c, p.wakeErr.Error()).Fill()
+				}
+			} else if p.remote != nil {
 				// A pane on another Mac shows that Mac's screen at that
 				// Mac's grid: scaled down to fit when the card is smaller,
 				// centered when it is bigger, so every part of the screen
@@ -1661,4 +1830,23 @@ func (w *workspace) paneHeaderHeight() float32 {
 		return headerHeight
 	}
 	return headerHeight + compactHeaderTop
+}
+
+// chromeView is the window's view under the chrome's own theme: the window's
+// theme with the scroll bar the chrome wears, so every list in the app takes
+// it, including the panels the toolkit draws itself.
+//
+// A scroll bar set on a container only reaches that container. The toolkit's
+// default is a 12 DIP track around a 6 DIP thumb, which leaves a 3 DIP gutter
+// on either side: on a narrow sidebar or a menu that reads as a thick bar.
+func (w *workspace) chromeView(c *ui.Context) {
+	t := *c.Theme()
+	t.ScrollbarStyle = sidebarScrollbar
+	// The wrapper paints nothing: the window's material shows where nothing
+	// is drawn, and a background here would stand between the glass and the
+	// view, as the root's own would.
+	t.Background = ui.Transparent
+	ui.Themed(c, &t).Fill().Children(func() {
+		w.view(c)
+	})
 }

@@ -82,6 +82,11 @@ func (n *splitNode) splitting(id string, ax axis, p *pane) *splitNode {
 
 // splittingSide puts p before or after the leaf holding id. A drop on a
 // pane's left or top edge lands before it, its right or bottom edge after.
+//
+// The new split takes half the target's slot, and then the tree is evened
+// out: three panes in a row read as three columns, not as a half and two
+// quarters. Evenness only applies to runs of the same axis, so a deliberate
+// two-by-two grid keeps its shape.
 func (n *splitNode) splittingSide(id string, ax axis, p *pane, before bool) *splitNode {
 	target := n.paneByID(id)
 	if target == nil {
@@ -96,7 +101,42 @@ func (n *splitNode) splittingSide(id string, ax axis, p *pane, before bool) *spl
 		ratio:  50,
 		first:  first,
 		second: second,
-	})
+	}).evened(ax)
+}
+
+// evened gives every pane in a run of one axis the same share. A run is a
+// split whose children sit on the same axis: three panes side by side are
+// two nested horizontal splits, and both of them are set so the leaves come
+// out equal. A split whose children are on the other axis is left alone, so
+// a grid of four keeps its two rows.
+func (n *splitNode) evened(ax axis) *splitNode {
+	if n == nil || n.isLeaf() {
+		return n
+	}
+	// A split on the other axis keeps its own share, but its children may
+	// still hold a run of ax deeper down: a vertical split inside a
+	// horizontal one is exactly where a second row of panes lives, and
+	// stopping here left every vertical run at 50/50.
+	if n.axis == ax {
+		first, second := n.first.countLeaves(), n.second.countLeaves()
+		if first+second > 0 {
+			n.ratio = float32(first) / float32(first+second) * 100
+		}
+	}
+	n.first = n.first.evened(ax)
+	n.second = n.second.evened(ax)
+	return n
+}
+
+// countLeaves is how many panes hang under n.
+func (n *splitNode) countLeaves() int {
+	if n == nil {
+		return 0
+	}
+	if n.isLeaf() {
+		return 1
+	}
+	return n.first.countLeaves() + n.second.countLeaves()
 }
 
 // moving takes the leaf holding id out of the tree and splits the leaf

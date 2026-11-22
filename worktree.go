@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/loading"
 	"github.com/egoist/mygo/ui"
 
@@ -3003,7 +3004,20 @@ func (w *workspace) askLeaveWorktree(p *pane, wt *paneWorktree, clean bool, ahea
 	}
 	w.leaveTarget = p
 	w.leaveMsg = msg
-	w.leaveOpen = true
+	w.askConfirm(nativeAsk{
+		kind:        mygo.MessageWarning,
+		title:       locales.WorktreeLeaveTitle(),
+		message:     msg,
+		buttons:     []string{locales.WorktreeLeaveConfirm(), locales.Cancel()},
+		def:         1,
+		cancel:      1,
+		destructive: 0,
+	}, func(button int) {
+		if button == 0 {
+			w.leaveConfirmed(p)
+		}
+		w.leaveTarget = nil
+	})
 	w.invalidate()
 }
 
@@ -3212,7 +3226,7 @@ func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg
 		// The quiet chip is a raised tag of its own, as leaf's chips are,
 		// rather than a surface that only appears under the pointer: the
 		// header always says where the checkout is.
-		group = badge(group, tk, group.Hovered())
+		group = badge(c, group, tk, group.Hovered())
 	} else {
 		// The merge chip's fill is its status: green can merge, amber is
 		// still checking, red is blocked. Easing the fill lets a check
@@ -3257,12 +3271,12 @@ func (w *workspace) worktreeActionChip(c *ui.Context, tk tokens, p *pane, bg, fg
 			// the label it follows.
 			chevron = tk.MutedForeground
 		}
-		w.worktreeMenuSegment(c, p, chevron)
+		w.worktreeMenuSegment(c, tk, p, chevron)
 	})
 }
 
 // worktreeMenuSegment is the chevron half of worktreeActionChip.
-func (w *workspace) worktreeMenuSegment(c *ui.Context, p *pane, fg ui.Color) {
+func (w *workspace) worktreeMenuSegment(c *ui.Context, tk tokens, p *pane, fg ui.Color) {
 	seg := ui.Row(c).Width(18).Height(22).Radius(headerRadius).
 		Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeLeaveHint())
 	wt := p.Worktree
@@ -3277,6 +3291,9 @@ func (w *workspace) worktreeMenuSegment(c *ui.Context, p *pane, fg ui.Color) {
 		if m.Item(locales.WorktreeLeave()).Disabled(wt == nil || wt.busy != "").Chosen() {
 			w.promptLeaveWorktree(p)
 		}
+	}, ui.PopoverMenuButtonOptions{
+		Panel: func(panel ui.Element) { menuPanel(panel, c, tk) },
+		Item:  func(item ui.Element) { menuItemLook(c, item, tk) },
 	}).Children(func() {
 		if src := iconSource("chevron-down", colorHex(fg)); src != nil {
 			// The glyph sits inside the button: the press has to reach
@@ -3589,7 +3606,7 @@ type worktreeSlot struct{ pane string }
 // worktree for the pane; once it has one, the same slot shows PR / Merge
 // instead.
 func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
-	slot := ui.Row(c).Key("worktree-slot:" + p.ID + ":" + w.worktreeChipForm(p))
+	slot := ui.Row(c.Key("worktree-slot:" + p.ID + ":" + w.worktreeChipForm(p)))
 	slot.Transition(ui.ElementTransition{
 		Duration: chipMotion,
 		Ease:     ui.EaseOut,
@@ -3636,7 +3653,9 @@ func (w *workspace) worktreeChipForm(p *pane) string {
 
 func (w *workspace) paneWorktreeForm(c *ui.Context, tk tokens, p *pane) {
 	if p.Worktree == nil {
-		label := "worktree"
+		// WD, not the whole word: the control sits in a row of icons and
+		// tags, and two letters keep it the width of the ones beside it.
+		label := "WD"
 		action := func() { w.createPaneWorktree(p) }
 		hint := locales.WorktreeCreateHint()
 		busy := ""
@@ -3644,16 +3663,16 @@ func (w *workspace) paneWorktreeForm(c *ui.Context, tk tokens, p *pane) {
 			busy = locales.WorktreeCreating()
 			action = func() {}
 		}
-		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
+		el := ui.Row(c).Height(chipHeight).Padding(0, chipPadX).Radius(chipRadius).
 			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(hint)
-		el = badge(el, tk, el.Hovered())
+		el = badge(c, el, tk, el.Hovered())
 		el.OnClick(action).Children(func() {
 			if busy != "" {
 				worktreeSpinner(c, tk, busy)
 				return
 			}
-			ui.Text(c, label).FontSize(11).FontWeight(600).
+			ui.Text(c, label).FontSize(chipFont).FontWeight(600).
 				TextColor(tk.Foreground).OnClick(action)
 		})
 		return
@@ -3673,12 +3692,12 @@ func (w *workspace) worktreeButtonView(c *ui.Context, tk tokens, p *pane) {
 	// offer then, only a way to clear the binding and find the worktree page.
 	if !worktreeCheckoutExists(wt) {
 		action := func() { w.dropGoneWorktree(p) }
-		el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
+		el := ui.Row(c).Height(chipHeight).Padding(0, chipPadX).Radius(chipRadius).
 			Border(1, ui.Transparent).
 			Center().Cursor(ui.CursorPointer).Tooltip(locales.WorktreeGoneHint())
-		el = badge(el, tk, el.Hovered())
+		el = badge(c, el, tk, el.Hovered())
 		el.OnClick(action).Children(func() {
-			ui.Text(c, locales.WorktreeGone()).FontSize(11).FontWeight(600).
+			ui.Text(c, locales.WorktreeGone()).FontSize(chipFont).FontWeight(600).
 				TextColor(tk.MutedForeground).OnClick(action)
 		})
 		return
@@ -3690,7 +3709,7 @@ func (w *workspace) worktreeButtonView(c *ui.Context, tk tokens, p *pane) {
 		// already merged, so this comes before the Archive form.
 		worktreeChip(c, tk).OnClick(func() {}).
 			Tooltip(busy).Children(func() {
-			ui.Text(c, busy).FontSize(11).FontWeight(600).
+			ui.Text(c, busy).FontSize(chipFont).FontWeight(600).
 				TextColor(tk.Foreground).SingleLine()
 		})
 		return
@@ -3728,10 +3747,10 @@ func (w *workspace) worktreeButtonView(c *ui.Context, tk tokens, p *pane) {
 }
 
 func worktreeChip(c *ui.Context, tk tokens) ui.Element {
-	el := ui.Row(c).Height(22).Padding(0, 7, 0, 7).Radius(headerRadius).
+	el := ui.Row(c).Height(chipHeight).Padding(0, chipPadX).Radius(chipRadius).
 		Border(1, ui.Transparent).
 		Center().Cursor(ui.CursorPointer)
-	return badge(el, tk, el.Hovered())
+	return badge(c, el, tk, el.Hovered())
 }
 
 func worktreeBusyLabel(wt *paneWorktree) string {

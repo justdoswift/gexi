@@ -73,6 +73,9 @@ func (s *session) title() string {
 		return locales.Terminal()
 	}
 	p := ps[0]
+	if p.term == nil {
+		return locales.Terminal()
+	}
 	if title := cleanTitle(p.term.Title()); title != "" {
 		return title
 	}
@@ -139,6 +142,9 @@ type workspace struct {
 	// content is at least that tall, which keeps the idle fold at the
 	// list's bottom until the list outgrows the window and scrolls.
 	sidebarListH float32
+	// sidebarList gives the project rows their identity, so one that comes,
+	// goes or is reordered glides to its place.
+	sidebarList ui.ListState
 	// paneCellW and paneCellH are the cell size the last laid-out pane
 	// measured, which a pane restored straight into the rail takes for its
 	// own grid: no view has laid it out yet, and every pane draws the same
@@ -150,6 +156,9 @@ type workspace struct {
 
 	win         *mygo.Window
 	settingsWin *mygo.Window
+	// keepRunning holds off App Nap while the window is hidden and an agent
+	// is still working; releaseKeepRunning gives it back.
+	keepRunning func()
 	settings    appSettings
 	// settingsShown tells that the settings page has drawn once in its
 	// window, so the frame after can settle it in instead of showing it
@@ -176,9 +185,9 @@ type workspace struct {
 	// the same Seen pair.
 	terminalScrollbackChoice string
 	terminalScrollbackSeen   string
-	quitting            bool
-	saveTimer           *time.Timer
-	lastNotify          map[string]time.Time
+	quitting                 bool
+	saveTimer                *time.Timer
+	lastNotify               map[string]time.Time
 
 	collapsed   map[string]bool
 	searchQuery string
@@ -197,7 +206,6 @@ type workspace struct {
 	// clearArchivedOpen is the app's own alert asking before that batch
 	// goes; clearArchivedEntries is the batch it will delete, and
 	// clearArchivedKept says which row asked.
-	clearArchivedOpen    bool
 	clearArchivedKept    bool
 	clearArchivedMsg     string
 	clearArchivedEntries []archivedWorktree
@@ -215,19 +223,16 @@ type workspace struct {
 
 	// archivedDeleteOpen asks before one archived session is deleted;
 	// archivedDeleteID names it.
-	archivedDeleteOpen bool
 	archivedDeleteID   string
 
 	// closeOpen is the alert asking whether a pane whose agent is running
 	// should end or go on in the background; closeTarget is its pane.
-	closeOpen   bool
 	closeTarget *pane
 	closeMsg    string
 
 	// closeProjectOpen is the alert asking before a project goes;
 	// closeProjectTarget is its project, and closeProjectMsg the
 	// consequence it shows.
-	closeProjectOpen   bool
 	closeProjectTarget *project
 	closeProjectMsg    string
 
@@ -267,7 +272,6 @@ type workspace struct {
 
 	// leaveOpen is the alert asking whether a checkout with unmerged work
 	// should be deleted; leaveTarget is the pane it belongs to.
-	leaveOpen   bool
 	leaveTarget *pane
 	leaveMsg    string
 
@@ -282,7 +286,6 @@ type workspace struct {
 
 	// remoteLeaveOpen is the same alert for a checkout on another Mac: its
 	// host asks nothing there, so the question is asked here instead.
-	remoteLeaveOpen   bool
 	remoteLeaveTarget *pane
 	remoteLeaveMsg    string
 
@@ -775,15 +778,117 @@ func (w *workspace) requestCloseByUser(p *pane) {
 	if p.agent != nil || p.sawAgent || len(p.lastAgentRestore) > 0 {
 		w.closeTarget = p
 		if p.agent != nil {
-			w.closeMsg = locales.PaneCloseAgentRunning()
+			w.closeMsg = locales.PaneCloseAgentRunning(p.title())
 		} else {
-			w.closeMsg = locales.PaneCloseAgentOpened()
+			w.closeMsg = locales.PaneCloseAgentOpened(p.title())
 		}
-		w.closeOpen = true
-		w.invalidate()
+		w.askClosePane(p, w.closeMsg)
 		return
 	}
 	w.requestClose(p)
+}
+
+// askClosePane asks what closing a pane with an agent in it should do, in the
+// system's own alert.
+//
+// It is an NSAlert rather than a panel drawn in the window: the question is
+// about work that is running, the answer throws some of it away, and macOS
+// already has a shape for that. The system draws the destructive button in
+// system red, the default in the accent colour, and spaces and rounds them as
+// every other alert on the machine; a hand-drawn sheet beside a real one is
+// the thing that reads as someone else's app.
+//
+// The alert blocks, so it runs off the UI thread and comes back.
+func (w *workspace) askClosePane(p *pane, msg string) {
+	parent := w.win
+	go func() {
+		res, err := askNative(mygo.MessageOptions{
+			Parent:  parent,
+			Type:    mygo.MessageWarning,
+			Title:   locales.PaneCloseTitle(),
+			Message: msg,
+			Buttons: []string{
+				locales.Cancel(),
+				locales.MenuClosePane(),
+				locales.PaneCloseBackground(),
+			},
+			// Return takes the one that keeps the agent running, Escape
+			// cancels, and closing is the one that costs the session.
+			DefaultButton:      2,
+			CancelButton:       0,
+			DestructiveButtons: []int{1},
+		})
+		if err != nil || res.Button < 0 {
+			w.onMain(func() { w.closeTarget = nil })
+			return
+		}
+		w.onMain(func() {
+			w.closeTarget = nil
+			if w.paneByID(p.ID) != p {
+				return
+			}
+			switch res.Button {
+			case 1:
+				w.requestClose(p)
+			case 2:
+				w.detachPane(p)
+			}
+		})
+	}()
+}
+
+// askConfirm puts a question to the system's alert and runs the answer.
+//
+// Every confirmation in the app goes through here: the system draws the
+// destructive button in system red and the default in the accent colour, and
+// spaces and rounds them as every other alert on the machine. A panel drawn
+// in the window beside a real one is the thing that reads as someone else's
+// app.
+//
+// The alert blocks, so it runs off the UI thread and comes back on it.
+// destructive is the index of the button whose action cannot be undone, or
+// -1 for a question that costs nothing.
+func (w *workspace) askConfirm(o nativeAsk, then func(button int)) {
+	parent := w.win
+	go func() {
+		opts := mygo.MessageOptions{
+			Parent:        parent,
+			Type:          o.kind,
+			Title:         o.title,
+			Message:       o.message,
+			Buttons:       o.buttons,
+			DefaultButton: o.def,
+			CancelButton:  o.cancel,
+		}
+		if o.destructive >= 0 {
+			opts.DestructiveButtons = []int{o.destructive}
+		}
+		res, err := askNative(opts)
+		if err != nil || res.Button < 0 {
+			return
+		}
+		w.onMain(func() { then(res.Button) })
+	}()
+}
+
+// nativeAsk is one question for askConfirm.
+type nativeAsk struct {
+	kind        mygo.MessageType
+	title       string
+	message     string
+	buttons     []string
+	def         int
+	cancel      int
+	destructive int
+}
+
+// askNative runs a native message box and reports the button chosen.
+//
+// It is a variable so a test can answer without an app: the real one needs a
+// running window and blocks until someone clicks, which a headless test has
+// neither the app nor the patience for.
+var askNative = func(o mygo.MessageOptions) (mygo.MessageResult, error) {
+	return mygo.Dialog.Message(o)
 }
 
 // detachPane takes p out of the layout without ending its program. The pane
@@ -973,30 +1078,21 @@ func (w *workspace) closeProject(pr *project) {
 	if panesHaveAgent(projectPanes(pr)) {
 		w.closeProjectMsg = locales.PaneCloseProjectBody()
 	}
-	w.closeProjectOpen = true
-	w.invalidate()
-}
-
-// closeProjectDialog draws the alert that asks before the project closes.
-func (w *workspace) closeProjectDialog(c *ui.Context, tk tokens) {
-	pr := w.closeProjectTarget
-	if pr == nil {
-		return
-	}
-	dialogAlert(c, tk, &w.closeProjectOpen, 420, locales.PaneCloseProjectTitle(), w.closeProjectMsg,
-		dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
-			w.closeProjectOpen = false
-		}},
-		dialogAction{label: locales.CloseProject(), kind: dialogDanger, run: func() {
-			w.closeProjectOpen = false
-			if w.hasProject(pr) {
-				w.closeProjectNow(pr)
-			}
-		}},
-	)
-	if !w.closeProjectOpen {
+	w.askConfirm(nativeAsk{
+		kind:        mygo.MessageWarning,
+		title:       locales.PaneCloseProjectTitle(),
+		message:     w.closeProjectMsg,
+		buttons:     []string{locales.Cancel(), locales.CloseProject()},
+		def:         0,
+		cancel:      0,
+		destructive: 1,
+	}, func(button int) {
+		if button == 1 && w.hasProject(pr) {
+			w.closeProjectNow(pr)
+		}
 		w.closeProjectTarget = nil
-	}
+	})
+	w.invalidate()
 }
 
 func (w *workspace) closeProjectNow(pr *project) {
@@ -1357,6 +1453,40 @@ func (w *workspace) invalidate() {
 	}
 }
 
+// holdKeepRunning keeps the app out of App Nap while its window is hidden and
+// an agent is still working. macOS lowers a hidden app's priority within a
+// minute and coalesces its timers, which slows a background turn. Main thread.
+func (w *workspace) holdKeepRunning() {
+	if w.keepRunning != nil || !w.agentPaneRunning() {
+		return
+	}
+	w.keepRunning = mygo.Power.KeepRunning("An agent is working in a hidden window")
+}
+
+// releaseKeepRunning lets App Nap return. Main thread.
+func (w *workspace) releaseKeepRunning() {
+	if w.keepRunning == nil {
+		return
+	}
+	w.keepRunning()
+	w.keepRunning = nil
+}
+
+// agentPaneRunning reports whether a pane holds an agent that has not exited,
+// whether the pane was opened with the agent's command or the agent was
+// started inside its shell. Main thread.
+func (w *workspace) agentPaneRunning() bool {
+	for _, p := range w.livePanes() {
+		if p.exited {
+			continue
+		}
+		if p.agent != nil || paneRunsAgent(p.command) {
+			return true
+		}
+	}
+	return false
+}
+
 // flash queues a toast for the next frame. Main thread.
 func (w *workspace) flash(message string) {
 	if message == "" {
@@ -1528,6 +1658,10 @@ func (w *workspace) startAgentMonitor() {
 				}
 				if changed {
 					w.scheduleSave()
+				}
+				// A hidden window whose last agent ended can nap again.
+				if w.keepRunning != nil && !w.agentPaneRunning() {
+					w.releaseKeepRunning()
 				}
 			})
 		}

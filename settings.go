@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,10 +37,6 @@ type appSettings struct {
 	// settled by the agent first. Off, the dialog and the Merge button
 	// wait for the user.
 	AutoMergePR bool `json:"autoMergePR"`
-	// GlassTint is how opaque the glass window is, as a percent: 0 shows the
-	// desktop through, 100 is solid paper. Nil is the default for settings
-	// written before the control existed.
-	GlassTint *int `json:"glassTint,omitempty"`
 	// ArchiveAfterMerge clears a merged worktree and its pane away as the
 	// pull request merges. Off, the header offers Archive and the user
 	// decides when the checkout goes.
@@ -185,30 +179,6 @@ func appearanceSource(value string) mygo.ThemeSource {
 	}
 }
 
-// The glass setting's range and default. 92% keeps the desktop as a quiet
-// suggestion behind the theme; 100% is a solid paper window.
-const (
-	glassTintMin     = 0
-	glassTintMax     = 100
-	glassTintDefault = 92
-)
-
-// glassTintPercent clamps a saved tint and fills in the default for settings
-// written before the control existed. Zero is a real choice, so only a nil
-// saved value takes the default.
-func glassTintPercent(v *int) int {
-	if v == nil {
-		return glassTintDefault
-	}
-	if *v < glassTintMin {
-		return glassTintMin
-	}
-	if *v > glassTintMax {
-		return glassTintMax
-	}
-	return *v
-}
-
 func (s appSettings) save() {
 	_ = os.MkdirAll(supportDir(), 0o755)
 	data, err := json.MarshalIndent(s, "", "  ")
@@ -276,11 +246,9 @@ func (w *workspace) openSettings() {
 	w.settingsWin.OnClosed(func() {
 		w.settingsWin = nil
 		w.settingsShown = false
-		// A confirmation left open when the window closes must not greet
-		// the next visit.
-		w.clearArchivedOpen = false
+		// A confirmation left pending when the window closes must not
+		// greet the next visit.
 		w.clearArchivedEntries = nil
-		w.archivedDeleteOpen = false
 		w.archivedDeleteID = ""
 	})
 }
@@ -318,12 +286,6 @@ func (w *workspace) settingsView(c *ui.Context) {
 	})
 	// The page's own alerts sit over it, in the same glass frame as the
 	// dialogs on the main window.
-	if w.clearArchivedOpen {
-		w.clearArchivedDialog(c, tk)
-	}
-	if w.archivedDeleteOpen {
-		w.archivedSessionDeleteDialog(c, tk)
-	}
 }
 
 // settingsSidebar is the window's left rail: the pages above, the config
@@ -446,12 +408,6 @@ func (w *workspace) generalPage(c *ui.Context, tk tokens) {
 				w.invalidateSettings()
 			},
 		})
-		if w.settings.SidebarMaterial {
-			cardDivider(c, tk)
-			w.settingActionRow(c, tk,
-				locales.SettingsGlassTint(), locales.SettingsGlassTintDetail(),
-				func() { w.glassTintSlider(c, tk) })
-		}
 		cardDivider(c, tk)
 		w.settingRowView(c, tk, settingRow{
 			title:  locales.SettingsShowSidebar(),
@@ -823,26 +779,6 @@ func (w *workspace) paneStyleRow(c *ui.Context, tk tokens) {
 	})
 }
 
-// glassTintSlider is how much of the desktop the glass window lets through:
-// the whole useful range, with a live percentage beside it. 100% turns the
-// material off without giving up the raised chrome.
-func (w *workspace) glassTintSlider(c *ui.Context, tk tokens) {
-	current := float64(glassTintPercent(w.settings.GlassTint))
-	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-		slider := ui.Slider(c, &current, glassTintMin, glassTintMax).
-			Width(190).Label(locales.SettingsGlassTint())
-		ui.Text(c, fmt.Sprintf("%d%%", int(math.Round(current)))).
-			FontSize(12).TextColor(tk.MutedForeground).Width(34)
-		if slider.Changed() {
-			n := int(math.Round(current))
-			w.settings.GlassTint = &n
-			w.settings.save()
-			w.invalidate()
-			w.invalidateSettings()
-		}
-	})
-}
-
 // appearanceRow pins the app's light or dark look, or follows the system's.
 func (w *workspace) appearanceRow(c *ui.Context, tk tokens) {
 	ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
@@ -1065,7 +1001,7 @@ func settingsCard(c *ui.Context, tk tokens, rows func()) {
 // remaining rows slide up into the gap, instead of the whole card snapping
 // one row shorter.
 func settingsCardMotion(c *ui.Context, tk tokens, id string, rows func()) {
-	card := ui.Column(c).Key("settings-card:" + id).FillWidth().Radius(10).
+	card := ui.Column(c.Key("settings-card:" + id)).FillWidth().Radius(10).
 		Clip().Background(tk.Background)
 	// The card is clipped to its bounds, so the leaving copy does not paint
 	// over the section label below it while the height eases down.
@@ -1086,7 +1022,7 @@ func settingsCardMotion(c *ui.Context, tk tokens, id string, rows func()) {
 type settingControlSlotKey struct{ id string }
 
 func settingControlSlot(c *ui.Context, id, form string, build func()) {
-	el := ui.Row(c).Shrink(0).Key("setting-control:" + id + ":" + form)
+	el := ui.Row(c.Key("setting-control:" + id + ":" + form)).Shrink(0)
 	el.Transition(ui.ElementTransition{
 		Duration: chipMotion,
 		Ease:     ui.EaseOut,

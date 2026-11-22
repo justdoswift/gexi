@@ -397,6 +397,9 @@ func (w *workspace) stageMirrorSize(p *pane) (float32, float32) {
 	if p.viewW > 0 && p.viewH > 0 {
 		return p.viewW, p.viewH
 	}
+	if p.term == nil {
+		return stageCardW, stageCardH
+	}
 	cols, rows := p.term.Size()
 	if cols <= 0 || rows <= 0 || w.paneCellW <= 0 || w.paneCellH <= 0 {
 		return stageCardW, stageCardH

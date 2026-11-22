@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/justdoswift/gexi/locales"
@@ -161,33 +162,26 @@ func (w *workspace) confirmDeleteArchivedSession(id string) {
 	if _, ok := findStoredSession(w.archivedSessions, id); !ok {
 		return
 	}
-	w.archivedDeleteID = id
-	w.archivedDeleteOpen = true
-	w.invalidateSettings()
-}
-
-// archivedSessionDeleteDialog is the settings window's alert for that delete.
-func (w *workspace) archivedSessionDeleteDialog(c *ui.Context, tk tokens) {
-	rec, ok := findStoredSession(w.archivedSessions, w.archivedDeleteID)
+	rec, ok := findStoredSession(w.archivedSessions, id)
 	if !ok {
-		w.archivedDeleteOpen = false
-		w.archivedDeleteID = ""
 		return
 	}
-	dialogAlert(c, tk, &w.archivedDeleteOpen, 430,
-		locales.ArchiveSessionDeleteTitle(),
-		locales.ArchiveSessionDeleteBody(storedSessionTitle(rec)),
-		dialogAction{label: locales.Cancel(), kind: dialogQuiet, auto: true, run: func() {
-			w.archivedDeleteOpen = false
-		}},
-		dialogAction{label: locales.ArchiveDelete(), kind: dialogDanger, run: func() {
-			w.archivedDeleteOpen = false
-			w.deleteArchivedSession(rec.Session.ID)
-		}},
-	)
-	if !w.archivedDeleteOpen {
+	w.archivedDeleteID = id
+	w.askConfirm(nativeAsk{
+		kind:        mygo.MessageWarning,
+		title:       locales.ArchiveSessionDeleteTitle(),
+		message:     locales.ArchiveSessionDeleteBody(storedSessionTitle(rec)),
+		buttons:     []string{locales.Cancel(), locales.ArchiveDelete()},
+		def:         0,
+		cancel:      0,
+		destructive: 1,
+	}, func(button int) {
+		if button == 1 {
+			w.deleteArchivedSession(id)
+		}
 		w.archivedDeleteID = ""
-	}
+	})
+	w.invalidateSettings()
 }
 
 // deleteArchivedSession forgets the saved session and the screens kept for
@@ -216,12 +210,21 @@ func (w *workspace) idleSessionSection(c *ui.Context, tk tokens) {
 		return
 	}
 	open := w.idleOpen
-	row := ui.Row(c).Height(groupRowHeight).Padding(0, 8, 0, 8).Gap(5).
-		Radius(chromeRadius).MarginX(2)
+	row := ui.Row(c).Height(sidebarRowHeight).
+		Padding(0, sidebarRowEnd, 0, sidebarRowInset).Gap(sidebarRowGap).
+		Radius(sidebarRowRadius()).MarginX(2).MarginY(rowMarginY).
+		Border(1, ui.Transparent)
 	color := tk.MutedForeground
 	if row.Hovered() {
 		color = tk.Foreground
-		row = row.Background(tk.Active)
+		// The fold's header is a row of the sidebar like any other, so the
+		// pointer gives it the same material the session rows wear. A flat
+		// fill here was the one opaque block left in a list made of glass.
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Active)
+		}
 	}
 	toggle := func() {
 		w.idleOpen = !w.idleOpen
@@ -238,7 +241,7 @@ func (w *workspace) idleSessionSection(c *ui.Context, tk tokens) {
 		if src := iconSource("folder", colorHex(tk.MutedForeground)); src != nil {
 			ui.Image(c, src).Width(13).Height(13).IgnoreInput(true).OnClick(toggle)
 		}
-		ui.Text(c, locales.SessionIdle()).FontSize(11.5).FontWeight(600).SingleLine().
+		ui.Text(c, locales.SessionIdle()).FontSize(sidebarRowFont).FontWeight(600).SingleLine().
 			TextColor(color).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		ui.Text(c, strconv.Itoa(len(w.idleSessions))).FontSize(10.5).
@@ -247,7 +250,11 @@ func (w *workspace) idleSessionSection(c *ui.Context, tk tokens) {
 	// The rows open to their full height and close again, so the list
 	// makes room for them smoothly. The header owns the height's animation:
 	// it is the part drawn in both states.
-	rowsH := float32(len(w.idleSessions))*(rowHeightPx+2) - 2
+	// A row is its height, the gap under it, and the room its margins take:
+	// the same margins the session rows keep, so the fold's rows line up with
+	// the list above them.
+	rowStride := rowHeightPx + 2*rowMarginY + 2
+	rowsH := float32(len(w.idleSessions))*rowStride - 2
 	target := float32(0)
 	if open {
 		target = rowsH
@@ -276,12 +283,20 @@ func (w *workspace) idleSessionSection(c *ui.Context, tk tokens) {
 // stray click on the fold cannot start work by accident; Restore in the
 // menu is the only way back.
 func (w *workspace) idleSessionRow(c *ui.Context, tk tokens, rec storedSession) {
-	row := ui.Row(c).Height(rowHeightPx).PaddingStart(8 + 16).PaddingEnd(8).Gap(8).
-		Radius(chromeRadius).MarginX(2)
+	// The hairline is reserved here too, so a row of the fold is exactly as
+	// wide as a session row above it.
+	row := ui.Row(c).Height(sidebarRowHeight).
+		PaddingStart(sidebarRowInset + sidebarRowStep).PaddingEnd(sidebarRowEnd).Gap(sidebarRowGap).
+		Radius(sidebarRowRadius()).MarginX(2).MarginY(rowMarginY).
+		Border(1, ui.Transparent)
 	color := tk.MutedForeground
 	if row.Hovered() {
 		color = tk.Foreground
-		row = row.Background(tk.Foreground.Alpha(0.045))
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Foreground.Alpha(0.045))
+		}
 	}
 	pick := func() { w.restoreIdleSession(rec.Session.ID) }
 	row.Tooltip(storedSessionDetail(rec)).ContextMenu(func(m *ui.Menu) {
@@ -294,9 +309,9 @@ func (w *workspace) idleSessionRow(c *ui.Context, tk tokens, rec storedSession) 
 		}
 	}).Children(func() {
 		if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(14).Height(14)
+			ui.Image(c, src).Width(sidebarRowMark).Height(sidebarRowMark)
 		}
-		ui.Text(c, storedSessionTitle(rec)).FontSize(13).FontWeight(500).SingleLine().
+		ui.Text(c, storedSessionTitle(rec)).FontSize(sidebarRowFont).FontWeight(500).SingleLine().
 			TextColor(color)
 		ui.Spacer(c)
 	})

@@ -129,4 +129,3 @@ func TestLeavingChipIsOneCenteredSpinner(t *testing.T) {
 		t.Fatalf("the spinner's center is at %.1f, want the chip's 110", center)
 	}
 }
-

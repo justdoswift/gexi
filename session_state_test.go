@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/justdoswift/gexi/locales"
@@ -245,16 +246,26 @@ func TestArchivePageListsSessionsAndAsksBeforeDeleting(t *testing.T) {
 			t.Fatalf("the page does not show %q; it shows %q", text, tester.Texts())
 		}
 	}
+	asked := make(chan mygo.MessageOptions, 1)
+	answered := make(chan int, 1)
+	prev := askNative
+	askNative = func(o mygo.MessageOptions) (mygo.MessageResult, error) {
+		asked <- o
+		return mygo.MessageResult{Button: <-answered}, nil
+	}
+	defer func() { askNative = prev }()
 	if err := tester.Click(locales.ArchiveDelete()); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
-	if !w.archivedDeleteOpen {
-		t.Fatal("Delete ran without asking")
+	o := <-asked
+	if o.Title != locales.ArchiveSessionDeleteTitle() {
+		t.Fatalf("the alert asks %q, want the delete question", o.Title)
 	}
-	if !tester.HasText(locales.ArchiveSessionDeleteTitle()) {
-		t.Fatalf("the confirmation is not drawn; it shows %q", tester.Texts())
+	if len(o.DestructiveButtons) != 1 || o.DestructiveButtons[0] != 1 {
+		t.Fatalf("deleting is not marked destructive: %v", o.DestructiveButtons)
 	}
+	answered <- 0
 }
 
 // Deleting an archived session forgets its record and the screens kept for

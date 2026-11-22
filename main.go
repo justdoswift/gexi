@@ -20,7 +20,7 @@ import (
 var updateIcon []byte
 
 // Version is what ping and info report.
-const Version = "0.0.115"
+const Version = "0.0.132"
 
 func main() {
 	// Hooks call back into this same binary (`gexi event turn.start`), so it
@@ -97,25 +97,39 @@ func main() {
 			MinWidth:  760,
 			MinHeight: 440,
 			StateKey:  "gexi",
-			Content:   ui.View(w.view),
+			Content:   ui.View(w.chromeView),
 			// Rex chrome: no title bar; the view draws under the traffic
 			// lights, which the layout leaves room for.
 			TitleBarStyle: mygo.TitleBarHidden,
 			// The lights share the line of the pane header beside them: its
 			// title sits at about 29 from the top, and a button is 14 tall.
 			TrafficLightPosition: &mygo.Point{X: 20, Y: 22},
-			// The window carries the system's Liquid Glass for the optional
-			// translucent sidebar. The view paints the sidebar and the canvas
-			// as one surface; with the material on, that surface lets the
-			// glass through instead of covering it.
+			// The window carries the system's Liquid Glass. NSGlassEffectView
+			// is what macOS 26 and later draw, and it is the only thing that
+			// can sample the desktop behind the window: the shader glass in
+			// plugins/glass reads the page's own pixels, so over an empty
+			// window it has nothing to bend and tones to a flat milky sheet.
+			// VibrancySidebar, the old frosted material, is not glass at all.
+			// The view leaves the window's surface bare where the material
+			// should show (see workspace.view), and tints it through
+			// VibrancyTint rather than painting a colour over it.
 			Transparent: true,
 			Vibrancy:    mygo.VibrancyGlass,
+			// The theme's paper, as a tint on the material rather than a
+			// colour painted over it. Only macOS 26's glass takes one, and
+			// it is what seats the theme's warmth on the system's frost
+			// without standing between the glass and the desktop.
+			VibrancyTint: w.glassTint(),
 			// Still the window color on the platforms whose material shows
 			// none, where the view paints the same backdrop itself.
 			BackgroundColor: w.mainBackground(),
 		})
 		w.win = win
-		win.OnShow(func() { win.Invalidate() })
+		win.OnShow(func() {
+			// A window on screen no longer naps, so the hold is not needed.
+			w.releaseKeepRunning()
+			win.Invalidate()
+		})
 
 		// gexi: closing the window hides it; shells keep running.
 		win.OnClose(func(e *mygo.CloseEvent) {
@@ -124,6 +138,7 @@ func main() {
 			}
 			e.PreventDefault()
 			win.Hide()
+			w.holdKeepRunning()
 		})
 
 		mygo.App.SetMenu(mainMenu(w))
@@ -138,6 +153,7 @@ func main() {
 		w.startRemoteClients()
 		stop := startControl(w)
 		mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
+			w.releaseKeepRunning()
 			w.quitting = true
 			w.stopRelay()
 			w.stopRemoteServer()
