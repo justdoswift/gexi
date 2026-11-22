@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/plugins/loading"
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
@@ -141,21 +142,7 @@ func (w *workspace) view(c *ui.Context) {
 	// deeper paper into the page's colour toward the bottom, so the window
 	// has a quiet vertical light even when the desktop behind it is plain.
 	root := ui.Row(c).Fill()
-	if liquid(c) {
-		// The theme's paper, not a clear pane: the glass density setting
-		// decides how much of the desktop shows through the sidebar, while
-		// the terminal card below adds its own sheet so the text keeps the
-		// theme's contrast.
-		tint := float32(glassTintPercent(w.settings.GlassTint)) / 100
-		top := tk.Background.Alpha(tint)
-		if !tk.Dark && w.settings.PaneStyle == paneComfortable {
-			// The light comfortable canvas starts one step deeper than the
-			// page and rises to it, so the sidebar carries the window's
-			// vertical light. A dark theme keeps its own canvas flat.
-			top = tk.Muted.Alpha(tint)
-		}
-		root = root.Gradient(top, tk.Background.Alpha(tint), 180)
-	} else {
+	if !liquid(c) {
 		root = root.Background(w.backdrop(tk))
 	}
 
@@ -191,8 +178,8 @@ func (w *workspace) view(c *ui.Context) {
 		// a frame — drawn as a ghost of itself, fading in over the old one.
 		c.Key("canvas")
 		canvas := ui.Column(c).Fill().Padding(inset, inset, inset, left)
-		if w.settings.PaneStyle != paneComfortable {
-			canvas = canvas.Background(w.backdrop(tk))
+		if w.settings.PaneStyle != paneComfortable || liquid(c) {
+			canvas = canvas.Background(tk.Muted)
 		}
 		canvas.Children(func() {
 			w.canvas(c, tk)
@@ -415,6 +402,16 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 	// under it and under the canvas, so the two sides are one backdrop.
 	// Collapsed, it takes no width and the canvas covers the surface.
 	side := ui.Column(c).Width(width).FillHeight().Clip().Shrink(0)
+	if liquid(c) {
+		// A pane of glass in its own right, not a tint over the whole window:
+		// the canvas keeps the theme's paper, and this sheet keeps its rim, its
+		// lens, and the desktop showing through.
+		side = side.Material(glass.Glass{
+			Tint:    tk.Background.Alpha(float32(100-glassTintPercent(w.settings.GlassTint)) / 100 * 0.85),
+			Clarity: 0.55,
+		}).Radius(16).Margin(6, 8, 6, 6)
+		side = lifted(side, tk)
+	}
 	side.Children(func() {
 		w.sidebarHeader(c, tk)
 		// MinHeight(0) lets the body give way under the header: its own
