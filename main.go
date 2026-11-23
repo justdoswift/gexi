@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"log"
 	"os"
+	"runtime/debug"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater"
@@ -28,6 +29,14 @@ func main() {
 	if runEventCommand(os.Args[1:]) {
 		return
 	}
+
+	// The default GOGC=100 lets the heap grow to twice its live size before
+	// collecting, and idle spans then sit in the scavenger's queue instead of
+	// going back to the system — measured ~170 MB of unused-but-held heap on
+	// top of ~110 MB live. Half the growth target keeps RSS near the live
+	// heap; this app allocates in bursts (terminal output), so the extra
+	// scans cost little.
+	debug.SetGCPercent(50)
 
 	// A bundle can hold a newer version than the process that is running;
 	// start it rather than report and update as the older one.

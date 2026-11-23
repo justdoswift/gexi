@@ -32,6 +32,12 @@ type stageMirror struct {
 	conn   *mirrorConn
 	mirror *terminal.Mirror
 	stop   chan struct{}
+	// pane is the mirrored pane, and lastOut/lastCols/lastRows what the
+	// last frame saw of it: a frame is rendered only when the output byte
+	// count or the size moved, and a quiet pane costs the pump nothing.
+	pane               *pane
+	lastOut            int64
+	lastCols, lastRows int
 }
 
 // mirrorConn carries mirror frames to the sink terminal. Frames are deltas,
@@ -215,6 +221,7 @@ func (w *workspace) startStageMirror(p *pane) {
 		Conn:         conn,
 		ResizeByConn: true,
 		Scrollback:   -1,
+		ImageLimit:   32 << 20,
 		NoBlink:      true,
 		Transparent:  true,
 		Theme:        lightTheme,
@@ -233,7 +240,7 @@ func (w *workspace) startStageMirror(p *pane) {
 		_ = sink.Close()
 		return
 	}
-	sm := &stageMirror{sink: sink, conn: conn, mirror: m, stop: make(chan struct{})}
+	sm := &stageMirror{sink: sink, conn: conn, mirror: m, stop: make(chan struct{}), pane: p}
 	p.stageMirror = sm
 	go sm.pump()
 }
@@ -260,8 +267,28 @@ func (sm *stageMirror) pump() {
 		case <-sm.stop:
 			return
 		case <-ticker.C:
+			// Frames walk the whole screen, so skip the ones nothing
+			// would change: remote panes report no byte count and render
+			// every tick as before.
+			out, busy := int64(-1), false
+			if p := sm.pane; p != nil && p.conn != nil {
+				out, busy = p.conn.outputState()
+			}
+			cols, rows := 0, 0
+			if p := sm.pane; p != nil && p.term != nil {
+				cols, rows = p.term.Size()
+			}
+			if out >= 0 && !busy && out == sm.lastOut && cols == sm.lastCols && rows == sm.lastRows {
+				continue
+			}
 			if frame, _ := sm.mirror.Frame(); len(frame) > 0 {
 				sm.conn.push(frame)
+			}
+			// A count the terminal has not caught up with is no mark of
+			// what the frame showed: leaving lastOut alone renders the
+			// chunk again next tick, once the screen carries it.
+			if !busy {
+				sm.lastOut, sm.lastCols, sm.lastRows = out, cols, rows
 			}
 		}
 	}
