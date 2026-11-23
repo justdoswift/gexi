@@ -181,7 +181,7 @@ const (
 	// glassTintAlphaLight is the light window's tint: a little over half, the
 	// point where the desktop still reads through the frost while the pane
 	// cards carry the contrast.
-	glassTintAlphaLight uint8 = 0x8c
+	glassTintAlphaLight uint8 = 0x6d
 	// glassTintAlphaDark is the dark window's: near opaque, so the window is
 	// the theme's black rather than the wallpaper's colour. At the light
 	// value a warm desktop turned the whole window grey-brown.
@@ -223,7 +223,7 @@ func paneGlass(tk tokens) glass.Glass {
 func noticeGlass(tk tokens) glass.Glass {
 	return glass.Glass{
 		Native:  true,
-		Tint:    glassTint(tk).Alpha(0.62),
+		Tint:    glassTint(tk).Alpha(0.30),
 		Clarity: 0,
 	}
 }
