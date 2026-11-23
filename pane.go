@@ -178,6 +178,16 @@ func (c *ptyConn) outputTotal() int64 {
 	return c.outEnd
 }
 
+// outputState is outputTotal with the busy flag: bytes counted but not yet
+// fed to the terminal, as Read sets before it returns the chunk to the
+// reader. A caller that skips work on an unchanged count must not take a
+// count the screen has not caught up with yet.
+func (c *ptyConn) outputState() (int64, bool) {
+	c.cutMu.Lock()
+	defer c.cutMu.Unlock()
+	return c.outEnd, c.busy
+}
+
 // outputSince returns the output logged from offset on, and false when the
 // log no longer holds it.
 func (c *ptyConn) outputSince(offset int64) ([]byte, bool) {
@@ -500,6 +510,9 @@ func (p *pane) wake(launch []string, dir, snapshot string) error {
 			"GEXI_HOME=" + supportDir(),
 		},
 		Scrollback: ws.terminalScrollbackBytes(),
+		// Agents occasionally print images; keep a pane's image store
+		// well under the library's 320 MB default per pane.
+		ImageLimit: 32 << 20,
 		Padding:    terminal.Padding{X: panePadX, Y: panePadY},
 		// The pane card is the terminal's own surface, and leaving the grid's
 		// background undrawn lets the card change colour while its pane is

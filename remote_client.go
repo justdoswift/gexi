@@ -955,6 +955,7 @@ func (rc *remoteConn) newPane(s *session, paneID string) *pane {
 	term, err := terminal.New(terminal.Options{
 		Conn:        sink,
 		Scrollback:  4 << 20,
+		ImageLimit:  32 << 20,
 		Transparent: true,
 		Theme:       lightTheme,
 		DarkTheme:   darkTheme,
