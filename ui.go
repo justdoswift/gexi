@@ -1844,7 +1844,10 @@ func (w *workspace) chromeView(c *ui.Context) {
 	t.ScrollbarStyle = sidebarScrollbar
 	// The wrapper paints nothing: the window's material shows where nothing
 	// is drawn, and a background here would stand between the glass and the
-	// view, as the root's own would.
+	// view, as the root's own would. A tip or a toast writes on the inverse
+	// of the theme, whose text is the theme's background: it keeps the
+	// colour the window paints, or the tip is a box with no words in it.
+	t.Inverse, t.InverseText = t.Text, t.Background
 	t.Background = ui.Transparent
 	ui.Themed(c, &t).Fill().Children(func() {
 		w.view(c)
