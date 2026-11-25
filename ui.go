@@ -433,7 +433,15 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 				col.Children(func() {
 					rows := w.sidebarProjectRows()
 					if len(rows) == 0 {
-						ui.Text(c, locales.NoProjects()).FontSize(12).
+						// An empty list means two different things: no project
+						// at all, or none that match what the search box holds.
+						// Saying "No projects" while the user is searching reads
+						// as though their projects were gone.
+						empty := locales.NoProjects()
+						if strings.TrimSpace(w.searchQuery) != "" {
+							empty = locales.SearchEmpty()
+						}
+						ui.Text(c, empty).FontSize(12).
 							TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
 					} else {
 						// The projects are one list, so one that comes, goes
@@ -600,7 +608,7 @@ func (w *workspace) searchResults(c *ui.Context, tk tokens) {
 			continue
 		}
 		found = true
-		ui.Text(c, pr.name()).FontSize(11).FontWeight(400).SingleLine().
+		ui.Text(c, pr.name()).FontSize(11).FontWeight(400).SingleLine().Shrink(1).
 			TextColor(tk.MutedForeground).Padding(6, 8, 2, 8)
 		for _, s := range rows {
 			w.searchResultRow(c, tk, s)
@@ -690,7 +698,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 				ui.Image(c, src).Width(13).Height(13).OnClick(toggle)
 			}
 		}
-		ui.Text(c, pr.name()).FontSize(sidebarRowFont).FontWeight(400).SingleLine().
+		ui.Text(c, pr.name()).FontSize(sidebarRowFont).FontWeight(400).SingleLine().Shrink(1).
 			TextColor(color).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		if pr.remote != nil && pr.remote.conn.err != "" {
@@ -813,7 +821,7 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 		if src := iconSource("folder", colorHex(color)); src != nil {
 			ui.Image(c, src).Width(13).Height(13).IgnoreInput(true).OnClick(toggle)
 		}
-		ui.Text(c, g.project.Name).FontSize(sidebarRowFont).FontWeight(400).SingleLine().
+		ui.Text(c, g.project.Name).FontSize(sidebarRowFont).FontWeight(400).SingleLine().Shrink(1).
 			TextColor(color).Tooltip(g.project.Dir).OnClick(toggle)
 		ui.Spacer(c).OnClick(toggle)
 		if hovered {
@@ -934,7 +942,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		// The name reads still: the spinner in the mark's slot is what says
 		// the session works, and a name that moves beside it says nothing
 		// more while it asks for a frame every step.
-		labelEl := ui.Text(c, label).FontSize(sidebarRowFont).FontWeight(400).SingleLine()
+		labelEl := ui.Text(c, label).FontSize(sidebarRowFont).FontWeight(400).SingleLine().Shrink(1)
 		switch activity {
 		case activityWorking, activityWaiting:
 			labelEl = labelEl.TextColor(tk.Foreground)
