@@ -159,12 +159,18 @@ func paintPaneBeam(p *ui.Painter, r ui.Rect, tk tokens, card bool, now time.Time
 	if !tk.Dark {
 		pair = beamPairLight
 	}
-	radius := float32(0)
+	// The system's glass lights a rim just outside the card's box, and a
+	// beam clipped at that box rode the card inside its own rim, a grey
+	// line between the light and the edge it belongs to. Paint a hair past
+	// the box instead, so the light sits on the border.
+	const spread float32 = 1
+	box := ui.Rect{X: r.X - spread, Y: r.Y - spread, W: r.W + 2*spread, H: r.H + 2*spread}
+	radius := spread
 	if card {
-		radius = windowRadius
+		radius = windowRadius + spread
 	}
-	p.Clip(r, radius, func() {
-		beamShader.Draw(p, r, shader.Options{Uniforms: map[string]any{
+	p.Clip(box, radius, func() {
+		beamShader.Draw(p, box, shader.Options{Uniforms: map[string]any{
 			"Red":    pair.first,
 			"Blue":   pair.second,
 			"T":      phase,

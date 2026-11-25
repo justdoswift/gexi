@@ -91,7 +91,7 @@ func beamColored(img *image.RGBA) int {
 // come round to it. The top stays dark in between.
 func TestBeamTravelsTheBorder(t *testing.T) {
 	early, late := beamAt(true, 0.25, false), beamAt(true, 0.75, false)
-	right := func(img *image.RGBA) (r, g, b int) { return beamPixel(img, 318, 120) }
+	right := func(img *image.RGBA) (r, g, b int) { return beamPixel(img, 320, 120) }
 	if r, _, b := right(early); r <= b {
 		t.Fatalf("the right edge is not red early: %d, %d", r, b)
 	}
@@ -108,7 +108,7 @@ func TestBeamTravelsTheBorder(t *testing.T) {
 func TestBeamStaysOnTheBorder(t *testing.T) {
 	lit := beamAt(true, 0.25, false)
 	rest := beamFrame(true, 0.25, false, false)
-	if beamLuma(lit, 318, 120) <= beamLuma(rest, 318, 120) {
+	if beamLuma(lit, 320, 120) <= beamLuma(rest, 320, 120) {
 		t.Fatal("the beam does not light the border")
 	}
 	for _, p := range [][2]int{{170, 120}, {170, 40}, {40, 120}, {10, 120}, {330, 120}, {170, 230}} {
@@ -198,7 +198,7 @@ func TestBeamHoldsStillWithoutMotion(t *testing.T) {
 			}
 		}
 	}
-	if beamLuma(a, 318, 120) <= 0 {
+	if beamLuma(a, 320, 120) <= 0 {
 		t.Fatal("the still light is not drawn")
 	}
 }
@@ -209,11 +209,11 @@ func TestBeamHoldsStillWithoutMotion(t *testing.T) {
 func TestBeamDrawsOnALightSurface(t *testing.T) {
 	lit := beamFrame(false, 0.25, false, true)
 	rest := beamFrame(false, 0.25, false, false)
-	if beamLuma(lit, 318, 120) >= beamLuma(rest, 318, 120) {
+	if beamLuma(lit, 319, 120) >= beamLuma(rest, 319, 120) {
 		t.Fatalf("the light beam does not darken the border: %d vs %d",
-			beamLuma(lit, 318, 120), beamLuma(rest, 318, 120))
+			beamLuma(lit, 319, 120), beamLuma(rest, 319, 120))
 	}
-	r, g, b := beamPixel(lit, 318, 120)
+	r, g, b := beamPixel(lit, 319, 120)
 	if max(r, max(g, b))-min(r, min(g, b)) <= 8 {
 		t.Fatal("the light beam lost its colour on a light surface")
 	}
