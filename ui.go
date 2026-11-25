@@ -1093,6 +1093,22 @@ func (p *pane) working() bool {
 	return true
 }
 
+// beamOn reports whether the light should still paint in a frame that only
+// paints. It reads the pane's state without the time windows working() uses:
+// those judge a title's spinner and a quiet turn when the view is built, and
+// the sidebar's loader keeps that answer until the next build. A paint frame
+// that judged them again would drop the light before the loader beside it
+// goes, and the two would read as split apart.
+func (p *pane) beamOn() bool {
+	if p.subagentCount() > 0 {
+		return true
+	}
+	if p.activity != nil && (p.activity.State == activityIdle || p.activity.State == activityWaiting) {
+		return p.titleWorking()
+	}
+	return true
+}
+
 // activityLapsed reports whether a working mark has gone stale: no output,
 // no animating title, and no subagent still running.
 func (p *pane) activityLapsed() bool {
@@ -1748,13 +1764,20 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		if p.working() {
 			still := c.Preferences().ReduceMotion
 			start := p.beamStart
+			// A title's mark is work only while it moves. Ask for a build
+			// once its window is up, so a spinner that has stopped takes
+			// the sidebar's loader and the light together, instead of
+			// leaving the loader turning beside a light that went out.
+			if p.titleWorking() {
+				c.After(titleWorkWindow)
+			}
 			col = col.DrawOver(func(pt *ui.Painter, r ui.Rect) {
 				// The beam paints in frames that only paint, so no frame
 				// that builds the view comes round to notice the work is
 				// over. Ask again here, every frame: a turn that ended
-				// without its hook, or a title that stopped spinning, then
-				// takes the light with it instead of leaving it running.
-				if !p.working() {
+				// without its hook then takes the light with it instead of
+				// leaving it running.
+				if !p.beamOn() {
 					return
 				}
 				paintPaneBeam(pt, r, tk, card, pt.Now(), still, start)

@@ -157,6 +157,36 @@ func TestBeamStopsWhenTheWorkEndsWithoutARebuild(t *testing.T) {
 	}
 }
 
+// TestBeamOnKeepsTheLightPastTheQuietWindow: a paint frame keeps the light
+// on the turn's own state. The quiet window working() applies belongs to the
+// sidebar's loader, judged when the view is built; a frame that judged it
+// again would put the light out while the loader beside it still turned.
+func TestBeamOnKeepsTheLightPastTheQuietWindow(t *testing.T) {
+	p := &pane{outAt: time.Now().Add(-activityQuiet - time.Second)}
+	p.activity = &agentActivity{State: activityWorking}
+	if p.working() {
+		t.Fatal("the quiet window did not lapse the work")
+	}
+	if !p.beamOn() {
+		t.Fatal("the light went out before the sidebar's loader")
+	}
+	// A turn the hook ended, or one parked on the user, takes the light
+	// with it at once.
+	p.activity = &agentActivity{State: activityIdle}
+	if p.beamOn() {
+		t.Fatal("an idle turn kept its light")
+	}
+	p.activity = &agentActivity{State: activityWaiting}
+	if p.beamOn() {
+		t.Fatal("a waiting turn kept its light")
+	}
+	// A background subagent outlives its turn and keeps the light on.
+	p.subagents = map[string]paneSubagent{"a": {}}
+	if !p.beamOn() {
+		t.Fatal("a running subagent lost its light")
+	}
+}
+
 // TestBeamHoldsStillWithoutMotion: the desktop's reduced-motion form keeps
 // the light in one place, so two frames of different times are the same.
 func TestBeamHoldsStillWithoutMotion(t *testing.T) {
