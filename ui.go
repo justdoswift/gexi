@@ -1054,6 +1054,11 @@ func sessionActivityState(s *session) string {
 		if p.activity != nil && p.activity.State == activityWaiting {
 			return activityWaiting
 		}
+		// An agent that waits on a permission request or a question says so
+		// in its title too, and a pane opened mid-wait has no event to read.
+		if p.titleWaiting() {
+			return activityWaiting
+		}
 		if p.working() {
 			working = true
 		}

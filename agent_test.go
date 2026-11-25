@@ -1,6 +1,9 @@
 package main
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -54,6 +57,57 @@ func TestAgentPaneFallsBackToShell(t *testing.T) {
 	// A command that is not a shell wrapper cannot take a fallback.
 	if got := withShellFallback([]string{"claude"}); len(got) != 1 || got[0] != "claude" {
 		t.Fatalf("bare command = %v, want unchanged", got)
+	}
+}
+
+func TestDimAgent(t *testing.T) {
+	if got := strings.Join(agentDim.launch(), "\x00"); got != strings.Join(shellCommand("dima"), "\x00") {
+		t.Fatalf("dim launch = %q", got)
+	}
+	id := "11111111-1111-4111-8111-111111111111"
+	if got := strings.Join(agentDim.resume(id), "\x00"); got != strings.Join(shellCommand(dimResumeCommand(id)), "\x00") {
+		t.Fatalf("dim resume = %q", got)
+	}
+	if got := agentDim.name(); got != "Dim" {
+		t.Fatalf("dim name = %q", got)
+	}
+	for _, name := range []string{"dima", "dimcode", "dim-nightly"} {
+		if kind := agentNamed(name); kind != agentDim {
+			t.Errorf("agentNamed(%q) = %q, want dim", name, kind)
+		}
+	}
+	if kind := agentNamed("dimcode-server"); kind != "" {
+		t.Errorf("the server binary is not a pane's agent, got %q", kind)
+	}
+}
+
+// TestNewestDimSessionID reads the pane's session the way detection does: one
+// read-only query against the home's own catalog.
+func TestNewestDimSessionID(t *testing.T) {
+	sqlite, err := exec.LookPath("sqlite3")
+	if err != nil {
+		t.Skip("sqlite3 is not installed")
+	}
+	home := t.TempDir()
+	database := filepath.Join(home, "rust", "dimcode.sqlite")
+	if err := os.MkdirAll(filepath.Dir(database), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	seed := `
+create table session_catalog (session_id text primary key, updated_at_ms integer not null, preview text, cwd text not null);
+insert into session_catalog values ('11111111-1111-4111-8111-111111111111', 10, null, '/work/a');
+insert into session_catalog values ('22222222-2222-4222-8222-222222222222', 20, null, '/work/a');
+insert into session_catalog values ('33333333-3333-4333-8333-333333333333', 30, null, '/work/b');
+`
+	if out, err := exec.Command(sqlite, database, seed).CombinedOutput(); err != nil {
+		t.Fatalf("seed: %v: %s", err, out)
+	}
+	t.Setenv("DIMCODE_HOME", home)
+	if got := newestDimSessionID("/work/a"); got != "22222222-2222-4222-8222-222222222222" {
+		t.Fatalf("newest for /work/a = %q", got)
+	}
+	if got := newestDimSessionID("/work/nowhere"); got != "" {
+		t.Fatalf("unknown directory = %q, want empty", got)
 	}
 }
 

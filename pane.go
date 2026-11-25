@@ -634,6 +634,19 @@ func (p *pane) titleShowsWork() bool {
 	return p != nil && p.term != nil && titleShowsWork(p.term.Title())
 }
 
+// titleShowsWaiting reports whether an agent's title says it waits on the
+// user. Dim stands a still dot in front of the title while a permission
+// request or a question holds the run; nothing moves there, so the spinner
+// rules cannot see it, and the dot is the one mark that means waiting.
+func titleShowsWaiting(title string) bool {
+	return strings.HasPrefix(strings.TrimSpace(title), "●")
+}
+
+// titleWaiting is titleShowsWaiting for the pane's terminal.
+func (p *pane) titleWaiting() bool {
+	return p != nil && p.term != nil && titleShowsWaiting(p.term.Title())
+}
+
 // titleWorkWindow is how long a mark in the title counts as work without
 // moving. A working agent's mark changes every few hundred milliseconds, so
 // one that has stood still this long is the last frame it left behind.

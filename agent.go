@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -27,6 +28,7 @@ const (
 	agentPerch  agentKind = "perch"
 	agentPi     agentKind = "pi"
 	agentAmp    agentKind = "amp"
+	agentDim    agentKind = "dim"
 )
 
 type agentDetection struct {
@@ -39,7 +41,7 @@ type agentDetection struct {
 // worktree session starts them. Every kind launches with its own command, so
 // the list is also the set of commands a pane can be started with.
 func agentKinds() []agentKind {
-	return []agentKind{agentClaude, agentCodex, agentAmp, agentOmp, agentDevin, agentGrok, agentDroid, agentPerch, agentPi}
+	return []agentKind{agentClaude, agentCodex, agentAmp, agentOmp, agentDevin, agentGrok, agentDroid, agentPerch, agentPi, agentDim}
 }
 
 // name is the agent's product name. Chrome shows it instead of the terminal
@@ -64,6 +66,8 @@ func (k agentKind) name() string {
 		return "Pi"
 	case agentAmp:
 		return "Amp"
+	case agentDim:
+		return "Dim"
 	}
 	return string(k)
 }
@@ -75,6 +79,8 @@ func (k agentKind) launch() []string {
 	switch k {
 	case agentPi:
 		return shellCommand(piLaunchCommand())
+	case agentDim:
+		return shellCommand(dimCommand)
 	case agentClaude, agentCodex, agentOmp, agentDevin, agentGrok, agentDroid, agentPerch, agentAmp:
 		return shellCommand(string(k))
 	}
@@ -92,6 +98,8 @@ func (k agentKind) resume(session string) []string {
 	switch k {
 	case agentAmp:
 		return shellCommand("amp threads continue " + shellQuote(session))
+	case agentDim:
+		return shellCommand(dimResumeCommand(session))
 	}
 	return nil
 }
@@ -528,6 +536,18 @@ func detectAgent(pgid int, fallbackCWD string) *agentDetection {
 			// session event replaces this with the exact thread id once the
 			// conversation knows it.
 			return &agentDetection{Kind: agentAmp, Resume: shellCommand("amp threads continue --last")}
+		case agentDim:
+			// Dim names a session by id and has no "the last one here" flag,
+			// so the id comes from the pane's own --resume, or from the last
+			// session dim wrote for this directory.
+			id := sessionIDFromArgs(proc.args)
+			if id == "" {
+				id = newestDimSessionID(fallbackCWD)
+			}
+			if id == "" {
+				return &agentDetection{Kind: agentDim}
+			}
+			return &agentDetection{Kind: agentDim, SessionID: id, Resume: shellCommand(dimResumeCommand(id))}
 		}
 	}
 	return nil
@@ -623,6 +643,8 @@ func agentNamed(name string) agentKind {
 		return agentPi
 	case name == "amp":
 		return agentAmp
+	case name == "dima", name == "dimcode", name == "dim-nightly":
+		return agentDim
 	}
 	return ""
 }
@@ -715,6 +737,62 @@ func claudeProjectSlug(dir string) string {
 			return '-'
 		}
 	}, dir)
+}
+
+// dimCommand is the launcher the Rust alpha is installed under. The npm
+// package ships `dima`, and the nightly channel ships `dim-nightly`; a pane
+// that starts fresh is given the documented one, while detection reads the
+// binary the pane actually runs.
+const dimCommand = "dima"
+
+// dimResumeCommand is how a pane returns to the conversation it had. Dim
+// keeps a session by id and has no flag for the last one in a directory, so
+// the id is always named.
+func dimResumeCommand(session string) string {
+	return dimCommand + " --resume " + shellQuote(session)
+}
+
+// dimHome is the product home Dim keeps its sessions under, which
+// DIMCODE_HOME moves.
+func dimHome() string {
+	if home := strings.TrimSpace(os.Getenv("DIMCODE_HOME")); home != "" {
+		return home
+	}
+	return filepath.Join(homeDir(), ".dimcode-alpha")
+}
+
+// newestDimSessionID finds the session Dim last wrote for cwd, the way
+// newestClaudeSessionID finds Claude Code's newest transcript. The home
+// records each session's directory and when it last moved in a SQLite
+// database, and the system's own sqlite3 answers one indexed query against it
+// — the pane needs the id, not a dependency on Dim's storage format, and a
+// missing binary or an older schema simply leaves the pane without one.
+func newestDimSessionID(cwd string) string {
+	if strings.TrimSpace(cwd) == "" {
+		return ""
+	}
+	database := filepath.Join(dimHome(), "rust", "dimcode.sqlite")
+	if _, err := os.Stat(database); err != nil {
+		return ""
+	}
+	sqlite, err := exec.LookPath("sqlite3")
+	if err != nil {
+		return ""
+	}
+	query := "select session_id from session_catalog where cwd = '" +
+		strings.ReplaceAll(cwd, "'", "''") +
+		"' order by updated_at_ms desc limit 1;"
+	// Read-only, with a short busy timeout: the daemon holds the database
+	// while it writes, and a pane must not wait on it.
+	out, err := exec.Command(sqlite, "-readonly", "-cmd", ".timeout 500", database, query).Output()
+	if err != nil {
+		return ""
+	}
+	id := strings.TrimSpace(string(out))
+	if !isUUID(id) {
+		return ""
+	}
+	return id
 }
 
 func homeDir() string {
