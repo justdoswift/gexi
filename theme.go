@@ -95,13 +95,13 @@ func defaultTokens(dark bool, accent ui.Color) tokens {
 const chromeRadius float32 = 6
 
 // sidebarScrollbar is the bar every scrolling list in the chrome wears: a
-// thin thumb in the middle of a narrow track, so it sits on the last few
-// DIPs of the list rather than floating in a gutter of its own. The
+// hairline thumb in the middle of a narrow track, so it sits on the last
+// few DIPs of the list rather than floating in a gutter of its own. The
 // toolkit's default track is 12 DIP with a 6 DIP thumb, which on a narrow
-// sidebar reads as a thick bar, and even the 6 DIP thumb of the first
-// pass read chunky; 4 DIP still meets a 6 DIP hit area, and grows by 2
-// while dragged.
-var sidebarScrollbar = ui.ScrollbarStyle{TrackWidth: 6, ThumbWidth: 4}
+// sidebar reads as a thick bar; 6, 4 and 3 all read chunky too, so the
+// thumb is a single DIP line. The 6 DIP track keeps the hit area, and a
+// drag grows the thumb by 2.
+var sidebarScrollbar = ui.ScrollbarStyle{TrackWidth: 6, ThumbWidth: 1}
 
 // The metrics every row of the sidebar shares, header or session. They were
 // written out at each site and drifted: a header was 28 tall with a gap of 5
