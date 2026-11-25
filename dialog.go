@@ -321,13 +321,13 @@ func dialogButton(c *ui.Context, tk tokens, a dialogAction, demoteDanger bool) {
 		if hover {
 			fill = accent.MixOklab(ui.RGB(255, 255, 255), 0.14)
 		}
-		b.Background(fill).TextColor(ui.RGB(255, 255, 255))
+		b = b.Background(fill).TextColor(ui.RGB(255, 255, 255))
 	case dialogDanger:
 		fill := systemDanger(tk)
 		if hover {
 			fill = fill.MixOklab(ui.RGB(255, 255, 255), 0.14)
 		}
-		b.Background(fill).TextColor(ui.RGB(255, 255, 255))
+		b = b.Background(fill).TextColor(ui.RGB(255, 255, 255))
 	default:
 		// A demoted destructive action keeps the danger colour on its
 		// words: still legible as the one that costs something, without
@@ -343,7 +343,11 @@ func dialogButton(c *ui.Context, tk tokens, a dialogAction, demoteDanger bool) {
 		if hover {
 			fill = tk.Foreground.Alpha(0.12)
 		}
-		b.Background(fill).TextColor(text).Border(1, tk.Foreground.Alpha(0.12))
+		b = b.Background(fill).TextColor(text).Border(1, tk.Foreground.Alpha(0.12))
 	}
+	// The press is the same on every kind: the fill says what the button
+	// does, the shrink says the click landed. Scale draws the shrink on the
+	// node the button already is, so the call changes it in place.
+	pressFeedback(b)
 }
 

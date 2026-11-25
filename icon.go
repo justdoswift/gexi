@@ -302,6 +302,23 @@ func controlWash(c *ui.Context, el ui.Element, tk tokens, wash float32, fallback
 	return el.Background(tk.Foreground.Alpha(wash))
 }
 
+// pressScale is how far a control shrinks while the pointer holds it down:
+// enough to feel the press, not enough to read as a bounce. The same value
+// the button in a dialog takes, so the whole app answers a press alike.
+const pressScale float32 = 0.97
+
+// pressFeedback makes a control answer the press that is holding it down.
+// A hover says the pointer found the control; a press says the click landed,
+// and without it a button that acts on release reads as though nothing
+// happened between the press and the result. The scale is a drawn transform,
+// so the row it sits in keeps its size and its neighbours do not move.
+func pressFeedback(el ui.Element) ui.Element {
+	if !el.Pressed() {
+		return el
+	}
+	return el.Scale(pressScale, pressScale)
+}
+
 // hoverWash is what a control takes under the pointer. On the glass chrome it
 // is the system's own material, as a notification banner is: it frosts what
 // is behind it and lights its own rim, instead of being a flat wash of ink
@@ -400,6 +417,7 @@ func iconMenuButtonSized(c *ui.Context, tk tokens, name string, size, glyph floa
 	el := ui.Row(c).Width(size).Height(size).Radius(chromeRadius).
 		Center().Cursor(ui.CursorPointer)
 	el = hoverWash(c, el, tk)
+	el = pressFeedback(el)
 	if len(hint) > 0 && hint[0] != "" {
 		// The glyph is the button's only content, so the hint is also the
 		// name assistive technology reads for it.
@@ -427,6 +445,7 @@ func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32,
 	// window's material differ in what shows through, not in how a control
 	// answers the pointer. It eases in and out, so the glyph does not flash.
 	el = hoverWash(c, el, tk)
+	el = pressFeedback(el)
 	el = el.OnClick(action)
 	if len(hint) > 0 && hint[0] != "" {
 		el = el.Tooltip(hint[0])
