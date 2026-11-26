@@ -10,20 +10,34 @@ import (
 )
 
 // The stage rail is zoom's other half. When one pane fills the session, the
-// panes it hides float over the stage on the right, as Stage Manager keeps
-// the windows behind the one in front: tilted back in perspective, each
-// showing a live, scaled mirror of its terminal. A click brings one forward
-// and sends the pane it replaces back to the rail.
+// panes it hides float beside it on the right, as Stage Manager keeps the
+// windows behind the one in front: upright thumbnails of the same size, each
+// with the pane's mark and name above a live, scaled mirror of its terminal.
+// A click brings one forward and sends the pane it replaces back to the rail.
+//
+// They are drawn flat on purpose. A tilted card distorts the text it is
+// showing and reads as decoration; a thumbnail standing square, with the
+// window's own hairline, a lit top edge and shadows that fall further the
+// higher it sits, reads as the window it stands for, which is what Apple's
+// stage does.
 const (
-	stageCardW       float32 = 200
-	stageCardH       float32 = 140
-	stageCardGap     float32 = 18
-	stageRailInset   float32 = 18
+	stageCardW       float32 = 208
+	stageCardH       float32 = 132
+	stageCardGap     float32 = 12
+	stageRailInset   float32 = 20
 	stageRailMinW    float32 = 520
-	stageTiltY       float32 = -18 // degrees around the card's vertical axis
-	stagePerspective float32 = 520 // DIPs from the viewer
+	stageCardRadius  float32 = 12
+	stageCardHeaderH float32 = 26
 	stageMirrorFPS           = 12
 )
+
+// stageCardSpring is how a card takes the pointer and how one arrives: the
+// short spring SwiftUI uses for what the hand touches, small enough that a
+// terminal's thumbnail never looks like a toy.
+var stageCardSpring = ui.Animation{Spring: ui.SpringOptions{
+	Duration: 220 * time.Millisecond,
+	Bounce:   0.08,
+}}
 
 // stageMirror is one off-stage pane's preview: a sink terminal that shows
 // the frames of a Mirror of the pane's own terminal.
@@ -294,8 +308,8 @@ func (sm *stageMirror) pump() {
 	}
 }
 
-// stageOverlay draws the rail over the stage: cards floating at the right
-// edge, vertically centered, each one the mirror of a pane it hides.
+// stageOverlay draws the rail in the band beside the stage: cards standing at
+// the right edge, vertically centered, each one the mirror of a pane it hides.
 func (w *workspace) stageOverlay(c *ui.Context, tk tokens, s *session, stageH float32) {
 	panes := w.stageRailPanes(s)
 	if len(panes) == 0 {
@@ -321,15 +335,15 @@ func (w *workspace) stageOverlay(c *ui.Context, tk tokens, s *session, stageH fl
 	pose := ui.Pose{}
 	if !w.stageRailShown {
 		w.stageRailShown = true
-		pose = ui.Pose{X: 24, Fade: 1}
+		pose = ui.Pose{X: 16, Fade: 1}
 		c.After(time.Millisecond)
 	}
 	rail := ui.Box(c).Width(stageCardW).Height(stackH).Absolute().
 		Right(stageRailInset).Top(top).
-		AnimatePose(pose, ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut})
+		AnimatePose(pose, stageCardSpring)
 	rail.Children(func() {
 		for i, p := range panes {
-			w.stageCardAt(c, tk, p, float32(i)*step)
+			w.stageCardAt(c, tk, p, float32(i)*step, i, len(panes))
 		}
 	})
 }
@@ -343,75 +357,131 @@ func (w *workspace) stageCardOffset() float32 {
 	return w.stageW/2 - (stageRailInset + stageCardW/2)
 }
 
-// stageCardAt is one pane off stage: a floating window, leaning back, showing
-// its terminal mirrored inside, with the pane's mark at its lower left. Every
-// card is the same size; the mirror fills it like a thumbnail. top is where
-// the card sits in the stack, which overlap shortens when the rail is full.
-func (w *workspace) stageCardAt(c *ui.Context, tk tokens, p *pane, top float32) {
+// stageCardAt is one pane off stage: a thumbnail of its window, its mark and
+// name in a title strip, its terminal mirrored below. Every card is the same
+// size; top is where it sits in the stack, which overlap shortens when the
+// rail is full. index is its place in the rail of count: cards further back
+// sit deeper, and a rail coming in lands one card after the next.
+func (w *workspace) stageCardAt(c *ui.Context, tk tokens, p *pane, top float32, index, count int) {
 	wrap := ui.Box(c).Width(stageCardW).Height(stageCardH).Absolute().Left(0).Top(top)
-	// A card that has just joined the rail slides in from the edge; one that
+	// A card that has just joined the rail comes in from the edge; one that
 	// was already there stays put while the stage changes behind it.
 	pose := ui.Pose{}
+	anim := stageCardSpring
 	if !p.stageCardShown {
 		p.stageCardShown = true
 		if p.stageCardShrink {
 			// The pane that was on stage comes back small: it starts where
 			// the stage was, and shrinks into its card.
 			p.stageCardShrink = false
-			pose = ui.Pose{Scale: 2.6, X: -w.stageCardOffset()}
+			pose = ui.Pose{Scale: 2.4, X: -w.stageCardOffset()}
 		} else {
-			pose = ui.Pose{X: 24, Fade: 1}
+			pose = ui.Pose{X: 16, Fade: 1, Scale: 0.98}
+			d := stageCardSpring
+			d.Delay = time.Duration(index) * 24 * time.Millisecond
+			anim = d
 		}
 		c.After(time.Millisecond)
 	}
-	wrap = wrap.AnimatePose(pose, ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut})
+	wrap = wrap.AnimatePose(pose, anim)
 	pick := func() { w.stagePane(p) }
 	wrap.OnClick(pick).Cursor(ui.CursorPointer).Tooltip(p.title()).Children(func() {
-		panel := ui.Box(c).Fill().Clip().Radius(8).
-			Border(1, tk.Foreground.Alpha(0.14)).
-			Background(tk.Background).
-			Shadow(0, 16, 48, 2, stageShadow(tk)).
-			RotateY(stageTiltY).Perspective(stagePerspective).
-			Rotate(-3.5)
-		if panel.Hovered() {
-			panel = panel.AnimatePose(ui.Pose{Scale: 1.035},
-				ui.Animation{Duration: 140 * time.Millisecond, Ease: ui.EaseOut})
-		}
-		panel.OnClick(pick)
-		panel.Children(func() {
-			w.stageMirrorView(c, tk, p)
-			// The mark sits inside the window's lower left, as an app's icon
-			// does on its window in Stage Manager, not on the desktop beside it.
+		w.stageCardPanel(c, tk, p, pick, count-1-index)
+	})
+}
+
+// stageCardPanel is the window itself: the pane's own paper, a hairline and a
+// lit top edge, the name strip, and the live mirror under it. The pointer
+// lifts it a hundredth of itself and takes the rim from the hairline to the
+// text's own tone, as a window under the pointer lifts in the Finder.
+func (w *workspace) stageCardPanel(c *ui.Context, tk tokens, p *pane, pick func(), depth int) {
+	ink := ui.RGB(0x11, 0x11, 0x1a)
+	// The screen is the pane's own paper, so the mirror inside sits on the
+	// colour it was drawn on and the thumbnail reads as that terminal; the
+	// name strip above it takes the floating surface, one step off the paper,
+	// as a window's title bar does.
+	panel := ui.Column(c).Fill().Clip().Radius(stageCardRadius).
+		Background(tk.Background).
+		Transition(ui.ElementTransition{
+			Duration: hoverMotion,
+			Ease:     ui.EaseOut,
+			Colors:   true,
+			Shadows:  true,
+		})
+	hover := panel.Hovered()
+	rim := tk.Border
+	if hover {
+		rim = tk.Foreground.Alpha(0.22)
+		panel = panel.AnimatePose(ui.Pose{Scale: 1.012}, stageCardSpring)
+	}
+	// The elevation, as the app's raised cards have it: a contact shadow and
+	// two that fall further and softer. Cards further back sit lower and
+	// cast less, and the pointer's own card casts more, so the stack reads as
+	// depth rather than as a column of equal tiles. The count and order of
+	// the shadows never change, which is what lets the transition animate
+	// them one by one.
+	rest := 1 - float32(min(depth, 3))*0.07
+	deep := float32(1)
+	if hover {
+		deep = 1.5
+	}
+	if tk.Dark {
+		panel = panel.
+			InsetShadow(0, 1, 2, 0, ui.RGB(0xff, 0xff, 0xff).Alpha(0.06)).
+			Shadow(0, 1, 2, 0, ui.RGB(0, 0, 0).Alpha(0.34*rest)).
+			Shadow(0, 6, 16, -4, ui.RGB(0, 0, 0).Alpha(0.40*rest*deep)).
+			Shadow(0, 16, 32, -10, ui.RGB(0, 0, 0).Alpha(0.48*rest*deep))
+	} else {
+		panel = panel.
+			Shadow(0, 1, 2, 0, ink.Alpha(0.06*rest)).
+			Shadow(0, 6, 16, -4, ink.Alpha(0.09*rest*deep)).
+			Shadow(0, 16, 32, -10, ink.Alpha(0.11*rest*deep))
+	}
+	panel = panel.Border(1, rim).OnClick(pick)
+	panel.Children(func() {
+		// The name strip stands where a window's title bar does, so a rail of
+		// terminals can be told apart before any of the text is readable.
+		ui.Row(c).Height(stageCardHeaderH).Padding(0, 10, 0, 10).Gap(6).
+			Center().Background(floatingFill(tk)).Children(func() {
 			if src := paneMark(p, tk); src != nil {
-				badge := ui.Box(c).Width(22).Height(22).Absolute().
-					Left(10).Top(stageCardH-32).Radius(6).
-					Background(tk.Raised).Border(1, tk.Border).Center().OnClick(pick)
-				badge.Children(func() {
-					ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
-				})
+				ui.Image(c, src).Width(13).Height(13).IgnoreInput(true)
 			}
+			name := tk.MutedForeground
+			if hover {
+				name = tk.Foreground
+			}
+			ui.Text(c, p.title()).FontSize(11).FontWeight(600).
+				TextColor(name).SingleLine()
+			ui.Spacer(c)
+		})
+		ui.Box(c).Height(1).Background(tk.Border)
+		ui.Box(c).Fill().Clip().Children(func() {
+			w.stageMirrorView(c, tk, p)
 		})
 	})
 }
 
-// stageMirrorView draws the live miniature. The sink's view is laid out at
-// the size the pane's own view had, then scaled to fill the card — its
-// thumbnail is cropped, never letterboxed, so every card reads the same.
+// stageMirrorView draws the live miniature: the pane's terminal scaled down
+// whole, the way a window is thumbnailed. Keeping its own proportions keeps
+// the text readable as a shape; filling the card by cropping turns a screen
+// of text into a blur of glyphs.
 func (w *workspace) stageMirrorView(c *ui.Context, tk tokens, p *pane) {
+	bodyH := stageCardH - stageCardHeaderH - 1
 	if p.stageMirror == nil {
-		// A terminal that has not opened its preview yet still says which
-		// pane it is.
-		ui.Column(c).Fill().Center().Padding(12).Gap(4).Children(func() {
-			ui.Text(c, p.title()).FontSize(11).SingleLine().TextColor(tk.MutedForeground)
+		// A terminal that has not opened its preview yet still says where
+		// the pane is.
+		ui.Column(c).Fill().Center().Padding(12).Children(func() {
 			ui.Text(c, abbreviate(p.dir())).FontSize(9.5).SingleLine().
 				TextColor(tk.MutedForeground)
 		})
 		return
 	}
 	natW, natH := w.stageMirrorSize(p)
-	scale := max(stageCardW/natW, stageCardH/natH)
+	scale := min(stageCardW/natW, bodyH/natH)
+	left := (stageCardW - natW*scale) / 2
+	top := (bodyH - natH*scale) / 2
 	terminal.View(c, p.stageMirror.sink).Width(natW).Height(natH).Absolute().
-		Left(0).Top(0).TransformOrigin(0, 0).Scale(scale, scale).
+		Left(left).Top(top).TransformOrigin(0, 0).Scale(scale, scale).
 		IgnoreInput(true)
 }
 
@@ -440,12 +510,4 @@ func paneMark(p *pane, tk tokens) ui.ImageSource {
 		return agentLogoSource(p.agent.Kind, tk)
 	}
 	return iconSource("terminal", colorHex(tk.MutedForeground))
-}
-
-func stageShadow(tk tokens) ui.Color {
-	alpha := float32(0.55)
-	if !tk.Dark { // a light window takes a lighter shadow
-		alpha = 0.22
-	}
-	return ui.RGB(0, 0, 0).Alpha(alpha)
 }
