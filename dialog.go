@@ -122,8 +122,13 @@ func dialogGlass(tk tokens) glass.Glass {
 // fills the panel. Escape and a press outside close the dialog through
 // *open.
 func dialogFrame(c *ui.Context, tk tokens, open *bool, width float32, build func()) {
-	// The panel is a sheet of the system's material, not a hole in the
-	// window: dialogGlass carries its tint and the rim the material lights.
+	// The panel is one sheet of the system's material, not a sheet laid on
+	// another: the glass is the panel's own surface, shaped by its radius,
+	// so the rim the system lights is the panel's only edge. A material on
+	// a box larger than the panel puts a second rim outside it — the
+	// system's glass view is placed under the window at the box's size,
+	// and the panel's clip cannot cut it — which is what drew a border
+	// round a border.
 	shade := ui.RGBA(0, 0, 0, 0.24)
 	if !tk.Dark {
 		shade = ui.RGBA(0, 0, 0, 0.12)
@@ -145,6 +150,7 @@ func dialogFrame(c *ui.Context, tk tokens, open *bool, width float32, build func
 			Exit:         &ui.Motion{},
 		})
 		panel.Width(width).Clip().Gap(0).Padding(0).Radius(22).
+			Material(dialogGlass(tk)).
 			Shadow(0, 40, 100, 0, shadow).
 			Transition(ui.ElementTransition{
 				Duration:     dialogMotion,
@@ -156,28 +162,7 @@ func dialogFrame(c *ui.Context, tk tokens, open *bool, width float32, build func
 				Shadows:      true,
 			}).
 			Children(func() {
-				ui.Themed(c, dialogTheme(tk)).FillWidth().Children(func() {
-					inner := ui.Column(c).FillWidth().Gap(0).Padding(0).
-						Material(glass.Blur{Radius: 18})
-					inner.Children(func() {
-						// The pane, larger than the clip so its rim falls
-						// outside: only the even middle of the glass shows.
-						// It is the system's own material, as a notification
-						// banner is, so the sheet frosts what is behind it
-						// and lights its own rim rather than being an opaque
-						// paper with a hairline drawn round it.
-						// No inset shadows: the native glass paints a hole, so
-						// they would land on it and vanish. The material lights
-						// its own rim.
-						ui.Box(c).Absolute().Left(-6).Top(-6).Right(-6).Bottom(-6).
-							Radius(28).ZIndex(-1).IgnoreInput(true).
-							Material(dialogGlass(tk))
-						// A light from above, soft and without an edge.
-						ui.Box(c).Absolute().Left(2).Right(2).Top(2).Height(96).IgnoreInput(true).
-							Gradient(ui.RGBA(255, 255, 255, 0.09), ui.Transparent, 180)
-						build()
-					})
-				})
+				ui.Themed(c, dialogTheme(tk)).FillWidth().Children(build)
 			})
 	})
 }
@@ -271,18 +256,18 @@ func dialogFooter(c *ui.Context, tk tokens, actions ...dialogAction) {
 	}
 	ui.Row(c).FillWidth().Height(60).Padding(0, 18).Gap(8).
 		AlignItems(ui.Center).Justify(ui.End).Children(func() {
-			// The rule fades out toward the corners, so it reads as a fold in
-			// the glass rather than a line drawn across it.
-			ui.Box(c).Absolute().Left(18).Right(18).Top(0).Height(1).IgnoreInput(true).
-				LinearGradient(ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{
-					{Color: ui.Transparent, At: 0},
-					{Color: tk.Foreground.Alpha(0.14), At: 0.5},
-					{Color: ui.Transparent, At: 1},
-				}})
-			for _, a := range actions {
-				dialogButton(c, tk, a, demoteDanger)
-			}
-		})
+		// The rule fades out toward the corners, so it reads as a fold in
+		// the glass rather than a line drawn across it.
+		ui.Box(c).Absolute().Left(18).Right(18).Top(0).Height(1).IgnoreInput(true).
+			LinearGradient(ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{
+				{Color: ui.Transparent, At: 0},
+				{Color: tk.Foreground.Alpha(0.14), At: 0.5},
+				{Color: ui.Transparent, At: 1},
+			}})
+		for _, a := range actions {
+			dialogButton(c, tk, a, demoteDanger)
+		}
+	})
 }
 
 // dialogButton is one action in the footer: quiet for Cancel and the like,
@@ -350,4 +335,3 @@ func dialogButton(c *ui.Context, tk tokens, a dialogAction, demoteDanger bool) {
 	// node the button already is, so the call changes it in place.
 	pressFeedback(b)
 }
-
