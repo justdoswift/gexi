@@ -73,9 +73,6 @@ type savedProject struct {
 	ID    string `json:"id"`
 	Dir   string `json:"dir"`
 	Label string `json:"label,omitempty"`
-	// Flows are the prompts the project runs after each worktree step, so
-	// the workflow survives a launch with the layout.
-	Flows projectFlows `json:"flows,omitempty"`
 	// RemoteHost is set by layouts saved while gexi had remote hosts.
 	// Restore drops those projects; the field stays so old layouts load.
 	RemoteHost string         `json:"remoteHost,omitempty"`
@@ -226,7 +223,6 @@ func (w *workspace) savedState() workspaceState {
 			ID:        pr.ID,
 			Dir:       pr.Dir,
 			Label:     pr.Label,
-			Flows:     pr.Flows,
 			Collapsed: w.collapsed[pr.ID],
 		}
 		for _, s := range pr.Sessions {
@@ -442,7 +438,7 @@ func (w *workspace) restoreOrCreate() {
 		if sp.RemoteHost != "" {
 			continue
 		}
-		pr := &project{ID: sp.ID, Dir: sp.Dir, Label: sp.Label, Flows: sp.Flows}
+		pr := &project{ID: sp.ID, Dir: sp.Dir, Label: sp.Label}
 		for _, ss := range sp.Sessions {
 			ss.Root.dropMissingWorktrees(sp.Dir)
 			root, err := ss.Root.restoreAs(w, ss.ID != live)

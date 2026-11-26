@@ -240,13 +240,6 @@ func (w *workspace) view(c *ui.Context) {
 			w.archiveTarget = nil
 		}
 	}
-	if w.flowTarget != nil {
-		w.projectFlowDialog(c, tk)
-		if !w.flowOpen {
-			w.flowTarget = nil
-			w.flowDraft = flowDraft{}
-		}
-	}
 }
 
 // dragArea is a draggable stretch of a header that also zooms the window on

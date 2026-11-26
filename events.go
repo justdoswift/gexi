@@ -178,9 +178,6 @@ func (w *workspace) handleEvent(ev agentEvent) (any, error) {
 		if kind := agentKind(ev.Agent); agentTalks(kind) {
 			p.addReplyMessage(kind, ev.Session, ev.Message)
 		}
-		// A flow prompt the hook never reported is not kept around to
-		// swallow the user's first message later.
-		p.injectedPrompt = ""
 		if p.Worktree != nil {
 			w.refreshWorktree(p)
 		}
