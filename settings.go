@@ -234,12 +234,16 @@ func (w *workspace) openSettings() {
 		Height:    620,
 		MinWidth:  720,
 		MinHeight: 460,
-		// The page fills the window with the theme's own colours, so the
-		// window carries no material of its own: a transparent window would
-		// show the desktop for the frame before the page's first draw, and
-		// the system's material would frost as the window takes the keyboard.
+		// The window carries the same system glass as the main one, so the
+		// rail is the desktop seen through the material, as System Settings'
+		// sidebar is, instead of a flat grey panel painted inside an opaque
+		// window. The form's paper is opaque and covers the material on its
+		// side, so only the rail is translucent.
 		TitleBarStyle:   mygo.TitleBarHidden,
-		BackgroundColor: w.chromeBackground(),
+		Transparent:     true,
+		Vibrancy:        mygo.VibrancyGlass,
+		VibrancyTint:    w.glassTint(),
+		BackgroundColor: w.mainBackground(),
 		Content:         ui.View(w.settingsView),
 	})
 	w.settingsWin.OnShow(func() { w.settingsWin.Invalidate() })
@@ -256,9 +260,13 @@ func (w *workspace) openSettings() {
 func (w *workspace) settingsView(c *ui.Context) {
 	w.applyInterfaceFont(c)
 	tk := w.tokens(c)
-	// The page takes the theme's own colour: the settings window carries no
-	// material, so its cards and rows sit on the theme's surface.
-	root := ui.Row(c).Fill().Background(tk.Background)
+	// The rail leaves the window's material bare, as the main window's
+	// sidebar does; the form's column is the theme's paper, opaque, so its
+	// rows keep their contrast over the glass.
+	root := ui.Row(c).Fill()
+	if !liquid(c) {
+		root = root.Background(tk.Background)
+	}
 	// The page fades and grows in as the window comes up, as the dialogs on
 	// the main window do: the first frame places it a touch small, and the
 	// frame after lets it settle into the window.
@@ -271,7 +279,10 @@ func (w *workspace) settingsView(c *ui.Context) {
 	root = root.AnimatePose(pose, ui.Animation{Duration: sidebarMotion, Ease: ui.EaseOut})
 	root.Children(func() {
 		w.settingsSidebar(c, tk)
-		ui.Column(c).Fill().Children(func() {
+		// The form's paper meets the rail at a hairline, as System Settings'
+		// sidebar does, so the two surfaces read as two panes of one window.
+		ui.Column(c).Fill().Background(tk.Background).
+			BorderWidth(0, 1, 0, 0).BorderColor(tk.Border).Children(func() {
 			// The band above the form drags the window, so the whole top of
 			// the window moves it, not only the sidebar.
 			ui.Row(c).Height(headerHeight).DragWindow()
@@ -291,8 +302,10 @@ func (w *workspace) settingsView(c *ui.Context) {
 // settingsSidebar is the window's left rail: the pages above, the config
 // file's door below.
 func (w *workspace) settingsSidebar(c *ui.Context, tk tokens) {
-	side := ui.Column(c).Width(196).FillHeight().Background(tk.Muted).
-		Padding(0, 10, 10, 10)
+	side := ui.Column(c).Width(196).FillHeight().Padding(0, 10, 10, 10)
+	if !liquid(c) {
+		side = side.Background(tk.Muted)
+	}
 	side.Children(func() {
 		ui.Row(c).Height(headerHeight).DragWindow()
 		// One tab stop for the pages: Tab enters the list, the arrows move
@@ -310,16 +323,26 @@ func (w *workspace) settingsSidebar(c *ui.Context, tk tokens) {
 func (w *workspace) settingsTabRow(c *ui.Context, tk tokens, i int) {
 	selected := w.settingsTab == i
 	color := tk.MutedForeground
-	row := ui.ButtonBase(c).Height(30).FillWidth().Padding(0, 8, 0, 8).Gap(8).
-		Radius(chromeRadius).Justify(ui.Start).AlignItems(ui.Center).
+	// The tab is the main sidebar's row: a 32pt capsule, so the rail's
+	// chosen page reads as the same kind of control as a chosen session.
+	row := ui.ButtonBase(c).Height(sidebarRowHeight).FillWidth().Padding(0, 8, 0, 8).Gap(8).
+		Radius(sidebarRowRadius()).Justify(ui.Start).AlignItems(ui.Center).
 		Label(settingsTabs[i].title()).Role(ui.RoleTab).AccessSelected(selected)
 	switch {
 	case selected:
 		color = tk.Foreground
-		row = row.Background(tk.Background)
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Background)
+		}
 	case row.Hovered():
 		color = tk.Foreground
-		row = row.Background(tk.Active)
+		if liquid(c) {
+			row = rowSkin(row, c, tk)
+		} else {
+			row = row.Background(tk.Active)
+		}
 	}
 	pick := func() {
 		if w.settingsTab == i {
@@ -819,6 +842,80 @@ func (w *workspace) languageRow(c *ui.Context, tk tokens) {
 	})
 }
 
+// settingSelect is the pop-up button a settings row uses, as Rex and System
+// Settings draw one on macOS: the chosen value and a small round up/down
+// arrow at the row's end, with the app's own glass menu below it rather than
+// the toolkit's flat panel.
+func settingSelect(c *ui.Context, tk tokens, selected *string, options []string) {
+	sel := ui.SelectBase(c, selected)
+	accent := c.Preferences().Accent
+	if accent.A == 0 {
+		accent = tk.SystemAccent
+	}
+	// A settings row's pop-up is not a bezel: it is the chosen value and a
+	// small round arrow at the row's end, as Rex and System Settings draw it.
+	trigger := sel.Trigger.Height(26).Padding(0, 2).Gap(8).
+		Justify(ui.SpaceBetween).AlignItems(ui.Center)
+	trigger.Children(func() {
+		ui.Text(c, *selected).FontSize(12.5).TextColor(tk.Foreground).SingleLine()
+		circle := ui.Row(c).Width(20).Height(20).Radius(10).Center().
+			Background(tk.Foreground.Alpha(0.05))
+		if trigger.Hovered() {
+			circle = circle.Background(tk.Foreground.Alpha(0.10))
+		}
+		circle.Children(func() {
+			// The two chevrons of a pop-up button, drawn in one box so they
+			// share a width, a height and the gap between them; two stacked
+			// icons clipped unevenly above and below the mark.
+			ui.Box(c).Width(10).Height(10).Draw(func(p *ui.Painter, r ui.Rect) {
+				cx, cy := r.X+r.W/2, r.Y+r.H/2
+				var up, down ui.Path
+				up.MoveTo(cx-3.5, cy-1.4).LineTo(cx, cy-4.4).LineTo(cx+3.5, cy-1.4)
+				down.MoveTo(cx-3.5, cy+1.4).LineTo(cx, cy+4.4).LineTo(cx+3.5, cy+1.4)
+				p.StrokePath(&up, 1.2, tk.MutedForeground)
+				p.StrokePath(&down, 1.2, tk.MutedForeground)
+			})
+		})
+	})
+	sel.Popup(func(panel ui.Element) {
+		panel = panel.Radius(12).NoShadow().
+			Shadow(0, 8, 24, -4, ui.RGB(0, 0, 0).Alpha(0.18))
+		if liquid(c) {
+			// A menu floats over the page, not over the desktop: the shader
+			// glass frosts the settings form behind it, as a native menu
+			// frosts the window under it, where the system's own glass would
+			// sample what is under the window and come out the colour of the
+			// app behind it.
+			panel = panel.Border(1, ui.Transparent).Material(noticeGlassLit(tk))
+			panel = lit(panel, tk)
+		} else {
+			panel = panel.Background(tk.Background).Border(1, tk.Border)
+		}
+		panel = panel.Padding(4)
+		panel.Children(func() {
+			ui.Scroll(c).MaxHeight(420).FillWidth().Children(func() {
+				for _, opt := range options {
+					item := sel.Item(opt).Height(24).FillWidth().Padding(0, 8).Radius(7).
+						Gap(6).AlignItems(ui.Center)
+					color := tk.Foreground
+					if item.Highlighted() {
+						item = item.Background(accent)
+						color = ui.RGB(255, 255, 255)
+					}
+					mark := ""
+					if opt == *selected {
+						mark = "✓"
+					}
+					item.Children(func() {
+						ui.Text(c, mark).Width(12).FontSize(11).TextColor(color)
+						ui.Text(c, opt).FontSize(12.5).TextColor(color).SingleLine()
+					})
+				}
+			})
+		})
+	})
+}
+
 // interfaceFontRow is the chrome's family: the system's own until the user
 // picks another, offered from every family the Mac has, so the sidebar, its
 // menus and the settings window can match the rest of the system.
@@ -839,7 +936,7 @@ func (w *workspace) interfaceFontRow(c *ui.Context, tk tokens) {
 	ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
 		ui.Text(c, locales.SettingsInterfaceFont()).FontSize(13).TextColor(tk.Foreground)
 		ui.Spacer(c)
-		ui.Select(c, &w.interfaceFontChoice, choices)
+		settingSelect(c, tk, &w.interfaceFontChoice, choices)
 	})
 	if w.interfaceFontChoice == w.interfaceFontSeen {
 		return
@@ -868,7 +965,7 @@ func (w *workspace) terminalFontRow(c *ui.Context, tk tokens) {
 	ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
 		ui.Text(c, locales.SettingsTerminalFont()).FontSize(13).TextColor(tk.Foreground)
 		ui.Spacer(c)
-		ui.Select(c, &w.terminalFontChoice, terminalFontChoices(w.terminalFontChoice))
+		settingSelect(c, tk, &w.terminalFontChoice, terminalFontChoices(w.terminalFontChoice))
 	})
 	if w.terminalFontChoice == w.terminalFontSeen {
 		return
@@ -893,7 +990,7 @@ func (w *workspace) terminalFontSizeRow(c *ui.Context, tk tokens) {
 	ui.Row(c).Padding(10, 16, 10, 16).Gap(16).Children(func() {
 		ui.Text(c, locales.SettingsTerminalFontSize()).FontSize(13).TextColor(tk.Foreground)
 		ui.Spacer(c)
-		ui.Select(c, &w.terminalSizeChoice, terminalFontSizes)
+		settingSelect(c, tk, &w.terminalSizeChoice, terminalFontSizes)
 	})
 	if w.terminalSizeChoice == w.terminalSizeSeen {
 		return
@@ -919,7 +1016,7 @@ func (w *workspace) terminalScrollbackRow(c *ui.Context, tk tokens) {
 	w.settingActionRow(c, tk,
 		locales.SettingsTerminalScrollback(),
 		locales.SettingsTerminalScrollbackDetail(), func() {
-			ui.Select(c, &w.terminalScrollbackChoice, terminalScrollbackChoices)
+			settingSelect(c, tk, &w.terminalScrollbackChoice, terminalScrollbackChoices)
 		})
 	if w.terminalScrollbackChoice == w.terminalScrollbackSeen {
 		return
@@ -960,12 +1057,13 @@ type segment struct {
 	label string
 }
 
-// segmented is shadcn's segmented switch: a muted track sunk into the panel,
-// a raised card on the chosen side, as leaf's install switch has it.
+// segmented is the system's segmented picker, as SwiftUI draws one on macOS:
+// a muted track sunk into the panel, with the chosen option lifted on a white
+// card.
 func (w *workspace) segmented(c *ui.Context, tk tokens, options []segment, selected string, pick func(string)) {
 	// The track is one tab stop and its options a radio group: Tab enters
 	// at the chosen one, the arrows move between them, and Enter chooses.
-	sunken(ui.Row(c).Height(30).Padding(2).Radius(8).Background(tk.Active).Gap(2).
+	sunken(ui.Row(c).Height(28).Padding(2).Radius(14).Background(settingsTrackFill(tk)).Gap(2).
 		FocusGroup(ui.Horizontal), tk).
 		Children(func() {
 			for _, opt := range options {
@@ -976,11 +1074,22 @@ func (w *workspace) segmented(c *ui.Context, tk tokens, options []segment, selec
 
 func (w *workspace) segmentButton(c *ui.Context, tk tokens, opt segment, selected bool, pick func(string)) {
 	color := tk.MutedForeground
-	el := ui.ButtonBase(c).Height(26).Padding(0, 10, 0, 10).Radius(6).
+	weight := 400
+	el := ui.ButtonBase(c).Height(24).Padding(0, 10, 0, 10).Radius(12).
 		Label(opt.label).Role(ui.RoleRadio).AccessSelected(selected)
 	if selected {
 		color = tk.Foreground
-		el = lit(lifted(el.Background(tk.Raised), tk), tk)
+		weight = 500
+		// The chosen segment is the one white capsule in the track, as
+		// SwiftUI's segmented picker draws it: a short contact shadow and no
+		// outline, which would read as a border round a button. In the dark
+		// the capsule sits a step above the track rather than below it.
+		fill := tk.Raised
+		if tk.Dark {
+			fill = settingsTrackFill(tk).MixOklab(ui.RGB(0xff, 0xff, 0xff), 0.08)
+		}
+		el = el.Background(fill).
+			Shadow(0, 1, 2, 0, ui.RGB(0, 0, 0).Alpha(0.12))
 	}
 	choose := func() {
 		if selected {
@@ -990,16 +1099,46 @@ func (w *workspace) segmentButton(c *ui.Context, tk tokens, opt segment, selecte
 		w.invalidateSettings()
 	}
 	el.OnClick(choose).Children(func() {
-		ui.Text(c, opt.label).FontSize(12).FontWeight(500).
+		ui.Text(c, opt.label).FontSize(12.5).FontWeight(weight).
 			TextColor(color)
 	})
 }
 
-// settingsCard is one group of rows: a raised panel with a divider between
+// settingsCardFill is a grouped card's surface: a step off the page, grey on
+// paper and lifted in the dark, as System Settings and Rex group their rows.
+// The card is defined by that step, not by a drawn edge.
+//
+// It is a light step, not the control track's grey: Rex's card measures about
+// 5% under its page, where tk.Active is closer to 9% on a warm theme and read
+// as a deep grey panel. A dark card lifts 8% toward white, so it stays a step
+// above the page rather than a block sunk into it.
+func settingsCardFill(tk tokens) ui.Color {
+	if tk.Dark {
+		return tk.Background.MixOklab(ui.RGB(0xff, 0xff, 0xff), 0.08)
+	}
+	return tk.Background.MixOklab(tk.Foreground, 0.05)
+}
+
+// settingsTrackFill is the shallow well a switch or a segmented control sits
+// in: a step under the card, not the control track's grey. Rex's track is only
+// a few levels below its card; tk.Control on a warm theme is near mid grey and
+// read as a grey slab under the white capsule.
+func settingsTrackFill(tk tokens) ui.Color {
+	card := settingsCardFill(tk)
+	if tk.Dark {
+		return card.MixOklab(ui.RGB(0xff, 0xff, 0xff), 0.08)
+	}
+	return card.MixOklab(tk.Foreground, 0.08)
+}
+
+// settingsCard is one group of rows: a soft grey panel with a divider between
 // each two rows, inset from the panel's sides the way macOS insets them.
+//
+// It takes neither a border nor the raised shadow stack. System Settings
+// groups are surfaces ruled on the page, not cards floating over it; the
+// hairline and the shadow under each one read as borders round a border.
 func settingsCard(c *ui.Context, tk tokens, rows func()) {
-	raised(ui.Column(c).FillWidth().Radius(10).
-		Background(tk.Background), tk).Children(rows)
+	ui.Column(c).FillWidth().Radius(10).Background(settingsCardFill(tk)).Children(rows)
 }
 
 // settingsCardMotion is a settings card whose height follows its rows: a row
@@ -1008,10 +1147,9 @@ func settingsCard(c *ui.Context, tk tokens, rows func()) {
 // one row shorter.
 func settingsCardMotion(c *ui.Context, tk tokens, id string, rows func()) {
 	card := ui.Column(c.Key("settings-card:" + id)).FillWidth().Radius(10).
-		Clip().Background(tk.Background)
+		Clip().Background(settingsCardFill(tk))
 	// The card is clipped to its bounds, so the leaving copy does not paint
 	// over the section label below it while the height eases down.
-	card = raised(card, tk)
 	card.Transition(ui.ElementTransition{
 		Duration: rowMotion,
 		Ease:     ui.EaseOut,
@@ -1040,8 +1178,10 @@ func settingControlSlot(c *ui.Context, id, form string, build func()) {
 }
 
 func cardDivider(c *ui.Context, tk tokens) {
-	ui.Row(c).Height(1).Padding(0, 16, 0, 16).Children(func() {
-		ui.Box(c).FillWidth().Height(1).Background(tk.Border)
+	// The rule starts at the rows' text and runs to the card's edge, as the
+	// divider of a System Settings group does.
+	ui.Row(c).Height(1).Padding(0, 16, 0, 0).Children(func() {
+		ui.Box(c).FillWidth().Height(1).Background(tk.Foreground.Alpha(0.08))
 	})
 }
 
@@ -1106,42 +1246,48 @@ func (w *workspace) settingActionRow(c *ui.Context, tk tokens, title, detail str
 	})
 }
 
-// outlineButton is shadcn's outline button, sized to sit beside a switch.
-// It keeps its size when the row is tight, so the label never wraps.
+// outlineButton is the system's push button, sized to sit beside a switch:
+// 24pt high, the page's paper with a hairline and a contact shadow, and a
+// quiet grey under the pointer. It keeps its size when the row is tight, so
+// the label never wraps.
 func outlineButton(c *ui.Context, tk tokens, label string, action func()) {
-	el := ui.Row(c).Height(28).Shrink(0).Padding(0, 10, 0, 10).Radius(6).
-		Border(1, tk.Border).Cursor(ui.CursorPointer)
-	bg := tk.Background
+	el := ui.Row(c).Height(24).Shrink(0).Padding(0, 10, 0, 10).Radius(6).
+		Border(1, tk.Foreground.Alpha(0.10)).Cursor(ui.CursorPointer).
+		Shadow(0, 1, 1, 0, ui.RGB(0, 0, 0).Alpha(0.06))
+	fill := tk.Raised
+	if tk.Dark {
+		fill = tk.Control
+	}
+	bg := fill
 	if el.Hovered() {
-		bg = tk.Accent
+		bg = fill.MixOklab(tk.Foreground, 0.06)
 	}
 	el = el.Background(el.AnimateColor("outlineFill", bg,
 		ui.Animation{Duration: hoverMotion, Ease: ui.EaseOut}))
 	el.OnClick(action).Children(func() {
-		ui.Text(c, label).FontSize(12).FontWeight(500).
+		ui.Text(c, label).FontSize(12.5).FontWeight(400).
 			TextColor(tk.Foreground).SingleLine().OnClick(action)
 	})
 }
 
-// switchControl is shadcn's switch: a 36×20 track and a 16pt thumb that
-// slides over 150ms, colours easing out the same way.
+// switchControl is the system's switch, as SwiftUI draws one on macOS: a
+// 38×22 track that is the accent when on and a neutral grey when off, with a
+// white thumb that slides over 150ms and carries a contact shadow. The ink
+// track it had was a monochrome choice; a macOS switch is the accent, and a
+// black one read as a control from another system.
 func (w *workspace) switchControl(c *ui.Context, tk tokens, on bool, toggle func()) {
 	anim := ui.Animation{Duration: 150 * time.Millisecond}
 
-	track := ui.Row(c).Width(36).Height(20).Radius(10).Padding(2).
+	track := ui.Row(c).Width(38).Height(22).Radius(11).Padding(2).
 		Cursor(ui.CursorPointer)
 
-	// Off, the track is a surface the page steps up from, and the thumb is a
-	// lit knob over it; on, the track is ink and the thumb is the page. Both
-	// states read in either appearance — the old off track was the page's own
-	// step, which disappears in dark.
-	trackColor := tk.Control
-	thumbColor := tk.Raised
-	if tk.Dark {
-		thumbColor = tk.Foreground
-	}
+	trackColor := settingsTrackFill(tk)
 	if on {
-		trackColor, thumbColor = tk.Foreground, tk.Background
+		accent := c.Preferences().Accent
+		if accent.A == 0 {
+			accent = tk.SystemAccent
+		}
+		trackColor = accent
 	}
 	track = track.Background(track.AnimateColor("track", trackColor, anim))
 
@@ -1154,12 +1300,14 @@ func (w *workspace) switchControl(c *ui.Context, tk tokens, on bool, toggle func
 	track.OnClick(toggle).Children(func() {
 		// The whole track is the hit area: the thumb alone left the empty
 		// half unclickable.
-		ui.Box(c).Absolute().Left(0).Top(0).Width(36).Height(20).OnClick(toggle)
+		ui.Box(c).Absolute().Left(0).Top(0).Width(38).Height(22).OnClick(toggle)
 		if pos > 0 {
 			ui.Box(c).Width(pos * 16).Height(1).OnClick(toggle)
 		}
-		thumb := ui.Box(c).Width(16).Height(16).Radius(8).OnClick(toggle)
-		thumb.Background(thumb.AnimateColor("switchThumb", thumbColor, anim))
+		thumb := ui.Box(c).Width(18).Height(18).Radius(9).OnClick(toggle).
+			Shadow(0, 1, 2, 0, ui.RGB(0, 0, 0).Alpha(0.18)).
+			Shadow(0, 0, 0, 0.5, ui.RGB(0, 0, 0).Alpha(0.06))
+		thumb.Background(thumb.AnimateColor("switchThumb", ui.RGB(255, 255, 255), anim))
 	})
 }
 
