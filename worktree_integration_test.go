@@ -932,8 +932,8 @@ func TestWorktreesPageShowsClearProgress(t *testing.T) {
 }
 
 // TestArchiveDialogShowsWhatGoes checks the archive confirmation names the
-// branch and separates the files that go with the folder, so the destructive
-// part is not buried in one paragraph.
+// branch and spells out the destructive consequences, so they are not buried
+// in one paragraph.
 func TestArchiveDialogShowsWhatGoes(t *testing.T) {
 	w := &workspace{
 		archiveTarget:  &pane{ID: "p"},
@@ -949,7 +949,6 @@ func TestArchiveDialogShowsWhatGoes(t *testing.T) {
 	for _, text := range []string{
 		"feat/sidebar-search",
 		locales.WorktreeArchiveBody(),
-		locales.WorktreeArchiveKeep(),
 		locales.WorktreeArchiveDirty(),
 		locales.WorktreeArchiveIgnored(),
 	} {
@@ -1066,4 +1065,3 @@ func TestCloseProjectAsks(t *testing.T) {
 	}
 	answered <- 0
 }
-

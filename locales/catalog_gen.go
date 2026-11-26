@@ -1248,31 +1248,21 @@ func (msgs Messages) WorktreeArchiveTitle() string {
 	return Catalog.Format(msgs.locale, "worktreeArchiveTitle", nil)
 }
 
-// WorktreeArchiveBody says "This closes every pane in the worktree and deletes its folder."
+// WorktreeArchiveBody says "Closes every pane and deletes the folder; the branch is kept."
 // in the language the app shows.
 func WorktreeArchiveBody() string { return In(i18n.Locale()).WorktreeArchiveBody() }
 
-// WorktreeArchiveBody says "This closes every pane in the worktree and deletes its folder."
+// WorktreeArchiveBody says "Closes every pane and deletes the folder; the branch is kept."
 // in the language of msgs.
 func (msgs Messages) WorktreeArchiveBody() string {
 	return Catalog.Format(msgs.locale, "worktreeArchiveBody", nil)
 }
 
-// WorktreeArchiveKeep says "The branch is kept, so you can restore it from Worktrees."
-// in the language the app shows.
-func WorktreeArchiveKeep() string { return In(i18n.Locale()).WorktreeArchiveKeep() }
-
-// WorktreeArchiveKeep says "The branch is kept, so you can restore it from Worktrees."
-// in the language of msgs.
-func (msgs Messages) WorktreeArchiveKeep() string {
-	return Catalog.Format(msgs.locale, "worktreeArchiveKeep", nil)
-}
-
-// WorktreeArchiveDirty says "Uncommitted changes will be deleted too."
+// WorktreeArchiveDirty says "Uncommitted changes are deleted too."
 // in the language the app shows.
 func WorktreeArchiveDirty() string { return In(i18n.Locale()).WorktreeArchiveDirty() }
 
-// WorktreeArchiveDirty says "Uncommitted changes will be deleted too."
+// WorktreeArchiveDirty says "Uncommitted changes are deleted too."
 // in the language of msgs.
 func (msgs Messages) WorktreeArchiveDirty() string {
 	return Catalog.Format(msgs.locale, "worktreeArchiveDirty", nil)
@@ -1288,11 +1278,11 @@ func (msgs Messages) WorktreeArchiveDirtySkipped() string {
 	return Catalog.Format(msgs.locale, "worktreeArchiveDirtySkipped", nil)
 }
 
-// WorktreeArchiveIgnored says "Ignored files (such as .env) will be deleted too."
+// WorktreeArchiveIgnored says "Ignored files (such as .env) are deleted too."
 // in the language the app shows.
 func WorktreeArchiveIgnored() string { return In(i18n.Locale()).WorktreeArchiveIgnored() }
 
-// WorktreeArchiveIgnored says "Ignored files (such as .env) will be deleted too."
+// WorktreeArchiveIgnored says "Ignored files (such as .env) are deleted too."
 // in the language of msgs.
 func (msgs Messages) WorktreeArchiveIgnored() string {
 	return Catalog.Format(msgs.locale, "worktreeArchiveIgnored", nil)
