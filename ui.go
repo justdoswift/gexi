@@ -447,28 +447,66 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 						ui.Text(c, empty).FontSize(12).
 							TextColor(tk.MutedForeground).Padding(6, 8, 6, 8)
 					} else {
-						// The projects are one list, so one that comes, goes
-						// or is reordered glides to its place and the rows
-						// below close the gap, instead of jumping there.
-						ids := make([]string, len(rows))
+						// Only the local projects are the list's rows: they
+						// are the user's to order. A paired Mac sits where
+						// the settings' hosts put it, so its row is drawn
+						// under the list rather than in it.
+						locals := rows
 						for i, pr := range rows {
-							ids[i] = pr.ID
-						}
-						w.sidebarList.Key = func(row int) any {
-							if row < 0 || row >= len(ids) {
-								return ""
-							}
-							return ids[row]
-						}
-						if w.sidebarList.MoveAnimation == nil {
-							w.sidebarList.MoveAnimation = &ui.Animation{
-								Duration: sidebarMotion,
-								Ease:     ui.EaseOut,
+							if pr.remote != nil {
+								locals = rows[:i]
+								break
 							}
 						}
-						ui.List(c, &w.sidebarList, len(rows), func(i int) {
-							w.projectRow(c, tk, rows[i])
-						}).Gap(8)
+						remotes := rows[len(locals):]
+						if len(locals) > 0 {
+							// The projects are one list, so one that comes,
+							// goes or is reordered glides to its place and
+							// the rows below close the gap, instead of
+							// jumping there.
+							ids := make([]string, len(locals))
+							for i, pr := range locals {
+								ids[i] = pr.ID
+							}
+							w.sidebarList.Key = func(row int) any {
+								if row < 0 || row >= len(ids) {
+									return ""
+								}
+								return ids[row]
+							}
+							if w.sidebarList.MoveAnimation == nil {
+								w.sidebarList.MoveAnimation = &ui.Animation{
+									Duration: sidebarMotion,
+									Ease:     ui.EaseOut,
+								}
+							}
+							// A drag moves a project to where it is let go.
+							// While the search filters the list its rows are
+							// only the matches, not the sidebar, so there is
+							// no order a drop among them could set.
+							w.sidebarList.Reorder = nil
+							if strings.TrimSpace(w.searchQuery) == "" && len(locals) > 1 {
+								w.sidebarList.Reorder = func(moved []int, to int) {
+									w.moveSidebarProject(locals, moved, to)
+								}
+							}
+							// The air above the first row and below the last
+							// leaves room for the line a drop draws there:
+							// against the list's edges its own clip would
+							// cut it away.
+							ui.List(c, &w.sidebarList, len(locals), func(i int) {
+								w.projectRow(c, tk, locals[i])
+							}).Gap(8).Padding(8, 0, 8, 0)
+						}
+						if len(remotes) > 0 {
+							// The gap the list puts between its rows holds
+							// here too, so the Macs read as its tail.
+							ui.Column(c).FillWidth().Gap(8).Children(func() {
+								for _, pr := range remotes {
+									w.projectRow(c, tk, pr)
+								}
+							})
+						}
 					}
 					ui.Spacer(c)
 					// Idle sessions sit at the very bottom, under everything that
@@ -737,6 +775,23 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 		}
 	}
 	toggle := func() { w.toggleProject(pr) }
+	// A session let go on the header goes first in this project: a project
+	// folded shut has no rows to drop on, and its header is the way in. It
+	// opens, so the session it took is the one the gesture made.
+	header := sessionDropNone
+	if pr.remote == nil {
+		if _, ok := ui.DragOver[sessionMoved](row); ok {
+			header = sessionDropAfter
+		}
+		if v, ok := ui.Drop[sessionMoved](row); ok {
+			var first *session
+			if len(pr.Sessions) > 0 {
+				first = pr.Sessions[0]
+			}
+			w.moveSession(v.Project, v.Session, pr, first, sessionDropBefore)
+			delete(w.collapsed, pr.ID)
+		}
+	}
 	row.OnClick(toggle).ContextMenu(func(m *ui.Menu) { w.projectRowMenu(m, pr) }).Children(func() {
 		chevron := "chevron-right"
 		if open {
@@ -789,6 +844,7 @@ func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 		if hovered {
 			iconButtonSmall(c, tk, "x", func() { w.closeProject(pr) }, locales.CloseProject())
 		}
+		sessionDropLine(c, header, sidebarRowHeight)
 	})
 	if !open {
 		return
@@ -964,6 +1020,25 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	if sel {
 		markColor = tk.Foreground
 	}
+	// The row drags its session, and takes another one let go above or
+	// below its middle: one gesture orders a project's work and takes a
+	// session to another project. A host's rows are its own, and move for
+	// neither.
+	place := sessionDropNone
+	if pr.remote == nil {
+		row = row.Drag(sessionMoved{Project: pr, Session: s})
+		place = sessionDropAtRow(row, s)
+		if v, ok := ui.Drop[sessionMoved](row); ok {
+			if _, y, ok := row.PointerPosition(); ok {
+				w.moveSession(v.Project, v.Session, pr, s, sessionDropAt(y, row.Bounds().H))
+			}
+		}
+		if row.Dragging() {
+			// The row stays where it was, dimmed, while its copy follows
+			// the pointer to the place it will take.
+			row = row.Opacity(0.4)
+		}
+	}
 	row.OnClick(pick).ContextMenu(func(m *ui.Menu) { w.sessionRowMenu(m, s) }).Children(func() {
 		agent := s.agent()
 		// Every mark takes the same slot, so selecting a row or an agent
@@ -1025,6 +1100,7 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 		if !hovered {
 			more = more.Opacity(0).IgnoreInput(true).AccessHidden(true)
 		}
+		sessionDropLine(c, place, sidebarRowHeight)
 	})
 }
 
@@ -1076,6 +1152,52 @@ func (w *workspace) sidebarProjectRows() []*project {
 		}
 	}
 	return rows
+}
+
+// moveSidebarProject puts the dragged project rows where the list let them
+// go: rows are the local projects as the list drew them, moved the rows it
+// dragged, and to the row they go before, the number of rows for the end.
+// What it leaves is the sidebar's order, and the layout keeps it.
+//
+// The rows are the whole local list — the list reorders only while nothing
+// filters it — so the order it makes is the one the projects keep.
+func (w *workspace) moveSidebarProject(rows []*project, moved []int, to int) {
+	if len(moved) == 0 || to < 0 || to > len(rows) {
+		return
+	}
+	moving := make(map[*project]bool, len(moved))
+	for _, i := range moved {
+		if i < 0 || i >= len(rows) {
+			return
+		}
+		moving[rows[i]] = true
+	}
+	rest := make([]*project, 0, len(rows)-len(moving))
+	for _, pr := range rows {
+		if !moving[pr] {
+			rest = append(rest, pr)
+		}
+	}
+	// The rows a drop goes before count its dragged ones too, so take them
+	// out of the place the rest go in.
+	pos := to
+	for _, i := range moved {
+		if i < to {
+			pos--
+		}
+	}
+	pos = max(0, min(pos, len(rest)))
+	order := make([]*project, 0, len(rows))
+	order = append(order, rest[:pos]...)
+	for _, pr := range rows {
+		if moving[pr] {
+			order = append(order, pr)
+		}
+	}
+	order = append(order, rest[pos:]...)
+	w.Projects = order
+	w.invalidate()
+	w.scheduleSave()
 }
 
 // projectVisible matches the search box against the folder and its sessions.

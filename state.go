@@ -240,9 +240,9 @@ func (w *workspace) savedState() workspaceState {
 				ZoomedPane: s.zoomedPane,
 			})
 		}
-		if len(saved.Sessions) == 0 {
-			continue
-		}
+		// A project a session was moved out of keeps its place even when
+		// that was its last one: the folder is still open here, and the
+		// next launch should not lose it.
 		state.Projects = append(state.Projects, saved)
 	}
 	for _, p := range w.detached {
@@ -458,7 +458,16 @@ func (w *workspace) restoreOrCreate() {
 			pr.Sessions = append(pr.Sessions, s)
 		}
 		if len(pr.Sessions) == 0 {
-			continue
+			// A project whose sessions could not come back has nothing to
+			// show. One saved without any is a project the user emptied by
+			// moving its sessions elsewhere: its folder is still open here,
+			// so its row comes back with no sessions under it.
+			if len(sp.Sessions) > 0 {
+				continue
+			}
+			if info, err := os.Stat(sp.Dir); err != nil || !info.IsDir() {
+				continue
+			}
 		}
 		if sp.Collapsed {
 			w.collapsed[pr.ID] = true
