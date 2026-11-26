@@ -53,9 +53,6 @@ func (w *workspace) projectRowMenu(m *ui.Menu, pr *project) {
 	if m.Item(locales.Rename()).Chosen() {
 		w.openProjectRename(pr)
 	}
-	if m.Item(locales.Flows()).Chosen() {
-		w.openProjectFlows(pr)
-	}
 	m.Separator()
 	if m.Item(locales.CloseProject()).Danger().Chosen() {
 		w.closeProject(pr)
