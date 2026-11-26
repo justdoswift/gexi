@@ -640,6 +640,131 @@ func hasOriginRemote(dir string) bool {
 	return err == nil
 }
 
+// prHostRetry is how long a "no" answer stands before git and gh are asked
+// again: signing in to gh after gexi started should not need a restart.
+const prHostRetry = 5 * time.Minute
+
+// canPR reports whether the checkout in dir gets the worktree and pull
+// request controls. They drive gh, so a repository on a private git server,
+// or with no origin at all, leaves them off. An unknown folder answers no and
+// asks git and gh off the UI thread, so the answer lands a frame or two
+// later; the positive answer stays for the rest of the run.
+func (w *workspace) canPR(dir string) bool {
+	if dir == "" {
+		return false
+	}
+	yes, known := w.prHosts[dir]
+	if known && (yes || time.Since(w.prHostProbed[dir]) < prHostRetry) {
+		return yes
+	}
+	if !w.prHostProbing[dir] {
+		if w.prHosts == nil {
+			w.prHosts = map[string]bool{}
+		}
+		if w.prHostProbing == nil {
+			w.prHostProbing = map[string]bool{}
+		}
+		if w.prHostProbed == nil {
+			w.prHostProbed = map[string]time.Time{}
+		}
+		w.prHostProbing[dir] = true
+		go func() {
+			ok := repoIsGitHub(dir)
+			w.onMain(func() {
+				delete(w.prHostProbing, dir)
+				w.prHostProbed[dir] = time.Now()
+				if w.prHosts[dir] != ok {
+					w.prHosts[dir] = ok
+					w.invalidate()
+				}
+			})
+		}()
+	}
+	return false
+}
+
+// repoIsGitHub reports whether dir's origin is a host gexi can open pull
+// requests on: github.com itself, or a GitHub Enterprise host gh is signed in
+// to. Any other host, and a repository with no origin, answers no.
+func repoIsGitHub(dir string) bool {
+	out, err := worktreeGit(dir, "remote", "get-url", "origin")
+	if err != nil {
+		return false
+	}
+	host := gitRemoteHost(out)
+	if host == "" {
+		return false
+	}
+	return host == "github.com" || ghSignedInHost(host)
+}
+
+// gitRemoteHost takes the host out of a clone URL, whichever of the forms it
+// is in: https://host/owner/repo, git@host:owner/repo, and
+// ssh://git@host:22/owner/repo. A local path, which some private setups
+// clone from, has no host.
+func gitRemoteHost(url string) string {
+	url = strings.TrimSpace(url)
+	if i := strings.Index(url, "://"); i >= 0 {
+		rest := url[i+3:]
+		if at := strings.LastIndex(rest, "@"); at >= 0 {
+			rest = rest[at+1:]
+		}
+		if end := strings.IndexAny(rest, "/:"); end >= 0 {
+			rest = rest[:end]
+		}
+		return strings.ToLower(rest)
+	}
+	if at := strings.LastIndex(url, "@"); at >= 0 {
+		rest := url[at+1:]
+		if colon := strings.Index(rest, ":"); colon >= 0 {
+			return strings.ToLower(rest[:colon])
+		}
+	}
+	return ""
+}
+
+// ghSignedInHost asks gh's own account list whether host is signed in, which
+// is local and takes no network. Enterprise hosts answer for their own name,
+// so a private deployment is not mistaken for github.com.
+func ghSignedInHost(host string) bool {
+	gh := ghBinary()
+	if gh == "" || host == "" {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	// gh exits non-zero when an account has trouble, and still prints the
+	// list, so the output is read whatever the exit code says.
+	out, _ := exec.CommandContext(ctx, gh, "auth", "status", "--json", "hosts").Output()
+	if len(out) > 0 {
+		var v struct {
+			Hosts map[string][]struct{ State string }
+		}
+		if json.Unmarshal(out, &v) == nil {
+			for h, accounts := range v.Hosts {
+				if !strings.EqualFold(h, host) {
+					continue
+				}
+				for _, a := range accounts {
+					if strings.EqualFold(a.State, "success") {
+						return true
+					}
+				}
+			}
+			return false
+		}
+	}
+	// gh older than 2.40 has no --json; its plain listing names the hosts.
+	text, _ := exec.CommandContext(ctx, gh, "auth", "status").CombinedOutput()
+	for _, line := range strings.Split(string(text), "\n") {
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "logged in to ") && strings.Contains(lower, strings.ToLower(host)) {
+			return true
+		}
+	}
+	return false
+}
+
 // prInfo is what the header needs to judge a pull request: the identity, and
 // whether GitHub would merge it now.
 type prInfo struct {
@@ -3593,6 +3718,12 @@ type worktreeSlot struct{ pane string }
 // worktree for the pane; once it has one, the same slot shows PR / Merge
 // instead.
 func (w *workspace) paneWorktreeButton(c *ui.Context, tk tokens, p *pane) {
+	// The W button makes a checkout for the pull request that follows it. A
+	// repository gexi has no pull requests on keeps the button off. A pane
+	// already in a checkout keeps its chip, so it can still leave.
+	if p.Worktree == nil && !w.canPR(p.dir()) {
+		return
+	}
 	slot := ui.Row(c.Key("worktree-slot:" + p.ID + ":" + w.worktreeChipForm(p)))
 	slot.Transition(ui.ElementTransition{
 		Duration: chipMotion,
@@ -3625,6 +3756,9 @@ func (w *workspace) worktreeChipForm(p *pane) string {
 	}
 	if wt.busy != "" {
 		return "busy:" + wt.busy
+	}
+	if !w.canPR(wt.Path) {
+		return "local"
 	}
 	if wt.State == worktreeMerged {
 		if wt.Detected {
@@ -3699,6 +3833,17 @@ func (w *workspace) worktreeButtonView(c *ui.Context, tk tokens, p *pane) {
 			ui.Text(c, busy).FontSize(chipFont).FontWeight(600).
 				TextColor(tk.Foreground).SingleLine()
 		})
+		return
+	}
+	if !w.canPR(wt.Path) {
+		// There is no pull request to open, so the chip is the checkout
+		// itself: its branch, and the menu that renames or leaves it. The
+		// branch's own press shows the folder, which is where the work is.
+		w.worktreeActionChip(c, tk, p, ui.Transparent, tk.Foreground, wt.Path,
+			func() { openPath(wt.Path) }, func() {
+				ui.Text(c, wt.Branch).FontSize(11).FontWeight(600).
+					TextColor(tk.Foreground).SingleLine()
+			})
 		return
 	}
 	if wt.State == worktreeMerged {

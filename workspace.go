@@ -258,6 +258,15 @@ type workspace struct {
 	gitBusy map[string]bool
 	gitGen  map[string]int
 
+	// prHosts caches, per folder, whether its origin is a GitHub host gexi
+	// can open pull requests on: the worktree and PR controls drive gh, so a
+	// repository on a private git server, or with no origin, leaves them
+	// off. prHostProbing says a check is running and prHostProbed when one
+	// last answered, so a "no" can be asked again after a gh login.
+	prHosts       map[string]bool
+	prHostProbing map[string]bool
+	prHostProbed  map[string]time.Time
+
 	// pendingToast is handed to the next frame's view, which shows it. An
 	// action, when set, turns it into a toast with a button.
 	pendingToast       string
@@ -383,6 +392,9 @@ func newWorkspace() *workspace {
 		gitInfo:          map[string]gitSummary{},
 		gitBusy:          map[string]bool{},
 		gitGen:           map[string]int{},
+		prHosts:          map[string]bool{},
+		prHostProbing:    map[string]bool{},
+		prHostProbed:     map[string]time.Time{},
 		remoteConns:      map[string]*remoteConn{},
 		worktreeRestores: map[string][]string{},
 	}

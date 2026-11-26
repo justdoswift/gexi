@@ -16,7 +16,8 @@ func TestWorktreeChipMenu(t *testing.T) {
 	dir := t.TempDir()
 	view := func(c *ui.Context) {
 		tk := themeTokens(c.Theme())
-		w := &workspace{}
+		// GitHub's repo, so the chip is the pull request's.
+		w := &workspace{prHosts: map[string]bool{dir: true}}
 		ui.Row(c).Fill().Center().Background(tk.Background).Children(func() {
 			w.paneWorktreeButton(c, tk, &pane{Worktree: &paneWorktree{
 				Path: dir, Branch: "b", Base: "main",
@@ -74,7 +75,8 @@ func TestDetectedWorktreeChipHasNoMenu(t *testing.T) {
 	dir := t.TempDir()
 	view := func(c *ui.Context) {
 		tk := themeTokens(c.Theme())
-		w := &workspace{}
+		// GitHub's repo, so the chip is the pull request's.
+		w := &workspace{prHosts: map[string]bool{dir: true}}
 		ui.Row(c).Fill().Center().Background(tk.Background).Children(func() {
 			w.paneWorktreeButton(c, tk, &pane{Worktree: &paneWorktree{
 				Path: dir, Branch: "b", Base: "main", Detected: true,
