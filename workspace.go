@@ -194,6 +194,15 @@ type workspace struct {
 	// searchOpen shows the search over the window: while it is up, the query
 	// filters the sidebar behind it and the box lists what it finds.
 	searchOpen bool
+	// searchCursor is the hit the search's Up, Down, Home and End choose,
+	// and Return opens.
+	searchCursor int
+	// sidebarFocus is the sidebar row that had the keyboard focus, and
+	// sidebarFocusReq the row that takes it in the next frame, both named
+	// by the session they show: a session put away hands the focus to the
+	// row beside it, rather than letting it fall to the window.
+	sidebarFocus    string
+	sidebarFocusReq string
 
 	// archived holds the merged worktrees cleared away with Archive. They
 	// are listed in Settings › Worktrees, where they can be restored or

@@ -295,7 +295,9 @@ func (w *workspace) settingsSidebar(c *ui.Context, tk tokens) {
 		Padding(0, 10, 10, 10)
 	side.Children(func() {
 		ui.Row(c).Height(headerHeight).DragWindow()
-		ui.Column(c).FillWidth().Gap(1).Children(func() {
+		// One tab stop for the pages: Tab enters the list, the arrows move
+		// between the pages, and Enter opens the one it is on.
+		ui.Column(c).FillWidth().Gap(1).FocusGroup(ui.Vertical).Children(func() {
 			for i := range settingsTabs {
 				w.settingsTabRow(c, tk, i)
 			}
@@ -308,8 +310,9 @@ func (w *workspace) settingsSidebar(c *ui.Context, tk tokens) {
 func (w *workspace) settingsTabRow(c *ui.Context, tk tokens, i int) {
 	selected := w.settingsTab == i
 	color := tk.MutedForeground
-	row := ui.Row(c).Height(30).FillWidth().Padding(0, 8, 0, 8).Gap(8).
-		Radius(chromeRadius).Cursor(ui.CursorPointer)
+	row := ui.ButtonBase(c).Height(30).FillWidth().Padding(0, 8, 0, 8).Gap(8).
+		Radius(chromeRadius).Justify(ui.Start).AlignItems(ui.Center).
+		Label(settingsTabs[i].title()).Role(ui.RoleTab).AccessSelected(selected)
 	switch {
 	case selected:
 		color = tk.Foreground
@@ -327,11 +330,11 @@ func (w *workspace) settingsTabRow(c *ui.Context, tk tokens, i int) {
 	}
 	row.OnClick(pick).Children(func() {
 		if src := iconSource(settingsTabs[i].icon, colorHex(color)); src != nil {
-			ui.Image(c, src).Width(15).Height(15).OnClick(pick)
+			ui.Image(c, src).Width(15).Height(15)
 		}
 		ui.Text(c, settingsTabs[i].title()).FontSize(13).FontWeight(300).
-			TextColor(color).OnClick(pick)
-		ui.Spacer(c).OnClick(pick)
+			TextColor(color)
+		ui.Spacer(c)
 	})
 }
 
@@ -960,7 +963,10 @@ type segment struct {
 // segmented is shadcn's segmented switch: a muted track sunk into the panel,
 // a raised card on the chosen side, as leaf's install switch has it.
 func (w *workspace) segmented(c *ui.Context, tk tokens, options []segment, selected string, pick func(string)) {
-	sunken(ui.Row(c).Height(30).Padding(2).Radius(8).Background(tk.Active).Gap(2), tk).
+	// The track is one tab stop and its options a radio group: Tab enters
+	// at the chosen one, the arrows move between them, and Enter chooses.
+	sunken(ui.Row(c).Height(30).Padding(2).Radius(8).Background(tk.Active).Gap(2).
+		FocusGroup(ui.Horizontal), tk).
 		Children(func() {
 			for _, opt := range options {
 				w.segmentButton(c, tk, opt, opt.value == selected, pick)
@@ -970,8 +976,8 @@ func (w *workspace) segmented(c *ui.Context, tk tokens, options []segment, selec
 
 func (w *workspace) segmentButton(c *ui.Context, tk tokens, opt segment, selected bool, pick func(string)) {
 	color := tk.MutedForeground
-	el := ui.Row(c).Height(26).Padding(0, 10, 0, 10).Radius(6).
-		Cursor(ui.CursorPointer)
+	el := ui.ButtonBase(c).Height(26).Padding(0, 10, 0, 10).Radius(6).
+		Label(opt.label).Role(ui.RoleRadio).AccessSelected(selected)
 	if selected {
 		color = tk.Foreground
 		el = lit(lifted(el.Background(tk.Raised), tk), tk)
@@ -985,7 +991,7 @@ func (w *workspace) segmentButton(c *ui.Context, tk tokens, opt segment, selecte
 	}
 	el.OnClick(choose).Children(func() {
 		ui.Text(c, opt.label).FontSize(12).FontWeight(500).
-			TextColor(color).OnClick(choose)
+			TextColor(color)
 	})
 }
 

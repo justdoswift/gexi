@@ -144,6 +144,46 @@ func (msgs Messages) MenuNextPane() string {
 	return Catalog.Format(msgs.locale, "menuNextPane", nil)
 }
 
+// MenuMovePaneLeft says "Move Pane Left"
+// in the language the app shows.
+func MenuMovePaneLeft() string { return In(i18n.Locale()).MenuMovePaneLeft() }
+
+// MenuMovePaneLeft says "Move Pane Left"
+// in the language of msgs.
+func (msgs Messages) MenuMovePaneLeft() string {
+	return Catalog.Format(msgs.locale, "menuMovePaneLeft", nil)
+}
+
+// MenuMovePaneRight says "Move Pane Right"
+// in the language the app shows.
+func MenuMovePaneRight() string { return In(i18n.Locale()).MenuMovePaneRight() }
+
+// MenuMovePaneRight says "Move Pane Right"
+// in the language of msgs.
+func (msgs Messages) MenuMovePaneRight() string {
+	return Catalog.Format(msgs.locale, "menuMovePaneRight", nil)
+}
+
+// MenuMovePaneUp says "Move Pane Up"
+// in the language the app shows.
+func MenuMovePaneUp() string { return In(i18n.Locale()).MenuMovePaneUp() }
+
+// MenuMovePaneUp says "Move Pane Up"
+// in the language of msgs.
+func (msgs Messages) MenuMovePaneUp() string {
+	return Catalog.Format(msgs.locale, "menuMovePaneUp", nil)
+}
+
+// MenuMovePaneDown says "Move Pane Down"
+// in the language the app shows.
+func MenuMovePaneDown() string { return In(i18n.Locale()).MenuMovePaneDown() }
+
+// MenuMovePaneDown says "Move Pane Down"
+// in the language of msgs.
+func (msgs Messages) MenuMovePaneDown() string {
+	return Catalog.Format(msgs.locale, "menuMovePaneDown", nil)
+}
+
 // MenuToggleSidebar says "Toggle Sidebar"
 // in the language the app shows.
 func MenuToggleSidebar() string { return In(i18n.Locale()).MenuToggleSidebar() }

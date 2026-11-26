@@ -106,6 +106,84 @@ func (w *workspace) movePane(dragged, target *pane, place paneDropPlace) {
 	w.scheduleSave()
 }
 
+// paneRects lays a session's panes out in a unit square, as the split view
+// draws them, so a keyboard move can find the pane beside another.
+func (n *splitNode) paneRects(x, y, w, h float32, out map[*pane]ui.Rect) {
+	if n == nil {
+		return
+	}
+	if n.isLeaf() {
+		out[n.pane] = ui.Rect{X: x, Y: y, W: w, H: h}
+		return
+	}
+	r := n.ratio / 100
+	if n.axis == axisHorizontal {
+		n.first.paneRects(x, y, w*r, h, out)
+		n.second.paneRects(x+w*r, y, w*(1-r), h, out)
+		return
+	}
+	n.first.paneRects(x, y, w, h*r, out)
+	n.second.paneRects(x, y+h*r, w, h*(1-r), out)
+}
+
+// swapPaneIn trades p with the nearest pane in the direction of dx or dy,
+// as Option-Cmd-arrow moves a pane between splits: the keyboard's way to
+// do what dragging a pane header does.
+func (w *workspace) swapPaneIn(p *pane, dx, dy int) bool {
+	s := w.sessionOf(p)
+	if s == nil || s.Root == nil {
+		return false
+	}
+	rects := map[*pane]ui.Rect{}
+	s.Root.paneRects(0, 0, 1, 1, rects)
+	r, ok := rects[p]
+	if !ok {
+		return false
+	}
+	cx, cy := r.X+r.W/2, r.Y+r.H/2
+	var best *pane
+	bestDist := float32(1e9)
+	for q, qr := range rects {
+		if q == p {
+			continue
+		}
+		qx, qy := qr.X+qr.W/2, qr.Y+qr.H/2
+		var along, across float32
+		if dx != 0 {
+			along = float32(dx) * (qx - cx)
+			across = qy - cy
+			if along <= 0.001 || abs32(across) > (r.H+qr.H)/2 {
+				continue
+			}
+		} else {
+			along = float32(dy) * (qy - cy)
+			across = qx - cx
+			if along <= 0.001 || abs32(across) > (r.W+qr.W)/2 {
+				continue
+			}
+		}
+		if d := along + abs32(across)*0.5; d < bestDist {
+			bestDist, best = d, q
+		}
+	}
+	if best == nil {
+		return false
+	}
+	s.Root = s.Root.swapping(p, best)
+	w.FocusedPane = p.ID
+	w.focusReq = p.ID
+	w.invalidate()
+	w.scheduleSave()
+	return true
+}
+
+func abs32(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 // A drop hint is the one blue in a neutral window, so it reads as an action
 // on either theme: dropAccent for its border and label, dropTint for the
 // wash over the slot the pane would take.

@@ -423,7 +423,10 @@ func (w *workspace) sidebar(c *ui.Context, tk tokens, width float32) {
 				//
 				// The right padding is the bar's: the rows end before it,
 				// where the selected row's fill no longer runs under it.
-				col := ui.Column(c).FillWidth().PaddingEnd(6).Gap(0)
+				// One tab stop for the list: Tab enters it, the arrows
+				// move between its rows, and Enter opens the row it is on,
+				// as the sidebar of a Finder window does.
+				col := ui.Column(c).FillWidth().PaddingEnd(6).Gap(0).FocusGroup(ui.Vertical)
 				// The list is at least as tall as its window, so the
 				// spacer below the projects still holds the idle fold at
 				// the bottom while everything fits.
@@ -531,10 +534,36 @@ func (w *workspace) closeSearch() {
 	w.invalidate()
 }
 
+// searchHit is one session the query finds, under the project it belongs to.
+type searchHit struct {
+	project *project
+	session *session
+}
+
+// searchHits lists what the query finds, in the order the box shows it.
+func (w *workspace) searchHits() []searchHit {
+	q := strings.ToLower(strings.TrimSpace(w.searchQuery))
+	var hits []searchHit
+	for _, pr := range w.allProjects() {
+		hit := strings.Contains(strings.ToLower(pr.name()), q) ||
+			strings.Contains(strings.ToLower(pr.Dir), q)
+		for _, s := range pr.Sessions {
+			if hit || strings.Contains(strings.ToLower(sessionLabel(s)), q) {
+				hits = append(hits, searchHit{project: pr, session: s})
+			}
+		}
+	}
+	return hits
+}
+
 // searchDialog is the search: one field over the middle of the window, and
 // under it the sessions the query finds, each under its project. Choosing one
 // opens it as its sidebar row would; Escape or a press outside the panel
 // closes the box.
+//
+// The field keeps the keyboard while Up, Down, Home and End move the choice
+// under it, as a combo box's do, and Return opens the choice: typing and
+// choosing are one motion, without reaching for the pointer.
 func (w *workspace) searchDialog(c *ui.Context, tk tokens) {
 	panel := ui.DialogBase(c, &w.searchOpen, func(back, panel ui.Element) {
 		// A light scrim: the list behind is what the query changes, so the
@@ -577,9 +606,39 @@ func (w *workspace) searchDialog(c *ui.Context, tk tokens) {
 						FontSize(14).FontWeight(300).FillWidth().AutoFocus()
 				})
 				ui.Box(c).Height(1).FillWidth().Background(tk.Border)
+				hits := w.searchHits()
+				if in.Changed() {
+					w.searchCursor = 0
+				}
+				if n := len(hits); n > 0 {
+					if w.searchCursor >= n {
+						w.searchCursor = n - 1
+					}
+					if w.searchCursor < 0 {
+						w.searchCursor = 0
+					}
+					switch {
+					case c.Shortcut(0, ui.KeyDown):
+						w.searchCursor = min(w.searchCursor+1, n-1)
+						w.invalidate()
+					case c.Shortcut(0, ui.KeyUp):
+						w.searchCursor = max(w.searchCursor-1, 0)
+						w.invalidate()
+					case c.Shortcut(0, ui.KeyHome):
+						w.searchCursor = 0
+						w.invalidate()
+					case c.Shortcut(0, ui.KeyEnd):
+						w.searchCursor = n - 1
+						w.invalidate()
+					}
+					if in.Submitted() {
+						w.selectSession(hits[w.searchCursor].session.ID)
+						w.closeSearch()
+					}
+				}
 				ui.Scroll(c).FillWidth().MaxHeight(360).Padding(6).
 					ScrollbarStyle(sidebarScrollbar).Children(func() {
-						w.searchResults(c, tk)
+						w.searchResults(c, tk, hits)
 					})
 			})
 		})
@@ -590,46 +649,40 @@ func (w *workspace) searchDialog(c *ui.Context, tk tokens) {
 }
 
 // searchResults lists what the query finds, the way the sidebar would: a
-// project's name over the sessions it holds. A project the query names shows
-// all of its sessions; one it does not shows only the sessions it matches.
-func (w *workspace) searchResults(c *ui.Context, tk tokens) {
-	q := strings.ToLower(strings.TrimSpace(w.searchQuery))
-	found := false
-	for _, pr := range w.allProjects() {
-		hit := strings.Contains(strings.ToLower(pr.name()), q) ||
-			strings.Contains(strings.ToLower(pr.Dir), q)
-		var rows []*session
-		for _, s := range pr.Sessions {
-			if hit || strings.Contains(strings.ToLower(sessionLabel(s)), q) {
-				rows = append(rows, s)
-			}
-		}
-		if len(rows) == 0 {
-			continue
-		}
-		found = true
-		ui.Text(c, pr.name()).FontSize(11).FontWeight(400).SingleLine().Shrink(1).
-			TextColor(tk.MutedForeground).Padding(6, 8, 2, 8)
-		for _, s := range rows {
-			w.searchResultRow(c, tk, s)
-		}
-	}
-	if !found {
+// project's name over the sessions it holds.
+func (w *workspace) searchResults(c *ui.Context, tk tokens, hits []searchHit) {
+	if len(hits) == 0 {
 		ui.Text(c, locales.SearchEmpty()).FontSize(13).TextColor(tk.MutedForeground).
 			Padding(10, 8, 10, 8)
+		return
+	}
+	for i, h := range hits {
+		if i == 0 || hits[i-1].project != h.project {
+			// The name of a group stands clear of the group above it, so the
+			// hits read as groups rather than one long column.
+			padTop := float32(3)
+			if i > 0 {
+				padTop = 12
+			}
+			ui.Text(c, h.project.name()).FontSize(11).FontWeight(400).SingleLine().Shrink(1).
+				TextColor(tk.MutedForeground).Padding(padTop, 8, 3, 8)
+		}
+		w.searchResultRow(c, tk, h.session, i == w.searchCursor)
 	}
 }
 
 // searchResultRow is one session the search found: the mark its sidebar row
-// wears, and its name. A press opens it, as that row's press would.
-func (w *workspace) searchResultRow(c *ui.Context, tk tokens, s *session) {
-	row := ui.Row(c).Height(32).FillWidth().AlignItems(ui.Center).Gap(8).
-		PaddingStart(8).PaddingEnd(8).Radius(chromeRadius).Cursor(ui.CursorPointer)
-	if row.Hovered() {
+// wears, and its name. A press or Return opens it, as that row's press would.
+func (w *workspace) searchResultRow(c *ui.Context, tk tokens, s *session, chosen bool) {
+	row := ui.ButtonBase(c).Height(32).FillWidth().Justify(ui.Start).AlignItems(ui.Center).Gap(8).
+		PaddingStart(10).PaddingEnd(10).Radius(sidebarRowRadius()).
+		MarginX(2).MarginY(2).
+		Label(sessionLabel(s)).Role(ui.RoleGroup).AccessSelected(chosen)
+	if chosen || row.Hovered() {
 		if liquid(c) {
 			row = rowSkin(row, c, tk)
 		} else {
-			row = row.Background(tk.Foreground.Alpha(0.045))
+			row = row.Background(tk.Foreground.Alpha(0.08))
 		}
 	}
 	pick := func() {
@@ -639,13 +692,13 @@ func (w *workspace) searchResultRow(c *ui.Context, tk tokens, s *session) {
 	row.OnClick(pick).Children(func() {
 		if agent := s.agent(); agent != nil {
 			if src := agentLogoSource(agent.Kind, tk); src != nil {
-				ui.Image(c, src).Width(14).Height(14).OnClick(pick)
+				ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
 			}
 		} else if src := iconSource("terminal", colorHex(tk.MutedForeground)); src != nil {
-			ui.Image(c, src).Width(14).Height(14).OnClick(pick)
+			ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
 		}
 		ui.Text(c, sessionLabel(s)).FontSize(sidebarRowFont).FontWeight(400).SingleLine().
-			TextColor(tk.Foreground).OnClick(pick)
+			TextColor(tk.Foreground)
 	})
 }
 
@@ -663,10 +716,11 @@ func (w *workspace) sidebarToggle(c *ui.Context, tk tokens) {
 // its own: the session card is the only thing that takes a surface.
 func (w *workspace) projectRow(c *ui.Context, tk tokens, pr *project) {
 	open := !w.collapsed[pr.ID] || strings.TrimSpace(w.searchQuery) != ""
-	row := ui.Row(c).Height(sidebarRowHeight).
+	row := ui.ButtonBase(c).Height(sidebarRowHeight).
 		Padding(0, sidebarRowEnd, 0, sidebarRowInset).Gap(sidebarRowGap).
 		Radius(sidebarRowRadius()).MarginX(2).MarginY(rowMarginY).
-		Border(1, ui.Transparent)
+		Border(1, ui.Transparent).Justify(ui.Start).AlignItems(ui.Center).
+		Label(pr.name()).Role(ui.RoleGroup).Expanded(open)
 	hovered := row.Hovered()
 	// The selected session's capsule marks where the work is; the project
 	// label above it stays a quiet section heading, as Rex's groups do.
@@ -793,10 +847,11 @@ func (w *workspace) remoteProjectRow(c *ui.Context, tk tokens, pr *project, g re
 	}
 	key := remoteGroupKey(pr.ID, g.project.ID)
 	open := !w.collapsed[key] || strings.TrimSpace(w.searchQuery) != ""
-	row := ui.Row(c).Height(sidebarRowHeight).
+	row := ui.ButtonBase(c).Height(sidebarRowHeight).
 		PaddingStart(sidebarRowInset + indent).PaddingEnd(sidebarRowEnd).Gap(sidebarRowGap).
 		Radius(sidebarRowRadius()).MarginX(2).MarginY(rowMarginY).
-		Border(1, ui.Transparent)
+		Border(1, ui.Transparent).Justify(ui.Start).AlignItems(ui.Center).
+		Label(g.project.Name).Role(ui.RoleGroup).Expanded(open)
 	hovered := row.Hovered()
 	color := groupLabelColor(tk)
 	if hovered {
@@ -854,10 +909,18 @@ func (w *workspace) sessionRow(c *ui.Context, tk tokens, pr *project, s *session
 	// On glass a session is a capsule, as Rex's chosen row is: the white sheet
 	// needs the softer end to read as a lifted piece of paper rather than a
 	// small rectangular card. With glass off it keeps the square-ish 6pt card.
-	row := ui.Row(c).Height(sidebarRowHeight).
+	row := ui.ButtonBase(c).Height(sidebarRowHeight).
 		PaddingStart(sidebarRowInset + indent + sidebarRowStep).PaddingEnd(sidebarRowEnd).Gap(sidebarRowGap).
 		Radius(sidebarRowRadius()).MarginX(2).MarginY(rowMarginY).
-		Border(1, ui.Transparent)
+		Border(1, ui.Transparent).Justify(ui.Start).AlignItems(ui.Center).
+		Label(sessionLabel(s)).Role(ui.RoleGroup).AccessSelected(sel)
+	if w.sidebarFocusReq == s.ID {
+		row = row.Focus()
+		w.sidebarFocusReq = ""
+	}
+	if row.Focused() {
+		w.sidebarFocus = s.ID
+	}
 	hovered := row.Hovered()
 	if sel || hovered {
 		color = tk.Foreground

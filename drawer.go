@@ -720,7 +720,7 @@ func (w *workspace) drawerResizer(c *ui.Context, tk tokens) {
 func (w *workspace) drawerHeader(c *ui.Context, tk tokens) {
 	d := &w.drawer
 	ui.Row(c).Height(headerHeight).Shrink(0).FillWidth().Padding(0, 6, 0, 6).
-		Gap(2).AlignItems(ui.Center).
+		Gap(2).AlignItems(ui.Center).FocusGroup(ui.Horizontal).
 		BorderWidth(0, 0, 1, 0).BorderColor(tk.Border).Children(func() {
 		count := ""
 		if n := len(d.listedChanges()); n > 0 {
@@ -744,15 +744,16 @@ func (w *workspace) drawerTab(c *ui.Context, tk tokens, label, count string, act
 	if active {
 		color = tk.Foreground
 	}
-	el := ui.Row(c).Height(headerHeight).Padding(0, 7, 0, 7).Gap(5).
-		AlignItems(ui.Center).Cursor(ui.CursorPointer)
+	el := ui.ButtonBase(c).Height(headerHeight).Padding(0, 7, 0, 7).Gap(5).
+		Justify(ui.Start).AlignItems(ui.Center).
+		Label(label).Role(ui.RoleTab).AccessSelected(active)
 	if !active && el.Hovered() {
 		color = tk.Foreground
 	}
 	el.OnClick(pick).Children(func() {
-		ui.Text(c, label).FontSize(12).FontWeight(500).TextColor(color).OnClick(pick)
+		ui.Text(c, label).FontSize(12).FontWeight(500).TextColor(color)
 		if count != "" {
-			ui.Text(c, count).FontSize(10.5).TextColor(tk.MutedForeground).OnClick(pick)
+			ui.Text(c, count).FontSize(10.5).TextColor(tk.MutedForeground)
 		}
 		if active {
 			ui.Box(c).Absolute().Left(7).Right(7).Bottom(0).Height(2).
@@ -869,7 +870,7 @@ func (w *workspace) drawerChanges(c *ui.Context, tk tokens) {
 		return
 	}
 	root := filepath.Base(d.dir)
-	ui.Column(c).Fill().Children(func() {
+	ui.Column(c).Fill().FocusGroup(ui.Vertical).Children(func() {
 		ui.Scroll(c).Fill().Padding(4, 6, 10, 6).
 			ScrollbarStyle(sidebarScrollbar).Children(func() {
 			for _, g := range groupChanges(files) {
@@ -942,8 +943,9 @@ func (w *workspace) drawerGroupLabel(c *ui.Context, tk tokens, label string) {
 // lines, aligned at the right so the column can be read down.
 func (w *workspace) drawerChangeRow(c *ui.Context, tk tokens, f changedFile) {
 	pick := func() { w.openChange(f) }
-	row := ui.Row(c).FillWidth().Height(30).Padding(0, 8, 0, 8).Gap(8).
-		Radius(chromeRadius).Cursor(ui.CursorPointer)
+	row := ui.ButtonBase(c).FillWidth().Height(30).Padding(0, 8, 0, 8).Gap(8).
+		Radius(chromeRadius).Justify(ui.Start).AlignItems(ui.Center).
+		Label(f.name()).Role(ui.RoleGroup)
 	if row.Hovered() {
 		if liquid(c) {
 			row = rowSkin(row, c, tk)
@@ -1060,7 +1062,7 @@ func (w *workspace) drawerFiles(c *ui.Context, tk tokens) {
 	if dir == "" {
 		return
 	}
-	ui.Scroll(c).Fill().Padding(6, 6, 6, 6).
+	ui.Scroll(c).Fill().FocusGroup(ui.Vertical).Padding(6, 6, 6, 6).
 		ScrollbarStyle(sidebarScrollbar).Children(func() {
 		w.drawerTree(c, tk, dir, "", 0)
 	})
@@ -1099,8 +1101,9 @@ func fileIconName(name string) string {
 func (w *workspace) drawerTree(c *ui.Context, tk tokens, dir, rel string, depth int) {
 	for _, e := range w.drawerEntries(dir, rel) {
 		e := e
-		row := ui.Row(c).FillWidth().Height(30).PaddingStart(8 + float32(depth)*12).
-			PaddingEnd(8).Gap(6).Radius(chromeRadius).Cursor(ui.CursorPointer)
+		row := ui.ButtonBase(c).FillWidth().Height(30).PaddingStart(8 + float32(depth)*12).
+			PaddingEnd(8).Gap(6).Radius(chromeRadius).Justify(ui.Start).AlignItems(ui.Center).
+			Label(e.name).Role(ui.RoleGroup)
 		if row.Hovered() {
 			if liquid(c) {
 				row = rowSkin(row, c, tk)
@@ -1114,20 +1117,26 @@ func (w *workspace) drawerTree(c *ui.Context, tk tokens, dir, rel string, depth 
 				w.drawer.expanded[e.path] = !open
 				w.invalidate()
 			}
+			row = row.Expanded(open)
+			// Right opens the folder and Left closes it, as a tree's arrows
+			// do; Up and Down move between rows through the focus group.
+			if row.Shortcut(0, ui.KeyRight) && !open || row.Shortcut(0, ui.KeyLeft) && open {
+				toggle()
+			}
 			row.OnClick(toggle).Children(func() {
 				name := "chevron-right"
 				if open {
 					name = "chevron-down"
 				}
 				if src := iconSource(name, colorHex(tk.MutedForeground)); src != nil {
-					ui.Image(c, src).Width(13).Height(13).OnClick(toggle)
+					ui.Image(c, src).Width(13).Height(13)
 				}
 				if src := iconSource("folder", colorHex(tk.MutedForeground)); src != nil {
 					ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
 				}
 				ui.Text(c, e.name).FontSize(12).SingleLine().
-					TextColor(tk.Foreground).OnClick(toggle)
-				ui.Spacer(c).OnClick(toggle)
+					TextColor(tk.Foreground)
+				ui.Spacer(c)
 			})
 			if open {
 				// The rows open under the folder, in the same scroll view.
@@ -1140,13 +1149,13 @@ func (w *workspace) drawerTree(c *ui.Context, tk tokens, dir, rel string, depth 
 			// A file leaves the arrow's room empty and wears its own mark,
 			// so every name starts at one edge. A Box, not a Spacer: a
 			// Spacer would grow and push the name to the middle.
-			ui.Box(c).Width(13).OnClick(pick)
+			ui.Box(c).Width(13)
 			if src := iconSource(fileIconName(e.name), colorHex(tk.MutedForeground)); src != nil {
-				ui.Image(c, src).Width(14).Height(14).IgnoreInput(true).OnClick(pick)
+				ui.Image(c, src).Width(14).Height(14).IgnoreInput(true)
 			}
 			ui.Text(c, e.name).FontSize(12).SingleLine().
-				TextColor(tk.Foreground).OnClick(pick)
-			ui.Spacer(c).OnClick(pick)
+				TextColor(tk.Foreground)
+			ui.Spacer(c)
 		})
 	}
 }

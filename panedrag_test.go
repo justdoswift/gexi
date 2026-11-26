@@ -8,6 +8,34 @@ import (
 	"github.com/justdoswift/gexi/locales"
 )
 
+// TestSwapPaneInTradesNeighbours: the keyboard moves a pane the way a drag
+// does, trading it with the nearest pane on that side and leaving it alone
+// when there is none.
+func TestSwapPaneInTradesNeighbours(t *testing.T) {
+	left := &pane{ID: "left"}
+	right := &pane{ID: "right"}
+	s := &session{ID: "s", Root: &splitNode{
+		axis: axisHorizontal, ratio: 50,
+		first: leaf(left), second: leaf(right),
+	}}
+	pr := &project{ID: "pr", Sessions: []*session{s}}
+	w := &workspace{Projects: []*project{pr}}
+
+	if w.swapPaneIn(left, -1, 0) {
+		t.Fatal("the left pane found a neighbour to its left")
+	}
+	if !w.swapPaneIn(left, 1, 0) {
+		t.Fatal("the left pane found no neighbour to its right")
+	}
+	if got := s.Root.panes(); got[0] != right || got[1] != left {
+		t.Fatalf("after moving right: %v, %v", got[0].ID, got[1].ID)
+	}
+	// The pane moved, and kept the focus with it.
+	if w.FocusedPane != left.ID {
+		t.Fatalf("focused pane = %q, want %q", w.FocusedPane, left.ID)
+	}
+}
+
 func TestPaneDropPlaceAt(t *testing.T) {
 	const w, h = 400, 300
 	cases := []struct {

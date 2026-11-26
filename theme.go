@@ -135,14 +135,12 @@ const (
 // session: one rule for the whole column, so a header and a row under it read
 // as the same kind of thing.
 //
-// On glass a row is a capsule, as Rex's chosen row is: the sheet needs the
-// softer end to read as a lifted piece of paper rather than a small
-// rectangular card. With glass off it keeps the square-ish chrome radius.
+// A row is a capsule, on the glass chrome and off it: the softer end is what
+// makes a chosen row read as a lifted piece of paper rather than a small
+// rectangular card, and the two appearances should not disagree about the
+// shape of the same list.
 func sidebarRowRadius() float32 {
-	if glassChrome() {
-		return rowHeightPx / 2
-	}
-	return chromeRadius
+	return rowHeightPx / 2
 }
 
 // panePadX and panePadY are the terminal's inset inside a pane card. They are

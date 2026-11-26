@@ -450,9 +450,11 @@ func iconButtonSized(c *ui.Context, tk tokens, name string, size, glyph float32,
 	// answers the pointer. It eases in and out, so the glyph does not flash.
 	el = hoverWash(c, el, tk)
 	el = pressFeedback(el)
-	el = el.OnClick(action)
+	// A button, not just a picture: it takes the keyboard focus, Enter and
+	// Space press it, and assistive technology reads the hint as its name.
+	el = el.OnClick(action).Focusable().Role(ui.RoleButton)
 	if len(hint) > 0 && hint[0] != "" {
-		el = el.Tooltip(hint[0])
+		el = el.Tooltip(hint[0]).Label(hint[0])
 	}
 	el.Children(func() {
 		if src := iconSource(name, colorHex(tk.MutedForeground)); src != nil {

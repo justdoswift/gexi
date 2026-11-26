@@ -198,6 +198,13 @@ func mainMenu(w *workspace) *mygo.Menu {
 			_, _ = w.splitPane(p, ax, nil, "")
 		}
 	}
+	movePane := func(dx, dy int) func(*mygo.MenuItem, *mygo.Window) {
+		return func(*mygo.MenuItem, *mygo.Window) {
+			if p, err := w.resolvePane(""); err == nil {
+				w.swapPaneIn(p, dx, dy)
+			}
+		}
+	}
 	// A session needs a project: the one being worked in, or a folder the
 	// user picks when there is none.
 	newSession := func(*mygo.MenuItem, *mygo.Window) {
@@ -244,6 +251,13 @@ func mainMenu(w *workspace) *mygo.Menu {
 			mygo.Separator(),
 			{Label: locales.MenuPreviousPane(), Accelerator: "CmdOrCtrl+[", Click: func(*mygo.MenuItem, *mygo.Window) { w.cyclePane(-1) }},
 			{Label: locales.MenuNextPane(), Accelerator: "CmdOrCtrl+]", Click: func(*mygo.MenuItem, *mygo.Window) { w.cyclePane(1) }},
+			mygo.Separator(),
+			// The keyboard's way to move a pane between splits, which a
+			// drag does with the pointer.
+			{Label: locales.MenuMovePaneLeft(), Accelerator: "CmdOrCtrl+Ctrl+Left", Click: movePane(-1, 0)},
+			{Label: locales.MenuMovePaneRight(), Accelerator: "CmdOrCtrl+Ctrl+Right", Click: movePane(1, 0)},
+			{Label: locales.MenuMovePaneUp(), Accelerator: "CmdOrCtrl+Ctrl+Up", Click: movePane(0, -1)},
+			{Label: locales.MenuMovePaneDown(), Accelerator: "CmdOrCtrl+Ctrl+Down", Click: movePane(0, 1)},
 			mygo.Separator(),
 			{Label: locales.MenuToggleSidebar(), Accelerator: "CmdOrCtrl+B", Click: func(*mygo.MenuItem, *mygo.Window) {
 				w.settings.SidebarCollapsed = !w.settings.SidebarCollapsed

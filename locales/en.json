@@ -11,6 +11,10 @@
   "menuZoomPane": "Zoom Pane",
   "menuPreviousPane": "Previous Pane",
   "menuNextPane": "Next Pane",
+  "menuMovePaneLeft": "Move Pane Left",
+  "menuMovePaneRight": "Move Pane Right",
+  "menuMovePaneUp": "Move Pane Up",
+  "menuMovePaneDown": "Move Pane Down",
   "menuToggleSidebar": "Toggle Sidebar",
   "menuSettings": "Settings",
   "menuLanguage": "Language",
@@ -307,7 +311,10 @@
   "@drawerFileCount": {
     "description": "The drawer's foot, counting the files its list holds.",
     "placeholders": {
-      "count": { "type": "int", "example": "7" }
+      "count": {
+        "type": "int",
+        "example": "7"
+      }
     }
   },
   "drawerNotRepo": "This folder is not a Git repository.",

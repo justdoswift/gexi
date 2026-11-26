@@ -29,6 +29,12 @@ func (w *workspace) putSessionAway(s *session, archive bool) bool {
 	if pr == nil {
 		return false
 	}
+	// A row that leaves with the keyboard focus hands it to its neighbour,
+	// rather than letting it fall to the window.
+	if w.sidebarFocus == s.ID {
+		w.sidebarFocusReq = w.neighborSession(s.ID)
+		w.sidebarFocus = ""
+	}
 	rec := storedSessionFor(s, pr)
 	for _, p := range s.Root.panes() {
 		w.saveSnapshot(p)
@@ -50,6 +56,29 @@ func (w *workspace) putSessionAway(s *session, archive bool) bool {
 	w.invalidate()
 	w.invalidateSettings()
 	return true
+}
+
+// neighborSession names the session beside id in the sidebar: the one after
+// it, else the one before. It is where the focus goes when id's row leaves.
+func (w *workspace) neighborSession(id string) string {
+	var ids []string
+	for _, pr := range w.allProjects() {
+		for _, s := range pr.Sessions {
+			ids = append(ids, s.ID)
+		}
+	}
+	for i, sid := range ids {
+		if sid != id {
+			continue
+		}
+		if i+1 < len(ids) {
+			return ids[i+1]
+		}
+		if i > 0 {
+			return ids[i-1]
+		}
+	}
+	return ""
 }
 
 // storedSessionFor freezes everything opening the session again needs.
