@@ -1997,8 +1997,8 @@ func (w *workspace) confirmArchiveWorktree(p *pane) {
 }
 
 // archiveWorktreeDialog asks about one worktree: the branch it keeps and the
-// files that go with the folder. The consequences are separate lines rather
-// than one paragraph, so the destructive ones can carry the danger colour.
+// files that go with the folder. The body is one line; the destructive
+// consequences that are not obvious carry the danger colour.
 func (w *workspace) archiveWorktreeDialog(c *ui.Context, tk tokens) {
 	p := w.archiveTarget
 	if p == nil {
@@ -2008,8 +2008,6 @@ func (w *workspace) archiveWorktreeDialog(c *ui.Context, tk tokens) {
 		dialogHeading(c, tk, locales.WorktreeArchiveTitle(), w.archiveBranch)
 		dialogBody(c, func() {
 			ui.Text(c, locales.WorktreeArchiveBody()).
-				FontSize(13).TextColor(tk.MutedForeground).Width(0).MinWidthPercent(100)
-			ui.Text(c, locales.WorktreeArchiveKeep()).
 				FontSize(13).TextColor(tk.MutedForeground).Width(0).MinWidthPercent(100)
 			if w.archiveDirty {
 				dialogWarning(c, tk, locales.WorktreeArchiveDirty())
