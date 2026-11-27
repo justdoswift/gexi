@@ -172,6 +172,26 @@ func TestStagePaneSwapsTheStage(t *testing.T) {
 	}
 }
 
+// TestStageMoveEnds: the pane keeps the plain ease only while the move from
+// its card runs, and a finished move leaves nothing behind.
+func TestStageMoveEnds(t *testing.T) {
+	p := &pane{}
+	if p.stageMoving() {
+		t.Fatal("a pane moves before it was handed the stage")
+	}
+	p.stageMovingAt = time.Now()
+	if !p.stageMoving() {
+		t.Fatal("a move that has just started reads as finished")
+	}
+	p.stageMovingAt = time.Now().Add(-paneMotion - time.Second)
+	if p.stageMoving() {
+		t.Fatal("a finished move keeps the pane's ease")
+	}
+	if !p.stageMovingAt.IsZero() {
+		t.Fatal("a finished move was not cleared")
+	}
+}
+
 // TestStageSwapHoldsTheRailPreviews: while a pane moves between the stage
 // and its card, the rail's previews stand still. A preview that pushes a
 // frame has its card paint a whole terminal grid on that frame, and the

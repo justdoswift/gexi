@@ -1499,18 +1499,23 @@ func (w *workspace) paneView(c *ui.Context, tk tokens, p *pane, leading bool) {
 		} else if p.stageEnter {
 			// A card clicked forward grows from its card's size and place
 			// into the stage; the pane it replaces shrinks back into the
-			// rail the same way.
+			// rail the same way. It moves and scales, and does not fade: a
+			// fade renders the whole terminal into a layer of its own on
+			// every frame of the move, which a window this large cannot
+			// afford for a motion that starts at a card's size.
 			p.stageEnter = false
-			pose = ui.Pose{Scale: 0.22, X: w.stageCardOffset(), Fade: 1}
+			p.stageMovingAt = time.Now()
+			pose = ui.Pose{Scale: 0.22, X: w.stageCardOffset()}
 			c.After(time.Millisecond)
 		}
 		// A pane arrives and leaves on a spring: a split opens a slot that did
 		// not exist a frame ago, and a close collapses one, so the card should
 		// settle into its place as something with weight rather than fade in
 		// over a layout that already jumped. The stage's own move keeps the
-		// plain ease — it is a scale into a card, not a slot opening.
+		// plain ease — it is a scale into a card, not a slot opening, and a
+		// whole terminal that overshoots and settles back reads as a stutter.
 		poseAnim := paneSpring
-		if p.stageEnter {
+		if p.stageMoving() {
 			poseAnim = ui.Animation{Duration: paneMotion, Ease: ui.EaseOut}
 		}
 		col = col.AnimatePose(pose, poseAnim)

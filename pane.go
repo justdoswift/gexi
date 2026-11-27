@@ -314,8 +314,13 @@ type pane struct {
 	// is laid out at the card's size.
 	cellW, cellH float32
 	// stageEnter asks the next frame to bring this pane onto the stage with
-	// a grow and fade, as a card comes forward.
-	stageEnter bool
+	// a grow and fade, as a card comes forward. stageMovingAt is when that
+	// move started, so every frame it runs keeps the plain ease rather than
+	// the bouncy spring a card opening takes: a whole terminal growing out
+	// of a card that overshoots and settles back reads as a stutter.
+	stageEnter    bool
+	stageMovingAt time.Time
+
 	// stageCardShown is false until a rail card has drawn once, so a card
 	// that has just joined the rail animates in.
 	stageCardShown bool
@@ -365,6 +370,20 @@ type pane struct {
 	// terminal is fed by that host's stream, and its actions go back over
 	// the link.
 	remote *remotePaneLink
+}
+
+// stageMoving reports whether the pane is still on its way from a rail card
+// to the stage. The move keeps the plain ease while it runs, and a move that
+// has run its course leaves the pane on the spring its openings use.
+func (p *pane) stageMoving() bool {
+	if p.stageMovingAt.IsZero() {
+		return false
+	}
+	if time.Since(p.stageMovingAt) > paneMotion+60*time.Millisecond {
+		p.stageMovingAt = time.Time{}
+		return false
+	}
+	return true
 }
 
 // paneSubagent is one Task/Agent call running under the pane's agent. Type is
