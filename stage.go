@@ -248,12 +248,20 @@ func (w *workspace) syncStageMirrors() {
 }
 
 func (w *workspace) startStageMirror(p *pane) {
-	if p == nil || p.term == nil || p.stageMirror != nil {
+	if p == nil || p.term == nil {
 		return
 	}
 	cols, rows := p.term.Size()
 	if cols <= 0 || rows <= 0 {
 		return
+	}
+	// A mirror frames the screen at the size it was made for; a pane the
+	// stage's grid moved takes a fresh one.
+	if sm := p.stageMirror; sm != nil {
+		if sc, sr := sm.sink.Size(); sc == cols && sr == rows {
+			return
+		}
+		w.stopStageMirror(p)
 	}
 	conn := newMirrorConn()
 	lightTheme, darkTheme := w.terminalThemes()
@@ -352,6 +360,64 @@ func (sm *stageMirror) render(force bool) {
 	// tick, once the screen carries it.
 	if !busy {
 		sm.lastOut, sm.lastCols, sm.lastRows = out, cols, rows
+	}
+}
+
+// stageGrid is what a pane's terminal is given: its columns and rows, and a
+// cell's size in DIPs.
+type stageGrid [4]int
+
+// stageFitState is what the stage's grid was last, when it was first seen at
+// that value, and whether the rail's panes already have it.
+type stageFitState struct {
+	grid stageGrid
+	at   time.Time
+	done bool
+}
+
+// stageFitWait is how long the stage's grid must hold still before the rail's
+// panes are moved to it: a zoom finds the stage's size over a frame or two,
+// and a window being dragged changes it every frame.
+const stageFitWait = 150 * time.Millisecond
+
+// fitRailToStage gives the panes the rail hides the stage's grid. A pane that
+// comes forward is then already the size the stage lays it out at, and the
+// program in it neither reflows nor redraws its whole screen at the moment
+// its card moves — which is what a full-screen agent caught mid-frame.
+func (w *workspace) fitRailToStage(c *ui.Context, s *session, stage *pane) {
+	if s == nil || s.Root == nil || stage == nil || stage.term == nil || stage.viewW <= 0 {
+		return
+	}
+	cols, rows := stage.term.Size()
+	if cols <= 0 || rows <= 0 {
+		return
+	}
+	g := stageGrid{cols, rows, int(w.paneCellW), int(w.paneCellH)}
+	// A stage still finding its size is not one to move the rail to.
+	if g != w.stageFit.grid {
+		w.stageFit.grid, w.stageFit.at, w.stageFit.done = g, time.Now(), false
+		c.After(stageFitWait)
+		return
+	}
+	if w.stageFit.done || w.stageFit.at.IsZero() || time.Since(w.stageFit.at) < stageFitWait {
+		return
+	}
+	w.stageFit.done = true
+	moved := false
+	for _, p := range s.Root.panes() {
+		if p == stage || p.term == nil || p.remote != nil {
+			continue
+		}
+		if pc, pr := p.term.Size(); pc == cols && pr == rows {
+			continue
+		}
+		p.term.ResizePixels(cols, rows, g[2], g[3])
+		moved = true
+	}
+	if moved {
+		// A mirror draws at its pane's size, so the ones that moved get a
+		// mirror made again.
+		w.syncStageMirrors()
 	}
 }
 

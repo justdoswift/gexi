@@ -138,6 +138,11 @@ type workspace struct {
 	// paint the whole terminal grid on that frame, and the motion stutters.
 	// The previews resume at once, with the pane's current screen.
 	stageHoldUntil atomic.Int64
+	// stageFit is the grid the rail's panes were last moved to, when it was
+	// first seen, and whether they already have it: a pane comes forward at
+	// the stage's own size, so its program neither reflows nor redraws while
+	// its card moves.
+	stageFit stageFitState
 	// sidebarListH is the sidebar list's last layout height. The list's
 	// content is at least that tall, which keeps the idle fold at the
 	// list's bottom until the list outgrows the window and scrolls.
@@ -1164,7 +1169,9 @@ func (w *workspace) selectSession(id string) {
 	}
 	w.SelectedSession = s.ID
 	// The session keeps the pane it was zoomed to: switching away in the
-	// sidebar and back shows the same stage, its rail included.
+	// sidebar and back shows the same stage, its rail included. Its rail's
+	// panes look at the new stage's grid afresh.
+	w.stageFit = stageFitState{}
 	w.stageRailShown = false
 	w.syncStageMirrors()
 	w.syncRemoteMirrors()
@@ -1287,6 +1294,9 @@ func (w *workspace) toggleZoom(p *pane) {
 		w.focusReq = p.ID
 		w.stageRailShown = false
 	}
+	// A zoom changes the stage's grid; the rail's panes are moved to it
+	// once the stage has settled.
+	w.stageFit = stageFitState{}
 	w.holdStagePreviews()
 	w.syncStageMirrors()
 	// Only the pane on stage keeps its stream running.

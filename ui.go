@@ -343,8 +343,15 @@ func (w *workspace) canvas(c *ui.Context, tk tokens) {
 		// stage keeps its size and the cards draw over its last columns.
 		b := stage.LayoutBounds()
 		w.stageW = b.W
-		if w.zoomedIn(tb) != nil && w.stageRailVisible(tb) {
-			w.stageOverlay(c, tk, tb, b.H)
+		if stagePane := w.zoomedIn(tb); stagePane != nil {
+			// The rail's panes take the stage's grid, so a card clicked
+			// forward opens a program that is already at that size, rather
+			// than one that resizes and redraws its whole screen while the
+			// card moves.
+			w.fitRailToStage(c, tb, stagePane)
+			if w.stageRailVisible(tb) {
+				w.stageOverlay(c, tk, tb, b.H)
+			}
 		}
 		return
 	}
