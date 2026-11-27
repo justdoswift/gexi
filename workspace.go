@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -131,6 +132,12 @@ type workspace struct {
 	// stageW is the stage's last layout width; a narrow stage leaves the
 	// rail off rather than cover most of the terminal with it.
 	stageW float32
+	// stageHoldUntil is when the rail's previews may feed their terminals
+	// again after the stage moves: while a pane grows out of its card or
+	// shrinks back into one, a preview that pushes a frame makes its card
+	// paint the whole terminal grid on that frame, and the motion stutters.
+	// The previews resume at once, with the pane's current screen.
+	stageHoldUntil atomic.Int64
 	// sidebarListH is the sidebar list's last layout height. The list's
 	// content is at least that tall, which keeps the idle fold at the
 	// list's bottom until the list outgrows the window and scrolls.
@@ -1280,6 +1287,7 @@ func (w *workspace) toggleZoom(p *pane) {
 		w.focusReq = p.ID
 		w.stageRailShown = false
 	}
+	w.holdStagePreviews()
 	w.syncStageMirrors()
 	// Only the pane on stage keeps its stream running.
 	w.syncRemoteMirrors()

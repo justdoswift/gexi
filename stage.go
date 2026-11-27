@@ -29,6 +29,10 @@ const (
 	stageCardRadius  float32 = 12
 	stageCardHeaderH float32 = 26
 	stageMirrorFPS           = 12
+	// stageHoldFor is how long the rail's previews stand still after the
+	// stage moves, covering the longest of the two moves (a pane growing
+	// out of its card, the one it replaces shrinking back).
+	stageHoldFor = 280 * time.Millisecond
 )
 
 // stageCardSpring is how a card takes the pointer and how one arrives: the
@@ -46,6 +50,11 @@ type stageMirror struct {
 	conn   *mirrorConn
 	mirror *terminal.Mirror
 	stop   chan struct{}
+	// w is the workspace whose stage hold pauses this preview, and held
+	// tells that the last tick was one, so the first tick after it renders
+	// the pane's screen even when its output did not move meanwhile.
+	w    *workspace
+	held bool
 	// pane is the mirrored pane, and lastOut/lastCols/lastRows what the
 	// last frame saw of it: a frame is rendered only when the output byte
 	// count or the size moved, and a quiet pane costs the pump nothing.
@@ -189,8 +198,25 @@ func (w *workspace) showPane(p *pane) bool {
 	if p.shown {
 		p.stageEnter = true
 	}
+	w.holdStagePreviews()
 	w.syncStageMirrors()
 	return true
+}
+
+// holdStagePreviews keeps the rail's previews from feeding their terminals
+// while the stage moves. A preview that pushes a frame has its card paint
+// the whole terminal grid on that frame, and a card doing that mid-move
+// costs the animation the frames it needs to stay smooth. The previews
+// stand still for stageHoldFor and then show the pane's current screen.
+func (w *workspace) holdStagePreviews() {
+	w.stageHoldUntil.Store(time.Now().Add(stageHoldFor).UnixNano())
+}
+
+// stagePreviewsHeld reports whether the rail's previews should stand still
+// now.
+func (w *workspace) stagePreviewsHeld() bool {
+	until := w.stageHoldUntil.Load()
+	return until != 0 && time.Now().UnixNano() < until
 }
 
 // syncStageMirrors starts a live preview for every pane in the rail and
@@ -254,7 +280,7 @@ func (w *workspace) startStageMirror(p *pane) {
 		_ = sink.Close()
 		return
 	}
-	sm := &stageMirror{sink: sink, conn: conn, mirror: m, stop: make(chan struct{}), pane: p}
+	sm := &stageMirror{sink: sink, conn: conn, mirror: m, stop: make(chan struct{}), pane: p, w: w}
 	p.stageMirror = sm
 	go sm.pump()
 }
@@ -274,6 +300,10 @@ func (w *workspace) stopStageMirror(p *pane) {
 // pump keeps a preview current at a thumbnail's pace. A pane's output may
 // change many times a frame; the rail needs the shape of it, not every byte.
 func (sm *stageMirror) pump() {
+	// The card starts with the pane's screen rather than the folder name: a
+	// pane comes back to the rail while it is still being looked at, and
+	// the stage hold that follows does not take this frame away.
+	sm.render(true)
 	ticker := time.NewTicker(time.Second / stageMirrorFPS)
 	defer ticker.Stop()
 	for {
@@ -281,30 +311,47 @@ func (sm *stageMirror) pump() {
 		case <-sm.stop:
 			return
 		case <-ticker.C:
-			// Frames walk the whole screen, so skip the ones nothing
-			// would change: remote panes report no byte count and render
-			// every tick as before.
-			out, busy := int64(-1), false
-			if p := sm.pane; p != nil && p.conn != nil {
-				out, busy = p.conn.outputState()
-			}
-			cols, rows := 0, 0
-			if p := sm.pane; p != nil && p.term != nil {
-				cols, rows = p.term.Size()
-			}
-			if out >= 0 && !busy && out == sm.lastOut && cols == sm.lastCols && rows == sm.lastRows {
+			// While the stage moves, a preview's frame would have its card
+			// paint the whole terminal grid on that frame, which the motion
+			// cannot afford: the preview stands still and catches up after.
+			if sm.w != nil && sm.w.stagePreviewsHeld() {
+				sm.held = true
 				continue
 			}
-			if frame, _ := sm.mirror.Frame(); len(frame) > 0 {
-				sm.conn.push(frame)
-			}
-			// A count the terminal has not caught up with is no mark of
-			// what the frame showed: leaving lastOut alone renders the
-			// chunk again next tick, once the screen carries it.
-			if !busy {
-				sm.lastOut, sm.lastCols, sm.lastRows = out, cols, rows
-			}
+			// The first tick after a hold renders even a quiet pane, whose
+			// screen may have changed into what the last frame showed.
+			force := sm.held
+			sm.held = false
+			sm.render(force)
 		}
+	}
+}
+
+// render draws the pane's screen into the preview: one frame of the mirror,
+// pushed to the sink. force asks for it even when the pane's output has not
+// moved since the last frame.
+func (sm *stageMirror) render(force bool) {
+	// Frames walk the whole screen, so skip the ones nothing would change:
+	// remote panes report no byte count and render every tick as before.
+	out, busy := int64(-1), false
+	if p := sm.pane; p != nil && p.conn != nil {
+		out, busy = p.conn.outputState()
+	}
+	cols, rows := 0, 0
+	if p := sm.pane; p != nil && p.term != nil {
+		cols, rows = p.term.Size()
+	}
+	if !force && out >= 0 && !busy && out == sm.lastOut && cols == sm.lastCols && rows == sm.lastRows {
+		return
+	}
+	if frame, _ := sm.mirror.Frame(); len(frame) > 0 {
+		sm.conn.push(frame)
+	}
+	// A count the terminal has not caught up with is no mark of what the
+	// frame showed: leaving lastOut alone renders the chunk again next
+	// tick, once the screen carries it.
+	if !busy {
+		sm.lastOut, sm.lastCols, sm.lastRows = out, cols, rows
 	}
 }
 

@@ -172,6 +172,50 @@ func TestStagePaneSwapsTheStage(t *testing.T) {
 	}
 }
 
+// TestStageSwapHoldsTheRailPreviews: while a pane moves between the stage
+// and its card, the rail's previews stand still. A preview that pushes a
+// frame has its card paint a whole terminal grid on that frame, and the
+// move cannot afford that on every frame of it.
+func TestStageSwapHoldsTheRailPreviews(t *testing.T) {
+	a, b := &pane{ID: "a"}, &pane{ID: "b"}
+	s := &session{ID: "s", Root: &splitNode{
+		axis: axisHorizontal, ratio: 50, first: leaf(a), second: leaf(b),
+	}}
+	s.zoomedPane = "a"
+	w := &workspace{
+		Projects:    []*project{{Sessions: []*session{s}}},
+		FocusedPane: "a",
+	}
+
+	if w.stagePreviewsHeld() {
+		t.Fatal("previews held with no move under way")
+	}
+	w.showPane(b)
+	if !w.stagePreviewsHeld() {
+		t.Fatal("previews keep feeding the rail while the stage moves")
+	}
+	// The hold is a window in time, not a switch.
+	w.stageHoldUntil.Store(0)
+	if w.stagePreviewsHeld() {
+		t.Fatal("previews stay held after the move")
+	}
+}
+
+// TestZoomHoldsTheRailPreviews: zooming changes the stage's size and
+// settles it with the same kind of move, so it holds the previews too.
+func TestZoomHoldsTheRailPreviews(t *testing.T) {
+	a, b := &pane{ID: "a"}, &pane{ID: "b"}
+	s := &session{ID: "s", Root: &splitNode{
+		axis: axisHorizontal, ratio: 50, first: leaf(a), second: leaf(b),
+	}}
+	w := &workspace{Projects: []*project{{Sessions: []*session{s}}}}
+
+	w.toggleZoom(b)
+	if !w.stagePreviewsHeld() {
+		t.Fatal("previews keep feeding the rail while the zoom settles")
+	}
+}
+
 // TestStageRailHidesUnderTheDrawer: both live on the right edge, and the
 // drawer is the one that covers it.
 func TestStageRailHidesUnderTheDrawer(t *testing.T) {
